@@ -207,14 +207,24 @@ export default function App(){
   async function saveMud(list){
     setMudancas(list);
     setSyncStatus("🔄 Salvando...");
-    try { await dbUpsert("mudancas", list); setSyncStatus("✅ Sincronizado"); }
-    catch(e){ setSyncStatus("⚠️ Erro ao salvar"); }
+    try {
+      for(const m of list){
+        const row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false};
+        await fetch(`${SUPA_URL}/rest/v1/mudancas`,{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify([row])});
+      }
+      setSyncStatus("✅ Sinc");
+    } catch(e){ setSyncStatus("⚠️ Erro"); }
   }
   async function saveAg(list){
     setAgenda(list);
     setSyncStatus("🔄 Salvando...");
-    try { await dbUpsert("agenda", list); setSyncStatus("✅ Sincronizado"); }
-    catch(e){ setSyncStatus("⚠️ Erro ao salvar"); }
+    try {
+      for(const a of list){
+        const row={id:a.id,nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado"};
+        await fetch(`${SUPA_URL}/rest/v1/agenda`,{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify([row])});
+      }
+      setSyncStatus("✅ Sinc");
+    } catch(e){ setSyncStatus("⚠️ Erro"); }
   }
 
   // ── MUDANÇAS CRUD ──────────────────────────────────────────────────────────
