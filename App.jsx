@@ -308,7 +308,29 @@ export default function App(){
   }
 
   // ── PDF SEMANA ─────────────────────────────────────────────────────────────
-  function gerarPDFSemana(sw,sr){
+  function gerarPDFMudancas(){
+    if(!rel) return;
+    const periodo=rel.ini||rel.fim?`${rel.ini?fmtDate(rel.ini):"início"} a ${rel.fim?fmtDate(rel.fim):"hoje"}`:"Todo o período";
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TELEMIM — Mudanças Realizadas</title><style>${pdfCSS}</style></head><body>
+    <div class="page">
+      <div class="header"><div class="header-top"><div><div class="logo">🚛 TELEMIM</div><div class="subtitle">Mudanças Realizadas</div></div><div class="header-meta"><div>CONTRATO: PROMORAR</div><div>Gerado: ${new Date().toLocaleDateString("pt-BR")}</div></div></div><div style="margin-top:8px;font-size:12px;color:#e67e22;font-weight:700">📅 ${periodo}</div></div>
+      <div class="body">
+        <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+          <div class="stat"><div class="stat-val">${rel.lista.length}</div><div class="stat-label">Mudanças</div></div>
+          <div class="stat"><div class="stat-val">${rel.m3} m³</div><div class="stat-label">Total m³</div></div>
+          <div class="stat"><div class="stat-val">${rel.vd}</div><div class="stat-label">Dias c/ Van</div></div>
+        </div>
+        <div class="section"><div class="section-title title-mud">📋 Relação de Mudanças (${rel.lista.length})</div>
+        <table><tr class="hrow"><td>#</td><td>Beneficiário</td><td>Selo</td><td>Comunidade</td><td>Data</td><td>m³</td><td>Van</td></tr>
+        ${rel.lista.map((m,i)=>`<tr style="background:${i%2===0?"#fff":"#fafafa"}"><td>${i+1}</td><td>${m.nome}</td><td>${m.selo||"—"}</td><td>${m.comunidade||"—"}</td><td>${fmtDate(m.data)}</td><td class="green">${m.medicao}</td><td>${m.van?"✅":"—"}</td></tr>`).join("")}
+        <tr class="total"><td colspan="5">TOTAL</td><td class="green">${rel.m3} m³</td><td>${rel.vd} dias</td></tr></table></div>
+      </div>
+      <div class="footer"><div class="footer-logo">🚛 TELEMIM</div><div class="footer-info">Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}</div></div>
+    </div></body></html>`;
+    abrirPDF(html,`TELEMIM-Mudancas-${periodo.replace(/\//g,"-")}`);
+  }
+
+    function gerarPDFSemana(sw,sr){
     const corLucro=sr.liq>=0?"#16a34a":"#dc2626";
     const bgLucro=sr.liq>=0?"linear-gradient(135deg,#f0fdf4,#dcfce7)":"linear-gradient(135deg,#fef2f2,#fee2e2)";
     const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TELEMIM — Relatório Semanal ${sw.label}</title><style>${pdfCSS}</style></head><body>
@@ -659,7 +681,17 @@ export default function App(){
           <div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:13}}>
               <div style={{fontSize:16,fontWeight:900,color:COLORS.text}}>📅 Mudanças Agendadas</div>
-              <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button>
+              <div style={{display:"flex",gap:7}}>
+                {mudancasHoje.length>0&&(
+                  <button onClick={()=>{
+                    const lista=agendaOrdenada.filter(a=>a.data===hoje);
+                    const linhas=lista.map(a=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return `👤 *${a.nome}*\n🏷️ ${a.selo||"—"} · ⏰ ${a.horario||"—"}h\n📦 ${a.origem||"—"}\n🏠 ${a.destino||"—"}\n🚗 ${v||"—"}${a.contato?`\n📞 ${a.contato}`:""}`;});
+                    const txt=`🚛 *TELEMIM — MUDANÇAS DE HOJE*\n📅 ${new Date().toLocaleDateString("pt-BR")}\n━━━━━━━━━━━━━━━━━\n${linhas.join("\n━━━━━━━━━━━━━━━━━\n")}\n━━━━━━━━━━━━━━━━━\n_${lista.length} mudança${lista.length!==1?"s":""} hoje_`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`,"_blank");
+                  }} style={{background:"#dcfce7",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📲 Hoje ({mudancasHoje.length})</button>
+                )}
+                <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button>
+              </div>
             </div>
             {proximas.length>0&&(
               <div style={{marginBottom:16}}>
@@ -897,9 +929,10 @@ export default function App(){
                     </div>
                   ))}
                 </Card>
-                <div style={{display:"flex",gap:8,marginTop:11}}>
-                  <button onClick={()=>compartilharRelatorio(rel,rel.ini||rel.fim?`${rel.ini?fmtDate(rel.ini):"início"} a ${rel.fim?fmtDate(rel.fim):"hoje"}`:"Todo o período")} style={{flex:1,padding:"13px",borderRadius:12,border:"2px solid #25D366",background:"#25D36615",color:"#16a34a",fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📲 WhatsApp</button>
-                  <button onClick={gerarPDFGeral} style={{flex:1,padding:"13px",borderRadius:12,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📄 Exportar PDF</button>
+                <div style={{display:"flex",gap:8,marginTop:11,flexWrap:"wrap"}}>
+                  <button onClick={()=>compartilharRelatorio(rel,rel.ini||rel.fim?`${rel.ini?fmtDate(rel.ini):"início"} a ${rel.fim?fmtDate(rel.fim):"hoje"}`:"Todo o período")} style={{flex:1,minWidth:"120px",padding:"11px",borderRadius:12,border:"2px solid #25D366",background:"#25D36615",color:"#16a34a",fontWeight:900,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>📲 WhatsApp</button>
+                  <button onClick={gerarPDFGeral} style={{flex:1,minWidth:"120px",padding:"11px",borderRadius:12,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>📊 Financeiro</button>
+                  <button onClick={gerarPDFMudancas} style={{flex:1,minWidth:"120px",padding:"11px",borderRadius:12,border:`2px solid ${COLORS.blue}`,background:COLORS.blue+"15",color:COLORS.blue,fontWeight:900,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>📋 Mudanças</button>
                 </div>
               </>
             )}
