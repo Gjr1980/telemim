@@ -919,6 +919,19 @@ export default function App(){
                   }} style={{background:"#eff6ff",border:"1.5px solid #2563eb",color:"#2563eb",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Dia</button>
                   </>
                 )}
+                <button onClick={()=>{
+                  const hj=new Date().toISOString().split("T")[0];
+                  const diasFut=[...new Set(agendaOrdenada.filter(a=>a.data>=hj&&a.status!=="realizado").map(m=>m.data))].sort();
+                  if(!diasFut.length){alert("Nenhuma mudança agendada!");return;}
+                  const proxDia=diasFut[0];
+                  const lista=agendaOrdenada.filter(a=>a.data===proxDia&&a.status!=="realizado");
+                  const nDia=["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"][new Date(proxDia+"T12:00:00").getDay()];
+                  const linhas=lista.map((a,i)=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return (i+1)+". *"+a.nome+"*\n🏷️ "+a.selo+" · ⏰ "+(a.horario||"—")+"h\n📍 "+(a.comunidade||"—")+"\n📦 "+(a.origem||"—")+"\n🏠 "+(a.destino||"—")+"\n🚗 "+(v||"—")+(a.contato?"\n📞 "+a.contato:"")+(a.medicao?"\n📐 "+a.medicao+" m³":"");});
+                  const isHoje=proxDia===hj;
+                  const dtFmt=new Date(proxDia+"T12:00:00").toLocaleDateString("pt-BR");
+                  const txt="📋 *RELATÓRIO DE MUDANÇAS*\n📅 "+nDia+", "+dtFmt+(isHoje?" (HOJE)":"")+"\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *"+lista.length+" mudança"+(lista.length!==1?"s":"")+" · "+nDia+"*\n🚐 "+lista.filter(a=>a.van).length+" c/ van  🚚 "+lista.filter(a=>a.caminhao).length+" c/ caminhão\n_TELEMIM · PROMORAR_";
+                  window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
+                }} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Mudança do Dia</button>
                 <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button>
               </div>
             </div>
