@@ -176,8 +176,8 @@ export default function App(){
   },[]);
 
   // ── SYNC HELPERS ───────────────────────────────────────────────────────────
-  async function saveCustoDia(data, ajudantes, custo_almoco){
-    const row = { id: parseInt(data.replace(/-/g,'')), data, ajudantes: parseInt(ajudantes)||0, custo_almoco: parseFloat(custo_almoco)||0 };
+  async function saveCustoDia(data, ajudantes, custo_almoco, pago_van=false, pago_caminhao=false, pago_ajudante=false, pago_almoco=false){
+    const row = { id: parseInt(data.replace(/-/g,'')), data, ajudantes: parseInt(ajudantes)||0, custo_almoco: parseFloat(custo_almoco)||0, pago_van, pago_caminhao, pago_ajudante, pago_almoco };
     setCustosDiarios(prev => {
       const ex = prev.find(x=>x.data===data);
       return ex ? prev.map(x=>x.data===data?row:x) : [...prev,row];
@@ -1217,17 +1217,7 @@ export default function App(){
                         <div style={{display:"flex",gap:5,alignItems:"center"}}><Badge color={COLORS.green}>{m.medicao} m³</Badge>{m.van&&<Badge color={COLORS.blue}>🚐</Badge>}</div>
                       </div>
                     ))}
-                  </Card>
-                  <Card style={{marginBottom:11,border:`1px solid ${COLORS.accent}22`}}>
-                    <div style={{fontSize:12,fontWeight:800,color:COLORS.accent,marginBottom:8}}>📊 Acumulado Geral</div>
-                    {(()=>{
-                      const total=calcRel(mudancas,relAj,relAlm);
-                      return [["Total de Mudanças",mudancas.length,COLORS.text],["Total m³",total.m3+" m³",COLORS.blue],["Fat. Bruto Acumulado",fmt(total.bruto),COLORS.accent],["Lucro Líquido Acumulado",fmt(total.liq),total.liq>=0?COLORS.green:COLORS.red]].map(([l,v,c])=>(
-                        <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${COLORS.cardBorder}`,fontSize:12}}><span style={{color:COLORS.muted}}>{l}</span><span style={{fontWeight:800,color:c}}>{v}</span></div>
-                      ));
-                    })()}
-                  </Card>
-                  <div style={{display:"flex",gap:8,marginTop:4}}>
+                  </Card>                  <div style={{display:"flex",gap:8,marginTop:4}}>
                     <button onClick={()=>compartilharRelatorio(sr,sw.label)} style={{flex:1,padding:"13px",borderRadius:12,border:"2px solid #25D366",background:"#25D36615",color:"#16a34a",fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📲 WhatsApp</button>
                     <button onClick={()=>gerarPDFSemana(sw,sr)} style={{flex:1,padding:"13px",borderRadius:12,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📄 Exportar PDF</button>
                   </div>
@@ -1327,6 +1317,20 @@ export default function App(){
                     <button onClick={()=>envWpp(tipo)} style={{width:"100%",marginTop:8,padding:"9px",borderRadius:9,border:"1.5px solid "+color,background:color+"15",color,fontWeight:800,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
                       📲 WhatsApp {label}
                     </button>
+                    {(()=>{
+                      const pagoField=tipo==="van"?"pago_van":tipo==="caminhao"?"pago_caminhao":tipo==="ajudante"?"pago_ajudante":"pago_almoco";
+                      const isPago=cSem.some(cx=>cx&&cx[pagoField]);
+                      return(
+                        <button onClick={async ()=>{
+                          for(const d of dias){
+                            const cx=cSem.find(x=>x.data===d)||{ajudantes:0,custo_almoco:0,pago_van:false,pago_caminhao:false,pago_ajudante:false,pago_almoco:false};
+                            await saveCustoDia(d,cx.ajudantes||0,cx.custo_almoco||0,pagoField==="pago_van"?!isPago:cx.pago_van,pagoField==="pago_caminhao"?!isPago:cx.pago_caminhao,pagoField==="pago_ajudante"?!isPago:cx.pago_ajudante,pagoField==="pago_almoco"?!isPago:cx.pago_almoco);
+                          }
+                        }} style={{width:"100%",marginTop:6,padding:"9px",borderRadius:9,border:isPago?"2px solid #16a34a":"2px dashed #9ca3af",background:isPago?"#dcfce7":"#f9fafb",color:isPago?"#16a34a":"#6b7280",fontWeight:800,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                          {isPago?"✅ PAGO — Clique p/ desfazer":"💳 Marcar como Pago"}
+                        </button>
+                      );
+                    })()}
                   </>
                 ):<div style={{color:COLORS.muted,fontSize:11,fontStyle:"italic",marginTop:4}}>Sem registros nesta semana</div>}
               </Card>
