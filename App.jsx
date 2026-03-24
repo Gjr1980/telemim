@@ -1,4 +1,4 @@
-// TELEMIM v2.0 - Sistema de Usuarios
+// TELEMIM v2.0 - Sistema de Usuarios - deploy 1774384644597
 import { useState, useEffect } from "react";
 
 // ── SUPABASE CONFIG ──────────────────────────────────────────────────────────
