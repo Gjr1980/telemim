@@ -127,7 +127,7 @@ function Tog({label,value,onChange}){
 }
 
 export default function App(){
-  const [tab,setTab]=useState("lista");
+  const [tab,setTab]=useState("inicio");
   const [mudancas,setMudancas]=useState([]);
   const [agenda,setAgenda]=useState([]);
   const [custosDiarios,setCustosDiarios]=useState([]);
@@ -144,6 +144,7 @@ export default function App(){
   const [expand,setExpand]=useState(null);
   const [search,setSearch]=useState("");
   const [editMud,setEditMud]=useState(null);
+  const [convertModal,setConvertModal]=useState(null);
   const [editAg,setEditAg]=useState(null);
   const [syncStatus,setSyncStatus]=useState("✅ Sincronizado");
 
@@ -241,6 +242,17 @@ export default function App(){
     const updated=agenda.map(a=>a.id===ag.id?{...a,status:"realizado"}:a);
     await saveAg(updated);
     setFlash("✅ Convertido!"); setTimeout(()=>setFlash(""),2000); setTab("lista");
+  }
+
+  async function confirmarConversao(ag, medicao){
+    if(!medicao){ alert("Informe a medição em m³!"); return; }
+    const nova = { id: Date.now(), nome:ag.nome, selo:ag.selo||"", comunidade:ag.comunidade||"", data:ag.data, origem:ag.origem||"", destino:ag.destino||"", medicao:parseFloat(medicao)||0, van:ag.van||false };
+    await saveMud([...mudancas, nova]);
+    const updated = agenda.map(a => a.id===ag.id ? {...a,status:"realizado"} : a);
+    await saveAg(updated);
+    setConvertModal(null);
+    setTab("lista");
+    setFlash("✅ Mudança registrada!"); setTimeout(()=>setFlash(""),2000);
   }
 
   async function toggleStatus(id){
@@ -719,6 +731,71 @@ export default function App(){
                   ))}
                 </div>
               </Card>
+            </div>
+          );
+        })()}
+
+        {/* ══ DASHBOARD / INÍCIO ══ */}
+        {tab==="inicio"&&(()=>{
+          const hoje=new Date().toISOString().split("T")[0];
+          const getM=(offset)=>new Date(new Date().getFullYear(),new Date().getMonth()+offset,1).toISOString().substring(0,7);
+          const meses=[getM(-3),getM(-2),getM(-1),getM(0)];
+          const nomeMes=(ym)=>{const [y,m]=ym.split("-");return ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][parseInt(m)-1]+"/"+y.slice(2);};
+          const sM=(ym)=>{const l=mudancas.filter(m=>m.data.startsWith(ym));const vd=[...new Set(l.filter(m=>m.van).map(m=>m.data))].length;const m3=l.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);const b=m3*150+vd*1000;return {n:l.length,m3,b,l:b-b*0.16-vd*400-l.length*350};};
+          const atual=sM(getM(0));
+          const am=new Date(new Date().getTime()+86400000).toISOString().split("T")[0];
+          const mudHoje=agendaOrdenada.filter(a=>a.data===hoje&&a.status!=="realizado");
+          const mudAmanha=agendaOrdenada.filter(a=>a.data===am&&a.status!=="realizado");
+          const semMed=agenda.filter(a=>a.status==="realizado"&&!a.medicao);
+          const semVeic=proximas.filter(a=>!a.van&&!a.caminhao);
+          const maxB=Math.max(...meses.map(m=>sM(m).b),1);
+          return(
+            <div>
+              <div style={{fontSize:16,fontWeight:900,color:COLORS.text,marginBottom:14}}>🏠 Visão Geral — {nomeMes(getM(0))}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                {[{icon:"📦",label:"Mudanças",val:atual.n,color:COLORS.accent},{icon:"📐",label:"Total m³",val:atual.m3+" m³",color:COLORS.blue},{icon:"💵",label:"Faturamento",val:fmt(atual.b),color:COLORS.green},{icon:"💰",label:"Lucro Líq.",val:fmt(atual.l),color:atual.l>=0?COLORS.green:COLORS.red}].map(s=>(
+                  <Card key={s.label} style={{padding:"13px 14px",border:"1.5px solid "+s.color+"22"}}>
+                    <div style={{fontSize:20,marginBottom:4}}>{s.icon}</div>
+                    <div style={{fontWeight:900,fontSize:15,color:s.color}}>{s.val}</div>
+                    <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>{s.label}</div>
+                  </Card>
+                ))}
+              </div>
+              <Card style={{marginBottom:14}}>
+                <div style={{fontSize:13,fontWeight:800,color:COLORS.text,marginBottom:14}}>📊 Faturamento — Últimos 4 Meses</div>
+                <div style={{display:"flex",gap:8,alignItems:"flex-end",height:100}}>
+                  {meses.map(m=>{const s=sM(m);const pct=maxB>0?(s.b/maxB)*80:0;const isCur=m===getM(0);return(
+                    <div key={m} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                      <div style={{fontSize:9,fontWeight:700,color:isCur?COLORS.accent:COLORS.muted,textAlign:"center"}}>{s.b>0?fmt(s.b):""}</div>
+                      <div style={{width:"100%",background:isCur?COLORS.accent:COLORS.blue+"55",borderRadius:"6px 6px 0 0",height:Math.max(pct,4)+"%"}}/>
+                      <div style={{fontSize:10,fontWeight:700,color:isCur?COLORS.accent:COLORS.muted}}>{nomeMes(m)}</div>
+                    </div>
+                  );})}
+                </div>
+              </Card>
+              {mudHoje.length>0&&<Card style={{marginBottom:10,border:"1.5px solid #16a34a44",background:"#f0fdf4"}}>
+                <div style={{fontWeight:900,fontSize:13,color:COLORS.green,marginBottom:8}}>🔔 Hoje — {mudHoje.length} mudança{mudHoje.length!==1?"s":""}</div>
+                {mudHoje.map(a=><div key={a.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #dcfce7",fontSize:12}}>
+                  <div><div style={{fontWeight:700}}>{a.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>{a.horario?"⏰ "+a.horario+"h · ":""}{a.comunidade||""}</div></div>
+                  <div style={{display:"flex",gap:4}}>{a.van&&<Badge color={COLORS.blue}>🚐</Badge>}{a.caminhao&&<Badge color={COLORS.accent}>🚚</Badge>}</div>
+                </div>)}
+              </Card>}
+              {mudAmanha.length>0&&<Card style={{marginBottom:10,border:"1.5px solid "+COLORS.accent+"44",background:"#fff7ed"}}>
+                <div style={{fontWeight:900,fontSize:13,color:COLORS.accent,marginBottom:8}}>⚠️ Amanhã — {mudAmanha.length} mudança{mudAmanha.length!==1?"s":""}</div>
+                {mudAmanha.map(a=><div key={a.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #ffedd5",fontSize:12}}>
+                  <div style={{fontWeight:700}}>{a.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>{a.horario?"⏰ "+a.horario+"h":""}</div>
+                </div>)}
+              </Card>}
+              {(semMed.length>0||semVeic.length>0)&&<Card style={{marginBottom:10,border:"1.5px solid "+COLORS.red+"33",background:"#fef2f2"}}>
+                <div style={{fontWeight:900,fontSize:13,color:COLORS.red,marginBottom:8}}>⚠️ Pendências</div>
+                {semMed.length>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #fee2e2",fontSize:12,cursor:"pointer"}} onClick={()=>setTab("agenda")}><span style={{color:COLORS.muted}}>📐 Sem medição registrada</span><Badge color={COLORS.red}>{semMed.length}</Badge></div>}
+                {semVeic.length>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:12,cursor:"pointer"}} onClick={()=>setTab("agenda")}><span style={{color:COLORS.muted}}>🚗 Sem veículo definido</span><Badge color={COLORS.accent}>{semVeic.length}</Badge></div>}
+              </Card>}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                {[{label:"➕ Nova",t:"novo",c:COLORS.accent},{label:"📅 Agendar",t:"novaAgenda",c:COLORS.purple},{label:"📊 Relatório",t:"relatorio",c:COLORS.green}].map(({label,t,c})=>(
+                  <button key={t} onClick={()=>setTab(t)} style={{padding:"11px 4px",borderRadius:11,border:"1.5px solid "+c+"33",background:c+"10",color:c,fontWeight:800,fontSize:11,cursor:"pointer"}}>{label}</button>
+                ))}
+              </div>
             </div>
           );
         })()}
@@ -1248,6 +1325,34 @@ export default function App(){
           </div>
         );
       })()}
+
+            {/* ══ MODAL CONVERTER AGENDAMENTO ══ */}
+      {convertModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 16px"}} onClick={()=>setConvertModal(null)}>
+          <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:400,boxShadow:"0 8px 40px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:16,fontWeight:900,color:COLORS.green,marginBottom:4}}>✅ Registrar Mudança</div>
+            <div style={{fontSize:12,color:COLORS.muted,marginBottom:14}}>Agendamento de <strong>{convertModal.nome}</strong></div>
+            <div style={{background:"#f8fafc",borderRadius:10,padding:"10px 12px",marginBottom:14,fontSize:12,lineHeight:1.9}}>
+              <div>📅 <strong>{fmtDate(convertModal.data)}</strong> {convertModal.horario?"⏰ "+convertModal.horario+"h":""}</div>
+              <div>📍 {convertModal.comunidade||"—"}</div>
+              <div>📦 {convertModal.origem||"—"}</div>
+              <div>🏠 {convertModal.destino||"—"}</div>
+              <div>🚐 Van: {convertModal.van?"✅":"—"} | 🚚 Cam.: {convertModal.caminhao?"✅":"—"}</div>
+            </div>
+            <div style={{marginBottom:16}}>
+              <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:6,textTransform:"uppercase"}}>📐 Medição em m³ *</label>
+              <input type="number" placeholder="Ex: 27" autoFocus
+                value={convertModal._medicao||""}
+                onChange={e=>setConvertModal(p=>({...p,_medicao:e.target.value}))}
+                style={{width:"100%",background:"#f8fafc",border:"1.5px solid "+COLORS.accent,borderRadius:10,color:COLORS.text,padding:"12px 14px",fontSize:16,outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setConvertModal(null)} style={{flex:1,padding:12,borderRadius:12,border:"1px solid "+COLORS.cardBorder,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
+              <button onClick={()=>confirmarConversao(convertModal,convertModal._medicao)} style={{flex:2,padding:12,borderRadius:12,border:"none",background:COLORS.green,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>✅ Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
             {/* ══ MODAL EDITAR MUDANÇA ══ */}
       {editMud&&(
