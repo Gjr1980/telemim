@@ -21,6 +21,24 @@ async function dbDelete(table, id) {
   await fetch(`${SUPA_URL}/rest/v1/${table}?id=eq.${id}`, { method: "DELETE", headers: HEADERS });
 }
 
+// ── CUSTOS DIÁRIOS ───────────────────────────────────────────────────────────
+async function dbGetCustos() {
+  const r = await fetch(`${SUPA_URL}/rest/v1/custos_diarios?select=*&order=data`, { headers: HEADERS });
+  if (!r.ok) return [];
+  return r.json();
+}
+async function dbUpsertCusto(row) {
+  await fetch(`${SUPA_URL}/rest/v1/custos_diarios`, {
+    method: "POST",
+    headers: { ...HEADERS, "Prefer": "resolution=merge-duplicates" },
+    body: JSON.stringify([row]),
+  });
+}
+const FORNECEDORES = {
+  van:      { tel: "5581998993669" },
+  caminhao: { tel: "5581986590302" },
+};
+
 // ── THEME & RULES ─────────────────────────────────────────────────────────────
 const COLORS = {
   bg:"#f0f4f8", card:"#ffffff", cardBorder:"#e2e8f0",
@@ -112,6 +130,7 @@ export default function App(){
   const [tab,setTab]=useState("lista");
   const [mudancas,setMudancas]=useState([]);
   const [agenda,setAgenda]=useState([]);
+  const [custosDiarios,setCustosDiarios]=useState([]);
   const [form,setForm]=useState(initForm);
   const [agForm,setAgForm]=useState({...initForm,status:"confirmado"});
   const [rel,setRel]=useState(null);
@@ -141,8 +160,10 @@ export default function App(){
           await dbUpsert("agenda", AGENDA_INICIAIS);
           aRows = AGENDA_INICIAIS;
         }
+        let cRows = await dbGetCustos();
         setMudancas(mRows);
         setAgenda(aRows);
+        setCustosDiarios(cRows);
       } catch(e){
         setMudancas(DADOS_INICIAIS);
         setAgenda(AGENDA_INICIAIS);
@@ -154,6 +175,15 @@ export default function App(){
   },[]);
 
   // ── SYNC HELPERS ───────────────────────────────────────────────────────────
+  async function saveCustoDia(data, ajudantes, custo_almoco){
+    const row = { id: parseInt(data.replace(/-/g,'')), data, ajudantes: parseInt(ajudantes)||0, custo_almoco: parseFloat(custo_almoco)||0 };
+    setCustosDiarios(prev => {
+      const ex = prev.find(x=>x.data===data);
+      return ex ? prev.map(x=>x.data===data?row:x) : [...prev,row];
+    });
+    await dbUpsertCusto(row);
+  }
+
   async function saveMud(list){
     setMudancas(list);
     setSyncStatus("🔄 Salvando...");
@@ -1027,7 +1057,103 @@ export default function App(){
         )}
       </div>
 
-      {/* ══ MODAL EDITAR MUDANÇA ══ */}
+
+      {/* ══ CONTAS A PAGAR ══ */}
+      {tab==="semana"&&semanas[semanaIdx]&&(()=>{
+        const sw=semanas[semanaIdx];
+        const dias=[...new Set(sw.items.map(m=>m.data))].sort();
+        const cSem=custosDiarios.filter(cx=>dias.includes(cx.data));
+        const vDias=[...new Set(sw.items.filter(m=>m.van).map(m=>m.data))].length;
+        const tVan=vDias*400, tCam=sw.items.length*350;
+        const tAj=cSem.reduce((s,cx)=>s+(parseInt(cx.ajudantes)||0),0)*80;
+        const tAlm=cSem.reduce((s,cx)=>s+(parseFloat(cx.custo_almoco)||0),0);
+        const tTotal=tVan+tCam+tAj+tAlm;
+        const envWpp=(tipo)=>{
+          const lbl=sw.label;
+          if(tipo==="van"){
+            const ls=dias.map(d=>{const n=sw.items.filter(m=>m.data===d&&m.van).length;return n?"📆 "+fmtDate(d)+" → "+n+" mud. → R$ 400,00":null;}).filter(Boolean);
+            if(!ls.length){alert("Nenhuma mudança com van nesta semana.");return;}
+            window.open("https://wa.me/"+FORNECEDORES.van.tel+"?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO VAN*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n🚐 "+vDias+" dia"+(vDias!==1?"s":"")+" × R$ 400,00\n💰 *TOTAL: R$ "+tVan.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
+          } else if(tipo==="caminhao"){
+            const ls=dias.map(d=>{const n=sw.items.filter(m=>m.data===d).length;if(!n)return null;return "📆 "+fmtDate(d)+" → "+n+" mud. → R$ "+(n*350).toLocaleString("pt-BR",{minimumFractionDigits:2});}).filter(Boolean);
+            window.open("https://wa.me/"+FORNECEDORES.caminhao.tel+"?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO CAMINHÃO*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n🚚 "+sw.items.length+" mud. × R$ 350,00\n💰 *TOTAL: R$ "+tCam.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
+          } else if(tipo==="ajudante"){
+            const ls=dias.map(d=>{const cx=cSem.find(x=>x.data===d);const aj=parseInt(cx?.ajudantes)||0;if(!aj)return null;return "📆 "+fmtDate(d)+" → "+aj+" aj. → R$ "+(aj*80).toLocaleString("pt-BR",{minimumFractionDigits:2});}).filter(Boolean);
+            if(!ls.length){alert("Nenhum ajudante registrado.");return;}
+            const tot=cSem.reduce((s,cx)=>s+(parseInt(cx.ajudantes)||0),0);
+            window.open("https://wa.me/?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO AJUDANTES*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n👷 "+tot+" diárias × R$ 80,00\n💰 *TOTAL: R$ "+tAj.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
+          } else if(tipo==="almoco"){
+            const ls=dias.map(d=>{const cx=cSem.find(x=>x.data===d);const v=parseFloat(cx?.custo_almoco)||0;return v?"📆 "+fmtDate(d)+" → R$ "+v.toLocaleString("pt-BR",{minimumFractionDigits:2}):null;}).filter(Boolean);
+            if(!ls.length){alert("Nenhum almoço registrado.");return;}
+            window.open("https://wa.me/?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO ALMOÇO*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n💰 *TOTAL: R$ "+tAlm.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
+          }
+        };
+        const cards=[
+          {tipo:"van",icon:"🚐",label:"Van",color:COLORS.blue,total:tVan,linhas:dias.map(d=>{const n=sw.items.filter(m=>m.data===d&&m.van).length;return n?{d,qt:n+" mud.",val:400}:null;}).filter(Boolean)},
+          {tipo:"caminhao",icon:"🚚",label:"Caminhão",color:COLORS.accent,total:tCam,linhas:dias.map(d=>{const n=sw.items.filter(m=>m.data===d).length;return n?{d,qt:n+" mud.",val:n*350}:null;}).filter(Boolean)},
+          {tipo:"ajudante",icon:"👷",label:"Ajudantes",color:COLORS.green,total:tAj,linhas:dias.map(d=>{const cx=cSem.find(x=>x.data===d);const aj=parseInt(cx?.ajudantes)||0;return aj?{d,qt:aj+" aj.",val:aj*80}:null;}).filter(Boolean)},
+          {tipo:"almoco",icon:"🍽️",label:"Almoço",color:COLORS.purple,total:tAlm,linhas:dias.map(d=>{const cx=cSem.find(x=>x.data===d);const v=parseFloat(cx?.custo_almoco)||0;return v?{d,qt:"",val:v}:null;}).filter(Boolean)},
+        ];
+        return(
+          <div style={{maxWidth:640,margin:"0 auto",padding:"12px 12px 0"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:15,fontWeight:900,color:COLORS.text}}>💳 Contas a Pagar</div>
+              <Badge color={COLORS.red}>Total: {fmt(tTotal)}</Badge>
+            </div>
+            <Card style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:800,color:COLORS.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>📝 Lançar Custos por Dia</div>
+              {dias.map(d=>{
+                const cx=cSem.find(x=>x.data===d)||{ajudantes:0,custo_almoco:0};
+                return(
+                  <div key={d} style={{display:"grid",gridTemplateColumns:"auto 1fr 1fr",gap:8,marginBottom:8,alignItems:"center"}}>
+                    <div style={{background:"#fff7ed",borderRadius:8,padding:"5px 9px",fontSize:11,fontWeight:700,color:COLORS.accent,whiteSpace:"nowrap"}}>📅 {fmtDate(d)}</div>
+                    <div>
+                      <label style={{display:"block",fontSize:9,color:COLORS.muted,fontWeight:700,marginBottom:2,textTransform:"uppercase"}}>👷 Ajudantes</label>
+                      <input type="number" min="0" placeholder="0" defaultValue={cx.ajudantes||""}
+                        onBlur={e=>saveCustoDia(d,e.target.value,cx.custo_almoco)}
+                        style={{width:"100%",background:"#fff",border:"1.5px solid "+COLORS.cardBorder,borderRadius:7,color:COLORS.text,padding:"5px 7px",fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <div>
+                      <label style={{display:"block",fontSize:9,color:COLORS.muted,fontWeight:700,marginBottom:2,textTransform:"uppercase"}}>🍽️ Almoço R$</label>
+                      <input type="number" min="0" placeholder="0" defaultValue={cx.custo_almoco||""}
+                        onBlur={e=>saveCustoDia(d,cx.ajudantes,e.target.value)}
+                        style={{width:"100%",background:"#fff",border:"1.5px solid "+COLORS.cardBorder,borderRadius:7,color:COLORS.text,padding:"5px 7px",fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+            {cards.map(({tipo,icon,label,color,total,linhas})=>(
+              <Card key={tipo} style={{marginBottom:10,border:"1.5px solid "+color+"22"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:linhas.length?8:0}}>
+                  <div style={{fontWeight:800,fontSize:13,color}}>{icon} {label}{(tipo==="van"||tipo==="caminhao")&&<span style={{fontSize:10,color:COLORS.muted,fontWeight:400,marginLeft:6}}>{tipo==="van"?"("+FORNECEDORES.van.tel.slice(4)+")":"("+FORNECEDORES.caminhao.tel.slice(4)+")"}</span>}</div>
+                  <Badge color={color}>{fmt(total)}</Badge>
+                </div>
+                {linhas.length>0?(
+                  <>
+                    {linhas.map(({d,qt,val})=>(
+                      <div key={d} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid "+COLORS.cardBorder,fontSize:12}}>
+                        <span style={{color:COLORS.muted}}>📅 {fmtDate(d)}{qt?" · "+qt:""}</span>
+                        <span style={{fontWeight:700,color}}>{fmt(val)}</span>
+                      </div>
+                    ))}
+                    <button onClick={()=>envWpp(tipo)} style={{width:"100%",marginTop:8,padding:"9px",borderRadius:9,border:"1.5px solid "+color,background:color+"15",color,fontWeight:800,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                      📲 WhatsApp {label}
+                    </button>
+                  </>
+                ):<div style={{color:COLORS.muted,fontSize:11,fontStyle:"italic",marginTop:4}}>Sem registros nesta semana</div>}
+              </Card>
+            ))}
+            <Card style={{background:"linear-gradient(135deg,#fef2f2,#fee2e2)",border:"2px solid "+COLORS.red+"44",textAlign:"center",padding:"14px",marginBottom:16}}>
+              <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>💳 TOTAL CONTAS A PAGAR</div>
+              <div style={{fontSize:26,fontWeight:900,color:COLORS.red}}>{fmt(tTotal)}</div>
+              <div style={{marginTop:5,fontSize:10,color:COLORS.muted}}>🚐 {fmt(tVan)} + 🚚 {fmt(tCam)} + 👷 {fmt(tAj)} + 🍽️ {fmt(tAlm)}</div>
+            </Card>
+          </div>
+        );
+      })()}
+
+            {/* ══ MODAL EDITAR MUDANÇA ══ */}
       {editMud&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:999,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setEditMud(null)}>
           <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:22,width:"100%",maxWidth:640,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 -4px 30px rgba(0,0,0,0.15)"}} onClick={e=>e.stopPropagation()}>
