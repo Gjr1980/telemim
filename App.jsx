@@ -1335,11 +1335,49 @@ export default function App(){
                 ):<div style={{color:COLORS.muted,fontSize:11,fontStyle:"italic",marginTop:4}}>Sem registros nesta semana</div>}
               </Card>
             ))}
-            <Card style={{background:"linear-gradient(135deg,#fef2f2,#fee2e2)",border:"2px solid "+COLORS.red+"44",textAlign:"center",padding:"14px",marginBottom:16}}>
-              <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>💳 TOTAL CONTAS A PAGAR</div>
-              <div style={{fontSize:26,fontWeight:900,color:COLORS.red}}>{fmt(tTotal)}</div>
-              <div style={{marginTop:5,fontSize:10,color:COLORS.muted}}>🚐 {fmt(tVan)} + 🚚 {fmt(tCam)} + 👷 {fmt(tAj)} + 🍽️ {fmt(tAlm)}</div>
-            </Card>
+            {(()=>{
+              const pagoVan=cSem.some(cx=>cx?.pago_van);
+              const pagoCam=cSem.some(cx=>cx?.pago_caminhao);
+              const pagoAj=cSem.some(cx=>cx?.pago_ajudante);
+              const pagoAlm=cSem.some(cx=>cx?.pago_almoco);
+              const todoPago=pagoVan&&pagoCam&&pagoAj&&pagoAlm;
+              const algumPago=pagoVan||pagoCam||pagoAj||pagoAlm;
+              const totalPago=(pagoVan?tVan:0)+(pagoCam?tCam:0)+(pagoAj?tAj:0)+(pagoAlm?tAlm:0);
+              const totalPend=tTotal-totalPago;
+              return(
+                <Card style={{border:"2px solid "+(todoPago?COLORS.green:COLORS.red)+"66",padding:"14px",marginBottom:16,background:todoPago?"linear-gradient(135deg,#f0fdf4,#dcfce7)":"linear-gradient(135deg,#fef2f2,#fee2e2)"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase"}}>💳 TOTAL CONTAS A PAGAR</div>
+                    <div style={{background:todoPago?"#dcfce7":"#fee2e2",border:"1.5px solid "+(todoPago?COLORS.green:COLORS.red),borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:900,color:todoPago?COLORS.green:COLORS.red}}>
+                      {todoPago?"✅ TUDO PAGO":algumPago?"⏳ PARCIAL":"🔴 PENDENTE"}
+                    </div>
+                  </div>
+                  <div style={{fontSize:26,fontWeight:900,color:todoPago?COLORS.green:COLORS.red,textAlign:"center",marginBottom:10}}>{fmt(tTotal)}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
+                    {[
+                      {icon:"🚐",label:"Van",val:tVan,pago:pagoVan},
+                      {icon:"🚚",label:"Caminhão",val:tCam,pago:pagoCam},
+                      {icon:"👷",label:"Ajudantes",val:tAj,pago:pagoAj},
+                      {icon:"🍽️",label:"Almoço",val:tAlm,pago:pagoAlm},
+                    ].map(({icon,label,val,pago})=>(
+                      <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:pago?"#f0fdf4":"#fff5f5",border:"1px solid "+(pago?COLORS.green:COLORS.red)+"44",borderRadius:8,padding:"6px 9px"}}>
+                        <span style={{fontSize:11,color:pago?COLORS.green:COLORS.red,fontWeight:700}}>{icon} {label}</span>
+                        <div style={{textAlign:"right"}}>
+                          <div style={{fontSize:12,fontWeight:900,color:pago?COLORS.green:COLORS.red}}>{fmt(val)}</div>
+                          <div style={{fontSize:9,fontWeight:800,color:pago?COLORS.green:COLORS.red}}>{pago?"✅ PAGO":"⏳ PENDENTE"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {algumPago&&!todoPago&&(
+                    <div style={{display:"flex",justifyContent:"space-between",borderTop:"1px dashed #e5e7eb",paddingTop:8,marginTop:4}}>
+                      <div style={{fontSize:11,color:COLORS.green,fontWeight:700}}>✅ Pago: {fmt(totalPago)}</div>
+                      <div style={{fontSize:11,color:COLORS.red,fontWeight:700}}>⏳ Pendente: {fmt(totalPend)}</div>
+                    </div>
+                  )}
+                </Card>
+              );
+            })()}
           </div>
         );
       })()}
