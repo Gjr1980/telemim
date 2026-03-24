@@ -234,6 +234,15 @@ export default function App(){
     const updated=agenda.map(a=>a.id===editAg.id?{...editAg}:a);
     await saveAg(updated); setEditAg(null);
   }
+  async function converterEmMudanca(ag){
+    if(!ag.medicao){ alert("Informe a medição (m³) antes de converter!"); return; }
+    const nova={id:Date.now(),nome:ag.nome,selo:ag.selo||"",comunidade:ag.comunidade||"",data:ag.data,origem:ag.origem||"",destino:ag.destino||"",medicao:parseFloat(ag.medicao)||0,van:ag.van||false};
+    await saveMud([...mudancas,nova]);
+    const updated=agenda.map(a=>a.id===ag.id?{...a,status:"realizado"}:a);
+    await saveAg(updated);
+    setFlash("✅ Convertido!"); setTimeout(()=>setFlash(""),2000); setTab("lista");
+  }
+
   async function toggleStatus(id){
     setAgenda(prev=>{
       const updated=prev.map(a=>a.id===id?{...a,status:a.status==="confirmado"?"pendente":a.status==="pendente"?"realizado":"confirmado"}:a);
@@ -533,6 +542,7 @@ export default function App(){
   const statusLabel={confirmado:"✅ Confirmado",pendente:"⏳ Pendente",realizado:"✔ Realizado"};
 
   const TABS=[
+    {id:"dashboard",label:"📈 Dashboard"},
     {id:"lista",label:"📋 Registros"},
     {id:"agenda",label:"📅 Agenda"},
     {id:"novo",label:"➕ Nova"},
@@ -627,6 +637,91 @@ export default function App(){
             ))}
           </div>
         </div>
+
+        {/* ══ DASHBOARD ══ */}
+        {tab==="dashboard"&&(()=>{
+          const hoje2=new Date().toISOString().split("T")[0];
+          const mes=hoje2.substring(0,7);
+          const mudMes=mudancas.filter(m=>m.data.startsWith(mes));
+          const m3Mes=mudMes.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
+          const vdMes=[...new Set(mudMes.filter(m=>m.van).map(m=>m.data))].length;
+          const fatMes=m3Mes*150+vdMes*1000;
+          const lucroMes=fatMes-fatMes*0.16-vdMes*400-mudMes.length*350;
+          const totalM3t=mudancas.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
+          const diasVanT=[...new Set(mudancas.filter(m=>m.van).map(m=>m.data))].length;
+          const fatT=totalM3t*150+diasVanT*1000;
+          const lucroT=fatT-fatT*0.16-diasVanT*400-mudancas.length*350;
+          const agHoje2=agenda.filter(a=>a.data===hoje2&&a.status!=="realizado");
+          const agProx2=agenda.filter(a=>a.data>hoje2&&a.status!=="realizado");
+          const agPend2=agenda.filter(a=>a.status==="pendente");
+          const meses4=[];
+          for(let i=3;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);const k=d.toISOString().substring(0,7);const lb=d.toLocaleDateString("pt-BR",{month:"short",year:"2-digit"});const mds=mudancas.filter(m=>m.data.startsWith(k));const m3=mds.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);const vd=[...new Set(mds.filter(m=>m.van).map(m=>m.data))].length;const fat=m3*150+vd*1000;const luc=fat-fat*0.16-vd*400-mds.length*350;meses4.push({k,lb,fat,luc,m3,n:mds.length});}
+          const maxF=Math.max(...meses4.map(m=>m.fat),1);
+          return(
+            <div>
+              {agHoje2.length>0&&<div style={{background:"#dcfce7",border:"2px solid "+COLORS.green,borderRadius:14,padding:"12px 15px",marginBottom:12}}><div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🔔 {agHoje2.length} MUDANÇA{agHoje2.length!==1?"S":""} HOJE!</div>{agHoje2.map(a=><div key={a.id} style={{fontSize:12,color:COLORS.text,marginTop:2}}>👤 {a.nome}{a.horario?" · ⏰ "+a.horario+"h":""}</div>)}</div>}
+              <div style={{fontSize:11,fontWeight:800,color:COLORS.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📅 Mês Atual</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+                {[{icon:"📦",label:"Mudanças",val:mudMes.length,color:COLORS.accent,sub:"este mês"},{icon:"📐",label:"m³ Medidos",val:m3Mes+" m³",color:COLORS.blue,sub:"este mês"},{icon:"💵",label:"Faturamento",val:fmt(fatMes),color:COLORS.green,sub:"bruto"},{icon:"💰",label:"Lucro Líq.",val:fmt(lucroMes),color:lucroMes>=0?COLORS.green:COLORS.red,sub:"estimado"}].map(k=>(
+                  <Card key={k.label} style={{padding:"13px",border:"1.5px solid "+k.color+"22"}}>
+                    <div style={{fontSize:18}}>{k.icon}</div>
+                    <div style={{fontSize:16,fontWeight:900,color:k.color,marginTop:4}}>{k.val}</div>
+                    <div style={{fontSize:10,color:COLORS.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>{k.label}</div>
+                    <div style={{fontSize:10,color:COLORS.muted}}>{k.sub}</div>
+                  </Card>
+                ))}
+              </div>
+              <div style={{fontSize:11,fontWeight:800,color:COLORS.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📊 Acumulado Geral</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
+                {[{label:"Mudanças",val:mudancas.length,color:COLORS.accent},{label:"Total m³",val:totalM3t,color:COLORS.blue},{label:"Dias Van",val:diasVanT,color:COLORS.purple},{label:"Fat. Bruto",val:fmt(fatT),color:COLORS.green},{label:"Impostos",val:fmt(fatT*0.16),color:COLORS.red},{label:"Lucro Líq.",val:fmt(lucroT),color:lucroT>=0?COLORS.green:COLORS.red}].map(k=>(
+                  <Card key={k.label} style={{padding:"10px",textAlign:"center",border:"1.5px solid "+k.color+"22"}}>
+                    <div style={{fontSize:13,fontWeight:900,color:k.color}}>{k.val}</div>
+                    <div style={{fontSize:9,color:COLORS.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>{k.label}</div>
+                  </Card>
+                ))}
+              </div>
+              <Card style={{marginBottom:12}}>
+                <div style={{fontSize:13,fontWeight:800,color:COLORS.text,marginBottom:12}}>📈 Faturamento × Lucro (4 meses)</div>
+                <div style={{display:"flex",gap:6,alignItems:"flex-end",height:100,marginBottom:6}}>
+                  {meses4.map(m=>{const hF=Math.max(Math.round((m.fat/maxF)*90),2);const hL=m.luc>0?Math.max(Math.round((m.luc/maxF)*90),2):2;return(
+                    <div key={m.k} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <div style={{display:"flex",gap:2,alignItems:"flex-end",height:95}}>
+                        <div style={{width:14,height:hF,background:COLORS.accent+"bb",borderRadius:"3px 3px 0 0"}} title={fmt(m.fat)}/>
+                        <div style={{width:14,height:hL,background:(m.luc>=0?COLORS.green:COLORS.red)+"bb",borderRadius:"3px 3px 0 0"}} title={fmt(m.luc)}/>
+                      </div>
+                      <div style={{fontSize:9,color:COLORS.muted,fontWeight:700,textAlign:"center"}}>{m.lb}</div>
+                      <div style={{fontSize:9,color:COLORS.muted}}>{m.n} mud.</div>
+                    </div>
+                  );})}
+                </div>
+                <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:COLORS.muted}}><div style={{width:10,height:10,background:COLORS.accent+"bb",borderRadius:2}}/> Faturamento</div>
+                  <div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:COLORS.muted}}><div style={{width:10,height:10,background:COLORS.green+"bb",borderRadius:2}}/> Lucro</div>
+                </div>
+              </Card>
+              <Card style={{marginBottom:12}}>
+                <div style={{fontSize:13,fontWeight:800,color:COLORS.text,marginBottom:10}}>🏆 Top Comunidades</div>
+                {(()=>{const map={};mudancas.forEach(m=>{const k=m.comunidade||"Sem comunidade";if(!map[k])map[k]={count:0,m3:0};map[k].count++;map[k].m3+=(parseFloat(m.medicao)||0);});return Object.entries(map).sort((a,b)=>b[1].m3-a[1].m3).slice(0,5).map(([nome,v],i)=>(
+                  <div key={nome} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid "+COLORS.cardBorder,fontSize:12}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:20,height:20,borderRadius:10,background:COLORS.accent+"22",color:COLORS.accent,fontWeight:900,fontSize:10,display:"flex",alignItems:"center",justifyContent:"center"}}>{i+1}</div><span style={{color:COLORS.text,fontWeight:600}}>{nome}</span></div>
+                    <div style={{display:"flex",gap:5}}><Badge color={COLORS.blue}>{v.count} mud.</Badge><Badge color={COLORS.green}>{v.m3} m³</Badge></div>
+                  </div>
+                ));})()}
+              </Card>
+              <Card>
+                <div style={{fontSize:13,fontWeight:800,color:COLORS.text,marginBottom:10}}>📅 Resumo da Agenda</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                  {[{label:"Hoje",val:agHoje2.length,color:COLORS.green},{label:"Próximas",val:agProx2.length,color:COLORS.blue},{label:"Pendentes",val:agPend2.length,color:COLORS.accent}].map(k=>(
+                    <div key={k.label} onClick={()=>setTab("agenda")} style={{background:k.color+"10",border:"1.5px solid "+k.color+"33",borderRadius:10,padding:"10px",textAlign:"center",cursor:"pointer"}}>
+                      <div style={{fontSize:22,fontWeight:900,color:k.color}}>{k.val}</div>
+                      <div style={{fontSize:10,color:COLORS.muted,fontWeight:700,textTransform:"uppercase"}}>{k.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          );
+        })()}
 
         {/* ══ LISTA ══ */}
         {tab==="lista"&&(
@@ -772,6 +867,7 @@ export default function App(){
                         </div>
                       </div>
                       <div style={{display:"flex",flexDirection:"column",gap:5,marginLeft:9}}>
+                        <button onClick={()=>converterEmMudanca(a)} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>
                         <button onClick={()=>setEditAg({...a})} style={btnBlue}>✏️</button>
                         <button onClick={()=>handleDelAg(a.id)} style={btnRed}>✕</button>
                       </div>
