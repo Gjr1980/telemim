@@ -105,6 +105,31 @@ function Card({children,style={}}){
   return <div style={{background:COLORS.card,border:`1px solid ${COLORS.cardBorder}`,borderRadius:16,padding:18,boxShadow:COLORS.shadow,...style}}>{children}</div>;
 }
 function Inp({label,type="text",value,onChange,placeholder,icon}){
+  if(!authChecked)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f8fafc",fontSize:14,color:"#64748b"}}>⏳ Carregando...</div>;
+  if(!usuario)return(
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#1e293b,#1e40af)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{background:"#fff",borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:44,marginBottom:8}}>🚛</div>
+          <div style={{fontSize:24,fontWeight:900,color:"#1e293b",letterSpacing:-0.5}}>TELEMIM</div>
+          <div style={{fontSize:11,color:"#64748b",fontWeight:600,letterSpacing:2,marginTop:2}}>GESTÃO DE MUDANÇAS · PROMORAR</div>
+        </div>
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5,letterSpacing:0.5}}>EMAIL</label>
+          <input value={loginForm.email} onChange={e=>setLoginForm(f=>({...f,email:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="seu@email.com" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+        </div>
+        <div style={{marginBottom:8}}>
+          <label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5,letterSpacing:0.5}}>SENHA</label>
+          <input type="password" value={loginForm.senha} onChange={e=>setLoginForm(f=>({...f,senha:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+        </div>
+        {loginErro&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#dc2626",marginBottom:10}}>{loginErro}</div>}
+        <button onClick={handleLogin} disabled={loginLoad} style={{width:"100%",padding:13,borderRadius:12,background:loginLoad?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:loginLoad?"not-allowed":"pointer",marginTop:8,boxShadow:"0 4px 15px rgba(30,64,175,0.4)"}}>
+          {loginLoad?"⏳ Entrando...":"🔐 Entrar"}
+        </button>
+        <div style={{textAlign:"center",marginTop:16,fontSize:10,color:"#94a3b8"}}>TELEMIM v2.0 · Acesso restrito</div>
+      </div>
+    </div>
+  );
   return(
     <div style={{marginBottom:12}}>
       <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:5,textTransform:"uppercase"}}>{icon} {label}</label>
@@ -127,6 +152,15 @@ function Tog({label,value,onChange}){
 }
 
 export default function App(){
+  const [usuario,setUsuario]=useState(null);
+  const [loginForm,setLoginForm]=useState({email:"",senha:""});
+  const [loginErro,setLoginErro]=useState("");
+  const [loginLoad,setLoginLoad]=useState(false);
+  const [authChecked,setAuthChecked]=useState(false);
+  const [listaUsuarios,setListaUsuarios]=useState([]);
+  const [novoUser,setNovoUser]=useState({nome:"",email:"",senha:"",perfil:"promorar"});
+  const [savingUser,setSavingUser]=useState(false);
+  const [userMsg,setUserMsg]=useState("");
   const [tab,setTab]=useState("inicio");
   const [mudancas,setMudancas]=useState([]);
   const [agenda,setAgenda]=useState([]);
@@ -215,7 +249,62 @@ export default function App(){
       setSyncStatus("✅ Sinc");
     } catch(e){ setSyncStatus("⚠️ Erro"); }
   }
-  async function saveAg(list){
+  useEffect(()=>{const saved=localStorage.getItem('tmim_u');if(saved){try{setUsuario(JSON.parse(saved));}catch(e){}}setAuthChecked(true);},[]);
+
+  async function handleLogin(){
+    if(!loginForm.email||!loginForm.senha){setLoginErro("Preencha email e senha");return;}
+    setLoginLoad(true);setLoginErro("");
+    try{
+      const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:loginForm.email,password:loginForm.senha})});
+      const data=await res.json();
+      if(!res.ok||!data.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}
+      const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+data.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+data.access_token}});
+      const pd=await pr.json();
+      if(!pd||!pd[0]||pd[0].ativo===false){setLoginErro("Sem acesso. Contate o administrador.");setLoginLoad(false);return;}
+      const u={id:data.user.id,email:data.user.email,nome:pd[0].nome,perfil:pd[0].perfil,token:data.access_token};
+      setUsuario(u);localStorage.setItem('tmim_u',JSON.stringify(u));
+    }catch(e){setLoginErro("Erro de conexão.");}
+    setLoginLoad(false);
+  }
+
+  function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
+
+  const perfil=usuario?.perfil||"";
+  const isAdmin=perfil==="admin";
+  const isPromorar=perfil==="promorar";
+  const isSocial=perfil==="social";
+  const temFin=isAdmin;
+  const podeExcluir=isAdmin;
+  const podeEditar=isAdmin||isPromorar;
+  const verMed=isAdmin||isPromorar;
+
+  async function carregarUsuarios(){
+    if(!isAdmin||!usuario?.token)return;
+    const r=await fetch(SUPA_URL+"/rest/v1/usuarios?select=*&order=criado_em.asc",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token}});
+    const d=await r.json();
+    if(Array.isArray(d))setListaUsuarios(d);
+  }
+
+  async function criarUsuario(){
+    if(!novoUser.nome||!novoUser.email||!novoUser.senha){setUserMsg("⚠️ Preencha todos os campos");return;}
+    setSavingUser(true);setUserMsg("");
+    try{
+      const authR=await fetch(SUPA_URL+"/auth/v1/admin/users",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json"},body:JSON.stringify({email:novoUser.email,password:novoUser.senha,email_confirm:true})});
+      const authD=await authR.json();
+      if(!authR.ok){setUserMsg("⚠️ "+(authD.msg||authD.message||"Erro ao criar"));setSavingUser(false);return;}
+      const profR=await fetch(SUPA_URL+"/rest/v1/usuarios",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify({id:authD.id,email:novoUser.email,nome:novoUser.nome,perfil:novoUser.perfil,ativo:true})});
+      if(profR.ok){setUserMsg("✅ Usuário criado!");setNovoUser({nome:"",email:"",senha:"",perfil:"promorar"});carregarUsuarios();}
+      else setUserMsg("⚠️ Erro ao salvar perfil");
+    }catch(e){setUserMsg("⚠️ Erro de conexão");}
+    setSavingUser(false);
+  }
+
+  async function toggleAtivoUser(u){
+    await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+u.id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json"},body:JSON.stringify({ativo:!u.ativo})});
+    carregarUsuarios();
+  }
+
+    async function saveAg(list){
     setAgenda(list);
     setSyncStatus("🔄 Salvando...");
     try {
@@ -327,6 +416,7 @@ export default function App(){
     w.addEventListener('load', function(){ setTimeout(function(){ w.print(); }, 600); });
   }
 
+      {temFin&&(<>
   // ── CSS COMPARTILHADO PARA PDFs ────────────────────────────────────────────
   const pdfCSS=`*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f9;color:#1a1a2e;padding:20px}.page{max-width:720px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)}.header{background:linear-gradient(135deg,#1e293b 0%,#334155 100%);color:#fff;padding:24px 28px}.logo{font-size:22px;font-weight:900;color:#e67e22}.subtitle{font-size:10px;color:#94a3b8;letter-spacing:2px;text-transform:uppercase;margin-top:2px}.header-meta{font-size:11px;color:#94a3b8;text-align:right;line-height:1.8}.header-top{display:flex;justify-content:space-between;align-items:flex-start}.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}.body{padding:24px 28px}.section{margin-bottom:20px}.section-title{font-size:12px;font-weight:800;padding:7px 12px;border-radius:8px;margin-bottom:9px}.title-fat{background:#fff8e6;color:#b7840a}.title-imp{background:#fdecea;color:#c0392b}.title-cust{background:#eaf4fb;color:#1a6a99}.title-res{background:#f0f0f0;color:#333}.title-mud{background:#f0faf4;color:#1a7a45}.title-ag{background:#f5f3ff;color:#6d28d9}.title-info{background:#f0f9ff;color:#0369a1}table{width:100%;border-collapse:collapse}td{padding:8px 11px;font-size:12px;border-bottom:1px solid #f0f0f0}td:last-child{text-align:right;font-weight:700}tr.total td{background:#f8f9fb;font-weight:800;font-size:13px;border-top:2px solid #e0e0e0}tr.hrow td{background:#f0f2f5;font-weight:700;font-size:11px;color:#666;text-transform:uppercase}.green{color:#16a34a}.red{color:#dc2626}.blue{color:#2563eb}.orange{color:#e67e22}.purple{color:#7c3aed}.lucro-box{border-radius:12px;padding:20px;text-align:center;margin-bottom:20px}.lucro-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px}.lucro-val{font-size:36px;font-weight:900;line-height:1}.lucro-sub{font-size:12px;margin-top:7px;font-weight:600}.stats{display:grid;gap:10px;margin-bottom:20px}.stat{background:#f8f9fb;border-radius:10px;padding:12px;text-align:center;border:1px solid #e8eaf0}.stat-val{font-size:16px;font-weight:900;color:#1a1a2e}.stat-label{font-size:10px;color:#8890a4;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}.info-row{display:flex;gap:8px;margin-bottom:8px;font-size:12px}.info-label{font-weight:700;color:#475569;min-width:90px}.info-val{color:#64748b}.footer{background:#f8f9fb;border-top:1px solid #eee;padding:12px 28px;display:flex;justify-content:space-between;align-items:center}.footer-logo{font-size:12px;font-weight:800;color:#e67e22}.footer-info{font-size:10px;color:#aaa}@media print{body{padding:0;background:#fff}.page{box-shadow:none;border-radius:0}}`;
 
@@ -362,6 +452,7 @@ export default function App(){
           <tr class="total"><td>Faturamento Bruto</td><td class="orange">R$ ${rel.bruto.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
         </table></div>
         <div class="section"><div class="section-title title-imp">🏛️ Imposto (16%)</div><table>
+      </>)}
           <tr><td>Dedução sobre Faturamento Bruto</td><td class="red">- R$ ${rel.imp.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
         </table></div>
         <div class="section"><div class="section-title title-cust">🔧 Discriminação dos Custos</div><table>
@@ -587,8 +678,9 @@ export default function App(){
     {id:"lista",label:"📋 Registros"},
     {id:"agenda",label:"📅 Agenda"},
     {id:"novo",label:"➕ Nova"},
-    {id:"relatorio",label:"📊 Relatório"},
-    {id:"semana",label:"📆 Semana"},
+    ...(isSocial?[]:[{id:"relatorio",label:"📊 Relatório"}]),
+    ...(isSocial?[]:[{id:"semana",label:"📆 Semana"}]),
+    ...(isAdmin?[{id:"usuarios",label:"👥 Usuários"}]:[]),
   ];
 
   // ── BTN STYLES ─────────────────────────────────────────────────────────────
@@ -628,6 +720,13 @@ export default function App(){
                 <Badge color={COLORS.purple}>{agenda.length} agendadas</Badge>
               </div>
               <span style={{fontSize:10,color:syncStatus.includes("✅")?"#4ade80":syncStatus.includes("🔄")?"#fbbf24":"#f87171",fontWeight:700}}>{syncStatus}</span>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <div style={{background:isAdmin?"#dbeafe":isPromorar?"#dcfce7":"#fef9c3",border:"1px solid "+(isAdmin?"#93c5fd":isPromorar?"#86efac":"#fde047"),borderRadius:20,padding:"3px 9px",fontSize:10,fontWeight:800,color:isAdmin?"#1d4ed8":isPromorar?"#15803d":"#a16207"}}>
+                  {isAdmin?"👑 Admin":isPromorar?"🏢 Promorar":"🤝 Social"}
+                </div>
+                <span style={{fontSize:11,color:"#64748b",maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{usuario?.nome?.split(" ")[0]}</span>
+                <button onClick={handleLogout} style={{background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:8,padding:"4px 8px",fontSize:10,fontWeight:700,color:"#64748b",cursor:"pointer"}}>Sair</button>
+              </div>
             </div>
           </div>
         </div>
@@ -872,7 +971,7 @@ export default function App(){
                           )}
                         </div>
                         <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,marginLeft:8}}>
-                          <Badge color={COLORS.green}>{m.medicao} m³</Badge>
+                          {verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
                           <div style={{display:"flex",gap:4}}>
                             <button onClick={e=>{e.stopPropagation();compartilharMudanca(m);}} style={btnGreen}>📲</button>
                             <button onClick={e=>{e.stopPropagation();gerarPDFMudanca(m);}} style={{...btnRed,background:"#fff1f0"}}>📄</button>
@@ -894,7 +993,7 @@ export default function App(){
                     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><TagSelo v={m.selo}/><TagData v={m.data}/></div>
                   </div>
                   <div style={{display:"flex",gap:5,alignItems:"center",marginLeft:8}}>
-                    <Badge color={COLORS.green}>{m.medicao} m³</Badge>
+                    {verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
                     <button onClick={()=>compartilharMudanca(m)} style={btnGreen}>📲</button>
                     <button onClick={()=>gerarPDFMudanca(m)} style={{...btnRed,background:"#fff1f0"}}>📄</button>
                     <button onClick={()=>setEditMud({...m})} style={btnBlue}>✏️</button>
@@ -1180,7 +1279,7 @@ export default function App(){
                   {rel.lista.map((m,i)=>(
                     <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:i<rel.lista.length-1?`1px solid ${COLORS.cardBorder}`:"none",fontSize:12}}>
                       <div><div style={{fontWeight:700}}>{m.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>📅 {fmtDate(m.data)} · 🏷️ {m.selo}</div></div>
-                      <Badge color={COLORS.green}>{m.medicao} m³</Badge>
+                      {verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
                     </div>
                   ))}
                 </Card>
@@ -1258,7 +1357,7 @@ export default function App(){
                     {sw.items.map((m,i)=>(
                       <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:i<sw.items.length-1?`1px solid ${COLORS.cardBorder}`:"none",fontSize:12}}>
                         <div><div style={{fontWeight:700}}>{m.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>📅 {fmtDate(m.data)} · 🏷️ {m.selo}</div></div>
-                        <div style={{display:"flex",gap:5,alignItems:"center"}}><Badge color={COLORS.green}>{m.medicao} m³</Badge>{m.van&&<Badge color={COLORS.blue}>🚐</Badge>}</div>
+                        <div style={{display:"flex",gap:5,alignItems:"center"}}>{verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}{m.van&&<Badge color={COLORS.blue}>🚐</Badge>}</div>
                       </div>
                     ))}
                   </Card>                  <div style={{display:"flex",gap:8,marginTop:4}}>
@@ -1454,6 +1553,52 @@ export default function App(){
         </div>
       )}
 
+            {tab==="usuarios"&&isAdmin&&(
+        <div style={{paddingBottom:80}} onMouseEnter={()=>listaUsuarios.length===0&&carregarUsuarios()}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{fontSize:16,fontWeight:900}}>👥 Gerenciar Usuários</div>
+            <button onClick={carregarUsuarios} style={{background:"#eff6ff",border:"1px solid #3b82f6",color:"#3b82f6",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔄 Atualizar</button>
+          </div>
+          <Card style={{marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12,letterSpacing:0.5}}>USUÁRIOS ({listaUsuarios.length})</div>
+            {listaUsuarios.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Clique em Atualizar</div>:
+              listaUsuarios.map(u=>(
+                <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13}}>{u.nome}</div>
+                    <div style={{fontSize:11,color:"#94a3b8"}}>{u.email}</div>
+                    <span style={{display:"inline-block",marginTop:3,background:u.perfil==="admin"?"#dbeafe":u.perfil==="promorar"?"#dcfce7":"#fef9c3",borderRadius:12,padding:"2px 8px",fontSize:10,fontWeight:800,color:u.perfil==="admin"?"#1d4ed8":u.perfil==="promorar"?"#15803d":"#a16207"}}>
+                      {u.perfil==="admin"?"👑 Admin":u.perfil==="promorar"?"🏢 Promorar":"🤝 Social"}
+                    </span>
+                  </div>
+                  <button onClick={()=>toggleAtivoUser(u)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid "+(u.ativo?"#ef4444":"#22c55e"),background:u.ativo?"#fef2f2":"#f0fdf4",color:u.ativo?"#ef4444":"#22c55e",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                    {u.ativo?"🚫 Desativar":"✅ Ativar"}
+                  </button>
+                </div>
+              ))
+            }
+          </Card>
+          <Card>
+            <div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12,letterSpacing:0.5}}>+ NOVO USUÁRIO</div>
+            <Inp label="Nome" icon="👤" value={novoUser.nome} onChange={v=>setNovoUser(f=>({...f,nome:v}))}/>
+            <Inp label="Email" icon="📧" value={novoUser.email} onChange={v=>setNovoUser(f=>({...f,email:v}))}/>
+            <Inp label="Senha" icon="🔒" value={novoUser.senha} onChange={v=>setNovoUser(f=>({...f,senha:v}))}/>
+            <div style={{marginBottom:12}}>
+              <label style={{display:"block",color:"#94a3b8",fontSize:11,fontWeight:700,marginBottom:5}}>PERFIL</label>
+              <div style={{display:"flex",gap:8}}>
+                {[["admin","👑 Admin"],["promorar","🏢 Promorar"],["social","🤝 Social"]].map(([val,lab])=>(
+                  <button key={val} onClick={()=>setNovoUser(f=>({...f,perfil:val}))} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"1.5px solid "+(novoUser.perfil===val?"#f97316":"#e2e8f0"),background:novoUser.perfil===val?"#fff7ed":"#f8fafc",color:novoUser.perfil===val?"#f97316":"#94a3b8",fontWeight:800,fontSize:11,cursor:"pointer"}}>{lab}</button>
+                ))}
+              </div>
+            </div>
+            {userMsg&&<div style={{background:userMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:userMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{userMsg}</div>}
+            <button onClick={criarUsuario} disabled={savingUser} style={{width:"100%",padding:13,borderRadius:12,background:savingUser?"#94a3b8":"#f97316",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:savingUser?"not-allowed":"pointer"}}>
+              {savingUser?"⏳ Criando...":"➕ Criar Usuário"}
+            </button>
+          </Card>
+        </div>
+      )}
+
             {/* ══ MODAL IMPORTAR (MUDANÇA) ══ */}
       {showImport&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setShowImport(false)}><div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480,maxHeight:"80vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
         <div style={{fontSize:15,fontWeight:900,color:COLORS.text,marginBottom:4}}>📥 Importar Solicitação</div>
@@ -1467,7 +1612,7 @@ export default function App(){
       </div></div>)}
 
       {/* ══ MODAL EDITAR MUDANÇA ══ */}
-      {editMud&&(
+      {editMud&&podeEditar&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:999,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setEditMud(null)}>
           <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:22,width:"100%",maxWidth:640,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 -4px 30px rgba(0,0,0,0.15)"}} onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -1503,7 +1648,7 @@ export default function App(){
       </div></div>)}
 
       {/* ══ MODAL EDITAR AGENDAMENTO ══ */}
-      {editAg&&(
+      {editAg&&podeEditar&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:999,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setEditAg(null)}>
           <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:22,width:"100%",maxWidth:640,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 -4px 30px rgba(0,0,0,0.15)"}} onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
