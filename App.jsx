@@ -35,8 +35,8 @@ async function dbUpsertCusto(row) {
   });
 }
 const FORNECEDORES = {
-  van:      { tel: "5581998993669" },
-  caminhao: { tel: "5581986590302" },
+  van:      { tel: "" },
+  caminhao: { tel: "" },
 };
 
 // ── THEME & RULES ─────────────────────────────────────────────────────────────
@@ -1073,10 +1073,10 @@ export default function App(){
           if(tipo==="van"){
             const ls=dias.map(d=>{const n=sw.items.filter(m=>m.data===d&&m.van).length;return n?"📆 "+fmtDate(d)+" → "+n+" mud. → R$ 400,00":null;}).filter(Boolean);
             if(!ls.length){alert("Nenhuma mudança com van nesta semana.");return;}
-            window.open("https://wa.me/"+FORNECEDORES.van.tel+"?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO VAN*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n🚐 "+vDias+" dia"+(vDias!==1?"s":"")+" × R$ 400,00\n💰 *TOTAL: R$ "+tVan.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
+            window.open("https://wa.me/?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO VAN*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n🚐 "+vDias+" dia"+(vDias!==1?"s":"")+" × R$ 400,00\n💰 *TOTAL: R$ "+tVan.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
           } else if(tipo==="caminhao"){
             const ls=dias.map(d=>{const n=sw.items.filter(m=>m.data===d).length;if(!n)return null;return "📆 "+fmtDate(d)+" → "+n+" mud. → R$ "+(n*350).toLocaleString("pt-BR",{minimumFractionDigits:2});}).filter(Boolean);
-            window.open("https://wa.me/"+FORNECEDORES.caminhao.tel+"?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO CAMINHÃO*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n🚚 "+sw.items.length+" mud. × R$ 350,00\n💰 *TOTAL: R$ "+tCam.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
+            window.open("https://wa.me/?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO CAMINHÃO*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n🚚 "+sw.items.length+" mud. × R$ 350,00\n💰 *TOTAL: R$ "+tCam.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
           } else if(tipo==="ajudante"){
             const ls=dias.map(d=>{const cx=cSem.find(x=>x.data===d);const aj=parseInt(cx?.ajudantes)||0;if(!aj)return null;return "📆 "+fmtDate(d)+" → "+aj+" aj. → R$ "+(aj*80).toLocaleString("pt-BR",{minimumFractionDigits:2});}).filter(Boolean);
             if(!ls.length){alert("Nenhum ajudante registrado.");return;}
@@ -1126,7 +1126,7 @@ export default function App(){
             {cards.map(({tipo,icon,label,color,total,linhas})=>(
               <Card key={tipo} style={{marginBottom:10,border:"1.5px solid "+color+"22"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:linhas.length?8:0}}>
-                  <div style={{fontWeight:800,fontSize:13,color}}>{icon} {label}{(tipo==="van"||tipo==="caminhao")&&<span style={{fontSize:10,color:COLORS.muted,fontWeight:400,marginLeft:6}}>{tipo==="van"?"("+FORNECEDORES.van.tel.slice(4)+")":"("+FORNECEDORES.caminhao.tel.slice(4)+")"}</span>}</div>
+                  <div style={{fontWeight:800,fontSize:13,color}}>{icon} {label}</div>
                   <Badge color={color}>{fmt(total)}</Badge>
                 </div>
                 {linhas.length>0?(
