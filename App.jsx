@@ -1267,7 +1267,13 @@ export default function App(){
             const ls=dias.map(d=>{const cx=cSem.find(x=>x.data===d);const v=parseFloat(cx?.custo_almoco)||0;return v?"📆 "+fmtDate(d)+" → R$ "+v.toLocaleString("pt-BR",{minimumFractionDigits:2}):null;}).filter(Boolean);
             if(!ls.length){alert("Nenhum almoço registrado.");return;}
             window.open("https://wa.me/?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO ALMOÇO*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n💰 *TOTAL: R$ "+tAlm.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
-          }
+          } else if(tipo==="almoco"){
+          const ls=dias.map(d=>{const cx=cSem.find(x=>x.data===d);const v=parseFloat(cx?.custo_almoco)||0;return v?"📆 "+fmtDate(d)+" → R$ "+v.toLocaleString("pt-BR",{minimumFractionDigits:2}):null;}).filter(Boolean);
+          if(!ls.length){alert("Nenhum almoço registrado nesta semana.");return;}
+          const tAlm2=cSem.reduce((s,cx)=>s+(parseFloat(cx?.custo_almoco)||0),0);
+          const txt="🚛 *TELEMIM — PAGAMENTO ALMOÇO*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n💰 *TOTAL: R$ "+tAlm2.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_";
+          window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
+        }
         };
         const cards=[
           {tipo:"van",icon:"🚐",label:"Van",color:COLORS.blue,total:tVan,linhas:dias.map(d=>{const n=sw.items.filter(m=>m.data===d&&m.van).length;return n?{d,qt:n+" mud.",val:400}:null;}).filter(Boolean)},
