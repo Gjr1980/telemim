@@ -238,21 +238,13 @@ export default function App(){
 
   // ── HELPER: abrir PDF via Blob (funciona em todos os ambientes) ────────────
   function abrirPDF(html, nomeArquivo){
-    try {
-      const blob = new Blob([html], {type:"text/html;charset=utf-8"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = nomeArquivo+".html";
-      a.target = "_blank";
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-    } catch(e) {
-      // fallback
-      const w = window.open("","_blank");
-      if(w){ w.document.write(html); w.document.close(); }
-    }
+    const printStyle = `<style>@media print{body{margin:0;padding:0;background:#fff}.page{box-shadow:none!important;border-radius:0!important;border:none!important}}@page{size:A4;margin:8mm}</style>`;
+    const fullHtml = html.replace('</head>', printStyle + '</head>');
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if(!w){ alert('Permita pop-ups para gerar PDF!'); return; }
+    w.document.write(fullHtml);
+    w.document.close();
+    w.addEventListener('load', function(){ setTimeout(function(){ w.print(); }, 600); });
   }
 
   // ── CSS COMPARTILHADO PARA PDFs ────────────────────────────────────────────
