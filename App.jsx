@@ -105,25 +105,25 @@ function Card({children,style={}}){
   return <div style={{background:COLORS.card,border:`1px solid ${COLORS.cardBorder}`,borderRadius:16,padding:18,boxShadow:COLORS.shadow,...style}}>{children}</div>;
 }
 function Inp({label,type="text",value,onChange,placeholder,icon}){
-  if(!authChecked)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f8fafc",fontSize:14,color:"#64748b"}}>⏳ Carregando...</div>;
+  if(!authChecked)return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f8fafc",fontSize:14,color:"#64748b"}}>⏳ Carregando...</div>);
   if(!usuario)return(
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#1e293b,#1e40af)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <div style={{background:"#fff",borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:44,marginBottom:8}}>🚛</div>
-          <div style={{fontSize:24,fontWeight:900,color:"#1e293b",letterSpacing:-0.5}}>TELEMIM</div>
+          <div style={{fontSize:24,fontWeight:900,color:"#1e293b"}}>TELEMIM</div>
           <div style={{fontSize:11,color:"#64748b",fontWeight:600,letterSpacing:2,marginTop:2}}>GESTÃO DE MUDANÇAS · PROMORAR</div>
         </div>
         <div style={{marginBottom:14}}>
-          <label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5,letterSpacing:0.5}}>EMAIL</label>
+          <label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>EMAIL</label>
           <input value={loginForm.email} onChange={e=>setLoginForm(f=>({...f,email:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="seu@email.com" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/>
         </div>
         <div style={{marginBottom:8}}>
-          <label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5,letterSpacing:0.5}}>SENHA</label>
+          <label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>SENHA</label>
           <input type="password" value={loginForm.senha} onChange={e=>setLoginForm(f=>({...f,senha:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/>
         </div>
         {loginErro&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#dc2626",marginBottom:10}}>{loginErro}</div>}
-        <button onClick={handleLogin} disabled={loginLoad} style={{width:"100%",padding:13,borderRadius:12,background:loginLoad?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:loginLoad?"not-allowed":"pointer",marginTop:8,boxShadow:"0 4px 15px rgba(30,64,175,0.4)"}}>
+        <button onClick={handleLogin} disabled={loginLoad} style={{width:"100%",padding:13,borderRadius:12,background:loginLoad?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:loginLoad?"not-allowed":"pointer",marginTop:8}}>
           {loginLoad?"⏳ Entrando...":"🔐 Entrar"}
         </button>
         <div style={{textAlign:"center",marginTop:16,fontSize:10,color:"#94a3b8"}}>TELEMIM v2.0 · Acesso restrito</div>
@@ -249,21 +249,21 @@ export default function App(){
       setSyncStatus("✅ Sinc");
     } catch(e){ setSyncStatus("⚠️ Erro"); }
   }
-  useEffect(()=>{const saved=localStorage.getItem('tmim_u');if(saved){try{setUsuario(JSON.parse(saved));}catch(e){}}setAuthChecked(true);},[]);
+  useEffect(()=>{const s=localStorage.getItem('tmim_u');if(s){try{setUsuario(JSON.parse(s));}catch(e){}}setAuthChecked(true);},[]);
 
   async function handleLogin(){
     if(!loginForm.email||!loginForm.senha){setLoginErro("Preencha email e senha");return;}
     setLoginLoad(true);setLoginErro("");
     try{
       const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:loginForm.email,password:loginForm.senha})});
-      const data=await res.json();
-      if(!res.ok||!data.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}
-      const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+data.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+data.access_token}});
+      const d=await res.json();
+      if(!res.ok||!d.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}
+      const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+d.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+d.access_token}});
       const pd=await pr.json();
       if(!pd||!pd[0]||pd[0].ativo===false){setLoginErro("Sem acesso. Contate o administrador.");setLoginLoad(false);return;}
-      const u={id:data.user.id,email:data.user.email,nome:pd[0].nome,perfil:pd[0].perfil,token:data.access_token};
+      const u={id:d.user.id,email:d.user.email,nome:pd[0].nome,perfil:pd[0].perfil,token:d.access_token};
       setUsuario(u);localStorage.setItem('tmim_u',JSON.stringify(u));
-    }catch(e){setLoginErro("Erro de conexão.");}
+    }catch(e){setLoginErro("Erro de conexão. Tente novamente.");}
     setLoginLoad(false);
   }
 
@@ -281,19 +281,18 @@ export default function App(){
   async function carregarUsuarios(){
     if(!isAdmin||!usuario?.token)return;
     const r=await fetch(SUPA_URL+"/rest/v1/usuarios?select=*&order=criado_em.asc",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token}});
-    const d=await r.json();
-    if(Array.isArray(d))setListaUsuarios(d);
+    const d=await r.json();if(Array.isArray(d))setListaUsuarios(d);
   }
 
   async function criarUsuario(){
     if(!novoUser.nome||!novoUser.email||!novoUser.senha){setUserMsg("⚠️ Preencha todos os campos");return;}
     setSavingUser(true);setUserMsg("");
     try{
-      const authR=await fetch(SUPA_URL+"/auth/v1/admin/users",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json"},body:JSON.stringify({email:novoUser.email,password:novoUser.senha,email_confirm:true})});
-      const authD=await authR.json();
-      if(!authR.ok){setUserMsg("⚠️ "+(authD.msg||authD.message||"Erro ao criar"));setSavingUser(false);return;}
-      const profR=await fetch(SUPA_URL+"/rest/v1/usuarios",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify({id:authD.id,email:novoUser.email,nome:novoUser.nome,perfil:novoUser.perfil,ativo:true})});
-      if(profR.ok){setUserMsg("✅ Usuário criado!");setNovoUser({nome:"",email:"",senha:"",perfil:"promorar"});carregarUsuarios();}
+      const aR=await fetch(SUPA_URL+"/auth/v1/admin/users",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json"},body:JSON.stringify({email:novoUser.email,password:novoUser.senha,email_confirm:true})});
+      const aD=await aR.json();
+      if(!aR.ok){setUserMsg("⚠️ "+(aD.msg||aD.message||"Erro ao criar"));setSavingUser(false);return;}
+      const pR=await fetch(SUPA_URL+"/rest/v1/usuarios",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify({id:aD.id,email:novoUser.email,nome:novoUser.nome,perfil:novoUser.perfil,ativo:true})});
+      if(pR.ok){setUserMsg("✅ Usuário criado!");setNovoUser({nome:"",email:"",senha:"",perfil:"promorar"});carregarUsuarios();}
       else setUserMsg("⚠️ Erro ao salvar perfil");
     }catch(e){setUserMsg("⚠️ Erro de conexão");}
     setSavingUser(false);
@@ -416,7 +415,6 @@ export default function App(){
     w.addEventListener('load', function(){ setTimeout(function(){ w.print(); }, 600); });
   }
 
-      {temFin&&(<>
   // ── CSS COMPARTILHADO PARA PDFs ────────────────────────────────────────────
   const pdfCSS=`*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f9;color:#1a1a2e;padding:20px}.page{max-width:720px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)}.header{background:linear-gradient(135deg,#1e293b 0%,#334155 100%);color:#fff;padding:24px 28px}.logo{font-size:22px;font-weight:900;color:#e67e22}.subtitle{font-size:10px;color:#94a3b8;letter-spacing:2px;text-transform:uppercase;margin-top:2px}.header-meta{font-size:11px;color:#94a3b8;text-align:right;line-height:1.8}.header-top{display:flex;justify-content:space-between;align-items:flex-start}.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}.body{padding:24px 28px}.section{margin-bottom:20px}.section-title{font-size:12px;font-weight:800;padding:7px 12px;border-radius:8px;margin-bottom:9px}.title-fat{background:#fff8e6;color:#b7840a}.title-imp{background:#fdecea;color:#c0392b}.title-cust{background:#eaf4fb;color:#1a6a99}.title-res{background:#f0f0f0;color:#333}.title-mud{background:#f0faf4;color:#1a7a45}.title-ag{background:#f5f3ff;color:#6d28d9}.title-info{background:#f0f9ff;color:#0369a1}table{width:100%;border-collapse:collapse}td{padding:8px 11px;font-size:12px;border-bottom:1px solid #f0f0f0}td:last-child{text-align:right;font-weight:700}tr.total td{background:#f8f9fb;font-weight:800;font-size:13px;border-top:2px solid #e0e0e0}tr.hrow td{background:#f0f2f5;font-weight:700;font-size:11px;color:#666;text-transform:uppercase}.green{color:#16a34a}.red{color:#dc2626}.blue{color:#2563eb}.orange{color:#e67e22}.purple{color:#7c3aed}.lucro-box{border-radius:12px;padding:20px;text-align:center;margin-bottom:20px}.lucro-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px}.lucro-val{font-size:36px;font-weight:900;line-height:1}.lucro-sub{font-size:12px;margin-top:7px;font-weight:600}.stats{display:grid;gap:10px;margin-bottom:20px}.stat{background:#f8f9fb;border-radius:10px;padding:12px;text-align:center;border:1px solid #e8eaf0}.stat-val{font-size:16px;font-weight:900;color:#1a1a2e}.stat-label{font-size:10px;color:#8890a4;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}.info-row{display:flex;gap:8px;margin-bottom:8px;font-size:12px}.info-label{font-weight:700;color:#475569;min-width:90px}.info-val{color:#64748b}.footer{background:#f8f9fb;border-top:1px solid #eee;padding:12px 28px;display:flex;justify-content:space-between;align-items:center}.footer-logo{font-size:12px;font-weight:800;color:#e67e22}.footer-info{font-size:10px;color:#aaa}@media print{body{padding:0;background:#fff}.page{box-shadow:none;border-radius:0}}`;
 
@@ -452,7 +450,6 @@ export default function App(){
           <tr class="total"><td>Faturamento Bruto</td><td class="orange">R$ ${rel.bruto.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
         </table></div>
         <div class="section"><div class="section-title title-imp">🏛️ Imposto (16%)</div><table>
-      </>)}
           <tr><td>Dedução sobre Faturamento Bruto</td><td class="red">- R$ ${rel.imp.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
         </table></div>
         <div class="section"><div class="section-title title-cust">🔧 Discriminação dos Custos</div><table>
@@ -721,9 +718,9 @@ export default function App(){
               </div>
               <span style={{fontSize:10,color:syncStatus.includes("✅")?"#4ade80":syncStatus.includes("🔄")?"#fbbf24":"#f87171",fontWeight:700}}>{syncStatus}</span>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <div style={{background:isAdmin?"#dbeafe":isPromorar?"#dcfce7":"#fef9c3",border:"1px solid "+(isAdmin?"#93c5fd":isPromorar?"#86efac":"#fde047"),borderRadius:20,padding:"3px 9px",fontSize:10,fontWeight:800,color:isAdmin?"#1d4ed8":isPromorar?"#15803d":"#a16207"}}>
+                <span style={{background:isAdmin?"#dbeafe":isPromorar?"#dcfce7":"#fef9c3",border:"1px solid "+(isAdmin?"#93c5fd":isPromorar?"#86efac":"#fde047"),borderRadius:20,padding:"3px 9px",fontSize:10,fontWeight:800,color:isAdmin?"#1d4ed8":isPromorar?"#15803d":"#a16207"}}>
                   {isAdmin?"👑 Admin":isPromorar?"🏢 Promorar":"🤝 Social"}
-                </div>
+                </span>
                 <span style={{fontSize:11,color:"#64748b",maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{usuario?.nome?.split(" ")[0]}</span>
                 <button onClick={handleLogout} style={{background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:8,padding:"4px 8px",fontSize:10,fontWeight:700,color:"#64748b",cursor:"pointer"}}>Sair</button>
               </div>
@@ -1560,7 +1557,7 @@ export default function App(){
             <button onClick={carregarUsuarios} style={{background:"#eff6ff",border:"1px solid #3b82f6",color:"#3b82f6",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔄 Atualizar</button>
           </div>
           <Card style={{marginBottom:16}}>
-            <div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12,letterSpacing:0.5}}>USUÁRIOS ({listaUsuarios.length})</div>
+            <div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>USUÁRIOS ({listaUsuarios.length})</div>
             {listaUsuarios.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Clique em Atualizar</div>:
               listaUsuarios.map(u=>(
                 <div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}>
@@ -1579,7 +1576,7 @@ export default function App(){
             }
           </Card>
           <Card>
-            <div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12,letterSpacing:0.5}}>+ NOVO USUÁRIO</div>
+            <div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>+ NOVO USUÁRIO</div>
             <Inp label="Nome" icon="👤" value={novoUser.nome} onChange={v=>setNovoUser(f=>({...f,nome:v}))}/>
             <Inp label="Email" icon="📧" value={novoUser.email} onChange={v=>setNovoUser(f=>({...f,email:v}))}/>
             <Inp label="Senha" icon="🔒" value={novoUser.senha} onChange={v=>setNovoUser(f=>({...f,senha:v}))}/>
