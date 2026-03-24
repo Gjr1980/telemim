@@ -1269,7 +1269,7 @@ export default function App(){
           {tipo:"van",icon:"🚐",label:"Van",color:COLORS.blue,total:tVan,linhas:dias.map(d=>{const n=sw.items.filter(m=>m.data===d&&m.van).length;return n?{d,qt:n+" mud.",val:400}:null;}).filter(Boolean)},
           {tipo:"caminhao",icon:"🚚",label:"Caminhão",color:COLORS.accent,total:tCam,linhas:dias.map(d=>{const n=sw.items.filter(m=>m.data===d).length;return n?{d,qt:n+" mud.",val:n*350}:null;}).filter(Boolean)},
           {tipo:"ajudante",icon:"👷",label:"Ajudantes",color:COLORS.green,total:tAj,linhas:dias.map(d=>{const cx=cSem.find(x=>x.data===d);const aj=parseInt(cx?.ajudantes)||0;return aj?{d,qt:aj+" aj.",val:aj*80}:null;}).filter(Boolean)},
-          {tipo:"almoco",icon:"🍽️",label:"Almoço",color:COLORS.purple,total:tAlm,linhas:dias.map(d=>{const cx=cSem.find(x=>x.data===d);const v=parseFloat(cx?.custo_almoco)||0;return v?{d,qt:"",val:v}:null;}).filter(Boolean)},
+          {tipo:"almoco",icon:"🍽️",label:"Almoço",color:COLORS.purple,total:tAlm,semRegistro:tAlm===0,linhas:dias.map(d=>{const cx=cSem.find(x=>x.data===d);const v=parseFloat(cx?.custo_almoco)||0;return v?{d,qt:"",val:v}:null;}).filter(Boolean)},
         ];
         return(
           <div style={{maxWidth:640,margin:"0 auto",padding:"12px 12px 0"}}>
@@ -1300,7 +1300,7 @@ export default function App(){
                 );
               })}
             </Card>
-            {cards.map(({tipo,icon,label,color,total,linhas})=>(
+            {cards.filter(({semRegistro})=>!semRegistro).map(({tipo,icon,label,color,total,linhas})=>(
               <Card key={tipo} style={{marginBottom:10,border:"1.5px solid "+color+"22"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:linhas.length?8:0}}>
                   <div style={{fontWeight:800,fontSize:13,color}}>{icon} {label}</div>
@@ -1339,9 +1339,9 @@ export default function App(){
               const pagoVan=cSem.some(cx=>cx?.pago_van);
               const pagoCam=cSem.some(cx=>cx?.pago_caminhao);
               const pagoAj=cSem.some(cx=>cx?.pago_ajudante);
-              const pagoAlm=cSem.some(cx=>cx?.pago_almoco);
+              const pagoAlm=tAlm>0?cSem.some(cx=>cx?.pago_almoco):true;
               const todoPago=pagoVan&&pagoCam&&pagoAj&&pagoAlm;
-              const algumPago=pagoVan||pagoCam||pagoAj||pagoAlm;
+              const algumPago=pagoVan||pagoCam||pagoAj||(tAlm>0&&cSem.some(cx=>cx?.pago_almoco));
               const totalPago=(pagoVan?tVan:0)+(pagoCam?tCam:0)+(pagoAj?tAj:0)+(pagoAlm?tAlm:0);
               const totalPend=tTotal-totalPago;
               return(
@@ -1358,8 +1358,8 @@ export default function App(){
                       {icon:"🚐",label:"Van",val:tVan,pago:pagoVan},
                       {icon:"🚚",label:"Caminhão",val:tCam,pago:pagoCam},
                       {icon:"👷",label:"Ajudantes",val:tAj,pago:pagoAj},
-                      {icon:"🍽️",label:"Almoço",val:tAlm,pago:pagoAlm},
-                    ].map(({icon,label,val,pago})=>(
+                      {icon:"🍽️",label:"Almoço",val:tAlm,pago:tAlm>0?cSem.some(cx=>cx?.pago_almoco):true,skip:tAlm===0},
+                    ].filter(x=>!x.skip).map(({icon,label,val,pago})=>(
                       <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:pago?"#f0fdf4":"#fff5f5",border:"1px solid "+(pago?COLORS.green:COLORS.red)+"44",borderRadius:8,padding:"6px 9px"}}>
                         <span style={{fontSize:11,color:pago?COLORS.green:COLORS.red,fontWeight:700}}>{icon} {label}</span>
                         <div style={{textAlign:"right"}}>
