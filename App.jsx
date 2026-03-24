@@ -635,8 +635,8 @@ export default function App(){
                           </div>
                           {expand===m.id&&(
                             <div style={{marginTop:8,fontSize:12,lineHeight:1.9,background:"#f8fafc",borderRadius:10,padding:"10px 12px"}}>
-                              <div>📦 <strong>Origem:</strong> <span style={{color:COLORS.muted}}>{m.origem}</span></div>
-                              <div>🏠 <strong>Destino:</strong> <span style={{color:COLORS.muted}}>{m.destino}</span></div>
+                              <div>📦 <strong>Origem:</strong> {m.origem?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.origem)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{m.origem} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
+                              <div>🏠 <strong>Destino:</strong> {m.destino?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.destino)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{m.destino} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
                             </div>
                           )}
                         </div>
@@ -685,10 +685,10 @@ export default function App(){
                 {mudancasHoje.length>0&&(
                   <button onClick={()=>{
                     const lista=agendaOrdenada.filter(a=>a.data===hoje);
-                    const linhas=lista.map(a=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return `👤 *${a.nome}*\n🏷️ ${a.selo||"—"} · ⏰ ${a.horario||"—"}h\n📦 ${a.origem||"—"}\n🏠 ${a.destino||"—"}\n🚗 ${v||"—"}${a.contato?`\n📞 ${a.contato}`:""}`;});
-                    const txt=`🚛 *TELEMIM — MUDANÇAS DE HOJE*\n📅 ${new Date().toLocaleDateString("pt-BR")}\n━━━━━━━━━━━━━━━━━\n${linhas.join("\n━━━━━━━━━━━━━━━━━\n")}\n━━━━━━━━━━━━━━━━━\n_${lista.length} mudança${lista.length!==1?"s":""} hoje_`;
+                    const linhas=lista.map(a=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ");return `👤 *${a.nome}*\n🏷️ Selo: ${a.selo||"—"} · ⏰ ${a.horario||"—"}h\n📍 ${a.comunidade||"—"}\n📦 Saída: ${a.origem||"—"}\n🏠 Chegada: ${a.destino||"—"}\n🚗 Veículos: ${v||"—"}${a.contato?`\n📞 ${a.contato}`:""}${a.medicao?`\n📐 ${a.medicao} m³`:""}`;});
+                    const txt=`🚛 *TELEMIM — MUDANÇAS DO DIA*\n📅 *${new Date().toLocaleDateString("pt-BR")}*\n━━━━━━━━━━━━━━━━━\n${linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")}\n\n━━━━━━━━━━━━━━━━━\n_Total: ${lista.length} mudança${lista.length!==1?"s":""} · TELEMIM_`;
                     window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`,"_blank");
-                  }} style={{background:"#dcfce7",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📲 Hoje ({mudancasHoje.length})</button>
+                  }} style={{background:"#dcfce7",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📲 WhatsApp Dia ({mudancasHoje.length})</button>
                 )}
                 <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button>
               </div>
@@ -705,9 +705,9 @@ export default function App(){
                           <TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/><TagCom v={a.comunidade}/>
                         </div>
                         <div style={{fontSize:12,lineHeight:1.9,background:"#f8fafc",borderRadius:10,padding:"8px 12px",marginBottom:10}}>
-                          <div>📦 <strong>Saída:</strong> <span style={{color:COLORS.muted}}>{a.origem}</span></div>
-                          <div>🏠 <strong>Chegada:</strong> <span style={{color:COLORS.muted}}>{a.destino}</span></div>
-                          {a.contato&&<div>📞 <strong>Contato:</strong> <span style={{color:COLORS.muted}}>{a.contato}</span></div>}
+                          <div>📦 <strong>Saída:</strong> {a.origem?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.origem)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
+                          <div>🏠 <strong>Chegada:</strong> {a.destino?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.destino)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
+                          {a.contato&&<div>📞 <strong>Contato:</strong> <a href={`tel:${a.contato.replace(/\D/g,"")}`} style={{color:COLORS.green,textDecoration:"none",fontWeight:700}}>{a.contato} 📲</a></div>}
                         </div>
                         <div style={{marginBottom:10}}>
                           <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>🚗 Veículos</div>
