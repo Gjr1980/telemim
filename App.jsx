@@ -1,0 +1,1066 @@
+import { useState, useEffect } from "react";
+
+// ── SUPABASE CONFIG ──────────────────────────────────────────────────────────
+const SUPA_URL = "https://netoufukpmmfhzwirogi.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ldG91ZnVrcG1tZmh6d2lyb2dpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTkwOTksImV4cCI6MjA4OTg5NTA5OX0.iapL70SiL_GV4XvmXRNcjlK_Sc-P2-esJzuLQvovdGQ";
+const HEADERS = { "Content-Type": "application/json", "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}` };
+
+async function dbGet(table) {
+  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?select=*&order=id`, { headers: HEADERS });
+  if (!r.ok) return [];
+  return r.json();
+}
+async function dbUpsert(table, rows) {
+  await fetch(`${SUPA_URL}/rest/v1/${table}`, {
+    method: "POST",
+    headers: { ...HEADERS, "Prefer": "resolution=merge-duplicates" },
+    body: JSON.stringify(rows),
+  });
+}
+async function dbDelete(table, id) {
+  await fetch(`${SUPA_URL}/rest/v1/${table}?id=eq.${id}`, { method: "DELETE", headers: HEADERS });
+}
+
+// ── THEME & RULES ─────────────────────────────────────────────────────────────
+const COLORS = {
+  bg:"#f0f4f8", card:"#ffffff", cardBorder:"#e2e8f0",
+  accent:"#e67e22", green:"#16a34a", red:"#dc2626",
+  blue:"#2563eb", purple:"#7c3aed", text:"#1e293b", muted:"#64748b", inputBg:"#f8fafc",
+  shadow:"0 2px 12px rgba(0,0,0,0.08)", headerBg:"#1e293b",
+};
+const RULES = { medicaoPorM3:150, vanGanho:1000, vanCusto:400, caminhao:350, ajudante:80, imposto:0.16 };
+
+const DADOS_INICIAIS = [
+  { id:1,  selo:"180",               nome:"Joyce Rosendo",                               origem:"Travessa João Murilo de Oliveira, Beira da Maré",            destino:"Rua Sargento Silvino de Macedo, N°210, 5° Travessa, Aritana",                                     data:"2026-03-09", medicao:26, van:true, comunidade:"Comunidade do Bem" },
+  { id:2,  selo:"177",               nome:"Ivaneide Valença",                            origem:"Travessa João Murilo de Oliveira, Beira da Maré",            destino:"Comunidade do Bueiro, Av. Central, Afogados",                                                     data:"2026-03-04", medicao:26, van:true, comunidade:"Comunidade do Bem" },
+  { id:3,  selo:"168",               nome:"Julio Serafim",                               origem:"Estrada Velha do Frigorífico, S/N, Beira da Maré",           destino:"Rua João Murilo de Oliveira, Irmã Dorothy. Ref: lanchonete o melhor do trigo",                  data:"2026-03-10", medicao:30, van:true, comunidade:"Comunidade do Bem" },
+  { id:4,  selo:"VT-020-020 C e D",  nome:"Sônia Maria do Vale",                        origem:"Rua Dr. Flávio Ferreira da Silva Marajó, s/n, Com. Vietnã",  destino:"Rua Leila Felix Carã, s/nº - Torrões",                                                            data:"2026-03-02", medicao:31, van:true, comunidade:"Comunidade Chesf Vietnã" },
+  { id:5,  selo:"VT-020-020 C e D",  nome:"Sônia Maria do Vale",                        origem:"Rua Dr. Flávio Ferreira da Silva Marajó, s/n, Com. Vietnã",  destino:"Rua Leila Felix Carã, s/nº - Torrões",                                                            data:"2026-03-02", medicao:20, van:true, comunidade:"Comunidade Chesf Vietnã" },
+  { id:6,  selo:"VT-020-007 B",      nome:"Iranildo Araújo da Silva",                   origem:"Rua Dr. Flávio Ferreira da Silva Marajó, s/n, Com. Vietnã",  destino:"2ª Travessa da Rua Tenente Mindelo, nº15 - Jiquiá",                                               data:"2026-03-05", medicao:31, van:true, comunidade:"Comunidade Chesf Vietnã" },
+  { id:7,  selo:"VT-020-001 A",      nome:"Severino José dos Santos",                   origem:"Rua Dr. Flávio Ferreira da Silva Marajó, s/nº",              destino:"Rua Tavares de Holanda, nº 520",                                                                  data:"2026-03-06", medicao:27, van:true, comunidade:"Comunidade Chesf Vietnã" },
+  { id:8,  selo:"VT-020-003-A",      nome:"Ednaldo Gomes",                              origem:"Rua Dr. Flávio Ferreira da Silva Marajó, s/nº",              destino:"Rua Apulcro de Assunção, nº620 - próx. praça giradouro terminal San Martin",                      data:"2026-03-06", medicao:17, van:true, comunidade:"Comunidade Chesf Vietnã" },
+  { id:9,  selo:"VT-020-018-A",      nome:"Claudia Rafaela Barbosa de Oliveira Borges", origem:"Rua Dr. Flávio Ferreira da Silva Marajó, nº26",              destino:"Rua do Rosário, nº210 - Afogados",                                                               data:"2026-03-10", medicao:27, van:true, comunidade:"Comunidade Chesf Vietnã" },
+  { id:10, selo:"VT-020-018-A",      nome:"Claudia Rafaela Barbosa de Oliveira Borges", origem:"Rua Dr. Flávio Ferreira da Silva Marajó, nº26",              destino:"Rua do Rosário, nº210 - Afogados",                                                               data:"2026-03-10", medicao:20, van:true, comunidade:"Comunidade Chesf Vietnã" },
+  { id:11, selo:"VT-020-012-A",      nome:"Ricardo Pereira",                            origem:"Rua Dr. Flávio Ferreira da Silva Marajó, s/nº",              destino:"Rua Juscelândia, nº27 - Torrões",                                                                 data:"2026-03-13", medicao:29, van:true, comunidade:"Comunidade Chesf Vietnã" },
+  { id:12, selo:"VT-020-008-A",      nome:"Wirlânia do Nascimento Ferreira Araújo",     origem:"Rua Dr. Flávio Ferreira da Silva Marajó, nº727",             destino:"Rua Tenente Mindelo, nº15",                                                                      data:"2026-03-13", medicao:31, van:true, comunidade:"Comunidade Chesf Vietnã" },
+  { id:13, selo:"57",                nome:"Edeilson Pereira dos Santos",                 origem:"Av. Rio Capibaribe, 57 - São José",                         destino:"Habitacional Vila Brasil 1",                                                                      data:"2026-03-02", medicao:25, van:true, comunidade:"Comunidade Vila Brasil" },
+  { id:14, selo:"008A-1",            nome:"Aguinaldo José Bezerra",                     origem:"Rua Sargento Rubens Leite, nº98",                            destino:"Av. Barreto de Menezes, 160 - Marcos Freire, Jaboatão dos Guararapes",                           data:"2026-03-18", medicao:27, van:true, comunidade:"Encostas" },
+  { id:15, selo:"VT-020-004-A",      nome:"Maria do Carmo Carneiro Barbosa",            origem:"Rua Dr. Flávio Ferreira da Silva Marajó, nº730",             destino:"Rua 61, nº66 - Caetés 3 - próximo à associação Betânia",                                         data:"2026-03-05", medicao:31, van:true, comunidade:"Comunidade Chesf Vietnã" },
+  { id:16, selo:"243",               nome:"Clara Fernanda dos Santos Silva",             origem:"Tv João Murilo de Oliveira, Nº 182, Beira da Maré",         destino:"Rua Ernesto Lundgren, Nº 96, Lagoa Encantada, Ibura, Recife/PE",                                  data:"2026-03-13", medicao:25, van:true, comunidade:"Comunidade Chesf Vietnã" },
+];
+
+const AGENDA_INICIAIS = [
+  { id:101, nome:"Anderson Sebastião",                 selo:"VT-020-021-A", data:"2026-03-25", horario:"09:00", origem:"Rua Dr. Flávio Marajó, S/N - Comunidade Vietnã", destino:"8ª Travessa da Rua Porto Estrela, 28 - Recife/PE",         van:true,  caminhao:true, comunidade:"Comunidade Chesf Vietnã", contato:"81 8654-1134", status:"confirmado" },
+  { id:102, nome:"Maria da Conceição Silva Ferreira",  selo:"SESAN",        data:"2026-03-27", horario:"14:00", origem:"Rua Zeferino Agra, nº 490 - Bloco B 108",         destino:"1ª Travessa Santo Antonio, nº 215 - Dois Unidos",          van:false, caminhao:true, comunidade:"SESAN",                   contato:"",            status:"confirmado" },
+  { id:103, nome:"Jhonatan",                           selo:"VT-020-022-A", data:"2026-03-25", horario:"15:00", origem:"Rua Dr. Flávio Marajó, S/N - Comunidade Vietnã", destino:"1ª Travessa Eng. Abdias de Carvalho - Curado",             van:true,  caminhao:true, comunidade:"Comunidade Chesf Vietnã", contato:"81 8582-8967", status:"confirmado" },
+];
+
+const initForm = { nome:"", selo:"", data:new Date().toISOString().split("T")[0], horario:"08:00", origem:"", destino:"", medicao:"", van:true, comunidade:"", contato:"" };
+
+function fmt(n){ return "R$ "+Number(n).toLocaleString("pt-BR",{minimumFractionDigits:2}); }
+function fmtDate(d){ if(!d) return ""; const [y,m,dd]=d.split("-"); return `${dd}/${m}/${y}`; }
+function getWeek(ds){
+  const d=new Date(ds+"T12:00:00"), s=new Date(d.getFullYear(),0,1);
+  return Math.ceil(((d-s)/86400000+s.getDay()+1)/7);
+}
+function weekRange(ds){
+  const d=new Date(ds+"T12:00:00"), day=d.getDay();
+  const mon=new Date(d); mon.setDate(d.getDate()-(day===0?6:day-1));
+  const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+  const p=(n)=>n.toString().padStart(2,"0");
+  return `${p(mon.getDate())}/${p(mon.getMonth()+1)} – ${p(sun.getDate())}/${p(sun.getMonth()+1)}`;
+}
+function calcRel(list,aj,alm){
+  const diasVan=[...new Set(list.filter(m=>m.van).map(m=>m.data))];
+  const vd=diasVan.length, m3=list.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
+  const fatM=m3*RULES.medicaoPorM3, fatV=vd*RULES.vanGanho, bruto=fatM+fatV;
+  const imp=bruto*RULES.imposto;
+  const cV=vd*RULES.vanCusto, cC=list.length*RULES.caminhao, cA=(parseInt(aj)||0)*RULES.ajudante, cAlm=parseFloat(alm)||0;
+  const custos=cV+cC+cA+cAlm, liq=bruto-imp-custos, marg=bruto>0?(liq/bruto)*100:0;
+  return {fatM,fatV,bruto,imp,cV,cC,cA,cAlm,custos,liq,marg,m3,vd,nAj:parseInt(aj)||0};
+}
+
+function Badge({children,color=COLORS.accent}){
+  return <span style={{background:color+"18",color,border:`1px solid ${color}33`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{children}</span>;
+}
+function Card({children,style={}}){
+  return <div style={{background:COLORS.card,border:`1px solid ${COLORS.cardBorder}`,borderRadius:16,padding:18,boxShadow:COLORS.shadow,...style}}>{children}</div>;
+}
+function Inp({label,type="text",value,onChange,placeholder,icon}){
+  return(
+    <div style={{marginBottom:12}}>
+      <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:5,textTransform:"uppercase"}}>{icon} {label}</label>
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+        style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:10,color:COLORS.text,padding:"10px 13px",fontSize:14,outline:"none",boxSizing:"border-box"}}
+        onFocus={e=>e.target.style.border=`1.5px solid ${COLORS.accent}`}
+        onBlur={e=>e.target.style.border=`1.5px solid ${COLORS.cardBorder}`}/>
+    </div>
+  );
+}
+function Tog({label,value,onChange}){
+  return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+      <label style={{color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,textTransform:"uppercase"}}>{label}</label>
+      <div onClick={()=>onChange(!value)} style={{width:46,height:25,borderRadius:13,background:value?COLORS.accent:"#cbd5e1",position:"relative",cursor:"pointer",transition:"background 0.3s"}}>
+        <div style={{position:"absolute",top:3,left:value?22:3,width:19,height:19,borderRadius:10,background:"#fff",transition:"left 0.3s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
+      </div>
+    </div>
+  );
+}
+
+export default function App(){
+  const [tab,setTab]=useState("lista");
+  const [mudancas,setMudancas]=useState([]);
+  const [agenda,setAgenda]=useState([]);
+  const [form,setForm]=useState(initForm);
+  const [agForm,setAgForm]=useState({...initForm,status:"confirmado"});
+  const [rel,setRel]=useState(null);
+  const [relDataIni,setRelDataIni]=useState("");
+  const [relDataFim,setRelDataFim]=useState("");
+  const [relAj,setRelAj]=useState("3");
+  const [relAlm,setRelAlm]=useState("0");
+  const [semanaIdx,setSemanaIdx]=useState(0);
+  const [loading,setLoading]=useState(true);
+  const [flash,setFlash]=useState("");
+  const [expand,setExpand]=useState(null);
+  const [search,setSearch]=useState("");
+  const [editMud,setEditMud]=useState(null);
+  const [editAg,setEditAg]=useState(null);
+  const [syncStatus,setSyncStatus]=useState("✅ Sincronizado");
+
+  // ── LOAD DATA ──────────────────────────────────────────────────────────────
+  useEffect(()=>{
+    async function load(){
+      try {
+        let [mRows, aRows] = await Promise.all([dbGet("mudancas"), dbGet("agenda")]);
+        if(mRows.length===0){
+          await dbUpsert("mudancas", DADOS_INICIAIS);
+          mRows = DADOS_INICIAIS;
+        }
+        if(aRows.length===0){
+          await dbUpsert("agenda", AGENDA_INICIAIS);
+          aRows = AGENDA_INICIAIS;
+        }
+        setMudancas(mRows);
+        setAgenda(aRows);
+      } catch(e){
+        setMudancas(DADOS_INICIAIS);
+        setAgenda(AGENDA_INICIAIS);
+        setSyncStatus("⚠️ Offline");
+      }
+      setLoading(false);
+    }
+    load();
+  },[]);
+
+  // ── SYNC HELPERS ───────────────────────────────────────────────────────────
+  async function saveMud(list){
+    setMudancas(list);
+    setSyncStatus("🔄 Salvando...");
+    try { await dbUpsert("mudancas", list); setSyncStatus("✅ Sincronizado"); }
+    catch(e){ setSyncStatus("⚠️ Erro ao salvar"); }
+  }
+  async function saveAg(list){
+    setAgenda(list);
+    setSyncStatus("🔄 Salvando...");
+    try { await dbUpsert("agenda", list); setSyncStatus("✅ Sincronizado"); }
+    catch(e){ setSyncStatus("⚠️ Erro ao salvar"); }
+  }
+
+  // ── MUDANÇAS CRUD ──────────────────────────────────────────────────────────
+  async function handleAddMud(){
+    if(!form.nome||!form.selo) return;
+    const nova={...form,id:Date.now(),medicao:parseFloat(form.medicao)||0};
+    await saveMud([...mudancas,nova]);
+    setForm(initForm); setFlash("✅ Salvo!"); setTimeout(()=>setFlash(""),1800); setTab("lista");
+  }
+  async function handleDelMud(id){
+    setMudancas(prev=>prev.filter(m=>m.id!==id));
+    setSyncStatus("🔄 Salvando...");
+    try { await dbDelete("mudancas",id); setSyncStatus("✅ Sincronizado"); }
+    catch(e){ setSyncStatus("⚠️ Erro ao salvar"); }
+  }
+  async function handleSaveEditMud(){
+    if(!editMud) return;
+    const updated=mudancas.map(m=>m.id===editMud.id?{...editMud,medicao:parseFloat(editMud.medicao)||0}:m);
+    await saveMud(updated); setEditMud(null);
+  }
+
+  // ── AGENDA CRUD ────────────────────────────────────────────────────────────
+  async function handleAddAg(){
+    if(!agForm.nome||!agForm.data) return;
+    const nova={...agForm,id:Date.now()};
+    await saveAg([...agenda,nova]);
+    setAgForm({...initForm,status:"confirmado"}); setFlash("✅ Agendado!"); setTimeout(()=>setFlash(""),1800); setTab("agenda");
+  }
+  async function handleDelAg(id){
+    setAgenda(prev=>prev.filter(a=>a.id!==id));
+    setSyncStatus("🔄 Salvando...");
+    try { await dbDelete("agenda",id); setSyncStatus("✅ Sincronizado"); }
+    catch(e){ setSyncStatus("⚠️ Erro ao salvar"); }
+  }
+  async function handleSaveEditAg(){
+    if(!editAg) return;
+    const updated=agenda.map(a=>a.id===editAg.id?{...editAg}:a);
+    await saveAg(updated); setEditAg(null);
+  }
+  async function toggleStatus(id){
+    setAgenda(prev=>{
+      const updated=prev.map(a=>a.id===id?{...a,status:a.status==="confirmado"?"pendente":a.status==="pendente"?"realizado":"confirmado"}:a);
+      dbUpsert("agenda",updated).catch(()=>{});
+      return updated;
+    });
+  }
+  async function toggleAgField(id,field){
+    setAgenda(prev=>{
+      const updated=prev.map(a=>a.id===id?{...a,[field]:!a[field]}:a);
+      dbUpsert("agenda",updated).catch(()=>{});
+      return updated;
+    });
+  }
+  async function updateAgField(id,field,value){
+    setAgenda(prev=>{
+      const updated=prev.map(a=>a.id===id?{...a,[field]:value}:a);
+      dbUpsert("agenda",updated).catch(()=>{});
+      return updated;
+    });
+  }
+
+  // ── RELATÓRIO ──────────────────────────────────────────────────────────────
+  function gerarRel(){
+    const lista=mudancas.filter(m=>{
+      if(relDataIni&&m.data<relDataIni) return false;
+      if(relDataFim&&m.data>relDataFim) return false;
+      return true;
+    });
+    setRel({...calcRel(lista,relAj,relAlm),lista,ini:relDataIni,fim:relDataFim});
+  }
+
+  // ── HELPER: abrir PDF via Blob (funciona em todos os ambientes) ────────────
+  function abrirPDF(html, nomeArquivo){
+    try {
+      const blob = new Blob([html], {type:"text/html;charset=utf-8"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nomeArquivo+".html";
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+    } catch(e) {
+      // fallback
+      const w = window.open("","_blank");
+      if(w){ w.document.write(html); w.document.close(); }
+    }
+  }
+
+  // ── CSS COMPARTILHADO PARA PDFs ────────────────────────────────────────────
+  const pdfCSS=`*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f9;color:#1a1a2e;padding:20px}.page{max-width:720px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)}.header{background:linear-gradient(135deg,#1e293b 0%,#334155 100%);color:#fff;padding:24px 28px}.logo{font-size:22px;font-weight:900;color:#e67e22}.subtitle{font-size:10px;color:#94a3b8;letter-spacing:2px;text-transform:uppercase;margin-top:2px}.header-meta{font-size:11px;color:#94a3b8;text-align:right;line-height:1.8}.header-top{display:flex;justify-content:space-between;align-items:flex-start}.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}.body{padding:24px 28px}.section{margin-bottom:20px}.section-title{font-size:12px;font-weight:800;padding:7px 12px;border-radius:8px;margin-bottom:9px}.title-fat{background:#fff8e6;color:#b7840a}.title-imp{background:#fdecea;color:#c0392b}.title-cust{background:#eaf4fb;color:#1a6a99}.title-res{background:#f0f0f0;color:#333}.title-mud{background:#f0faf4;color:#1a7a45}.title-ag{background:#f5f3ff;color:#6d28d9}.title-info{background:#f0f9ff;color:#0369a1}table{width:100%;border-collapse:collapse}td{padding:8px 11px;font-size:12px;border-bottom:1px solid #f0f0f0}td:last-child{text-align:right;font-weight:700}tr.total td{background:#f8f9fb;font-weight:800;font-size:13px;border-top:2px solid #e0e0e0}tr.hrow td{background:#f0f2f5;font-weight:700;font-size:11px;color:#666;text-transform:uppercase}.green{color:#16a34a}.red{color:#dc2626}.blue{color:#2563eb}.orange{color:#e67e22}.purple{color:#7c3aed}.lucro-box{border-radius:12px;padding:20px;text-align:center;margin-bottom:20px}.lucro-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px}.lucro-val{font-size:36px;font-weight:900;line-height:1}.lucro-sub{font-size:12px;margin-top:7px;font-weight:600}.stats{display:grid;gap:10px;margin-bottom:20px}.stat{background:#f8f9fb;border-radius:10px;padding:12px;text-align:center;border:1px solid #e8eaf0}.stat-val{font-size:16px;font-weight:900;color:#1a1a2e}.stat-label{font-size:10px;color:#8890a4;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}.info-row{display:flex;gap:8px;margin-bottom:8px;font-size:12px}.info-label{font-weight:700;color:#475569;min-width:90px}.info-val{color:#64748b}.footer{background:#f8f9fb;border-top:1px solid #eee;padding:12px 28px;display:flex;justify-content:space-between;align-items:center}.footer-logo{font-size:12px;font-weight:800;color:#e67e22}.footer-info{font-size:10px;color:#aaa}@media print{body{padding:0;background:#fff}.page{box-shadow:none;border-radius:0}}`;
+
+  // ── PDF RELATÓRIO FINANCEIRO ───────────────────────────────────────────────
+  function gerarPDFGeral(){
+    if(!rel) return;
+    const periodo=rel.ini||rel.fim?`${rel.ini?fmtDate(rel.ini):"início"} a ${rel.fim?fmtDate(rel.fim):"hoje"}`:"Todo o período";
+    const corLucro=rel.liq>=0?"#16a34a":"#dc2626";
+    const bgLucro=rel.liq>=0?"linear-gradient(135deg,#f0fdf4,#dcfce7)":"linear-gradient(135deg,#fef2f2,#fee2e2)";
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TELEMIM — Relatório Financeiro</title><style>${pdfCSS}</style></head><body>
+    <div class="page">
+      <div class="header">
+        <div class="header-top">
+          <div><div class="logo">🚛 TELEMIM</div><div class="subtitle">Gestão Financeira de Mudanças</div></div>
+          <div class="header-meta"><div>CONTRATO: PROMORAR</div><div>Gerado: ${new Date().toLocaleDateString("pt-BR")} ${new Date().toLocaleTimeString("pt-BR")}</div></div>
+        </div>
+        <div style="margin-top:10px;font-size:13px;color:#e67e22;font-weight:700">📅 Período: ${periodo}</div>
+      </div>
+      <div class="body">
+        <div class="lucro-box" style="background:${bgLucro};border:2px solid ${corLucro}">
+          <div class="lucro-label" style="color:${corLucro}">💰 LUCRO LÍQUIDO</div>
+          <div class="lucro-val" style="color:${corLucro}">R$ ${rel.liq.toLocaleString("pt-BR",{minimumFractionDigits:2})}</div>
+          <div class="lucro-sub" style="color:${corLucro}">Margem de Lucro: ${rel.marg.toFixed(1)}%</div>
+        </div>
+        <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+          <div class="stat"><div class="stat-val">${rel.lista.length}</div><div class="stat-label">Mudanças</div></div>
+          <div class="stat"><div class="stat-val">${rel.m3} m³</div><div class="stat-label">Total Medido</div></div>
+          <div class="stat"><div class="stat-val">${rel.vd} dia${rel.vd!==1?"s":""}</div><div class="stat-label">Com Van</div></div>
+        </div>
+        <div class="section"><div class="section-title title-fat">💵 Faturamento</div><table>
+          <tr><td>📐 Medição (${rel.m3} m³ × R$ 150,00)</td><td class="green">R$ ${rel.fatM.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+          <tr><td>🚐 Van (${rel.vd} dia${rel.vd!==1?"s":""} × R$ 1.000,00)</td><td class="green">R$ ${rel.fatV.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+          <tr class="total"><td>Faturamento Bruto</td><td class="orange">R$ ${rel.bruto.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+        </table></div>
+        <div class="section"><div class="section-title title-imp">🏛️ Imposto (16%)</div><table>
+          <tr><td>Dedução sobre Faturamento Bruto</td><td class="red">- R$ ${rel.imp.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+        </table></div>
+        <div class="section"><div class="section-title title-cust">🔧 Discriminação dos Custos</div><table>
+          ${rel.vd>0?`<tr><td>🚐 Van (${rel.vd} dia${rel.vd!==1?"s":""} × R$ 400,00)</td><td class="red">- R$ ${rel.cV.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>`:""}
+          <tr><td>🚚 Caminhão (${rel.lista.length} × R$ 350,00)</td><td class="red">- R$ ${rel.cC.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+          <tr><td>👷 Ajudantes (${rel.nAj} × R$ 80,00)</td><td class="red">- R$ ${rel.cA.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+          ${rel.cAlm>0?`<tr><td>🍽️ Almoço</td><td class="red">- R$ ${rel.cAlm.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>`:""}
+          <tr class="total"><td>Total de Custos</td><td class="blue">- R$ ${rel.custos.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+        </table></div>
+        <div class="section"><div class="section-title title-res">📊 Resumo Final</div><table>
+          <tr><td>Faturamento Bruto</td><td class="orange">R$ ${rel.bruto.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+          <tr><td>(-) Imposto 16%</td><td class="red">- R$ ${rel.imp.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+          <tr><td>(-) Custos Operacionais</td><td class="blue">- R$ ${rel.custos.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+          <tr class="total"><td>(=) Lucro Líquido</td><td style="color:${corLucro}">R$ ${rel.liq.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+        </table></div>
+        <div class="section"><div class="section-title title-mud">📋 Mudanças do Período (${rel.lista.length})</div><table>
+          <tr class="hrow"><td>Beneficiário</td><td>Selo</td><td>Comunidade</td><td>Data</td><td>m³</td></tr>
+          ${rel.lista.map((m,i)=>`<tr style="background:${i%2===0?"#fff":"#fafafa"}"><td>${m.nome}</td><td>${m.selo||"—"}</td><td>${m.comunidade||"—"}</td><td>${fmtDate(m.data)}</td><td>${m.medicao}</td></tr>`).join("")}
+        </table></div>
+      </div>
+      <div class="footer"><div class="footer-logo">🚛 TELEMIM</div><div class="footer-info">Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}</div></div>
+    </div></body></html>`;
+    abrirPDF(html, `TELEMIM-Relatorio-${periodo.replace(/\//g,"-")}`);
+  }
+
+  // ── PDF SEMANA ─────────────────────────────────────────────────────────────
+  function gerarPDFSemana(sw,sr){
+    const corLucro=sr.liq>=0?"#16a34a":"#dc2626";
+    const bgLucro=sr.liq>=0?"linear-gradient(135deg,#f0fdf4,#dcfce7)":"linear-gradient(135deg,#fef2f2,#fee2e2)";
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TELEMIM — Relatório Semanal ${sw.label}</title><style>${pdfCSS}</style></head><body>
+    <div class="page">
+      <div class="header">
+        <div class="header-top">
+          <div><div class="logo">🚛 TELEMIM</div><div class="subtitle">Relatório Semanal</div></div>
+          <div class="header-meta"><div>CONTRATO: PROMORAR</div><div>Gerado: ${new Date().toLocaleDateString("pt-BR")}</div></div>
+        </div>
+        <div style="margin-top:10px;font-size:14px;color:#3498db;font-weight:800">📆 Semana: ${sw.label}</div>
+      </div>
+      <div class="body">
+        <div class="lucro-box" style="background:${bgLucro};border:2px solid ${corLucro}">
+          <div class="lucro-label" style="color:${corLucro}">💰 LUCRO DA SEMANA</div>
+          <div class="lucro-val" style="color:${corLucro}">R$ ${sr.liq.toLocaleString("pt-BR",{minimumFractionDigits:2})}</div>
+          <div class="lucro-sub" style="color:${corLucro}">Margem: ${sr.marg.toFixed(1)}%</div>
+        </div>
+        <div class="stats" style="grid-template-columns:repeat(4,1fr)">
+          <div class="stat"><div class="stat-val">${sw.items.length}</div><div class="stat-label">Mudanças</div></div>
+          <div class="stat"><div class="stat-val">${sr.m3} m³</div><div class="stat-label">Medido</div></div>
+          <div class="stat"><div class="stat-val">${sr.vd}</div><div class="stat-label">Dias Van</div></div>
+          <div class="stat"><div class="stat-val orange">R$ ${sr.bruto.toLocaleString("pt-BR",{minimumFractionDigits:2})}</div><div class="stat-label">Fat. Bruto</div></div>
+        </div>
+        <div class="section"><div class="section-title title-fat">💵 Faturamento</div><table>
+          <tr><td>Medição (${sr.m3} m³ × R$ 150,00)</td><td class="green">R$ ${sr.fatM.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+          <tr><td>Van (${sr.vd} dia${sr.vd!==1?"s":""} × R$ 1.000,00)</td><td class="green">R$ ${sr.fatV.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+          <tr class="total"><td>Faturamento Bruto</td><td class="orange">R$ ${sr.bruto.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+        </table></div>
+        <div class="section"><div class="section-title title-imp">🏛️ Imposto (16%)</div><table>
+          <tr><td>Dedução sobre Faturamento Bruto</td><td class="red">- R$ ${sr.imp.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+        </table></div>
+        <div class="section"><div class="section-title title-cust">🔧 Discriminação dos Custos</div><table>
+          ${sr.vd>0?`<tr><td>🚐 Van (${sr.vd} dia${sr.vd!==1?"s":""} × R$ 400,00)</td><td class="red">- R$ ${sr.cV.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>`:""}
+          <tr><td>🚚 Caminhão (${sw.items.length} × R$ 350,00)</td><td class="red">- R$ ${sr.cC.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+          <tr><td>👷 Ajudantes (${sr.nAj} × R$ 80,00)</td><td class="red">- R$ ${sr.cA.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+          ${sr.cAlm>0?`<tr><td>🍽️ Almoço</td><td class="red">- R$ ${sr.cAlm.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>`:""}
+          <tr class="total"><td>Total de Custos</td><td class="blue">- R$ ${sr.custos.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
+        </table></div>
+        <div class="section"><div class="section-title title-mud">📋 Mudanças da Semana (${sw.items.length})</div><table>
+          <tr class="hrow"><td>Beneficiário</td><td>Selo</td><td>Data</td><td>m³</td><td>Van</td></tr>
+          ${sw.items.map((m,i)=>`<tr style="background:${i%2===0?"#fff":"#fafafa"}"><td>${m.nome}</td><td>${m.selo||"—"}</td><td>${fmtDate(m.data)}</td><td>${m.medicao}</td><td>${m.van?"✅":"—"}</td></tr>`).join("")}
+        </table></div>
+      </div>
+      <div class="footer"><div class="footer-logo">🚛 TELEMIM</div><div class="footer-info">Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}</div></div>
+    </div></body></html>`;
+    abrirPDF(html, `TELEMIM-Semana-${sw.label.replace(/[–\/]/g,"-")}`);
+  }
+
+  // ── PDF MUDANÇA INDIVIDUAL ─────────────────────────────────────────────────
+  function gerarPDFMudanca(m){
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TELEMIM — Mudança ${m.nome}</title><style>${pdfCSS}</style></head><body>
+    <div class="page">
+      <div class="header">
+        <div class="header-top">
+          <div><div class="logo">🚛 TELEMIM</div><div class="subtitle">Comprovante de Mudança Realizada</div></div>
+          <div class="header-meta"><div>CONTRATO: PROMORAR</div><div>Gerado: ${new Date().toLocaleDateString("pt-BR")}</div></div>
+        </div>
+      </div>
+      <div class="body">
+        <div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;padding:18px;text-align:center;margin-bottom:20px">
+          <div style="font-size:10px;font-weight:700;color:#16a34a;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px">✅ MUDANÇA REALIZADA</div>
+          <div style="font-size:24px;font-weight:900;color:#1e293b">${m.nome}</div>
+          <div style="font-size:13px;color:#64748b;margin-top:5px">📅 ${fmtDate(m.data)} · 🏷️ ${m.selo||"—"}</div>
+        </div>
+        <div class="section"><div class="section-title title-info">📋 Dados da Mudança</div>
+          <div style="padding:4px 0">
+            <div class="info-row"><span class="info-label">👤 Beneficiário</span><span class="info-val">${m.nome}</span></div>
+            <div class="info-row"><span class="info-label">🏷️ Selo</span><span class="info-val">${m.selo||"—"}</span></div>
+            <div class="info-row"><span class="info-label">📍 Comunidade</span><span class="info-val">${m.comunidade||"—"}</span></div>
+            <div class="info-row"><span class="info-label">📅 Data</span><span class="info-val">${fmtDate(m.data)}</span></div>
+            <div class="info-row"><span class="info-label">📦 Saída</span><span class="info-val">${m.origem||"—"}</span></div>
+            <div class="info-row"><span class="info-label">🏠 Chegada</span><span class="info-val">${m.destino||"—"}</span></div>
+            <div class="info-row"><span class="info-label">📐 Medição</span><span class="info-val" style="font-weight:800;color:#16a34a">${m.medicao} m³</span></div>
+            <div class="info-row"><span class="info-label">🚐 Van</span><span class="info-val">${m.van?"✅ Utilizada":"❌ Não utilizada"}</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="footer"><div class="footer-logo">🚛 TELEMIM</div><div class="footer-info">Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}</div></div>
+    </div></body></html>`;
+    abrirPDF(html, `TELEMIM-Mudanca-${m.nome.split(" ")[0]}-${fmtDate(m.data).replace(/\//g,"-")}`);
+  }
+
+  // ── PDF AGENDAMENTO INDIVIDUAL ─────────────────────────────────────────────
+  function gerarPDFAgendamento(a){
+    const veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
+    const sc={confirmado:"#16a34a",pendente:"#e67e22",realizado:"#64748b"};
+    const sb={confirmado:"#f0fdf4",pendente:"#fff7ed",realizado:"#f8fafc"};
+    const cor=sc[a.status]||"#64748b";
+    const bg=sb[a.status]||"#f8fafc";
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TELEMIM — Agendamento ${a.nome}</title><style>${pdfCSS}</style></head><body>
+    <div class="page">
+      <div class="header">
+        <div class="header-top">
+          <div><div class="logo">🚛 TELEMIM</div><div class="subtitle">Comprovante de Agendamento</div></div>
+          <div class="header-meta"><div>CONTRATO: PROMORAR</div><div>Gerado: ${new Date().toLocaleDateString("pt-BR")}</div></div>
+        </div>
+      </div>
+      <div class="body">
+        <div style="background:${bg};border:2px solid ${cor};border-radius:12px;padding:18px;text-align:center;margin-bottom:20px">
+          <div style="font-size:10px;font-weight:700;color:${cor};letter-spacing:2px;text-transform:uppercase;margin-bottom:5px">📅 MUDANÇA AGENDADA</div>
+          <div style="font-size:24px;font-weight:900;color:#1e293b">${a.nome}</div>
+          <div style="font-size:13px;color:#64748b;margin-top:5px">📅 ${fmtDate(a.data)}${a.horario?` ⏰ ${a.horario}h`:""}</div>
+          <div style="margin-top:8px;display:inline-block;padding:4px 14px;border-radius:20px;background:${cor}22;color:${cor};font-size:12px;font-weight:700">${a.status==="confirmado"?"✅ Confirmado":a.status==="pendente"?"⏳ Pendente":"✔ Realizado"}</div>
+        </div>
+        <div class="section"><div class="section-title title-ag">📋 Dados do Agendamento</div>
+          <div style="padding:4px 0">
+            <div class="info-row"><span class="info-label">👤 Beneficiário</span><span class="info-val">${a.nome}</span></div>
+            <div class="info-row"><span class="info-label">🏷️ Selo</span><span class="info-val">${a.selo||"—"}</span></div>
+            <div class="info-row"><span class="info-label">📍 Comunidade</span><span class="info-val">${a.comunidade||"—"}</span></div>
+            <div class="info-row"><span class="info-label">📅 Data</span><span class="info-val" style="font-weight:800;color:#2563eb">${fmtDate(a.data)}</span></div>
+            ${a.horario?`<div class="info-row"><span class="info-label">⏰ Horário</span><span class="info-val" style="font-weight:800;color:#16a34a">${a.horario}h</span></div>`:""}
+            <div class="info-row"><span class="info-label">📦 Saída</span><span class="info-val">${a.origem||"—"}</span></div>
+            <div class="info-row"><span class="info-label">🏠 Chegada</span><span class="info-val">${a.destino||"—"}</span></div>
+            <div class="info-row"><span class="info-label">🚗 Veículos</span><span class="info-val" style="font-weight:800">${veiculos}</span></div>
+            ${a.contato?`<div class="info-row"><span class="info-label">📞 Contato</span><span class="info-val">${a.contato}</span></div>`:""}
+            ${a.medicao?`<div class="info-row"><span class="info-label">📐 Medição</span><span class="info-val" style="font-weight:800;color:#16a34a">${a.medicao} m³</span></div>`:""}
+            ${a.ajudantes?`<div class="info-row"><span class="info-label">👷 Ajudantes</span><span class="info-val">${a.ajudantes}</span></div>`:""}
+          </div>
+        </div>
+      </div>
+      <div class="footer"><div class="footer-logo">🚛 TELEMIM</div><div class="footer-info">Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}</div></div>
+    </div></body></html>`;
+    abrirPDF(html, `TELEMIM-Agendamento-${a.nome.split(" ")[0]}-${fmtDate(a.data).replace(/\//g,"-")}`);
+  }
+
+  // ── WHATSAPP ───────────────────────────────────────────────────────────────
+  function compartilharWhatsApp(a,tipo="agendamento"){
+    const veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
+    const texto=`🚛 *TELEMIM — ${tipo==="hoje"?"MUDANÇA HOJE":"MUDANÇA AGENDADA"}*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* ${a.nome}\n🏷️ *Selo:* ${a.selo||"—"}\n📅 *Data:* ${fmtDate(a.data)}${a.horario?` ⏰ ${a.horario}`:""}\n📍 *Comunidade:* ${a.comunidade||"—"}\n📦 *Saída:* ${a.origem||"—"}\n🏠 *Chegada:* ${a.destino||"—"}\n🚗 *Veículos:* ${veiculos}${a.contato?`\n📞 *Contato:* ${a.contato}`:""}\n━━━━━━━━━━━━━━━━━\n✅ *Status:* ${a.status==="confirmado"?"Confirmado":a.status==="pendente"?"Pendente":"Realizado"}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`,"_blank");
+  }
+  function compartilharMudanca(m){
+    const texto=`🚛 *TELEMIM — MUDANÇA REALIZADA*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* ${m.nome}\n🏷️ *Selo:* ${m.selo||"—"}\n📅 *Data:* ${fmtDate(m.data)}\n📍 *Comunidade:* ${m.comunidade||"—"}\n📦 *Saída:* ${m.origem||"—"}\n🏠 *Chegada:* ${m.destino||"—"}\n📐 *Medição:* ${m.medicao} m³\n🚐 *Van:* ${m.van?"Sim":"Não"}\n━━━━━━━━━━━━━━━━━\n_Gerado pelo TELEMIM_`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`,"_blank");
+  }
+  function compartilharRelatorio(r,periodo){
+    const nMud=r.lista?.length||mudancas.length;
+    const texto=`📊 *TELEMIM — RELATÓRIO FINANCEIRO*\n━━━━━━━━━━━━━━━━━\n📅 *Período:* ${periodo}\n📦 *Mudanças:* ${nMud}\n📐 *Total m³:* ${r.m3} m³\n🚐 *Dias com Van:* ${r.vd}\n\n💵 *FATURAMENTO*\n📐 Medição (${r.m3} m³ × R$150): R$ ${r.fatM.toLocaleString("pt-BR",{minimumFractionDigits:2})}\n🚐 Van (${r.vd} dia${r.vd!==1?"s":""} × R$1.000): R$ ${r.fatV.toLocaleString("pt-BR",{minimumFractionDigits:2})}\n*Faturamento Bruto: R$ ${r.bruto.toLocaleString("pt-BR",{minimumFractionDigits:2})}*\n\n🏛️ *IMPOSTO (16%)*\nDedução: - R$ ${r.imp.toLocaleString("pt-BR",{minimumFractionDigits:2})}\n\n🔧 *DISCRIMINAÇÃO DOS CUSTOS*\n${r.vd>0?`🚐 Van (${r.vd} dia${r.vd!==1?"s":""} × R$400): - R$ ${r.cV.toLocaleString("pt-BR",{minimumFractionDigits:2})}\n`:""}🚚 Caminhão (${nMud} × R$350): - R$ ${r.cC.toLocaleString("pt-BR",{minimumFractionDigits:2})}\n👷 Ajudantes (${r.nAj} × R$80): - R$ ${r.cA.toLocaleString("pt-BR",{minimumFractionDigits:2})}${r.cAlm>0?`\n🍽️ Almoço: - R$ ${r.cAlm.toLocaleString("pt-BR",{minimumFractionDigits:2})}`:""}\n*Total de Custos: - R$ ${r.custos.toLocaleString("pt-BR",{minimumFractionDigits:2})}*\n\n━━━━━━━━━━━━━━━━━\n💰 *LUCRO LÍQUIDO: R$ ${r.liq.toLocaleString("pt-BR",{minimumFractionDigits:2})}*\n📈 *Margem: ${r.marg.toFixed(1)}%*\n━━━━━━━━━━━━━━━━━\n_Gerado pelo TELEMIM_`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`,"_blank");
+  }
+
+  // ── COMPUTED ───────────────────────────────────────────────────────────────
+  const semanas=(()=>{
+    const map={};
+    mudancas.forEach(m=>{
+      const w=getWeek(m.data)+"-"+m.data.slice(0,4);
+      if(!map[w]) map[w]={key:w,label:weekRange(m.data),items:[]};
+      map[w].items.push(m);
+    });
+    return Object.values(map).sort((a,b)=>b.key.localeCompare(a.key));
+  })();
+
+  const totalM3=mudancas.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
+  const comunidades=[...new Set(mudancas.map(m=>m.comunidade).filter(Boolean))];
+  const filtered=[...mudancas].filter(m=>
+    m.nome.toLowerCase().includes(search.toLowerCase())||
+    m.selo.toLowerCase().includes(search.toLowerCase())||
+    (m.comunidade||"").toLowerCase().includes(search.toLowerCase())
+  ).sort((a,b)=>b.data.localeCompare(a.data));
+
+  const agendaOrdenada=[...agenda].sort((a,b)=>a.data.localeCompare(b.data)||(a.horario||"").localeCompare(b.horario||""));
+  const hoje=new Date().toISOString().split("T")[0];
+  const amanha=new Date(new Date().getTime()+86400000).toISOString().split("T")[0];
+  const proximas=agendaOrdenada.filter(a=>a.data>=hoje);
+  const passadas=agendaOrdenada.filter(a=>a.data<hoje);
+  const mudancasHoje=agendaOrdenada.filter(a=>a.data===hoje&&a.status!=="realizado");
+  const mudancasAmanha=agendaOrdenada.filter(a=>a.data===amanha&&a.status!=="realizado");
+
+  const statusColor={confirmado:COLORS.green,pendente:COLORS.accent,realizado:COLORS.muted};
+  const statusLabel={confirmado:"✅ Confirmado",pendente:"⏳ Pendente",realizado:"✔ Realizado"};
+
+  const TABS=[
+    {id:"lista",label:"📋 Registros"},
+    {id:"agenda",label:"📅 Agenda"},
+    {id:"novo",label:"➕ Nova"},
+    {id:"relatorio",label:"📊 Relatório"},
+    {id:"semana",label:"📆 Semana"},
+  ];
+
+  // ── BTN STYLES ─────────────────────────────────────────────────────────────
+  const btnGreen={background:"#dcfce7",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 8px",cursor:"pointer",fontSize:12,fontWeight:700};
+  const btnBlue={background:"#eff6ff",border:"none",color:COLORS.blue,borderRadius:8,padding:"5px 8px",cursor:"pointer",fontSize:12,fontWeight:700};
+  const btnRed={background:"#fef2f2",border:"none",color:COLORS.red,borderRadius:8,padding:"5px 8px",cursor:"pointer",fontSize:12};
+
+  // ── TAG HELPERS ────────────────────────────────────────────────────────────
+  const TagSelo=({v})=><span style={{background:"#f1f5f9",borderRadius:8,padding:"3px 9px",fontSize:11,color:COLORS.muted,fontWeight:600}}>🏷️ {v||"—"}</span>;
+  const TagData=({v})=><span style={{background:"#eff6ff",borderRadius:8,padding:"3px 9px",fontSize:11,color:COLORS.blue,fontWeight:700}}>📅 {fmtDate(v)}</span>;
+  const TagHora=({v})=>v?<span style={{background:"#f0fdf4",borderRadius:8,padding:"3px 9px",fontSize:11,color:COLORS.green,fontWeight:700}}>⏰ {v}h</span>:null;
+  const TagCom=({v})=>v?<span style={{background:"#fff7ed",borderRadius:8,padding:"3px 9px",fontSize:11,color:COLORS.accent,fontWeight:600}}>📍 {v}</span>:null;
+
+  if(loading) return(
+    <div style={{minHeight:"100vh",background:COLORS.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14}}>
+      <div style={{fontSize:42}}>🚛</div>
+      <div style={{color:COLORS.accent,fontWeight:900,fontSize:18}}>Carregando do Supabase...</div>
+    </div>
+  );
+
+  return(
+    <div style={{minHeight:"100vh",background:COLORS.bg,fontFamily:"'Segoe UI',system-ui,sans-serif",color:COLORS.text,paddingBottom:50}}>
+
+      {/* Header */}
+      <div style={{background:COLORS.headerBg,padding:"16px 16px 12px",boxShadow:"0 2px 16px rgba(0,0,0,0.15)"}}>
+        <div style={{maxWidth:640,margin:"0 auto"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{background:COLORS.accent,borderRadius:12,width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🚛</div>
+            <div>
+              <div style={{fontSize:20,fontWeight:900,color:"#fff",letterSpacing:-0.5}}>TELEMIM</div>
+              <div style={{fontSize:10,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase"}}>CONTRATO: PROMORAR</div>
+            </div>
+            <div style={{marginLeft:"auto",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                <Badge color={COLORS.green}>{mudancas.length} mudanças</Badge>
+                <Badge color={COLORS.blue}>{totalM3} m³</Badge>
+                <Badge color={COLORS.purple}>{agenda.length} agendadas</Badge>
+              </div>
+              <span style={{fontSize:10,color:syncStatus.includes("✅")?"#4ade80":syncStatus.includes("🔄")?"#fbbf24":"#f87171",fontWeight:700}}>{syncStatus}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{maxWidth:640,margin:"0 auto",padding:"0 12px"}}>
+
+        {/* Alertas */}
+        {mudancasHoje.length>0&&(
+          <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
+            {mudancasHoje.map(a=>(
+              <div key={a.id} style={{background:"#dcfce7",border:`2px solid ${COLORS.green}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(22,163,74,0.15)"}}>
+                <div style={{flex:1}}>
+                  <div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>🔔 MUDANÇA HOJE!</div>
+                  <div style={{fontWeight:800,fontSize:13,color:COLORS.text}}>{a.nome}</div>
+                  <div style={{color:COLORS.muted,fontSize:11}}>{a.horario?`⏰ ${a.horario}h · `:""}{a.origem||"—"}</div>
+                </div>
+                <button onClick={()=>compartilharWhatsApp(a,"hoje")} style={{background:COLORS.green,border:"none",color:"#fff",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontSize:15,flexShrink:0,fontWeight:700}}>📲</button>
+              </div>
+            ))}
+          </div>
+        )}
+        {mudancasAmanha.length>0&&(
+          <div style={{margin:"8px 0 0",display:"flex",flexDirection:"column",gap:7}}>
+            {mudancasAmanha.map(a=>(
+              <div key={a.id} style={{background:"#fff7ed",border:`2px solid ${COLORS.accent}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(230,126,34,0.15)"}}>
+                <div style={{flex:1}}>
+                  <div style={{color:COLORS.accent,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>⚠️ MUDANÇA AMANHÃ!</div>
+                  <div style={{fontWeight:800,fontSize:13,color:COLORS.text}}>{a.nome}</div>
+                  <div style={{color:COLORS.muted,fontSize:11}}>{a.horario?`⏰ ${a.horario}h · `:""}{a.origem||"—"}</div>
+                </div>
+                <button onClick={()=>compartilharWhatsApp(a,"amanha")} style={{background:COLORS.accent,border:"none",color:"#fff",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontSize:15,flexShrink:0,fontWeight:700}}>📲</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div style={{marginTop:14,marginBottom:13}}>
+          <div style={{display:"flex",gap:6,marginBottom:6}}>
+            {TABS.slice(0,3).map(t=>(
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"10px 2px",borderRadius:12,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            {TABS.slice(3).map(t=>(
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"10px 2px",borderRadius:12,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* ══ LISTA ══ */}
+        {tab==="lista"&&(
+          <div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:13}}>
+              {(()=>{
+                const dv=[...new Set(mudancas.filter(m=>m.van).map(m=>m.data))].length;
+                const fb=totalM3*RULES.medicaoPorM3+dv*RULES.vanGanho;
+                return [{label:"Total m³",val:totalM3,color:COLORS.accent},{label:"Fat. Bruto",val:fmt(fb),color:COLORS.green},{label:"Comunidades",val:comunidades.length,color:COLORS.blue}];
+              })().map(s=>(
+                <Card key={s.label} style={{padding:"12px 10px",textAlign:"center",border:`1.5px solid ${s.color}22`}}>
+                  <div style={{color:s.color,fontWeight:900,fontSize:14}}>{s.val}</div>
+                  <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginTop:3}}>{s.label}</div>
+                </Card>
+              ))}
+            </div>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar nome, selo ou comunidade..."
+              style={{width:"100%",background:"#fff",border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:12,color:COLORS.text,padding:"10px 14px",fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:12,boxShadow:COLORS.shadow}}/>
+            {comunidades.map(com=>{
+              const items=filtered.filter(m=>m.comunidade===com);
+              if(!items.length) return null;
+              const sub=items.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
+              return(
+                <div key={com} style={{marginBottom:14}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7}}>
+                    <span style={{background:COLORS.accent+"15",borderRadius:6,padding:"3px 10px",color:COLORS.accent,fontWeight:800,fontSize:12}}>📍 {com}</span>
+                    <Badge color={COLORS.accent}>{sub} m³ · {items.length} mud.</Badge>
+                  </div>
+                  {items.map(m=>(
+                    <Card key={m.id} style={{marginBottom:8,padding:"13px 15px",cursor:"pointer",border:`1.5px solid ${expand===m.id?COLORS.accent:COLORS.cardBorder}`}} onClick={()=>setExpand(expand===m.id?null:m.id)}>
+                      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:800,fontSize:14,color:COLORS.text,marginBottom:5}}>👤 {m.nome}</div>
+                          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
+                            <TagSelo v={m.selo}/><TagData v={m.data}/>
+                          </div>
+                          {expand===m.id&&(
+                            <div style={{marginTop:8,fontSize:12,lineHeight:1.9,background:"#f8fafc",borderRadius:10,padding:"10px 12px"}}>
+                              <div>📦 <strong>Origem:</strong> <span style={{color:COLORS.muted}}>{m.origem}</span></div>
+                              <div>🏠 <strong>Destino:</strong> <span style={{color:COLORS.muted}}>{m.destino}</span></div>
+                            </div>
+                          )}
+                        </div>
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,marginLeft:8}}>
+                          <Badge color={COLORS.green}>{m.medicao} m³</Badge>
+                          <div style={{display:"flex",gap:4}}>
+                            <button onClick={e=>{e.stopPropagation();compartilharMudanca(m);}} style={btnGreen}>📲</button>
+                            <button onClick={e=>{e.stopPropagation();gerarPDFMudanca(m);}} style={{...btnRed,background:"#fff1f0"}}>📄</button>
+                            <button onClick={e=>{e.stopPropagation();setEditMud({...m});}} style={btnBlue}>✏️</button>
+                            <button onClick={e=>{e.stopPropagation();handleDelMud(m.id);}} style={btnRed}>✕</button>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              );
+            })}
+            {filtered.filter(m=>!m.comunidade).map(m=>(
+              <Card key={m.id} style={{marginBottom:8,padding:"13px 15px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:800,fontSize:14,color:COLORS.text,marginBottom:5}}>👤 {m.nome}</div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><TagSelo v={m.selo}/><TagData v={m.data}/></div>
+                  </div>
+                  <div style={{display:"flex",gap:5,alignItems:"center",marginLeft:8}}>
+                    <Badge color={COLORS.green}>{m.medicao} m³</Badge>
+                    <button onClick={()=>compartilharMudanca(m)} style={btnGreen}>📲</button>
+                    <button onClick={()=>gerarPDFMudanca(m)} style={{...btnRed,background:"#fff1f0"}}>📄</button>
+                    <button onClick={()=>setEditMud({...m})} style={btnBlue}>✏️</button>
+                    <button onClick={()=>handleDelMud(m.id)} style={btnRed}>✕</button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+            {filtered.length===0&&<div style={{textAlign:"center",color:COLORS.muted,padding:40,fontSize:14}}>Nenhum resultado.</div>}
+          </div>
+        )}
+
+        {/* ══ AGENDA ══ */}
+        {tab==="agenda"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:13}}>
+              <div style={{fontSize:16,fontWeight:900,color:COLORS.text}}>📅 Mudanças Agendadas</div>
+              <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button>
+            </div>
+            {proximas.length>0&&(
+              <div style={{marginBottom:16}}>
+                <div style={{color:COLORS.green,fontWeight:800,fontSize:12,marginBottom:8,letterSpacing:1,textTransform:"uppercase"}}>📌 Próximas</div>
+                {proximas.map(a=>(
+                  <Card key={a.id} style={{marginBottom:9,padding:"14px 16px",border:`1.5px solid ${statusColor[a.status]||COLORS.cardBorder}33`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:800,fontSize:14,color:COLORS.text,marginBottom:6}}>👤 {a.nome}</div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+                          <TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/><TagCom v={a.comunidade}/>
+                        </div>
+                        <div style={{fontSize:12,lineHeight:1.9,background:"#f8fafc",borderRadius:10,padding:"8px 12px",marginBottom:10}}>
+                          <div>📦 <strong>Saída:</strong> <span style={{color:COLORS.muted}}>{a.origem}</span></div>
+                          <div>🏠 <strong>Chegada:</strong> <span style={{color:COLORS.muted}}>{a.destino}</span></div>
+                          {a.contato&&<div>📞 <strong>Contato:</strong> <span style={{color:COLORS.muted}}>{a.contato}</span></div>}
+                        </div>
+                        <div style={{marginBottom:10}}>
+                          <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>🚗 Veículos</div>
+                          <div style={{display:"flex",gap:8}}>
+                            <button onClick={()=>toggleAgField(a.id,"van")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.van?COLORS.blue:"#e2e8f0"}`,background:a.van?"#eff6ff":"#f8fafc",color:a.van?COLORS.blue:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚐 Van {a.van?"✓":"✗"}</button>
+                            <button onClick={()=>toggleAgField(a.id,"caminhao")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.caminhao?COLORS.accent:"#e2e8f0"}`,background:a.caminhao?"#fff7ed":"#f8fafc",color:a.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚚 Caminhão {a.caminhao?"✓":"✗"}</button>
+                          </div>
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                          <div>
+                            <label style={{display:"block",color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>📐 Medição (m³)</label>
+                            <input type="number" placeholder="Ex: 27" value={a.medicao||""} onChange={e=>updateAgField(a.id,"medicao",e.target.value)}
+                              style={{width:"100%",background:"#fff",border:`1.5px solid ${a.medicao?COLORS.green:COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}
+                              onFocus={e=>e.target.style.border=`1.5px solid ${COLORS.accent}`}
+                              onBlur={e=>e.target.style.border=`1.5px solid ${a.medicao?COLORS.green:COLORS.cardBorder}`}/>
+                          </div>
+                          <div>
+                            <label style={{display:"block",color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>👷 Ajudantes</label>
+                            <input type="number" placeholder="Ex: 3" value={a.ajudantes||""} onChange={e=>updateAgField(a.id,"ajudantes",e.target.value)}
+                              style={{width:"100%",background:"#fff",border:`1.5px solid ${a.ajudantes?COLORS.green:COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}
+                              onFocus={e=>e.target.style.border=`1.5px solid ${COLORS.accent}`}
+                              onBlur={e=>e.target.style.border=`1.5px solid ${a.ajudantes?COLORS.green:COLORS.cardBorder}`}/>
+                          </div>
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
+                          <button onClick={()=>toggleStatus(a.id)} style={{background:statusColor[a.status]+"18",border:`1.5px solid ${statusColor[a.status]}44`,color:statusColor[a.status],borderRadius:20,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>{statusLabel[a.status]||"⏳ Pendente"}</button>
+                          <div style={{display:"flex",gap:5,alignItems:"center"}}>
+                            {a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
+                            <button onClick={()=>compartilharWhatsApp(a)} style={{...btnGreen,fontSize:14,padding:"6px 10px"}}>📲</button>
+                            <button onClick={()=>gerarPDFAgendamento(a)} style={{...btnRed,background:"#fff1f0",fontSize:14,padding:"6px 10px"}}>📄</button>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",gap:5,marginLeft:9}}>
+                        <button onClick={()=>setEditAg({...a})} style={btnBlue}>✏️</button>
+                        <button onClick={()=>handleDelAg(a.id)} style={btnRed}>✕</button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+            {passadas.length>0&&(
+              <div>
+                <div style={{color:COLORS.muted,fontWeight:800,fontSize:12,marginBottom:8,letterSpacing:1,textTransform:"uppercase"}}>🗓️ Anteriores</div>
+                {passadas.map(a=>(
+                  <Card key={a.id} style={{marginBottom:7,padding:"12px 15px",opacity:0.75}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:800,fontSize:13,color:COLORS.text,marginBottom:5}}>👤 {a.nome}</div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/></div>
+                      </div>
+                      <div style={{display:"flex",gap:5,alignItems:"center",marginLeft:8}}>
+                        <Badge color={statusColor[a.status]||COLORS.muted}>{statusLabel[a.status]||"—"}</Badge>
+                        <button onClick={()=>gerarPDFAgendamento(a)} style={{...btnRed,background:"#fff1f0"}}>📄</button>
+                        <button onClick={()=>setEditAg({...a})} style={btnBlue}>✏️</button>
+                        <button onClick={()=>handleDelAg(a.id)} style={btnRed}>✕</button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+            {agenda.length===0&&<div style={{textAlign:"center",color:COLORS.muted,padding:50,fontSize:14}}>Nenhuma mudança agendada.<br/>Clique em <strong style={{color:COLORS.purple}}>+ Agendar</strong>! 📅</div>}
+          </div>
+        )}
+
+        {/* ══ NOVA AGENDA ══ */}
+        {tab==="novaAgenda"&&(
+          <Card>
+            <div style={{fontSize:15,fontWeight:800,marginBottom:14,color:COLORS.purple}}>📅 Novo Agendamento</div>
+            <Inp label="Nome" icon="👤" value={agForm.nome} onChange={v=>setAgForm(f=>({...f,nome:v}))} placeholder="Nome completo"/>
+            <Inp label="Selo" icon="🏷️" value={agForm.selo||""} onChange={v=>setAgForm(f=>({...f,selo:v}))} placeholder="Ex: VT-020-021-A"/>
+            <Inp label="Comunidade" icon="📍" value={agForm.comunidade||""} onChange={v=>setAgForm(f=>({...f,comunidade:v}))} placeholder="Nome da comunidade"/>
+            <Inp label="Data" icon="📅" type="date" value={agForm.data} onChange={v=>setAgForm(f=>({...f,data:v}))}/>
+            <Inp label="Horário" icon="⏰" type="time" value={agForm.horario||""} onChange={v=>setAgForm(f=>({...f,horario:v}))}/>
+            <Inp label="Saída" icon="📦" value={agForm.origem||""} onChange={v=>setAgForm(f=>({...f,origem:v}))} placeholder="Endereço de origem"/>
+            <Inp label="Chegada" icon="🏠" value={agForm.destino||""} onChange={v=>setAgForm(f=>({...f,destino:v}))} placeholder="Endereço de destino"/>
+            <Inp label="Contato" icon="📞" value={agForm.contato||""} onChange={v=>setAgForm(f=>({...f,contato:v}))} placeholder="Ex: 81 99999-9999"/>
+            <Tog label="🚐 Van" value={agForm.van} onChange={v=>setAgForm(f=>({...f,van:v}))}/>
+            <Tog label="🚚 Caminhão" value={agForm.caminhao||false} onChange={v=>setAgForm(f=>({...f,caminhao:v}))}/>
+            <div style={{marginBottom:12}}>
+              <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:6,textTransform:"uppercase"}}>📋 Status</label>
+              <div style={{display:"flex",gap:7}}>
+                {["confirmado","pendente"].map(s=>(
+                  <button key={s} onClick={()=>setAgForm(f=>({...f,status:s}))} style={{flex:1,padding:"9px",borderRadius:10,border:`1.5px solid ${agForm.status===s?statusColor[s]:COLORS.cardBorder}`,background:agForm.status===s?statusColor[s]+"18":"#f8fafc",color:agForm.status===s?statusColor[s]:COLORS.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>{statusLabel[s]}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:6}}>
+              <button onClick={()=>setTab("agenda")} style={{flex:1,padding:12,borderRadius:12,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
+              <button onClick={handleAddAg} style={{flex:2,padding:12,borderRadius:12,border:"none",background:COLORS.purple,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>{flash||"📅 Confirmar"}</button>
+            </div>
+          </Card>
+        )}
+
+        {/* ══ NOVA MUDANÇA ══ */}
+        {tab==="novo"&&(
+          <Card>
+            <div style={{fontSize:15,fontWeight:800,marginBottom:14,color:COLORS.accent}}>➕ Nova Mudança Realizada</div>
+            <Inp label="Nome" icon="👤" value={form.nome} onChange={v=>setForm(f=>({...f,nome:v}))} placeholder="Nome completo"/>
+            <Inp label="Selo" icon="🏷️" value={form.selo} onChange={v=>setForm(f=>({...f,selo:v}))} placeholder="Ex: VT-020-001 A"/>
+            <Inp label="Comunidade" icon="📍" value={form.comunidade} onChange={v=>setForm(f=>({...f,comunidade:v}))} placeholder="Nome da comunidade"/>
+            <Inp label="Data" icon="📅" type="date" value={form.data} onChange={v=>setForm(f=>({...f,data:v}))}/>
+            <Inp label="Origem" icon="📦" value={form.origem} onChange={v=>setForm(f=>({...f,origem:v}))} placeholder="Endereço de origem"/>
+            <Inp label="Destino" icon="🏠" value={form.destino} onChange={v=>setForm(f=>({...f,destino:v}))} placeholder="Endereço de destino"/>
+            <Inp label="Medição (m³)" icon="📐" type="number" value={form.medicao} onChange={v=>setForm(f=>({...f,medicao:v}))} placeholder="Ex: 27"/>
+            <Tog label="🚐 Van" value={form.van} onChange={v=>setForm(f=>({...f,van:v}))}/>
+            <button onClick={handleAddMud} style={{width:"100%",padding:13,borderRadius:12,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,fontSize:15,cursor:"pointer",boxShadow:"0 2px 8px rgba(230,126,34,0.3)"}}>
+              {flash||"💾 Salvar Mudança"}
+            </button>
+          </Card>
+        )}
+
+        {/* ══ RELATÓRIO ══ */}
+        {tab==="relatorio"&&(
+          <div>
+            <Card style={{marginBottom:11,padding:"13px 16px"}}>
+              <div style={{fontSize:12,fontWeight:800,color:COLORS.muted,letterSpacing:1,textTransform:"uppercase",marginBottom:10}}>⚡ Atalhos Rápidos</div>
+              <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+                {[
+                  {label:"📅 Janeiro/26",ini:"2026-01-01",fim:"2026-01-31"},
+                  {label:"📅 Fevereiro/26",ini:"2026-02-01",fim:"2026-02-28"},
+                  {label:"📅 Março/26",ini:"2026-03-01",fim:"2026-03-31"},
+                  {label:"📅 Abril/26",ini:"2026-04-01",fim:"2026-04-30"},
+                ].map(a=>{
+                  const ativo=relDataIni===a.ini&&relDataFim===a.fim;
+                  return(
+                    <button key={a.label} onClick={()=>{
+                      setRelDataIni(a.ini);setRelDataFim(a.fim);
+                      const lista=mudancas.filter(m=>m.data>=a.ini&&m.data<=a.fim);
+                      setRel({...calcRel(lista,relAj,relAlm),lista,ini:a.ini,fim:a.fim});
+                    }} style={{padding:"7px 13px",borderRadius:9,border:`1.5px solid ${ativo?COLORS.accent:COLORS.cardBorder}`,background:ativo?COLORS.accent+"18":"transparent",color:ativo?COLORS.accent:COLORS.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>
+                      {a.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {rel&&(
+                <button onClick={gerarPDFGeral} style={{width:"100%",marginTop:11,padding:"10px",borderRadius:10,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+                  📄 Exportar PDF — {rel.ini?fmtDate(rel.ini).slice(3):"Todo período"}
+                </button>
+              )}
+            </Card>
+            <Card style={{marginBottom:13}}>
+              <div style={{fontSize:14,fontWeight:800,color:COLORS.accent,marginBottom:13}}>📊 Gerar Relatório por Período</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                <div>
+                  <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>📅 Data Início</label>
+                  <input type="date" value={relDataIni} onChange={e=>setRelDataIni(e.target.value)} style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${relDataIni?COLORS.accent:COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"9px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+                </div>
+                <div>
+                  <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>📅 Data Término</label>
+                  <input type="date" value={relDataFim} onChange={e=>setRelDataFim(e.target.value)} style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${relDataFim?COLORS.accent:COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"9px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:13}}>
+                <div>
+                  <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>👷 Ajudantes</label>
+                  <input type="number" value={relAj} onChange={e=>setRelAj(e.target.value)} placeholder="Ex: 3" style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"9px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+                </div>
+                <div>
+                  <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>🍽️ Almoço (R$)</label>
+                  <input type="number" value={relAlm} onChange={e=>setRelAlm(e.target.value)} placeholder="0" style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"9px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>{setRelDataIni("");setRelDataFim("");setRel(null);}} style={{flex:1,padding:"10px",borderRadius:10,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>🔄 Limpar</button>
+                <button onClick={gerarRel} style={{flex:2,padding:"10px",borderRadius:10,border:"none",background:COLORS.green,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>📊 Gerar Relatório</button>
+              </div>
+            </Card>
+            {!rel?(
+              <div style={{textAlign:"center",color:COLORS.muted,padding:30,fontSize:14}}>Selecione o período e clique em <strong style={{color:COLORS.green}}>"Gerar Relatório"</strong>. 📊</div>
+            ):(
+              <>
+                <div style={{textAlign:"center",color:COLORS.muted,fontSize:12,marginBottom:10}}>
+                  {rel.ini||rel.fim?`📅 ${rel.ini?fmtDate(rel.ini):"início"} até ${rel.fim?fmtDate(rel.fim):"hoje"} · ${rel.lista.length} mudanças`:`📅 Todo o período · ${rel.lista.length} mudanças`}
+                </div>
+                <Card style={{marginBottom:11,background:rel.liq>=0?"linear-gradient(135deg,#f0fdf4,#dcfce7)":"linear-gradient(135deg,#fef2f2,#fee2e2)",border:`1.5px solid ${rel.liq>=0?COLORS.green:COLORS.red}44`,textAlign:"center"}}>
+                  <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",marginBottom:7}}>💰 Lucro Líquido</div>
+                  <div style={{fontSize:36,fontWeight:900,color:rel.liq>=0?COLORS.green:COLORS.red}}>{fmt(rel.liq)}</div>
+                  <div style={{marginTop:7}}><Badge color={rel.marg>=30?COLORS.green:rel.marg>=0?COLORS.accent:COLORS.red}>Margem: {rel.marg.toFixed(1)}%</Badge></div>
+                </Card>
+                <Card style={{marginBottom:11}}>
+                  <div style={{fontSize:13,fontWeight:800,color:COLORS.accent,marginBottom:11}}>💵 Faturamento</div>
+                  {[[`📐 Medição (${rel.m3} m³ × R$150)`,rel.fatM],[`🚐 Van (${rel.vd} dias × R$1.000)`,rel.fatV]].map(([l,v])=>(
+                    <div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:13}}><span style={{color:COLORS.muted}}>{l}</span><span style={{fontWeight:700,color:COLORS.green}}>{fmt(v)}</span></div>
+                  ))}
+                  <div style={{borderTop:`1px solid ${COLORS.cardBorder}`,paddingTop:8,display:"flex",justifyContent:"space-between"}}>
+                    <span style={{fontWeight:800}}>Faturamento Bruto</span><span style={{fontWeight:900,color:COLORS.accent,fontSize:16}}>{fmt(rel.bruto)}</span>
+                  </div>
+                </Card>
+                <Card style={{marginBottom:11,border:`1px solid ${COLORS.red}22`}}>
+                  <div style={{fontSize:13,fontWeight:800,color:COLORS.red,marginBottom:8}}>🏛️ Imposto (16%)</div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:COLORS.muted}}>Dedução sobre Faturamento Bruto</span><span style={{fontWeight:700,color:COLORS.red}}>- {fmt(rel.imp)}</span></div>
+                </Card>
+                <Card style={{marginBottom:11}}>
+                  <div style={{fontSize:13,fontWeight:800,color:COLORS.blue,marginBottom:11}}>🔧 Custos Operacionais</div>
+                  {[rel.vd>0&&[`🚐 Van (${rel.vd} dias × R$400)`,rel.cV],[`🚚 Caminhão (${rel.lista.length}× × R$350)`,rel.cC],[`👷 Ajudantes (${rel.nAj}× × R$80)`,rel.cA],rel.cAlm>0&&[`🍽️ Almoço`,rel.cAlm]].filter(Boolean).map(([l,v])=>(
+                    <div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:13}}><span style={{color:COLORS.muted}}>{l}</span><span style={{fontWeight:700,color:COLORS.red}}>- {fmt(v)}</span></div>
+                  ))}
+                  <div style={{borderTop:`1px solid ${COLORS.cardBorder}`,paddingTop:8,display:"flex",justifyContent:"space-between"}}>
+                    <span style={{fontWeight:800}}>Total de Custos</span><span style={{fontWeight:900,color:COLORS.blue,fontSize:15}}>- {fmt(rel.custos)}</span>
+                  </div>
+                </Card>
+                <Card style={{marginBottom:11}}>
+                  <div style={{fontSize:13,fontWeight:800,color:COLORS.muted,marginBottom:3}}>📋 Resumo Final — PROMORAR</div>
+                  <div style={{fontSize:11,color:COLORS.muted,marginBottom:11}}>{rel.lista.length} mudanças · {rel.m3} m³</div>
+                  {[["Faturamento Bruto",fmt(rel.bruto),COLORS.accent],["(-) Imposto 16%","- "+fmt(rel.imp),COLORS.red],["(-) Custos Operacionais","- "+fmt(rel.custos),COLORS.blue],["(=) Lucro Líquido",fmt(rel.liq),rel.liq>=0?COLORS.green:COLORS.red]].map(([l,v,c])=>(
+                    <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${COLORS.cardBorder}`,fontSize:13}}><span style={{color:COLORS.muted}}>{l}</span><span style={{fontWeight:800,color:c}}>{v}</span></div>
+                  ))}
+                </Card>
+                <Card>
+                  <div style={{fontSize:13,fontWeight:800,color:COLORS.muted,marginBottom:10}}>📋 Mudanças do Período ({rel.lista.length})</div>
+                  {rel.lista.map((m,i)=>(
+                    <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:i<rel.lista.length-1?`1px solid ${COLORS.cardBorder}`:"none",fontSize:12}}>
+                      <div><div style={{fontWeight:700}}>{m.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>📅 {fmtDate(m.data)} · 🏷️ {m.selo}</div></div>
+                      <Badge color={COLORS.green}>{m.medicao} m³</Badge>
+                    </div>
+                  ))}
+                </Card>
+                <div style={{display:"flex",gap:8,marginTop:11}}>
+                  <button onClick={()=>compartilharRelatorio(rel,rel.ini||rel.fim?`${rel.ini?fmtDate(rel.ini):"início"} a ${rel.fim?fmtDate(rel.fim):"hoje"}`:"Todo o período")} style={{flex:1,padding:"13px",borderRadius:12,border:"2px solid #25D366",background:"#25D36615",color:"#16a34a",fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📲 WhatsApp</button>
+                  <button onClick={gerarPDFGeral} style={{flex:1,padding:"13px",borderRadius:12,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📄 Exportar PDF</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ══ SEMANA ══ */}
+        {tab==="semana"&&(
+          <div>
+            <div style={{fontSize:15,fontWeight:800,color:COLORS.blue,marginBottom:12}}>📆 Relatório Semanal</div>
+            {semanas.length===0&&<div style={{textAlign:"center",color:COLORS.muted,padding:40}}>Nenhuma mudança registrada.</div>}
+            {semanas.length>0&&(
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+                <button onClick={()=>setSemanaIdx(Math.max(0,semanaIdx-1))} disabled={semanaIdx===0} style={{background:"#fff",border:`1px solid ${COLORS.cardBorder}`,color:semanaIdx===0?COLORS.muted:COLORS.text,borderRadius:9,padding:"8px 14px",cursor:semanaIdx===0?"not-allowed":"pointer",fontWeight:800,fontSize:14,boxShadow:COLORS.shadow}}>‹</button>
+                <div style={{flex:1,textAlign:"center"}}>
+                  <div style={{color:COLORS.blue,fontWeight:800,fontSize:14}}>Semana {semanaIdx+1} de {semanas.length}</div>
+                  <div style={{color:COLORS.muted,fontSize:12}}>{semanas[semanaIdx]?.label}</div>
+                </div>
+                <button onClick={()=>setSemanaIdx(Math.min(semanas.length-1,semanaIdx+1))} disabled={semanaIdx===semanas.length-1} style={{background:"#fff",border:`1px solid ${COLORS.cardBorder}`,color:semanaIdx===semanas.length-1?COLORS.muted:COLORS.text,borderRadius:9,padding:"8px 14px",cursor:semanaIdx===semanas.length-1?"not-allowed":"pointer",fontWeight:800,fontSize:14,boxShadow:COLORS.shadow}}>›</button>
+              </div>
+            )}
+            {semanas[semanaIdx]&&(()=>{
+              const sw=semanas[semanaIdx];
+              const sr=calcRel(sw.items,relAj,relAlm);
+              return(
+                <>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                    {[{label:"Mudanças",val:sw.items.length,color:COLORS.accent},{label:"Total m³",val:sr.m3+" m³",color:COLORS.blue},{label:"Fat. Bruto",val:fmt(sr.bruto),color:COLORS.green},{label:"Lucro Líq.",val:fmt(sr.liq),color:sr.liq>=0?COLORS.green:COLORS.red}].map(s=>(
+                      <Card key={s.label} style={{padding:"11px 13px",textAlign:"center",border:`1.5px solid ${s.color}22`}}>
+                        <div style={{color:s.color,fontWeight:900,fontSize:14}}>{s.val}</div>
+                        <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>{s.label}</div>
+                      </Card>
+                    ))}
+                  </div>
+                  <Card style={{marginBottom:11}}>
+                    <div style={{fontSize:13,fontWeight:800,color:COLORS.accent,marginBottom:10}}>💵 Faturamento da Semana</div>
+                    {[[`📐 Medição (${sr.m3} m³ × R$150)`,sr.fatM],[`🚐 Van (${sr.vd} dias × R$1.000)`,sr.fatV]].map(([l,v])=>(
+                      <div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:12}}><span style={{color:COLORS.muted}}>{l}</span><span style={{fontWeight:700,color:COLORS.green}}>{fmt(v)}</span></div>
+                    ))}
+                    <div style={{borderTop:`1px solid ${COLORS.cardBorder}`,paddingTop:7,display:"flex",justifyContent:"space-between"}}><span style={{fontWeight:800,fontSize:13}}>Faturamento Bruto</span><span style={{fontWeight:900,color:COLORS.accent}}>{fmt(sr.bruto)}</span></div>
+                  </Card>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:11}}>
+                    <Card style={{padding:"13px 14px",border:`1px solid ${COLORS.red}22`}}>
+                      <div style={{color:COLORS.red,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>🏛️ Imposto</div>
+                      <div style={{color:COLORS.red,fontWeight:900,fontSize:16}}>- {fmt(sr.imp)}</div>
+                      <div style={{color:COLORS.muted,fontSize:10,marginTop:2}}>16% s/ bruto</div>
+                    </Card>
+                    <Card style={{padding:"13px 14px",border:`1px solid ${COLORS.blue}22`}}>
+                      <div style={{color:COLORS.blue,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>🔧 Total Custos</div>
+                      <div style={{color:COLORS.blue,fontWeight:900,fontSize:16}}>- {fmt(sr.custos)}</div>
+                      <div style={{color:COLORS.muted,fontSize:10,marginTop:2}}>{sw.items.length} mud. · {sr.vd} dias van</div>
+                    </Card>
+                  </div>
+                  <Card style={{marginBottom:11,border:`1px solid ${COLORS.blue}22`}}>
+                    <div style={{fontSize:13,fontWeight:800,color:COLORS.blue,marginBottom:12}}>🔧 Discriminação dos Custos</div>
+                    {[sr.vd>0&&[`🚐 Van (${sr.vd} dia${sr.vd!==1?"s":""} × R$400)`,sr.cV],[`🚚 Caminhão (${sw.items.length} mud. × R$350)`,sr.cC],sr.nAj>0&&[`👷 Ajudantes (${sr.nAj} × R$80)`,sr.cA],sr.cAlm>0&&[`🍽️ Almoço`,sr.cAlm]].filter(Boolean).map(([l,v])=>(
+                      <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${COLORS.cardBorder}`,fontSize:13}}><span style={{color:COLORS.muted}}>{l}</span><span style={{fontWeight:800,color:COLORS.red}}>- {fmt(v)}</span></div>
+                    ))}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:10}}><span style={{fontWeight:800,fontSize:13}}>Total de Custos</span><span style={{fontWeight:900,color:COLORS.blue,fontSize:15}}>- {fmt(sr.custos)}</span></div>
+                  </Card>
+                  <Card style={{marginBottom:11,background:sr.liq>=0?"linear-gradient(135deg,#f0fdf4,#dcfce7)":"linear-gradient(135deg,#fef2f2,#fee2e2)",border:`1.5px solid ${sr.liq>=0?COLORS.green:COLORS.red}33`,textAlign:"center",padding:"18px"}}>
+                    <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",marginBottom:5}}>💰 Lucro da Semana</div>
+                    <div style={{fontSize:30,fontWeight:900,color:sr.liq>=0?COLORS.green:COLORS.red}}>{fmt(sr.liq)}</div>
+                    <div style={{marginTop:6}}><Badge color={sr.marg>=30?COLORS.green:sr.marg>=0?COLORS.accent:COLORS.red}>Margem: {sr.marg.toFixed(1)}%</Badge></div>
+                  </Card>
+                  <Card style={{marginBottom:11}}>
+                    <div style={{fontSize:13,fontWeight:800,color:COLORS.muted,marginBottom:10}}>📋 Mudanças da Semana ({sw.items.length})</div>
+                    {sw.items.map((m,i)=>(
+                      <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:i<sw.items.length-1?`1px solid ${COLORS.cardBorder}`:"none",fontSize:12}}>
+                        <div><div style={{fontWeight:700}}>{m.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>📅 {fmtDate(m.data)} · 🏷️ {m.selo}</div></div>
+                        <div style={{display:"flex",gap:5,alignItems:"center"}}><Badge color={COLORS.green}>{m.medicao} m³</Badge>{m.van&&<Badge color={COLORS.blue}>🚐</Badge>}</div>
+                      </div>
+                    ))}
+                  </Card>
+                  <Card style={{marginBottom:11,border:`1px solid ${COLORS.accent}22`}}>
+                    <div style={{fontSize:12,fontWeight:800,color:COLORS.accent,marginBottom:8}}>📊 Acumulado Geral</div>
+                    {(()=>{
+                      const total=calcRel(mudancas,relAj,relAlm);
+                      return [["Total de Mudanças",mudancas.length,COLORS.text],["Total m³",total.m3+" m³",COLORS.blue],["Fat. Bruto Acumulado",fmt(total.bruto),COLORS.accent],["Lucro Líquido Acumulado",fmt(total.liq),total.liq>=0?COLORS.green:COLORS.red]].map(([l,v,c])=>(
+                        <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${COLORS.cardBorder}`,fontSize:12}}><span style={{color:COLORS.muted}}>{l}</span><span style={{fontWeight:800,color:c}}>{v}</span></div>
+                      ));
+                    })()}
+                  </Card>
+                  <div style={{display:"flex",gap:8,marginTop:4}}>
+                    <button onClick={()=>compartilharRelatorio(sr,sw.label)} style={{flex:1,padding:"13px",borderRadius:12,border:"2px solid #25D366",background:"#25D36615",color:"#16a34a",fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📲 WhatsApp</button>
+                    <button onClick={()=>gerarPDFSemana(sw,sr)} style={{flex:1,padding:"13px",borderRadius:12,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📄 Exportar PDF</button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        )}
+      </div>
+
+      {/* ══ MODAL EDITAR MUDANÇA ══ */}
+      {editMud&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:999,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setEditMud(null)}>
+          <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:22,width:"100%",maxWidth:640,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 -4px 30px rgba(0,0,0,0.15)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div style={{fontSize:15,fontWeight:900,color:COLORS.accent}}>✏️ Editar Mudança</div>
+              <button onClick={()=>setEditMud(null)} style={{background:"transparent",border:"none",color:COLORS.muted,fontSize:20,cursor:"pointer"}}>✕</button>
+            </div>
+            <Inp label="Nome" icon="👤" value={editMud.nome} onChange={v=>setEditMud(f=>({...f,nome:v}))} placeholder="Nome completo"/>
+            <Inp label="Selo" icon="🏷️" value={editMud.selo||""} onChange={v=>setEditMud(f=>({...f,selo:v}))} placeholder="Ex: VT-020-001 A"/>
+            <Inp label="Comunidade" icon="📍" value={editMud.comunidade||""} onChange={v=>setEditMud(f=>({...f,comunidade:v}))} placeholder="Comunidade"/>
+            <Inp label="Data" icon="📅" type="date" value={editMud.data} onChange={v=>setEditMud(f=>({...f,data:v}))}/>
+            <Inp label="Origem" icon="📦" value={editMud.origem||""} onChange={v=>setEditMud(f=>({...f,origem:v}))} placeholder="Endereço de origem"/>
+            <Inp label="Destino" icon="🏠" value={editMud.destino||""} onChange={v=>setEditMud(f=>({...f,destino:v}))} placeholder="Endereço de destino"/>
+            <Inp label="Medição (m³)" icon="📐" type="number" value={editMud.medicao} onChange={v=>setEditMud(f=>({...f,medicao:v}))} placeholder="Ex: 27"/>
+            <Tog label="🚐 Van" value={editMud.van} onChange={v=>setEditMud(f=>({...f,van:v}))}/>
+            <div style={{display:"flex",gap:8,marginTop:6}}>
+              <button onClick={()=>setEditMud(null)} style={{flex:1,padding:12,borderRadius:12,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
+              <button onClick={handleSaveEditMud} style={{flex:2,padding:12,borderRadius:12,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>💾 Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL EDITAR AGENDAMENTO ══ */}
+      {editAg&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:999,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setEditAg(null)}>
+          <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:22,width:"100%",maxWidth:640,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 -4px 30px rgba(0,0,0,0.15)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div style={{fontSize:15,fontWeight:900,color:COLORS.purple}}>✏️ Editar Agendamento</div>
+              <button onClick={()=>setEditAg(null)} style={{background:"transparent",border:"none",color:COLORS.muted,fontSize:20,cursor:"pointer"}}>✕</button>
+            </div>
+            <Inp label="Nome" icon="👤" value={editAg.nome} onChange={v=>setEditAg(f=>({...f,nome:v}))} placeholder="Nome completo"/>
+            <Inp label="Selo" icon="🏷️" value={editAg.selo||""} onChange={v=>setEditAg(f=>({...f,selo:v}))} placeholder="Ex: VT-020-021-A"/>
+            <Inp label="Comunidade" icon="📍" value={editAg.comunidade||""} onChange={v=>setEditAg(f=>({...f,comunidade:v}))} placeholder="Comunidade"/>
+            <Inp label="Data" icon="📅" type="date" value={editAg.data} onChange={v=>setEditAg(f=>({...f,data:v}))}/>
+            <Inp label="Horário" icon="⏰" type="time" value={editAg.horario||""} onChange={v=>setEditAg(f=>({...f,horario:v}))}/>
+            <Inp label="Saída" icon="📦" value={editAg.origem||""} onChange={v=>setEditAg(f=>({...f,origem:v}))} placeholder="Endereço de origem"/>
+            <Inp label="Chegada" icon="🏠" value={editAg.destino||""} onChange={v=>setEditAg(f=>({...f,destino:v}))} placeholder="Endereço de destino"/>
+            <Inp label="Contato" icon="📞" value={editAg.contato||""} onChange={v=>setEditAg(f=>({...f,contato:v}))} placeholder="Ex: 81 99999-9999"/>
+            <Tog label="🚐 Van" value={editAg.van||false} onChange={v=>setEditAg(f=>({...f,van:v}))}/>
+            <Tog label="🚚 Caminhão" value={editAg.caminhao||false} onChange={v=>setEditAg(f=>({...f,caminhao:v}))}/>
+            <div style={{marginBottom:11}}>
+              <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:6,textTransform:"uppercase"}}>📋 Status</label>
+              <div style={{display:"flex",gap:7}}>
+                {["confirmado","pendente","realizado"].map(s=>(
+                  <button key={s} onClick={()=>setEditAg(f=>({...f,status:s}))} style={{flex:1,padding:"8px 4px",borderRadius:9,border:`1.5px solid ${editAg.status===s?statusColor[s]:COLORS.cardBorder}`,background:editAg.status===s?statusColor[s]+"18":"#f8fafc",color:editAg.status===s?statusColor[s]:COLORS.muted,fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                    {statusLabel[s]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:6}}>
+              <button onClick={()=>setEditAg(null)} style={{flex:1,padding:12,borderRadius:12,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
+              <button onClick={handleSaveEditAg} style={{flex:2,padding:12,borderRadius:12,border:"none",background:COLORS.purple,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>💾 Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

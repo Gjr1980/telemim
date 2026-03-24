@@ -1,0 +1,8 @@
+{
+  "name": "TELEMIM - Gestão de Mudanças",
+  "short_name": "TELEMIM",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e293b",
+  "theme_color": "#1e293b"
+}
