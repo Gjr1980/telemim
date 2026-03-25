@@ -741,7 +741,7 @@ export default function App(){
               {agHoje2.length>0&&<div style={{background:"#dcfce7",border:"2px solid "+COLORS.green,borderRadius:14,padding:"12px 15px",marginBottom:12}}><div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🔔 {agHoje2.length} MUDANÇA{agHoje2.length!==1?"S":""} HOJE!</div>{agHoje2.map(a=><div key={a.id} style={{fontSize:12,color:COLORS.text,marginTop:2}}>👤 {a.nome}{a.horario?" · ⏰ "+a.horario+"h":""}</div>)}</div>}
               <div style={{fontSize:11,fontWeight:800,color:COLORS.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📅 Mês Atual</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-                {[{icon:"📦",label:"Mudanças",val:mudMes.length,color:COLORS.accent,sub:"este mês"},{icon:"📐",label:"m³ Medidos",val:m3Mes+" m³",color:COLORS.blue,sub:"este mês"},...(temFin?[{icon:"💵",label:"Faturamento",val:fmt(fatMes),color:COLORS.green,sub:"bruto"},{icon:"💰",label:"Lucro Líq.",val:fmt(lucroMes),color:lucroMes>=0?COLORS.green:COLORS.red,sub:"estimado"}].map(k=>(
+                {[{icon:"📦",label:"Mudanças",val:mudMes.length,color:COLORS.accent,sub:"este mês"},{icon:"📐",label:"m³ Medidos",val:m3Mes+" m³",color:COLORS.blue,sub:"este mês"},{fin:true,icon:"💵",label:"Faturamento",val:fmt(fatMes),color:COLORS.green,sub:"bruto"},{fin:true,icon:"💰",label:"Lucro Líq.",val:fmt(lucroMes),color:lucroMes>=0?COLORS.green:COLORS.red,sub:"estimado"}].filter(k=>!k.fin||temFin).map(k=>(
                   <Card key={k.label} style={{padding:"13px",border:"1.5px solid "+k.color+"22"}}>
                     <div style={{fontSize:18}}>{k.icon}</div>
                     <div style={{fontSize:16,fontWeight:900,color:k.color,marginTop:4}}>{k.val}</div>
@@ -752,7 +752,7 @@ export default function App(){
               </div>
               <div style={{fontSize:11,fontWeight:800,color:COLORS.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📊 Acumulado Geral</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
-                {[{label:"Mudanças",val:mudancas.length,color:COLORS.accent},{label:"Total m³",val:totalM3t,color:COLORS.blue},{label:"Dias Van",val:diasVanT,color:COLORS.purple},{label:"Fat. Bruto",val:fmt(fatT),color:COLORS.green},{label:"Impostos",val:fmt(fatT*0.16),color:COLORS.red},{label:"Lucro Líq.",val:fmt(lucroT),color:lucroT>=0?COLORS.green:COLORS.red}].map(k=>(
+                {[{label:"Mudanças",val:mudancas.length,color:COLORS.accent},{label:"Total m³",val:totalM3t,color:COLORS.blue},{label:"Dias Van",val:diasVanT,color:COLORS.purple},{label:"Fat. Bruto",val:fmt(fatT),color:COLORS.green},{label:"Impostos",val:fmt(fatT*0.16),color:COLORS.red},{label:"Lucro Líq.",val:fmt(lucroT),color:lucroT>=0?COLORS.green:COLORS.red}].filter(k=>!k.fin||temFin).map(k=>(
                   <Card key={k.label} style={{padding:"10px",textAlign:"center",border:"1.5px solid "+k.color+"22"}}>
                     <div style={{fontSize:13,fontWeight:900,color:k.color}}>{k.val}</div>
                     <div style={{fontSize:9,color:COLORS.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>{k.label}</div>
@@ -790,7 +790,7 @@ export default function App(){
               <Card>
                 <div style={{fontSize:13,fontWeight:800,color:COLORS.text,marginBottom:10}}>📅 Resumo da Agenda</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                  {[{label:"Hoje",val:agHoje2.length,color:COLORS.green},{label:"Próximas",val:agProx2.length,color:COLORS.blue},{label:"Pendentes",val:agPend2.length,color:COLORS.accent}].map(k=>(
+                  {[{label:"Hoje",val:agHoje2.length,color:COLORS.green},{label:"Próximas",val:agProx2.length,color:COLORS.blue},{label:"Pendentes",val:agPend2.length,color:COLORS.accent}].filter(k=>!k.fin||temFin).map(k=>(
                     <div key={k.label} onClick={()=>setTab("agenda")} style={{background:k.color+"10",border:"1.5px solid "+k.color+"33",borderRadius:10,padding:"10px",textAlign:"center",cursor:"pointer"}}>
                       <div style={{fontSize:22,fontWeight:900,color:k.color}}>{k.val}</div>
                       <div style={{fontSize:10,color:COLORS.muted,fontWeight:700,textTransform:"uppercase"}}>{k.label}</div>
@@ -804,7 +804,7 @@ export default function App(){
 
         {/* ══ DASHBOARD / INÍCIO ══ */}
         {tab==="inicio"&&(()=>{
-          const hoje=new Date().toISOString().split("T")[0]:[])];
+          const hoje=new Date().toISOString().split("T")[0];
           const getM=(offset)=>new Date(new Date().getFullYear(),new Date().getMonth()+offset,1).toISOString().substring(0,7);
           const meses=[getM(-3),getM(-2),getM(-1),getM(0)];
           const nomeMes=(ym)=>{const [y,m]=ym.split("-");return ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][parseInt(m)-1]+"/"+y.slice(2);};
@@ -820,7 +820,7 @@ export default function App(){
             <div>
               <div style={{fontSize:16,fontWeight:900,color:COLORS.text,marginBottom:14}}>🏠 Visão Geral — {nomeMes(getM(0))}</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-                {[{icon:"📦",label:"Mudanças",val:atual.n,color:COLORS.accent},{icon:"📐",label:"Total m³",val:atual.m3+" m³",color:COLORS.blue},...(temFin?[{icon:"💵",label:"Faturamento",val:fmt(atual.b),color:COLORS.green},{icon:"💰",label:"Lucro Líq.",val:fmt(atual.l),color:atual.l>=0?COLORS.green:COLORS.red}].map(s=>(
+                {[{icon:"📦",label:"Mudanças",val:atual.n,color:COLORS.accent},{icon:"📐",label:"Total m³",val:atual.m3+" m³",color:COLORS.blue},{fin:true,icon:"💵",label:"Faturamento",val:fmt(atual.b),color:COLORS.green},{fin:true,icon:"💰",label:"Lucro Líq.",val:fmt(atual.l),color:atual.l>=0?COLORS.green:COLORS.red}].filter(s=>!s.fin||temFin).map(s=>(
                   <Card key={s.label} style={{padding:"13px 14px",border:"1.5px solid "+s.color+"22"}}>
                     <div style={{fontSize:20,marginBottom:4}}>{s.icon}</div>
                     <div style={{fontWeight:900,fontSize:15,color:s.color}}>{s.val}</div>
@@ -1095,7 +1095,7 @@ export default function App(){
             <div style={{marginBottom:12}}>
               <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:6,textTransform:"uppercase"}}>📋 Status</label>
               <div style={{display:"flex",gap:7}}>
-                {["confirmado","pendente"]:[])].map(s=>(
+                {["confirmado","pendente"].filter(s=>!s.fin||temFin).map(s=>(
                   <button key={s} onClick={()=>setAgForm(f=>({...f,status:s}))} style={{flex:1,padding:"9px",borderRadius:10,border:`1.5px solid ${agForm.status===s?statusColor[s]:COLORS.cardBorder}`,background:agForm.status===s?statusColor[s]+"18":"#f8fafc",color:agForm.status===s?statusColor[s]:COLORS.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>{statusLabel[s]}</button>
                 ))}
               </div>
@@ -1264,7 +1264,7 @@ export default function App(){
               return(
                 <>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-                    {[{label:"Mudanças",val:sw.items.length,color:COLORS.accent},{label:"Total m³",val:sr.m3+" m³",color:COLORS.blue},{label:"Fat. Bruto",val:fmt(sr.bruto),color:COLORS.green},{label:"Lucro Líq.",val:fmt(sr.liq),color:sr.liq>=0?COLORS.green:COLORS.red}].map(s=>(
+                    {[{label:"Mudanças",val:sw.items.length,color:COLORS.accent},{label:"Total m³",val:sr.m3+" m³",color:COLORS.blue},{label:"Fat. Bruto",val:fmt(sr.bruto),color:COLORS.green},{label:"Lucro Líq.",val:fmt(sr.liq),color:sr.liq>=0?COLORS.green:COLORS.red}].filter(s=>!s.fin||temFin).map(s=>(
                       <Card key={s.label} style={{padding:"11px 13px",textAlign:"center",border:`1.5px solid ${s.color}22`}}>
                         <div style={{color:s.color,fontWeight:900,fontSize:14}}>{s.val}</div>
                         <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>{s.label}</div>
@@ -1584,7 +1584,7 @@ export default function App(){
             <div style={{marginBottom:11}}>
               <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:6,textTransform:"uppercase"}}>📋 Status</label>
               <div style={{display:"flex",gap:7}}>
-                {["confirmado","pendente","realizado"].map(s=>(
+                {["confirmado","pendente","realizado"].filter(s=>!s.fin||temFin).map(s=>(
                   <button key={s} onClick={()=>setEditAg(f=>({...f,status:s}))} style={{flex:1,padding:"8px 4px",borderRadius:9,border:`1.5px solid ${editAg.status===s?statusColor[s]:COLORS.cardBorder}`,background:editAg.status===s?statusColor[s]+"18":"#f8fafc",color:editAg.status===s?statusColor[s]:COLORS.muted,fontWeight:700,fontSize:11,cursor:"pointer"}}>
                     {statusLabel[s]}
                   </button>
