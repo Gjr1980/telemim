@@ -237,7 +237,7 @@ export default function App(){
       const d=await res.json();
       if(!res.ok){setUserMsg("⚠️ "+(d.error||"Erro ao criar"));setSavingUser(false);return;}
       setUserMsg("✅ Usuário criado!");setNovoUser({nome:"",email:"",senha:"",perfil:"promorar"});carregarUsuarios();
-    }catch(e){setUserMsg("⚠️ Erro de conexão.");}
+    }catch(e){setUserMsg("⚠️ Erro.");}
     setSavingUser(false);
   }
   async function toggleAtivoUser(u){await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+u.id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json"},body:JSON.stringify({ativo:!u.ativo})});carregarUsuarios();}
@@ -751,7 +751,7 @@ export default function App(){
               {agHoje2.length>0&&<div style={{background:"#dcfce7",border:"2px solid "+COLORS.green,borderRadius:14,padding:"12px 15px",marginBottom:12}}><div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🔔 {agHoje2.length} MUDANÇA{agHoje2.length!==1?"S":""} HOJE!</div>{agHoje2.map(a=><div key={a.id} style={{fontSize:12,color:COLORS.text,marginTop:2}}>👤 {a.nome}{a.horario?" · ⏰ "+a.horario+"h":""}</div>)}</div>}
               <div style={{fontSize:11,fontWeight:800,color:COLORS.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📅 Mês Atual</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-                {[{icon:"📦",label:"Mudanças",val:mudMes.length,color:COLORS.accent,sub:"este mês"},{icon:"📐",label:"m³ Medidos",val:m3Mes+" m³",color:COLORS.blue,sub:"este mês"},...(temFin?[{icon:"💵",label:"Faturamento",val:fmt(fatMes),color:COLORS.green,sub:"bruto"},{icon:"💰",label:"Lucro Líq.",val:fmt(lucroMes),color:lucroMes>=0?COLORS.green:COLORS.red,sub:"estimado"}].map(k=>(
+                {[{icon:"📦",label:"Mudanças",val:mudMes.length,color:COLORS.accent,sub:"este mês"},{icon:"📐",label:"m³ Medidos",val:m3Mes+" m³",color:COLORS.blue,sub:"este mês"},...(temFin?[{icon:"💵",label:"Faturamento",val:fmt(fatMes),color:COLORS.green,sub:"bruto"},{icon:"💰",label:"Lucro Líq.",val:fmt(lucroMes),color:lucroMes>=0?COLORS.green:COLORS.red,sub:"estimado"}]:[])].map(k=>(
                   <Card key={k.label} style={{padding:"13px",border:"1.5px solid "+k.color+"22"}}>
                     <div style={{fontSize:18}}>{k.icon}</div>
                     <div style={{fontSize:16,fontWeight:900,color:k.color,marginTop:4}}>{k.val}</div>
@@ -830,7 +830,7 @@ export default function App(){
             <div>
               <div style={{fontSize:16,fontWeight:900,color:COLORS.text,marginBottom:14}}>🏠 Visão Geral — {nomeMes(getM(0))}</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-                {[{icon:"📦",label:"Mudanças",val:atual.n,color:COLORS.accent},{icon:"📐",label:"Total m³",val:atual.m3+" m³",color:COLORS.blue},...(temFin?[{icon:"💵",label:"Faturamento",val:fmt(atual.b),color:COLORS.green},{icon:"💰",label:"Lucro Líq.",val:fmt(atual.l),color:atual.l>=0?COLORS.green:COLORS.red}]:[])]:[])].map(s=>(
+                {[{icon:"📦",label:"Mudanças",val:atual.n,color:COLORS.accent},{icon:"📐",label:"Total m³",val:atual.m3+" m³",color:COLORS.blue},...(temFin?[{icon:"💵",label:"Faturamento",val:fmt(atual.b),color:COLORS.green},{icon:"💰",label:"Lucro Líq.",val:fmt(atual.l),color:atual.l>=0?COLORS.green:COLORS.red}]:[])].map(s=>(
                   <Card key={s.label} style={{padding:"13px 14px",border:"1.5px solid "+s.color+"22"}}>
                     <div style={{fontSize:20,marginBottom:4}}>{s.icon}</div>
                     <div style={{fontWeight:900,fontSize:15,color:s.color}}>{s.val}</div>
