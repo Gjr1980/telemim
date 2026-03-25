@@ -106,6 +106,14 @@ function Card({children,style={}}){
 }
 function Inp({label,type="text",value,onChange,placeholder,icon}){
   return(
+    <>
+    <style>{`
+      @keyframes piscarVerde {
+        0%,100%{box-shadow:0 2px 8px rgba(22,163,74,0.15);border-color:#86efac;background:#dcfce7;}
+        50%{box-shadow:0 0 0 6px rgba(22,163,74,0.25),0 2px 12px rgba(22,163,74,0.4);border-color:#16a34a;background:#bbf7d0;}
+      }
+      .em-andamento{animation:piscarVerde 1.2s ease-in-out infinite;}
+    `}</style>
     <div style={{marginBottom:12}}>
       <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:5,textTransform:"uppercase"}}>{icon} {label}</label>
       <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
@@ -666,7 +674,7 @@ export default function App(){
         {mudancasHoje.length>0&&(
           <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
             {mudancasHoje.map(a=>(
-              <div key={a.id} style={{background:"#dcfce7",border:`2px solid ${COLORS.green}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(22,163,74,0.15)"}}>
+              <div key={a.id} className={a.inicio_em&&!a.termino_em?"em-andamento":""} style={{background:"#dcfce7",border:`2px solid ${COLORS.green}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:a.inicio_em&&!a.termino_em?"0 2px 16px rgba(22,163,74,0.5)":"0 2px 8px rgba(22,163,74,0.15)"}}>
                 <div style={{flex:1}}>
                   <div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>🔔 MUDANÇA HOJE!</div>
                   <div style={{fontWeight:800,fontSize:13,color:COLORS.text}}>{a.nome}</div>
@@ -691,7 +699,7 @@ export default function App(){
         {mudancasAmanha.length>0&&(
           <div style={{margin:"8px 0 0",display:"flex",flexDirection:"column",gap:7}}>
             {mudancasAmanha.map(a=>(
-              <div key={a.id} style={{background:"#fff7ed",border:`2px solid ${COLORS.accent}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(230,126,34,0.15)"}}>
+              <div key={a.id} className={a.inicio_em&&!a.termino_em?"em-andamento":""} style={{background:a.inicio_em&&!a.termino_em?"#dcfce7":"#fff7ed",border:a.inicio_em&&!a.termino_em?`2px solid ${COLORS.green}`:`2px solid ${COLORS.accent}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:a.inicio_em&&!a.termino_em?"0 2px 8px rgba(22,163,74,0.15)":"0 2px 8px rgba(230,126,34,0.15)"}}>
                 <div style={{flex:1}}>
                   <div style={{color:COLORS.accent,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>⚠️ MUDANÇA AMANHÃ!</div>
                   <div style={{fontWeight:800,fontSize:13,color:COLORS.text}}>{a.nome}</div>
@@ -1599,5 +1607,6 @@ export default function App(){
         </div>
       )}
     </div>
+    </>
   );
 }
