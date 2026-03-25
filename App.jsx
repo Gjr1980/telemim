@@ -627,8 +627,8 @@ export default function App(){
     {id:"lista",label:"📋 Registros"},
     {id:"agenda",label:"📅 Agenda"},
     {id:"novo",label:"➕ Nova"},
-    ...(isSocial?[]:[{id:"relatorio",label:"📊 Relatório"}]),
-    ...(isSocial?[]:[{id:"semana",label:"📆 Semana"}]),
+    ...(isAdmin?[{id:"relatorio",label:"📊 Relatório"}]:[]),
+    ...(isAdmin?[{id:"semana",label:"📆 Semana"}]:[]),
     ...(isAdmin?[{id:"usuarios",label:"👥 Usuários"}]:[]),
   ];
 
@@ -757,7 +757,7 @@ export default function App(){
               {agHoje2.length>0&&<div style={{background:"#dcfce7",border:"2px solid "+COLORS.green,borderRadius:14,padding:"12px 15px",marginBottom:12}}><div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🔔 {agHoje2.length} MUDANÇA{agHoje2.length!==1?"S":""} HOJE!</div>{agHoje2.map(a=><div key={a.id} style={{fontSize:12,color:COLORS.text,marginTop:2}}>👤 {a.nome}{a.horario?" · ⏰ "+a.horario+"h":""}</div>)}</div>}
               <div style={{fontSize:11,fontWeight:800,color:COLORS.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📅 Mês Atual</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-                {[{icon:"📦",label:"Mudanças",val:mudMes.length,color:COLORS.accent,sub:"este mês"},{icon:"📐",label:"m³ Medidos",val:m3Mes+" m³",color:COLORS.blue,sub:"este mês"},{icon:"💵",label:"Faturamento",val:fmt(fatMes),color:COLORS.green,sub:"bruto"},{icon:"💰",label:"Lucro Líq.",val:fmt(lucroMes),color:lucroMes>=0?COLORS.green:COLORS.red,sub:"estimado"}].map(k=>(
+                {[{icon:"📦",label:"Mudanças",val:mudMes.length,color:COLORS.accent,sub:"este mês"},{icon:"📐",label:"m³ Medidos",val:m3Mes+" m³",color:COLORS.blue,sub:"este mês"},...(temFin?[{icon:"💵",label:"Faturamento",val:fmt(fatMes),color:COLORS.green,sub:"bruto"},{icon:"💰",label:"Lucro Líq.",val:fmt(lucroMes),color:lucroMes>=0?COLORS.green:COLORS.red,sub:"estimado"}].map(k=>(
                   <Card key={k.label} style={{padding:"13px",border:"1.5px solid "+k.color+"22"}}>
                     <div style={{fontSize:18}}>{k.icon}</div>
                     <div style={{fontSize:16,fontWeight:900,color:k.color,marginTop:4}}>{k.val}</div>
@@ -768,7 +768,7 @@ export default function App(){
               </div>
               <div style={{fontSize:11,fontWeight:800,color:COLORS.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📊 Acumulado Geral</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
-                {[{label:"Mudanças",val:mudancas.length,color:COLORS.accent},{label:"Total m³",val:totalM3t,color:COLORS.blue},{label:"Dias Van",val:diasVanT,color:COLORS.purple},{label:"Fat. Bruto",val:fmt(fatT),color:COLORS.green},{label:"Impostos",val:fmt(fatT*0.16),color:COLORS.red},{label:"Lucro Líq.",val:fmt(lucroT),color:lucroT>=0?COLORS.green:COLORS.red}].map(k=>(
+                {[{label:"Mudanças",val:mudancas.length,color:COLORS.accent},{label:"Total m³",val:totalM3t,color:COLORS.blue},{label:"Dias Van",val:diasVanT,color:COLORS.purple},{label:"Fat. Bruto",val:fmt(fatT),color:COLORS.green},{label:"Impostos",val:fmt(fatT*0.16),color:COLORS.red},{label:"Lucro Líq.",val:fmt(lucroT),color:lucroT>=0?COLORS.green:COLORS.red}]:[])].map(k=>(
                   <Card key={k.label} style={{padding:"10px",textAlign:"center",border:"1.5px solid "+k.color+"22"}}>
                     <div style={{fontSize:13,fontWeight:900,color:k.color}}>{k.val}</div>
                     <div style={{fontSize:9,color:COLORS.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>{k.label}</div>
@@ -1033,7 +1033,7 @@ export default function App(){
                             <button onClick={()=>toggleAgField(a.id,"caminhao")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.caminhao?COLORS.accent:"#e2e8f0"}`,background:a.caminhao?"#fff7ed":"#f8fafc",color:a.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚚 Caminhão {a.caminhao?"✓":"✗"}</button>
                           </div>
                         </div>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                        {isAdmin&&(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
                           <div>
                             <label style={{display:"block",color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>📐 Medição (m³)</label>
                             <input type="number" placeholder="Ex: 27" value={a.medicao||""} onChange={e=>updateAgField(a.id,"medicao",e.target.value)}
@@ -1047,7 +1047,7 @@ export default function App(){
                               style={{width:"100%",background:"#fff",border:`1.5px solid ${a.ajudantes?COLORS.green:COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}
                               onFocus={e=>e.target.style.border=`1.5px solid ${COLORS.accent}`}
                               onBlur={e=>e.target.style.border=`1.5px solid ${a.ajudantes?COLORS.green:COLORS.cardBorder}`}/>
-                          </div>
+                          </div>)}
                         </div>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
                           <button onClick={()=>toggleStatus(a.id)} style={{background:statusColor[a.status]+"18",border:`1.5px solid ${statusColor[a.status]}44`,color:statusColor[a.status],borderRadius:20,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>{statusLabel[a.status]||"⏳ Pendente"}</button>
@@ -1403,13 +1403,13 @@ export default function App(){
                 const cx=cSem.find(x=>x.data===d)||{ajudantes:0,custo_almoco:0};
                 return(
                   <div key={d} style={{display:"grid",gridTemplateColumns:"auto 1fr 1fr",gap:8,marginBottom:8,alignItems:"center"}}>
-                    <div style={{background:"#fff7ed",borderRadius:8,padding:"5px 9px",fontSize:11,fontWeight:700,color:COLORS.accent,whiteSpace:"nowrap"}}>📅 {fmtDate(d)}</div>
+                    {isAdmin&&(<div style={{background:"#fff7ed",borderRadius:8,padding:"5px 9px",fontSize:11,fontWeight:700,color:COLORS.accent,whiteSpace:"nowrap"}}>📅 {fmtDate(d)}</div>
                     <div>
                       <label style={{display:"block",fontSize:9,color:COLORS.muted,fontWeight:700,marginBottom:2,textTransform:"uppercase"}}>👷 Ajudantes</label>
                       <input type="number" min="0" placeholder="0" defaultValue={cx.ajudantes||""}
                         onBlur={e=>saveCustoDia(d,e.target.value,cx.custo_almoco)}
                         style={{width:"100%",background:"#fff",border:"1.5px solid "+COLORS.cardBorder,borderRadius:7,color:COLORS.text,padding:"5px 7px",fontSize:12,outline:"none",boxSizing:"border-box"}}/>
-                    </div>
+                    </div>)}
                     <div>
                       <label style={{display:"block",fontSize:9,color:COLORS.muted,fontWeight:700,marginBottom:2,textTransform:"uppercase"}}>🍽️ Almoço R$</label>
                       <input type="number" min="0" placeholder="0" defaultValue={cx.custo_almoco||""}
