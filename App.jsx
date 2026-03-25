@@ -229,17 +229,7 @@ export default function App(){
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
   const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar;const verMed=isAdmin||isPromorar;
   async function carregarUsuarios(){if(!isAdmin||!usuario?.token)return;const r=await fetch(SUPA_URL+"/rest/v1/usuarios?select=*&order=criado_em.asc",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token}});const d=await r.json();if(Array.isArray(d))setListaUsuarios(d);}
-  async function criarUsuario(){
-    if(!novoUser.nome||!novoUser.email||!novoUser.senha){setUserMsg("⚠️ Preencha todos os campos");return;}
-    setSavingUser(true);setUserMsg("");
-    try{
-      const res=await fetch(SUPA_URL+"/functions/v1/criar-usuario",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(usuario?.token||''),"Content-Type":"application/json"},body:JSON.stringify({nome:novoUser.nome,email:novoUser.email,password:novoUser.senha,perfil:novoUser.perfil})});
-      const d=await res.json();
-      if(!res.ok){setUserMsg("⚠️ "+(d.error||"Erro ao criar"));setSavingUser(false);return;}
-      setUserMsg("✅ Usuário criado!");setNovoUser({nome:"",email:"",senha:"",perfil:"promorar"});carregarUsuarios();
-    }catch(e){setUserMsg("⚠️ Erro.");}
-    setSavingUser(false);
-  }
+  async function criarUsuario(){if(!novoUser.nome||!novoUser.email||!novoUser.senha){setUserMsg("⚠️ Preencha todos os campos");return;}setSavingUser(true);setUserMsg("");try{const res=await fetch(SUPA_URL+"/functions/v1/criar-usuario",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(usuario?.token||''),"Content-Type":"application/json"},body:JSON.stringify({nome:novoUser.nome,email:novoUser.email,password:novoUser.senha,perfil:novoUser.perfil})});const d=await res.json();if(!res.ok){setUserMsg("⚠️ "+(d.error||"Erro"));setSavingUser(false);return;}setUserMsg("✅ Criado!");setNovoUser({nome:"",email:"",senha:"",perfil:"promorar"});carregarUsuarios();}catch(e){setUserMsg("⚠️ Erro.");}setSavingUser(false);}
   async function toggleAtivoUser(u){await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+u.id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json"},body:JSON.stringify({ativo:!u.ativo})});carregarUsuarios();}
     async function marcarTempo(tipo,item,tabela){
     if(!podeEditar)return;
@@ -751,7 +741,7 @@ export default function App(){
               {agHoje2.length>0&&<div style={{background:"#dcfce7",border:"2px solid "+COLORS.green,borderRadius:14,padding:"12px 15px",marginBottom:12}}><div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🔔 {agHoje2.length} MUDANÇA{agHoje2.length!==1?"S":""} HOJE!</div>{agHoje2.map(a=><div key={a.id} style={{fontSize:12,color:COLORS.text,marginTop:2}}>👤 {a.nome}{a.horario?" · ⏰ "+a.horario+"h":""}</div>)}</div>}
               <div style={{fontSize:11,fontWeight:800,color:COLORS.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📅 Mês Atual</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-                {[{icon:"📦",label:"Mudanças",val:mudMes.length,color:COLORS.accent,sub:"este mês"},{icon:"📐",label:"m³ Medidos",val:m3Mes+" m³",color:COLORS.blue,sub:"este mês"},...(temFin?[{icon:"💵",label:"Faturamento",val:fmt(fatMes),color:COLORS.green,sub:"bruto"},{icon:"💰",label:"Lucro Líq.",val:fmt(lucroMes),color:lucroMes>=0?COLORS.green:COLORS.red,sub:"estimado"}]:[])].map(k=>(
+                {[{icon:"📦",label:"Mudanças",val:mudMes.length,color:COLORS.accent,sub:"este mês"},{icon:"📐",label:"m³ Medidos",val:m3Mes+" m³",color:COLORS.blue,sub:"este mês"},...(temFin?[{icon:"💵",label:"Faturamento",val:fmt(fatMes),color:COLORS.green,sub:"bruto"},{icon:"💰",label:"Lucro Líq.",val:fmt(lucroMes),color:lucroMes>=0?COLORS.green:COLORS.red,sub:"estimado"}].map(k=>(
                   <Card key={k.label} style={{padding:"13px",border:"1.5px solid "+k.color+"22"}}>
                     <div style={{fontSize:18}}>{k.icon}</div>
                     <div style={{fontSize:16,fontWeight:900,color:k.color,marginTop:4}}>{k.val}</div>
@@ -814,7 +804,7 @@ export default function App(){
 
         {/* ══ DASHBOARD / INÍCIO ══ */}
         {tab==="inicio"&&(()=>{
-          const hoje=new Date().toISOString().split("T")[0];
+          const hoje=new Date().toISOString().split("T")[0]:[])];
           const getM=(offset)=>new Date(new Date().getFullYear(),new Date().getMonth()+offset,1).toISOString().substring(0,7);
           const meses=[getM(-3),getM(-2),getM(-1),getM(0)];
           const nomeMes=(ym)=>{const [y,m]=ym.split("-");return ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][parseInt(m)-1]+"/"+y.slice(2);};
@@ -830,7 +820,7 @@ export default function App(){
             <div>
               <div style={{fontSize:16,fontWeight:900,color:COLORS.text,marginBottom:14}}>🏠 Visão Geral — {nomeMes(getM(0))}</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-                {[{icon:"📦",label:"Mudanças",val:atual.n,color:COLORS.accent},{icon:"📐",label:"Total m³",val:atual.m3+" m³",color:COLORS.blue},...(temFin?[{icon:"💵",label:"Faturamento",val:fmt(atual.b),color:COLORS.green},{icon:"💰",label:"Lucro Líq.",val:fmt(atual.l),color:atual.l>=0?COLORS.green:COLORS.red}]:[])].map(s=>(
+                {[{icon:"📦",label:"Mudanças",val:atual.n,color:COLORS.accent},{icon:"📐",label:"Total m³",val:atual.m3+" m³",color:COLORS.blue},...(temFin?[{icon:"💵",label:"Faturamento",val:fmt(atual.b),color:COLORS.green},{icon:"💰",label:"Lucro Líq.",val:fmt(atual.l),color:atual.l>=0?COLORS.green:COLORS.red}].map(s=>(
                   <Card key={s.label} style={{padding:"13px 14px",border:"1.5px solid "+s.color+"22"}}>
                     <div style={{fontSize:20,marginBottom:4}}>{s.icon}</div>
                     <div style={{fontWeight:900,fontSize:15,color:s.color}}>{s.val}</div>
@@ -1105,7 +1095,7 @@ export default function App(){
             <div style={{marginBottom:12}}>
               <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:6,textTransform:"uppercase"}}>📋 Status</label>
               <div style={{display:"flex",gap:7}}>
-                {["confirmado","pendente"].map(s=>(
+                {["confirmado","pendente"]:[])].map(s=>(
                   <button key={s} onClick={()=>setAgForm(f=>({...f,status:s}))} style={{flex:1,padding:"9px",borderRadius:10,border:`1.5px solid ${agForm.status===s?statusColor[s]:COLORS.cardBorder}`,background:agForm.status===s?statusColor[s]+"18":"#f8fafc",color:agForm.status===s?statusColor[s]:COLORS.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>{statusLabel[s]}</button>
                 ))}
               </div>
