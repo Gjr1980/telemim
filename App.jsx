@@ -231,6 +231,14 @@ export default function App(){
   async function carregarUsuarios(){if(!isAdmin||!usuario?.token)return;const r=await fetch(SUPA_URL+"/rest/v1/usuarios?select=*&order=criado_em.asc",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token}});const d=await r.json();if(Array.isArray(d))setListaUsuarios(d);}
   async function criarUsuario(){if(!novoUser.nome||!novoUser.email||!novoUser.senha){setUserMsg("⚠️ Preencha todos os campos");return;}setSavingUser(true);setUserMsg("");try{const aR=await fetch(SUPA_URL+"/auth/v1/admin/users",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json"},body:JSON.stringify({email:novoUser.email,password:novoUser.senha,email_confirm:true})});const aD=await aR.json();if(!aR.ok){setUserMsg("⚠️ "+(aD.msg||aD.message||"Erro"));setSavingUser(false);return;}const pR=await fetch(SUPA_URL+"/rest/v1/usuarios",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify({id:aD.id,email:novoUser.email,nome:novoUser.nome,perfil:novoUser.perfil,ativo:true})});if(pR.ok){setUserMsg("✅ Criado!");setNovoUser({nome:"",email:"",senha:"",perfil:"promorar"});carregarUsuarios();}else setUserMsg("⚠️ Erro");}catch(e){setUserMsg("⚠️ Erro");}setSavingUser(false);}
   async function toggleAtivoUser(u){await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+u.id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json"},body:JSON.stringify({ativo:!u.ativo})});carregarUsuarios();}
+    async function marcarTempo(tipo,item,tabela){
+    if(!podeEditar)return;
+    const campo=tipo==='inicio'?'inicio_em':'termino_em';
+    const agora=new Date().toISOString();
+    await fetch(SUPA_URL+"/rest/v1/"+tabela+"?id=eq."+item.id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(usuario?.token||SUPA_KEY),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({[campo]:agora})});
+    if(tabela==="agenda")loadAg();else loadMud();
+  }
+  function fmtTempo(iso){if(!iso)return null;const d=new Date(iso);return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
     async function saveAg(list){
     setAgenda(list);
     setSyncStatus("🔄 Salvando...");
@@ -825,7 +833,18 @@ export default function App(){
                 <div style={{fontWeight:900,fontSize:13,color:COLORS.green,marginBottom:8}}>🔔 Hoje — {mudHoje.length} mudança{mudHoje.length!==1?"s":""}</div>
                 {mudHoje.map(a=><div key={a.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #dcfce7",fontSize:12}}>
                   <div><div style={{fontWeight:700}}>{a.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>{a.horario?"⏰ "+a.horario+"h · ":""}{a.comunidade||""}</div></div>
-                  <div style={{display:"flex",gap:4}}>{a.van&&<Badge color={COLORS.blue}>🚐</Badge>}{a.caminhao&&<Badge color={COLORS.accent}>🚚</Badge>}</div>
+                  <div style={{display:"flex",gap:4}}>{a.van&&<Badge color={COLORS.blue}>🚐</Badge>}
+              {podeEditar&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
+                {!a.inicio_em
+                  ?<button onClick={()=>marcarTempo('inicio',a,'agenda')} style={{background:"#dcfce7",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
+                  :<span style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#15803d"}}>▶ {fmtTempo(a.inicio_em)}</span>
+                }
+                {a.inicio_em&&(!a.termino_em
+                  ?<button onClick={()=>marcarTempo('termino',a,'agenda')} style={{background:"#fee2e2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
+                  :<span style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#dc2626"}}>⏹ {fmtTempo(a.termino_em)}</span>
+                )}
+                {a.inicio_em&&a.termino_em&&<span style={{fontSize:11,color:"#64748b",fontWeight:600,background:"#f1f5f9",borderRadius:8,padding:"4px 8px"}}>{Math.round((new Date(a.termino_em)-new Date(a.inicio_em))/60000)}min</span>}
+              </div>}{a.caminhao&&<Badge color={COLORS.accent}>🚚</Badge>}</div>
                 </div>)}
               </Card>}
               {mudAmanha.length>0&&<Card style={{marginBottom:10,border:"1.5px solid "+COLORS.accent+"44",background:"#fff7ed"}}>
@@ -1277,7 +1296,18 @@ export default function App(){
                     {sw.items.map((m,i)=>(
                       <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:i<sw.items.length-1?`1px solid ${COLORS.cardBorder}`:"none",fontSize:12}}>
                         <div><div style={{fontWeight:700}}>{m.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>📅 {fmtDate(m.data)} · 🏷️ {m.selo}</div></div>
-                        <div style={{display:"flex",gap:5,alignItems:"center"}}>{verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}{m.van&&<Badge color={COLORS.blue}>🚐</Badge>}</div>
+                        <div style={{display:"flex",gap:5,alignItems:"center"}}>{verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}{m.van&&<Badge color={COLORS.blue}>🚐</Badge>}
+              {podeEditar&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
+                {!m.inicio_em
+                  ?<button onClick={()=>marcarTempo('inicio',m,'mudancas')} style={{background:"#dcfce7",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
+                  :<span style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#15803d"}}>▶ {fmtTempo(m.inicio_em)}</span>
+                }
+                {m.inicio_em&&(!m.termino_em
+                  ?<button onClick={()=>marcarTempo('termino',m,'mudancas')} style={{background:"#fee2e2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
+                  :<span style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#dc2626"}}>⏹ {fmtTempo(m.termino_em)}</span>
+                )}
+                {m.inicio_em&&m.termino_em&&<span style={{fontSize:11,color:"#64748b",fontWeight:600,background:"#f1f5f9",borderRadius:8,padding:"4px 8px"}}>{Math.round((new Date(m.termino_em)-new Date(m.inicio_em))/60000)}min</span>}
+              </div>}</div>
                       </div>
                     ))}
                   </Card>                  <div style={{display:"flex",gap:8,marginTop:4}}>
