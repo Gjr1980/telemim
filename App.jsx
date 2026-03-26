@@ -640,7 +640,7 @@ export default function App(){
 
   if(loading) return(
     <div style={{paddingBottom:usuario?"76px":0,minHeight:"100vh",background:COLORS.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14}}>
-      <div style={{fontSize:42}}>🚛</div>{a.destino&&(<a href={`https://www.google.com/maps/dir/${encodeURIComponent(a.origem||"")}/${encodeURIComponent(a.destino)}`} target="_blank" style={{display:"inline-flex",gap:4,marginTop:4,padding:"4px 10px",background:"#4285f4",color:"#fff",borderRadius:20,fontSize:11,fontWeight:600,textDecoration:"none",alignItems:"center"}}>🗺️ Rota</a>)}
+      <div style={{fontSize:42}}>🚛</div>/${encodeURIComponent(a.destino)}`} target="_blank" style={{display:"inline-flex",gap:4,marginTop:4,padding:"4px 10px",background:"#4285f4",color:"#fff",borderRadius:20,fontSize:11,fontWeight:600,textDecoration:"none",alignItems:"center"}}>🗺️ Rota</a>)}
       <div style={{color:COLORS.accent,fontWeight:900,fontSize:18}}>Carregando do Supabase...</div>
     </div>
   );
