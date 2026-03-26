@@ -240,7 +240,7 @@ export default function App(){
     }catch(e){setUserMsg("⚠️ Erro de conexão.");}
     setSavingUser(false);
   }
-  function abrirWhatsApp(ag){const tel=(ag.contato||'').replace(/\D/g,'');if(!tel){alert('Sem contato cadastrado');return;}const data=new Date(ag.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});const msg=encodeURIComponent('Ol\u00e1, '+ag.nome+'! 👋\n\nSua mudan\u00e7a est\u00e1 agendada para *'+data+'* \u00e0s *'+(ag.horario||'a confirmar')+'*.\n\nOrigem: '+(ag.origem||'a confirmar')+'\nDestino: '+(ag.destino||'a confirmar')+'\n\n🚛 *Equipe PROMORAR*');window.open('https://wa.me/55'+tel+'?text='+msg,'_blank');}
+  function abrirWhatsApp(ag){const tel=(ag.contato||'').replace(/\D/g,'');if(!tel){alert('Sem contato cadastrado');return;}const msg=encodeURIComponent('Ol\u00e1, '+ag.nome+'!\n\nMudan\u00e7a agendada para '+(ag.data||'')+(ag.horario?' \u00e0s '+ag.horario:'')+'\nOrigem: '+(ag.origem||'?')+'\nDestino: '+(ag.destino||'?')+'\n\n\ud83d\ude9b PROMORAR');window.open('https://wa.me/55'+tel+'?text='+msg,'_blank');}
   async function toggleAtivoUser(u){await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+u.id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json"},body:JSON.stringify({ativo:!u.ativo})});carregarUsuarios();}
     async function marcarTempo(tipo,item,tabela){
     if(!podeEditar)return;
@@ -640,7 +640,7 @@ export default function App(){
 
   if(loading) return(
     <div style={{paddingBottom:usuario?"76px":0,minHeight:"100vh",background:COLORS.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14}}>
-      <div style={{fontSize:42}}>🚛</div>{a.destino&&(<a href={`https://www.google.com/maps/dir/${encodeURIComponent(a.origem||'')}/${encodeURIComponent(a.destino)}`} target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:4,marginTop:4,padding:'4px 10px',background:'#4285f4',color:'#fff',borderRadius:20,fontSize:11,fontWeight:600,textDecoration:'none'}}>🗺️ Ver rota</a>)}
+      <div style={{fontSize:42}}>🚛</div>{a.destino&&(<a href={`https://www.google.com/maps/dir/${encodeURIComponent(a.origem||'')}/${encodeURIComponent(a.destino)}`} target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:4,marginTop:4,padding:'4px 10px',background:'#4285f4',color:'#fff',borderRadius:20,fontSize:11,fontWeight:600,textDecoration:'none'}}>🗺️ Rota</a>)}
       <div style={{color:COLORS.accent,fontWeight:900,fontSize:18}}>Carregando do Supabase...</div>
     </div>
   );
@@ -1608,19 +1608,18 @@ export default function App(){
             </div>
           </div>
         </div>
+    {usuario&&(
+      <nav style={{position:'fixed',bottom:0,left:0,right:0,background:'#fff',borderTop:'1px solid #e2e8f0',display:'flex',zIndex:9999,paddingBottom:'env(safe-area-inset-bottom,0px)',boxShadow:'0 -4px 20px rgba(0,0,0,0.08)'}}>
+        {[{id:'inicio',icon:'🏠',label:'Hoje'},{id:'registros',icon:'📋',label:'Mudanças'},{id:'agenda',icon:'📅',label:'Agenda'},...(isAdmin?[{id:'relatorio',icon:'💰',label:'Financeiro'}]:[]),...(isAdmin?[{id:'usuarios',icon:'⚙️',label:'Config'}]:[])].map(mn=>(
+          <button key={mn.id} onClick={()=>setTab(mn.id)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'8px 4px 6px',background:'none',border:'none',cursor:'pointer',color:tab===mn.id?'#ea580c':'#94a3b8'}}>
+            <span style={{fontSize:20,lineHeight:1}}>{mn.icon}</span>
+            <span style={{fontSize:10,fontWeight:tab===mn.id?700:500,marginTop:3,color:tab===mn.id?'#ea580c':'#94a3b8'}}>{mn.label}</span>
+            {tab===mn.id&&<span style={{width:20,height:3,background:'#ea580c',borderRadius:2,marginTop:2}}/>}
+          </button>
+        ))}
+      </nav>
+    )}
       )}
     </div>
-
-  {usuario&&(
-    <nav style={{position:'fixed',bottom:0,left:0,right:0,background:'#fff',borderTop:'1px solid #e2e8f0',display:'flex',zIndex:9999,paddingBottom:'env(safe-area-inset-bottom,0px)',boxShadow:'0 -4px 20px rgba(0,0,0,0.08)'}}>
-      {[{id:'inicio',icon:'🏠',label:'Hoje'},{id:'registros',icon:'📋',label:'Mudanças'},{id:'agenda',icon:'📅',label:'Agenda'},...(isAdmin?[{id:'relatorio',icon:'💰',label:'Financeiro'}]:[]),...(isAdmin?[{id:'usuarios',icon:'⚙️',label:'Config'}]:[])].map(mn=>(
-        <button key={mn.id} onClick={()=>setTab(mn.id)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'8px 4px 6px',background:'none',border:'none',cursor:'pointer',color:tab===mn.id?'#ea580c':'#94a3b8'}}>
-          <span style={{fontSize:20,lineHeight:1}}>{mn.icon}</span>
-          <span style={{fontSize:10,fontWeight:tab===mn.id?700:500,marginTop:3,color:tab===mn.id?'#ea580c':'#94a3b8'}}>{mn.label}</span>
-          {tab===mn.id&&<span style={{width:20,height:3,background:'#ea580c',borderRadius:2,marginTop:2}}/>}
-        </button>
-      ))}
-    </nav>
-  )}
   );
 }
