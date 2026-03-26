@@ -240,7 +240,7 @@ export default function App(){
     }catch(e){setUserMsg("⚠️ Erro de conexão.");}
     setSavingUser(false);
   }
-  function abrirWhatsApp(ag){const tel=(ag.contato||'').replace(/\D/g,'');if(!tel){alert('Sem contato cadastrado');return;}const msg=encodeURIComponent('Ol\u00e1, '+ag.nome+'!\n\nMudan\u00e7a agendada para '+(ag.data||'')+(ag.horario?' \u00e0s '+ag.horario:'')+'\nOrigem: '+(ag.origem||'?')+'\nDestino: '+(ag.destino||'?')+'\n\n\ud83d\ude9b PROMORAR');window.open('https://wa.me/55'+tel+'?text='+msg,'_blank');}
+  function abrirWhatsApp(ag){const tel=(ag.contato||"").replace(/\D/g,"");if(!tel)return;window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent("Olá "+ag.nome+"! Sua mudança é dia "+(ag.data||"")+" às "+(ag.horario||"?")+"\nDe: "+(ag.origem||"?")+"\nPara: "+(ag.destino||"?")+"\n🚛 PROMORAR"),"_blank");}
   async function toggleAtivoUser(u){await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+u.id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json"},body:JSON.stringify({ativo:!u.ativo})});carregarUsuarios();}
     async function marcarTempo(tipo,item,tabela){
     if(!podeEditar)return;
@@ -640,7 +640,7 @@ export default function App(){
 
   if(loading) return(
     <div style={{paddingBottom:usuario?"76px":0,minHeight:"100vh",background:COLORS.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14}}>
-      <div style={{fontSize:42}}>🚛</div>{a.destino&&(<a href={`https://www.google.com/maps/dir/${encodeURIComponent(a.origem||'')}/${encodeURIComponent(a.destino)}`} target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:4,marginTop:4,padding:'4px 10px',background:'#4285f4',color:'#fff',borderRadius:20,fontSize:11,fontWeight:600,textDecoration:'none'}}>🗺️ Rota</a>)}
+      <div style={{fontSize:42}}>🚛</div>{a.destino&&(<a href={`https://www.google.com/maps/dir/${encodeURIComponent(a.origem||"")}/${encodeURIComponent(a.destino)}`} target="_blank" style={{display:"inline-flex",gap:4,marginTop:4,padding:"4px 10px",background:"#4285f4",color:"#fff",borderRadius:20,fontSize:11,fontWeight:600,textDecoration:"none",alignItems:"center"}}>🗺️ Rota</a>)}
       <div style={{color:COLORS.accent,fontWeight:900,fontSize:18}}>Carregando do Supabase...</div>
     </div>
   );
@@ -1131,7 +1131,7 @@ export default function App(){
             <Inp label="Destino" icon="🏠" value={form.destino} onChange={v=>setForm(f=>({...f,destino:v}))} placeholder="Endereço de destino"/>
             <Inp label="Medição (m³)" icon="📐" type="number" value={form.medicao} onChange={v=>setForm(f=>({...f,medicao:v}))} placeholder="Ex: 27"/>
             <Tog label="🚐 Van" value={form.van} onChange={v=>setForm(f=>({...f,van:v}))}/>
-            <div style={{marginBottom:12}}><label style={{display:'block',fontSize:12,fontWeight:600,color:'#64748b',marginBottom:4,textTransform:'uppercase'}}>📝 Observações</label><textarea placeholder="Ex: Cuidado com os móveis..." value={novaM.observacao||''} onChange={ev=>setNovaM(p=>({...p,observacao:ev.target.value}))} rows={2} style={{width:'100%',padding:'10px 14px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,resize:'vertical',fontFamily:'inherit',background:'#f8fafc',outline:'none',boxSizing:'border-box'}}/></div><button onClick={handleAddMud} style={{width:"100%",padding:13,borderRadius:12,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,fontSize:15,cursor:"pointer",boxShadow:"0 2px 8px rgba(230,126,34,0.3)"}}>
+            <div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,fontWeight:600,color:"#64748b",marginBottom:4}}>📝 Obs.</label><textarea value={novaM.observacao||""} onChange={ev=>setNovaM(p=>({...p,observacao:ev.target.value}))} rows={2} style={{width:"100%",padding:"10px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:14,resize:"vertical",fontFamily:"inherit",background:"#f8fafc",outline:"none",boxSizing:"border-box"}}/></div><button onClick={handleAddMud} style={{width:"100%",padding:13,borderRadius:12,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,fontSize:15,cursor:"pointer",boxShadow:"0 2px 8px rgba(230,126,34,0.3)"}}>
               {flash||"💾 Salvar Mudança"}
             </button>
           </Card>
@@ -1608,9 +1608,10 @@ export default function App(){
             </div>
           </div>
         </div>
+      )}
     {usuario&&(
       <nav style={{position:'fixed',bottom:0,left:0,right:0,background:'#fff',borderTop:'1px solid #e2e8f0',display:'flex',zIndex:9999,paddingBottom:'env(safe-area-inset-bottom,0px)',boxShadow:'0 -4px 20px rgba(0,0,0,0.08)'}}>
-        {[{id:'inicio',icon:'🏠',label:'Hoje'},{id:'registros',icon:'📋',label:'Mudanças'},{id:'agenda',icon:'📅',label:'Agenda'},...(isAdmin?[{id:'relatorio',icon:'💰',label:'Financeiro'}]:[]),...(isAdmin?[{id:'usuarios',icon:'⚙️',label:'Config'}]:[])].map(mn=>(
+        {[{id:'inicio',icon:'🏠',label:'Hoje'},{id:'registros',icon:'📋',label:'Mudânças'},{id:'agenda',icon:'📅',label:'Agenda'},...(isAdmin?[{id:'relatorio',icon:'💰',label:'Financeiro'}]:[]),...(isAdmin?[{id:'usuarios',icon:'⚙️',label:'Config'}]:[])].map(mn=>(
           <button key={mn.id} onClick={()=>setTab(mn.id)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'8px 4px 6px',background:'none',border:'none',cursor:'pointer',color:tab===mn.id?'#ea580c':'#94a3b8'}}>
             <span style={{fontSize:20,lineHeight:1}}>{mn.icon}</span>
             <span style={{fontSize:10,fontWeight:tab===mn.id?700:500,marginTop:3,color:tab===mn.id?'#ea580c':'#94a3b8'}}>{mn.label}</span>
@@ -1619,7 +1620,6 @@ export default function App(){
         ))}
       </nav>
     )}
-      )}
     </div>
   );
 }
