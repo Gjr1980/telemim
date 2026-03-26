@@ -249,13 +249,13 @@ export default function App(){
   async function gravarLog(acao,tabela,registroId,dadosAntes,dadosDepois){try{await fetch(SUPA_URL+'/rest/v1/auditoria',{method:'POST',headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||''),'Content-Type':'application/json'},body:JSON.stringify({usuario_id:usuario?.id,usuario_nome:usuario?.nome,acao,tabela,registro_id:String(registroId),dados_antes:dadosAntes||null,dados_depois:dadosDepois||null})});}catch{}}
 
   // ══ CONFIGS ══
-  const [configs,setConfigs]=React.useState({});
+  const [configs,setConfigs]=useState({});
   async function carregarConfigs(){try{const res=await fetch(SUPA_URL+'/rest/v1/configuracoes?select=*',{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||'')}});const d=await res.json();if(Array.isArray(d)){const map={};d.forEach(cfg=>{map[cfg.chave]=cfg.valor;});setConfigs(map);}}catch{}}
   async function salvarConfig(chave,valor){try{await fetch(SUPA_URL+'/rest/v1/configuracoes?chave=eq.'+chave,{method:'PATCH',headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||''),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({valor:String(valor),atualizado_em:new Date().toISOString()})});setConfigs(p=>({...p,[chave]:String(valor)}));}catch{}}
 
   // ══ FINANCEIRO TEMPO REAL ══
-  const [painelFin,setPainelFin]=React.useState(null);
-  const [loadingFin,setLoadingFin]=React.useState(false);
+  const [painelFin,setPainelFin]=useState(null);
+  const [loadingFin,setLoadingFin]=useState(false);
   async function carregarFinanceiroHoje(){if(!isAdmin)return;setLoadingFin(true);try{const hoje=new Date().toISOString().split('T')[0];const res=await fetch(SUPA_URL+'/functions/v1/financeiro-tempo-real?data='+hoje,{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||'')}});const d=await res.json();if(d.financeiro)setPainelFin(d);}catch{}setLoadingFin(false);}
 
   // ══ CRIAR USUARIO ══
