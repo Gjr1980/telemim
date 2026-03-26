@@ -8,5 +8,10 @@ export default defineConfig({
       input: 'index.html',
     },
     outDir: 'dist',
+    minify: 'esbuild',
+    target: 'es2015',
+  },
+  esbuild: {
+    keepNames: true,
   },
 })
