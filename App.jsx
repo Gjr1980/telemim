@@ -110,7 +110,7 @@ function Inp({label,type="text",value,onChange,placeholder,icon}){
     <div style={{marginBottom:12}}>
       <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:5,textTransform:"uppercase"}}>{icon} {label}</label>
       <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-        style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:10,color:COLORS.text,padding:"10px 13px",fontSize:14,outline:"none",boxSizing:"border-box"}}
+        style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:14,color:COLORS.text,padding:"10px 13px",fontSize:14,outline:"none",boxSizing:"border-box"}}
         onFocus={e=>e.target.style.border=`1.5px solid ${COLORS.accent}`}
         onBlur={e=>e.target.style.border=`1.5px solid ${COLORS.cardBorder}`}/>
     </div>
@@ -121,7 +121,7 @@ function Tog({label,value,onChange}){
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
       <label style={{color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,textTransform:"uppercase"}}>{label}</label>
       <div onClick={()=>onChange(!value)} style={{width:46,height:25,borderRadius:13,background:value?COLORS.accent:"#cbd5e1",position:"relative",cursor:"pointer",transition:"background 0.3s"}}>
-        <div style={{position:"absolute",top:3,left:value?22:3,width:19,height:19,borderRadius:10,background:"#fff",transition:"left 0.3s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
+        <div style={{position:"absolute",top:3,left:value?22:3,width:19,height:19,borderRadius:14,background:"#fff",transition:"left 0.3s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
       </div>
     </div>
   );
@@ -225,12 +225,42 @@ export default function App(){
       setSyncStatus("✅ Sinc");
     } catch(e){ setSyncStatus("⚠️ Erro"); }
   }
-  useEffect(()=>{const s=localStorage.getItem('tmim_u');if(s){try{setUsuario(JSON.parse(s));}catch(e){}}setAuthChecked(true);if(!document.getElementById('tmim-anim')){const st=document.createElement('style');st.id='tmim-anim';st.textContent='@keyframes piscarVerde{0%,100%{opacity:1;box-shadow:0 2px 8px rgba(22,163,74,0.15);}50%{opacity:0.88;box-shadow:0 0 0 8px rgba(22,163,74,0.35),0 4px 20px rgba(22,163,74,0.6);}}.em-andamento{animation:piscarVerde 1.2s ease-in-out infinite!important;}';document.head.appendChild(st);}},[]);
+  useEffect(()=>{const s=localStorage.getItem('tmim_u');if(s){try{setUsuario(JSON.parse(s));}catch(e){}}setAuthChecked(true);if(!document.getElementById('tmim-anim')){const st=document.createElement('style');st.id='tmim-anim';st.textContent='@keyframes piscarVerde{0%,100%{opacity:1;box-shadow:0 2px 8px rgba(22,163,74,0.15);}50%{opacity:0.88;box-shadow:0 0 0 8px rgba(22,163,74,0.35),0 4px 20px rgba(22,163,74,0.6);}}.em-andamento{animation:piscarVerde 1.2s ease-in-out infinite!important;}';document.head.appendChild(st);}if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}},[]);
   async function handleLogin(){if(!loginForm.email||!loginForm.senha){setLoginErro("Preencha email e senha");return;}setLoginLoad(true);setLoginErro("");try{const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:loginForm.email,password:loginForm.senha})});const d=await res.json();if(!res.ok||!d.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+d.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+d.access_token}});const pd=await pr.json();if(!pd||!pd[0]||pd[0].ativo===false){setLoginErro("Sem acesso. Contate o administrador.");setLoginLoad(false);return;}const u={id:d.user.id,email:d.user.email,nome:pd[0].nome,perfil:pd[0].perfil,token:d.access_token};setUsuario(u);localStorage.setItem('tmim_u',JSON.stringify(u));}catch(e){setLoginErro("Erro.");}setLoginLoad(false);}
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
   const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar;const verMed=isAdmin||isPromorar;
   async function carregarUsuarios(){if(!isAdmin||!usuario?.token)return;const r=await fetch(SUPA_URL+"/rest/v1/usuarios?select=*&order=criado_em.asc",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token}});const d=await r.json();if(Array.isArray(d))setListaUsuarios(d);}
+  
+  // ══ PUSH ══
+  const VAPID_PUBLIC='BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjZEuEguqec8LTygq7UQTqp8-XWo4';
+  async function registrarPush(){try{if(!('serviceWorker' in navigator)||!('PushManager' in window))return;const reg=await navigator.serviceWorker.ready;const perm=await Notification.requestPermission();if(perm!=='granted')return;const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:VAPID_PUBLIC});const j=sub.toJSON();await fetch(SUPA_URL+'/rest/v1/push_subscriptions',{method:'POST',headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||''),'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},body:JSON.stringify({usuario_id:usuario?.id,endpoint:j.endpoint,p256dh:j.keys?.p256dh||'',auth:j.keys?.auth||''})});}catch(e){}}
+  async function enviarPush(titulo,corpo){try{await fetch(SUPA_URL+'/functions/v1/enviar-push',{method:'POST',headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||''),'Content-Type':'application/json'},body:JSON.stringify({titulo,corpo}));}catch{}}
+
+  // ══ WHATSAPP ══
+  function abrirWhatsApp(ag){const tel=(ag.contato||'').replace(/\D/g,'');if(!tel){alert('Sem contato cadastrado');return;}const data=new Date(ag.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});const msg=encodeURIComponent(`Olá, ${ag.nome}! 👋\n\nSua mudança está agendada para *${data}* às *${ag.horario||'horário a confirmar'}*.\n\nOrigem: ${ag.origem||'a confirmar'}\nDestino: ${ag.destino||'a confirmar'}\n\n🚛 *Equipe PROMORAR*`);window.open('https://wa.me/55'+tel+'?text='+msg,'_blank');}
+
+  // ══ BACKUP CSV ══
+  async function exportarBackupExcel(){const res=await fetch(SUPA_URL+'/rest/v1/mudancas?select=*&order=data.desc',{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||'')}});const d=await res.json();if(!Array.isArray(d))return;const hdr=['Data','Nome','Selo','Comunidade','Origem','Destino','Medicao m3','Van','Inicio','Termino','Observacao'];const rows=d.map(r=>[r.data||'',r.nome||'',r.selo||'',r.comunidade||'',(r.origem||'').replace(/,/g,' '),(r.destino||'').replace(/,/g,' '),r.medicao||0,r.van?'Sim':'Nao',r.inicio_em?new Date(r.inicio_em).toLocaleString('pt-BR'):'',r.termino_em?new Date(r.termino_em).toLocaleString('pt-BR'):'',(r.observacao||'').replace(/,/g,' ')].join(','));const csv=[hdr.join(','),...rows].join('\n');const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`TELEMIM_Backup_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.csv`;a.click();URL.revokeObjectURL(url);}
+
+  // ══ PDF SEMANA ══
+  async function exportarPDFSemana(){const hoje=new Date();const diaSem=hoje.getDay();const ini=new Date(hoje);ini.setDate(hoje.getDate()-diaSem+(diaSem===0?-6:1));ini.setHours(0,0,0,0);const fim=new Date(ini);fim.setDate(ini.getDate()+6);fim.setHours(23,59,59,999);const fmt=d=>new Date(d).toLocaleDateString('pt-BR');const fmtM=v=>(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});const mSem=registros.filter(r=>{const d=new Date(r.data+'T12:00:00');return d>=ini&&d<=fim;});const tM=mSem.length,tM3=mSem.reduce((s,r)=>s+(Number(r.medicao)||0),0),fat=tM3*150,imp=fat*0.16,luc=fat-imp;const lin=mSem.map(r=>`<tr><td style="padding:8px 12px">${fmt(r.data+'T12:00:00')}</td><td style="padding:8px 12px">${r.nome||'-'}</td><td style="padding:8px 12px">${r.comunidade||'-'}</td><td style="padding:8px 12px;text-align:center">${r.medicao||0} m³</td>${temFin?`<td style="padding:8px 12px;text-align:right;color:#16a34a;font-weight:600">${fmtM((Number(r.medicao)||0)*150)}</td>`:''}</tr>`).join('');const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>TELEMIM</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#1e293b}h1{color:#ea580c}.kpis{display:flex;gap:16px;margin:16px 0;flex-wrap:wrap}.kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px}.kpi-v{font-size:20px;font-weight:800;color:#ea580c}.kpi-l{font-size:11px;color:#64748b;text-transform:uppercase}table{width:100%;border-collapse:collapse}thead tr{background:#f1f5f9}th{padding:10px 12px;font-size:12px;text-align:left;color:#64748b;text-transform:uppercase}.footer{margin-top:24px;font-size:11px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:12px}</style></head><body><h1>🚛 TELEMIM — Relatório Semanal</h1><p style="color:#64748b">${fmt(ini)} a ${fmt(fim)}</p><div class="kpis"><div class="kpi"><div class="kpi-v">${tM}</div><div class="kpi-l">Mudanças</div></div><div class="kpi"><div class="kpi-v">${tM3} m³</div><div class="kpi-l">Total m³</div></div>${temFin?`<div class="kpi"><div class="kpi-v" style="color:#16a34a">${fmtM(fat)}</div><div class="kpi-l">Faturamento</div></div><div class="kpi"><div class="kpi-v" style="color:#dc2626">${fmtM(imp)}</div><div class="kpi-l">Imposto</div></div><div class="kpi"><div class="kpi-v" style="color:#16a34a">${fmtM(luc)}</div><div class="kpi-l">Lucro</div></div>`:''}</div><table><thead><tr><th>Data</th><th>Morador</th><th>Comunidade</th><th>Medição</th>${temFin?'<th>Valor</th>':''}</tr></thead><tbody>${lin||'<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8">Nenhuma mudança</td></tr>'}</tbody></table><div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')} • TELEMIM — PROMORAR</div></body></html>`;const win=window.open('','_blank');win.document.write(html);win.document.close();setTimeout(()=>win.print(),500);}
+
+  // ══ LOG AUDITORIA ══
+  async function gravarLog(acao,tabela,registroId,dadosAntes,dadosDepois){try{await fetch(SUPA_URL+'/rest/v1/auditoria',{method:'POST',headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||''),'Content-Type':'application/json'},body:JSON.stringify({usuario_id:usuario?.id,usuario_nome:usuario?.nome,acao,tabela,registro_id:String(registroId),dados_antes:dadosAntes||null,dados_depois:dadosDepois||null})});}catch{}}
+
+  // ══ CONFIGS ══
+  const [configs,setConfigs]=React.useState({});
+  async function carregarConfigs(){try{const res=await fetch(SUPA_URL+'/rest/v1/configuracoes?select=*',{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||'')}});const d=await res.json();if(Array.isArray(d)){const map={};d.forEach(cfg=>{map[cfg.chave]=cfg.valor;});setConfigs(map);}}catch{}}
+  async function salvarConfig(chave,valor){try{await fetch(SUPA_URL+'/rest/v1/configuracoes?chave=eq.'+chave,{method:'PATCH',headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||''),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({valor:String(valor),atualizado_em:new Date().toISOString()})});setConfigs(p=>({...p,[chave]:String(valor)}));}catch{}}
+
+  // ══ FINANCEIRO TEMPO REAL ══
+  const [painelFin,setPainelFin]=React.useState(null);
+  const [loadingFin,setLoadingFin]=React.useState(false);
+  async function carregarFinanceiroHoje(){if(!isAdmin)return;setLoadingFin(true);try{const hoje=new Date().toISOString().split('T')[0];const res=await fetch(SUPA_URL+'/functions/v1/financeiro-tempo-real?data='+hoje,{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||'')}});const d=await res.json();if(d.financeiro)setPainelFin(d);}catch{}setLoadingFin(false);}
+
+  // ══ CRIAR USUARIO ══
   async function criarUsuario(){if(!novoUser.nome||!novoUser.email||!novoUser.senha){setUserMsg("⚠️ Preencha todos os campos");return;}setSavingUser(true);setUserMsg("");try{const res=await fetch(SUPA_URL+"/functions/v1/criar-usuario",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(usuario?.token||''),"Content-Type":"application/json"},body:JSON.stringify({nome:novoUser.nome,email:novoUser.email,password:novoUser.senha,perfil:novoUser.perfil})});const d=await res.json();if(!res.ok){setUserMsg("⚠️ "+(d.error||"Erro"));setSavingUser(false);return;}setUserMsg("✅ Criado!");setNovoUser({nome:"",email:"",senha:"",perfil:"promorar"});carregarUsuarios();}catch(e){setUserMsg("⚠️ Erro.");}setSavingUser(false);}
+
   async function toggleAtivoUser(u){await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+u.id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+usuario.token,"Content-Type":"application/json"},body:JSON.stringify({ativo:!u.ativo})});carregarUsuarios();}
     async function marcarTempo(tipo,item,tabela){
     if(!podeEditar)return;
@@ -629,14 +659,14 @@ export default function App(){
   const TagCom=({v})=>v?<span style={{background:"#fff7ed",borderRadius:8,padding:"3px 9px",fontSize:11,color:COLORS.accent,fontWeight:600}}>📍 {v}</span>:null;
 
   if(loading) return(
-    <div style={{minHeight:"100vh",background:COLORS.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14}}>
-      <div style={{fontSize:42}}>🚛</div>
+    <div style={{paddingBottom:usuario?"76px":0,minHeight:"100vh",background:COLORS.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14}}>
+      <div style={{fontSize:42}}>🚛</div>{a.destino&&(<a href={`https://www.google.com/maps/dir/${encodeURIComponent(a.origem||'')}/${encodeURIComponent(a.destino)}`} target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:4,marginTop:4,padding:'4px 10px',background:'#4285f4',color:'#fff',borderRadius:20,fontSize:11,fontWeight:600,textDecoration:'none'}}>🗺️ Ver rota no Maps</a>)}
       <div style={{color:COLORS.accent,fontWeight:900,fontSize:18}}>Carregando do Supabase...</div>
     </div>
   );
 
   if(!authChecked)return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f8fafc",color:"#64748b"}}>⏳ Carregando...</div>);
-  if(!usuario)return(<div style={{minHeight:"100vh",background:"linear-gradient(135deg,#1e293b,#1e40af)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div style={{background:"#fff",borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}><div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:44,marginBottom:8}}>🚛</div><div style={{fontSize:24,fontWeight:900,color:"#1e293b"}}>TELEMIM</div><div style={{fontSize:11,color:"#64748b",fontWeight:600,letterSpacing:2,marginTop:2}}>GESTÃO DE MUDANÇAS · PROMORAR</div></div><div style={{marginBottom:14}}><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>EMAIL</label><input value={loginForm.email} onChange={e=>setLoginForm(f=>({...f,email:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="seu@email.com" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/></div><div style={{marginBottom:8}}><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>SENHA</label><input type="password" value={loginForm.senha} onChange={e=>setLoginForm(f=>({...f,senha:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/></div>{loginErro&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#dc2626",marginBottom:10}}>{loginErro}</div>}<button onClick={handleLogin} disabled={loginLoad} style={{width:"100%",padding:13,borderRadius:12,background:loginLoad?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:loginLoad?"not-allowed":"pointer",marginTop:8}}>{loginLoad?"⏳ Entrando...":"🔐 Entrar"}</button><div style={{textAlign:"center",marginTop:16,fontSize:10,color:"#94a3b8"}}>TELEMIM v2.0 · Acesso restrito</div></div></div>);
+  if(!usuario)return(<div style={{minHeight:"100vh",background:"linear-gradient(135deg,#1e293b,#1e40af)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div style={{background:"#fff",borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}><div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:44,marginBottom:8}}>🚛</div><div style={{fontSize:24,fontWeight:900,color:"#1e293b"}}>TELEMIM</div><div style={{fontSize:11,color:"#64748b",fontWeight:600,letterSpacing:2,marginTop:2}}>GESTÃO DE MUDANÇAS · PROMORAR</div></div><div style={{marginBottom:14}}><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>EMAIL</label><input value={loginForm.email} onChange={e=>setLoginForm(f=>({...f,email:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="seu@email.com" style={{width:"100%",padding:"11px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/></div><div style={{marginBottom:8}}><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>SENHA</label><input type="password" value={loginForm.senha} onChange={e=>setLoginForm(f=>({...f,senha:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••" style={{width:"100%",padding:"11px 14px",borderRadius:14,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/></div>{loginErro&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#dc2626",marginBottom:10}}>{loginErro}</div>}<button onClick={handleLogin} disabled={loginLoad} style={{width:"100%",padding:13,borderRadius:16,background:loginLoad?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:loginLoad?"not-allowed":"pointer",marginTop:8}}>{loginLoad?"⏳ Entrando...":"🔐 Entrar"}</button><div style={{textAlign:"center",marginTop:16,fontSize:10,color:"#94a3b8"}}>TELEMIM v2.0 · Acesso restrito</div></div></div>);
     return(
     <div style={{minHeight:"100vh",background:COLORS.bg,fontFamily:"'Segoe UI',system-ui,sans-serif",color:COLORS.text,paddingBottom:50}}>
 
@@ -644,7 +674,7 @@ export default function App(){
       <div style={{background:COLORS.headerBg,padding:"16px 16px 12px",boxShadow:"0 2px 16px rgba(0,0,0,0.15)"}}>
         <div style={{maxWidth:640,margin:"0 auto"}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{background:COLORS.accent,borderRadius:12,width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🚛</div>
+            <div style={{background:COLORS.accent,borderRadius:16,width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🚛</div>
             <div>
               <div style={{fontSize:20,fontWeight:900,color:"#fff",letterSpacing:-0.5}}>TELEMIM</div>
               <div style={{fontSize:10,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase"}}>CONTRATO: PROMORAR</div>
@@ -667,7 +697,7 @@ export default function App(){
         {mudancasHoje.length>0&&(
           <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
             {mudancasHoje.map(a=>(
-              <div key={a.id} className={a.inicio_em&&!a.termino_em?"em-andamento":""} style={{background:"#dcfce7",border:`2px solid ${COLORS.green}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(22,163,74,0.15)"}}>
+              <div key={a.id} className={a.inicio_em&&!a.termino_em?"em-andamento":""} className={a.inicio_em&&!a.termino_em?"em-andamento":""} style={{background:"#dcfce7",border:`2px solid ${COLORS.green}`,borderRadius:18,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(22,163,74,0.15)"}}>
                 <div style={{flex:1}}>
                   <div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>🔔 MUDANÇA HOJE!</div>
                   <div style={{fontWeight:800,fontSize:13,color:COLORS.text}}>{a.nome}</div>
@@ -675,16 +705,16 @@ export default function App(){
                 </div>
                 {podeEditar&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
                   {!a.inicio_em
-                    ?<button onClick={()=>marcarTempo('inicio',a,'agenda')} style={{flex:1,background:"#dcfce7",border:"1.5px solid #16a34a",borderRadius:10,padding:"7px 0",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
-                    :<span style={{flex:1,background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:10,padding:"7px 10px",fontSize:12,fontWeight:700,color:"#15803d",textAlign:"center"}}>▶ {fmtTempo(a.inicio_em)}</span>
+                    ?<button onClick={()=>marcarTempo('inicio',a,'agenda')} style={{flex:1,background:"#dcfce7",border:"1.5px solid #16a34a",borderRadius:14,padding:"7px 0",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
+                    :<span style={{flex:1,background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:14,padding:"7px 10px",fontSize:12,fontWeight:700,color:"#15803d",textAlign:"center"}}>▶ {fmtTempo(a.inicio_em)}</span>
                   }
                   {a.inicio_em&&(!a.termino_em
-                    ?<button onClick={()=>marcarTempo('termino',a,'agenda')} style={{flex:1,background:"#fee2e2",border:"1.5px solid #dc2626",borderRadius:10,padding:"7px 0",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
-                    :<span style={{flex:1,background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"7px 10px",fontSize:12,fontWeight:700,color:"#dc2626",textAlign:"center"}}>⏹ {fmtTempo(a.termino_em)}</span>
+                    ?<button onClick={()=>marcarTempo('termino',a,'agenda')} style={{flex:1,background:"#fee2e2",border:"1.5px solid #dc2626",borderRadius:14,padding:"7px 0",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
+                    :<span style={{flex:1,background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:14,padding:"7px 10px",fontSize:12,fontWeight:700,color:"#dc2626",textAlign:"center"}}>⏹ {fmtTempo(a.termino_em)}</span>
                   )}
                   {a.inicio_em&&a.termino_em&&<span style={{fontSize:11,color:"#64748b",fontWeight:700,background:"#f1f5f9",borderRadius:8,padding:"4px 8px"}}>🕒 {Math.round((new Date(a.termino_em)-new Date(a.inicio_em))/60000)}min</span>}
                 </div>}
-                <button onClick={()=>compartilharWhatsApp(a,"hoje")} style={{background:COLORS.green,border:"none",color:"#fff",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontSize:15,flexShrink:0,fontWeight:700}}>📲</button>
+                <button onClick={()=>compartilharWhatsApp(a,"hoje")} style={{background:COLORS.green,border:"none",color:"#fff",borderRadius:14,padding:"8px 12px",cursor:"pointer",fontSize:15,flexShrink:0,fontWeight:700}}>📲</button>
               </div>
             ))}
           </div>
@@ -692,13 +722,13 @@ export default function App(){
         {mudancasAmanha.length>0&&(
           <div style={{margin:"8px 0 0",display:"flex",flexDirection:"column",gap:7}}>
             {mudancasAmanha.map(a=>(
-              <div key={a.id} className={a.inicio_em&&!a.termino_em?"em-andamento":""} style={{background:"#fff7ed",border:`2px solid ${COLORS.accent}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(230,126,34,0.15)"}}>
+              <div key={a.id} className={a.inicio_em&&!a.termino_em?"em-andamento":""} className={a.inicio_em&&!a.termino_em?"em-andamento":""} style={{background:"#fff7ed",border:`2px solid ${COLORS.accent}`,borderRadius:18,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(230,126,34,0.15)"}}>
                 <div style={{flex:1}}>
                   <div style={{color:COLORS.accent,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>⚠️ MUDANÇA AMANHÃ!</div>
                   <div style={{fontWeight:800,fontSize:13,color:COLORS.text}}>{a.nome}</div>
                   <div style={{color:COLORS.muted,fontSize:11}}>{a.horario?`⏰ ${a.horario}h · `:""}{a.origem||"—"}</div>
                 </div>
-                <button onClick={()=>compartilharWhatsApp(a,"amanha")} style={{background:COLORS.accent,border:"none",color:"#fff",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontSize:15,flexShrink:0,fontWeight:700}}>📲</button>
+                <button onClick={()=>compartilharWhatsApp(a,"amanha")} style={{background:COLORS.accent,border:"none",color:"#fff",borderRadius:14,padding:"8px 12px",cursor:"pointer",fontSize:15,flexShrink:0,fontWeight:700}}>📲</button>
               </div>
             ))}
           </div>
@@ -708,12 +738,12 @@ export default function App(){
         <div style={{marginTop:14,marginBottom:13}}>
           <div style={{display:"flex",gap:6,marginBottom:6}}>
             {TABS.slice(0,3).map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"10px 2px",borderRadius:12,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"10px 2px",borderRadius:16,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
             ))}
           </div>
           <div style={{display:"flex",gap:6}}>
             {TABS.slice(3).map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"10px 2px",borderRadius:12,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"10px 2px",borderRadius:16,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
             ))}
           </div>
         </div>
@@ -739,7 +769,7 @@ export default function App(){
           const maxF=Math.max(...meses4.map(m=>m.fat),1);
           return(
             <div>
-              {agHoje2.length>0&&<div style={{background:"#dcfce7",border:"2px solid "+COLORS.green,borderRadius:14,padding:"12px 15px",marginBottom:12}}><div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🔔 {agHoje2.length} MUDANÇA{agHoje2.length!==1?"S":""} HOJE!</div>{agHoje2.map(a=><div key={a.id} style={{fontSize:12,color:COLORS.text,marginTop:2}}>👤 {a.nome}{a.horario?" · ⏰ "+a.horario+"h":""}</div>)}</div>}
+              {agHoje2.length>0&&<div style={{background:"#dcfce7",border:"2px solid "+COLORS.green,borderRadius:18,padding:"12px 15px",marginBottom:12}}><div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🔔 {agHoje2.length} MUDANÇA{agHoje2.length!==1?"S":""} HOJE!</div>{agHoje2.map(a=><div key={a.id} style={{fontSize:12,color:COLORS.text,marginTop:2}}>👤 {a.nome}{a.horario?" · ⏰ "+a.horario+"h":""}</div>)}</div>}
               <div style={{fontSize:11,fontWeight:800,color:COLORS.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📅 Mês Atual</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
                 {[{icon:"📦",label:"Mudanças",val:mudMes.length,color:COLORS.accent,sub:"este mês"},{icon:"📐",label:"m³ Medidos",val:m3Mes+" m³",color:COLORS.blue,sub:"este mês"},{fin:true,icon:"💵",label:"Faturamento",val:fmt(fatMes),color:COLORS.green,sub:"bruto"},{fin:true,icon:"💰",label:"Lucro Líq.",val:fmt(lucroMes),color:lucroMes>=0?COLORS.green:COLORS.red,sub:"estimado"}].filter(k=>!k.fin||temFin).map(k=>(
@@ -783,7 +813,7 @@ export default function App(){
                 <div style={{fontSize:13,fontWeight:800,color:COLORS.text,marginBottom:10}}>🏆 Top Comunidades</div>
                 {(()=>{const map={};mudancas.forEach(m=>{const k=m.comunidade||"Sem comunidade";if(!map[k])map[k]={count:0,m3:0};map[k].count++;map[k].m3+=(parseFloat(m.medicao)||0);});return Object.entries(map).sort((a,b)=>b[1].m3-a[1].m3).slice(0,5).map(([nome,v],i)=>(
                   <div key={nome} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid "+COLORS.cardBorder,fontSize:12}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:20,height:20,borderRadius:10,background:COLORS.accent+"22",color:COLORS.accent,fontWeight:900,fontSize:10,display:"flex",alignItems:"center",justifyContent:"center"}}>{i+1}</div><span style={{color:COLORS.text,fontWeight:600}}>{nome}</span></div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:20,height:20,borderRadius:14,background:COLORS.accent+"22",color:COLORS.accent,fontWeight:900,fontSize:10,display:"flex",alignItems:"center",justifyContent:"center"}}>{i+1}</div><span style={{color:COLORS.text,fontWeight:600}}>{nome}</span></div>
                     <div style={{display:"flex",gap:5}}><Badge color={COLORS.blue}>{v.count} mud.</Badge><Badge color={COLORS.green}>{v.m3} m³</Badge></div>
                   </div>
                 ));})()}
@@ -792,7 +822,7 @@ export default function App(){
                 <div style={{fontSize:13,fontWeight:800,color:COLORS.text,marginBottom:10}}>📅 Resumo da Agenda</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
                   {[{label:"Hoje",val:agHoje2.length,color:COLORS.green},{label:"Próximas",val:agProx2.length,color:COLORS.blue},{label:"Pendentes",val:agPend2.length,color:COLORS.accent}].filter(k=>!k.fin||temFin).map(k=>(
-                    <div key={k.label} onClick={()=>setTab("agenda")} style={{background:k.color+"10",border:"1.5px solid "+k.color+"33",borderRadius:10,padding:"10px",textAlign:"center",cursor:"pointer"}}>
+                    <div key={k.label} onClick={()=>setTab("agenda")} style={{background:k.color+"10",border:"1.5px solid "+k.color+"33",borderRadius:14,padding:"10px",textAlign:"center",cursor:"pointer"}}>
                       <div style={{fontSize:22,fontWeight:900,color:k.color}}>{k.val}</div>
                       <div style={{fontSize:10,color:COLORS.muted,fontWeight:700,textTransform:"uppercase"}}>{k.label}</div>
                     </div>
@@ -848,12 +878,12 @@ export default function App(){
                   <div style={{display:"flex",gap:4}}>{a.van&&<Badge color={COLORS.blue}>🚐</Badge>}
               {podeEditar&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
                 {!a.inicio_em
-                  ?<button onClick={()=>marcarTempo('inicio',a,'agenda')} style={{background:"#dcfce7",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
-                  :<span style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#15803d"}}>▶ {fmtTempo(a.inicio_em)}</span>
+                  ?<button onClick={()=>marcarTempo('inicio',a,'agenda')} style={{background:"#dcfce7",border:"1.5px solid #86efac",borderRadius:14,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
+                  :<span style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:14,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#15803d"}}>▶ {fmtTempo(a.inicio_em)}</span>
                 }
                 {a.inicio_em&&(!a.termino_em
-                  ?<button onClick={()=>marcarTempo('termino',a,'agenda')} style={{background:"#fee2e2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
-                  :<span style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#dc2626"}}>⏹ {fmtTempo(a.termino_em)}</span>
+                  ?<button onClick={()=>marcarTempo('termino',a,'agenda')} style={{background:"#fee2e2",border:"1.5px solid #fca5a5",borderRadius:14,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
+                  :<span style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:14,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#dc2626"}}>⏹ {fmtTempo(a.termino_em)}</span>
                 )}
                 {a.inicio_em&&a.termino_em&&<span style={{fontSize:11,color:"#64748b",fontWeight:600,background:"#f1f5f9",borderRadius:8,padding:"4px 8px"}}>{Math.round((new Date(a.termino_em)-new Date(a.inicio_em))/60000)}min</span>}
               </div>}{a.caminhao&&<Badge color={COLORS.accent}>🚚</Badge>}</div>
@@ -895,7 +925,7 @@ export default function App(){
               ))}
             </div>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar nome, selo ou comunidade..."
-              style={{width:"100%",background:"#fff",border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:12,color:COLORS.text,padding:"10px 14px",fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:12,boxShadow:COLORS.shadow}}/>
+              style={{width:"100%",background:"#fff",border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:16,color:COLORS.text,padding:"10px 14px",fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:12,boxShadow:COLORS.shadow}}/>
             {comunidades.map(com=>{
               const items=filtered.filter(m=>m.comunidade===com);
               if(!items.length) return null;
@@ -915,7 +945,7 @@ export default function App(){
                             <TagSelo v={m.selo}/><TagData v={m.data}/>
                           </div>
                           {expand===m.id&&(
-                            <div style={{marginTop:8,fontSize:12,lineHeight:1.9,background:"#f8fafc",borderRadius:10,padding:"10px 12px"}}>
+                            <div style={{marginTop:8,fontSize:12,lineHeight:1.9,background:"#f8fafc",borderRadius:14,padding:"10px 12px"}}>
                               <div>📦 <strong>Origem:</strong> {m.origem?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.origem)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{m.origem} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
                               <div>🏠 <strong>Destino:</strong> {m.destino?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.destino)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{m.destino} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
                             </div>
@@ -969,14 +999,14 @@ export default function App(){
                     const linhas=lista.map(a=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ");return `👤 *${a.nome}*\n🏷️ Selo: ${a.selo||"—"} · ⏰ ${a.horario||"—"}h\n📍 ${a.comunidade||"—"}\n📦 Saída: ${a.origem||"—"}\n🏠 Chegada: ${a.destino||"—"}\n🚗 Veículos: ${v||"—"}${a.contato?`\n📞 ${a.contato}`:""}${a.medicao?`\n📐 ${a.medicao} m³`:""}`;});
                     const txt=`🚛 *TELEMIM — MUDANÇAS DO DIA*\n📅 *${new Date().toLocaleDateString("pt-BR")}*\n━━━━━━━━━━━━━━━━━\n${linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")}\n\n━━━━━━━━━━━━━━━━━\n_Total: ${lista.length} mudança${lista.length!==1?"s":""} · TELEMIM_`;
                     window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`,"_blank");
-                  }} style={{background:"#dcfce7",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📲 Dia ({mudancasHoje.length})</button>
+                  }} style={{background:"#dcfce7",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:14,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📲 Dia ({mudancasHoje.length})</button>
                   <button onClick={()=>{
                     const lista=agendaOrdenada.filter(a=>a.data===hoje);
                     const linhas=lista.map((a,i)=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return (i+1)+". *"+a.nome+"*\n🏷️ "+a.selo+" · ⏰ "+(a.horario||"—")+"h\n📍 "+(a.comunidade||"—")+"\n📦 "+(a.origem||"—")+"\n🏠 "+(a.destino||"—")+"\n🚗 "+(v||"—")+(a.contato?"\n📞 "+a.contato:"")+(a.medicao?"\n📐 "+a.medicao+" m³":"");});
                     const tot=lista.length, nV=lista.filter(x=>x.van).length, nC=lista.filter(x=>x.caminhao).length;
                     const txt="📋 *RELATÓRIO DO DIA — TELEMIM*\n📅 *"+new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})+"*\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *Total: "+tot+" mudança"+(tot!==1?"s":"")+" hoje*\n🚐 "+nV+" c/ van · 🚚 "+nC+" c/ caminhão\n_TELEMIM_";
                     window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
-                  }} style={{background:"#eff6ff",border:"1.5px solid #2563eb",color:"#2563eb",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Dia</button>
+                  }} style={{background:"#eff6ff",border:"1.5px solid #2563eb",color:"#2563eb",borderRadius:14,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Dia</button>
                   </>
                 )}
                 <button onClick={()=>{
@@ -991,8 +1021,8 @@ export default function App(){
                   const dtFmt=new Date(proxDia+"T12:00:00").toLocaleDateString("pt-BR");
                   const txt="📋 *RELATÓRIO DE MUDANÇAS*\n📅 "+nDia+", "+dtFmt+(isHoje?" (HOJE)":"")+"\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *"+lista.length+" mudança"+(lista.length!==1?"s":"")+" · "+nDia+"*\n🚐 "+lista.filter(a=>a.van).length+" c/ van  🚚 "+lista.filter(a=>a.caminhao).length+" c/ caminhão\n_TELEMIM · PROMORAR_";
                   window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
-                }} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Mudança do Dia</button>
-                <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button>
+                }} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:14,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Mudança do Dia</button>
+                <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:14,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button>
               </div>
             </div>
             {proximas.length>0&&(
@@ -1006,7 +1036,7 @@ export default function App(){
                         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
                           <TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/><TagCom v={a.comunidade}/>
                         </div>
-                        <div style={{fontSize:12,lineHeight:1.9,background:"#f8fafc",borderRadius:10,padding:"8px 12px",marginBottom:10}}>
+                        <div style={{fontSize:12,lineHeight:1.9,background:"#f8fafc",borderRadius:14,padding:"8px 12px",marginBottom:10}}>
                           <div>📦 <strong>Saída:</strong> {a.origem?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.origem)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
                           <div>🏠 <strong>Chegada:</strong> {a.destino?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.destino)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
                           {a.contato&&<div>📞 <strong>Contato:</strong> <a href={`tel:${a.contato.replace(/\D/g,"")}`} style={{color:COLORS.green,textDecoration:"none",fontWeight:700}}>{a.contato} 📲</a></div>}
@@ -1014,8 +1044,8 @@ export default function App(){
                         <div style={{marginBottom:10}}>
                           <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>🚗 Veículos</div>
                           <div style={{display:"flex",gap:8}}>
-                            <button onClick={()=>toggleAgField(a.id,"van")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.van?COLORS.blue:"#e2e8f0"}`,background:a.van?"#eff6ff":"#f8fafc",color:a.van?COLORS.blue:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚐 Van {a.van?"✓":"✗"}</button>
-                            <button onClick={()=>toggleAgField(a.id,"caminhao")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.caminhao?COLORS.accent:"#e2e8f0"}`,background:a.caminhao?"#fff7ed":"#f8fafc",color:a.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚚 Caminhão {a.caminhao?"✓":"✗"}</button>
+                            <button onClick={()=>toggleAgField(a.id,"van")} style={{padding:"7px 14px",borderRadius:14,border:`2px solid ${a.van?COLORS.blue:"#e2e8f0"}`,background:a.van?"#eff6ff":"#f8fafc",color:a.van?COLORS.blue:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚐 Van {a.van?"✓":"✗"}</button>
+                            <button onClick={()=>toggleAgField(a.id,"caminhao")} style={{padding:"7px 14px",borderRadius:14,border:`2px solid ${a.caminhao?COLORS.accent:"#e2e8f0"}`,background:a.caminhao?"#fff7ed":"#f8fafc",color:a.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚚 Caminhão {a.caminhao?"✓":"✗"}</button>
                           </div>
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
@@ -1082,7 +1112,7 @@ export default function App(){
         {tab==="novaAgenda"&&(
           <Card>
             <div style={{fontSize:15,fontWeight:800,marginBottom:14,color:COLORS.purple}}>📅 Novo Agendamento</div>
-            <button onClick={()=>{setShowImportAg(true);setImportTextAg("");}} style={{background:"#f5f3ff",border:"1.5px solid "+COLORS.purple,color:COLORS.purple,borderRadius:10,padding:"7px 14px",fontWeight:800,fontSize:12,cursor:"pointer"}}>📥 Importar Solicitação</button>
+            <button onClick={()=>{setShowImportAg(true);setImportTextAg("");}} style={{background:"#f5f3ff",border:"1.5px solid "+COLORS.purple,color:COLORS.purple,borderRadius:14,padding:"7px 14px",fontWeight:800,fontSize:12,cursor:"pointer"}}>📥 Importar Solicitação</button>
             <Inp label="Nome" icon="👤" value={agForm.nome} onChange={v=>setAgForm(f=>({...f,nome:v}))} placeholder="Nome completo"/>
             <Inp label="Selo" icon="🏷️" value={agForm.selo||""} onChange={v=>setAgForm(f=>({...f,selo:v}))} placeholder="Ex: VT-020-021-A"/>
             <Inp label="Comunidade" icon="📍" value={agForm.comunidade||""} onChange={v=>setAgForm(f=>({...f,comunidade:v}))} placeholder="Nome da comunidade"/>
@@ -1097,13 +1127,13 @@ export default function App(){
               <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:6,textTransform:"uppercase"}}>📋 Status</label>
               <div style={{display:"flex",gap:7}}>
                 {["confirmado","pendente"].filter(s=>!s.fin||temFin).map(s=>(
-                  <button key={s} onClick={()=>setAgForm(f=>({...f,status:s}))} style={{flex:1,padding:"9px",borderRadius:10,border:`1.5px solid ${agForm.status===s?statusColor[s]:COLORS.cardBorder}`,background:agForm.status===s?statusColor[s]+"18":"#f8fafc",color:agForm.status===s?statusColor[s]:COLORS.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>{statusLabel[s]}</button>
+                  <button key={s} onClick={()=>setAgForm(f=>({...f,status:s}))} style={{flex:1,padding:"9px",borderRadius:14,border:`1.5px solid ${agForm.status===s?statusColor[s]:COLORS.cardBorder}`,background:agForm.status===s?statusColor[s]+"18":"#f8fafc",color:agForm.status===s?statusColor[s]:COLORS.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>{statusLabel[s]}</button>
                 ))}
               </div>
             </div>
             <div style={{display:"flex",gap:8,marginTop:6}}>
-              <button onClick={()=>setTab("agenda")} style={{flex:1,padding:12,borderRadius:12,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
-              <button onClick={handleAddAg} style={{flex:2,padding:12,borderRadius:12,border:"none",background:COLORS.purple,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>{flash||"📅 Confirmar"}</button>
+              <button onClick={()=>setTab("agenda")} style={{flex:1,padding:12,borderRadius:16,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
+              <button onClick={handleAddAg} style={{flex:2,padding:12,borderRadius:16,border:"none",background:COLORS.purple,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>{flash||"📅 Confirmar"}</button>
             </div>
           </Card>
         )}
@@ -1112,7 +1142,7 @@ export default function App(){
         {tab==="novo"&&(
           <Card>
             <div style={{fontSize:15,fontWeight:800,marginBottom:14,color:COLORS.accent}}>➕ Nova Mudança Realizada</div>
-            <button onClick={()=>{setShowImport(true);setImportText("");}} style={{background:"#eff6ff",border:"1.5px solid "+COLORS.blue,color:COLORS.blue,borderRadius:10,padding:"7px 14px",fontWeight:800,fontSize:12,cursor:"pointer"}}>📥 Importar Solicitação</button>
+            <button onClick={()=>{setShowImport(true);setImportText("");}} style={{background:"#eff6ff",border:"1.5px solid "+COLORS.blue,color:COLORS.blue,borderRadius:14,padding:"7px 14px",fontWeight:800,fontSize:12,cursor:"pointer"}}>📥 Importar Solicitação</button>
             <Inp label="Nome" icon="👤" value={form.nome} onChange={v=>setForm(f=>({...f,nome:v}))} placeholder="Nome completo"/>
             <Inp label="Selo" icon="🏷️" value={form.selo} onChange={v=>setForm(f=>({...f,selo:v}))} placeholder="Ex: VT-020-001 A"/>
             <Inp label="Comunidade" icon="📍" value={form.comunidade} onChange={v=>setForm(f=>({...f,comunidade:v}))} placeholder="Nome da comunidade"/>
@@ -1121,7 +1151,7 @@ export default function App(){
             <Inp label="Destino" icon="🏠" value={form.destino} onChange={v=>setForm(f=>({...f,destino:v}))} placeholder="Endereço de destino"/>
             <Inp label="Medição (m³)" icon="📐" type="number" value={form.medicao} onChange={v=>setForm(f=>({...f,medicao:v}))} placeholder="Ex: 27"/>
             <Tog label="🚐 Van" value={form.van} onChange={v=>setForm(f=>({...f,van:v}))}/>
-            <button onClick={handleAddMud} style={{width:"100%",padding:13,borderRadius:12,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,fontSize:15,cursor:"pointer",boxShadow:"0 2px 8px rgba(230,126,34,0.3)"}}>
+            <div style={{marginBottom:12}}><label style={{display:'block',fontSize:12,fontWeight:600,color:'#64748b',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.05em'}}>📝 Observações</label><textarea placeholder="Ex: Cuidado com os eletrodomésticos..." value={novaM.observacao||''} onChange={e=>setNovaM(p=>({...p,observacao:e.target.value}))} rows={2} style={{width:'100%',padding:'10px 14px',border:'1.5px solid #e2e8f0',borderRadius:14,fontSize:14,resize:'vertical',fontFamily:'inherit',background:'#f8fafc',outline:'none',boxSizing:'border-box'}}/></div><button onClick={handleAddMud} style={{width:"100%",padding:13,borderRadius:16,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,fontSize:15,cursor:"pointer",boxShadow:"0 2px 8px rgba(230,126,34,0.3)"}}>
               {flash||"💾 Salvar Mudança"}
             </button>
           </Card>
@@ -1152,7 +1182,7 @@ export default function App(){
                 })}
               </div>
               {rel&&(
-                <button onClick={gerarPDFGeral} style={{width:"100%",marginTop:11,padding:"10px",borderRadius:10,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+                <button onClick={gerarPDFGeral} style={{width:"100%",marginTop:11,padding:"10px",borderRadius:14,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
                   📄 Exportar PDF — {rel.ini?fmtDate(rel.ini).slice(3):"Todo período"}
                 </button>
               )}
@@ -1180,8 +1210,8 @@ export default function App(){
                 </div>
               </div>
               <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>{setRelDataIni("");setRelDataFim("");setRel(null);}} style={{flex:1,padding:"10px",borderRadius:10,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>🔄 Limpar</button>
-                <button onClick={gerarRel} style={{flex:2,padding:"10px",borderRadius:10,border:"none",background:COLORS.green,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>📊 Gerar Relatório</button>
+                <button onClick={()=>{setRelDataIni("");setRelDataFim("");setRel(null);}} style={{flex:1,padding:"10px",borderRadius:14,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>🔄 Limpar</button>
+                <button onClick={gerarRel} style={{flex:2,padding:"10px",borderRadius:14,border:"none",background:COLORS.green,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>📊 Gerar Relatório</button>
               </div>
             </Card>
             {!rel?(
@@ -1235,9 +1265,9 @@ export default function App(){
                   ))}
                 </Card>
                 <div style={{display:"flex",gap:8,marginTop:11,flexWrap:"wrap"}}>
-                  <button onClick={()=>compartilharRelatorio(rel,rel.ini||rel.fim?`${rel.ini?fmtDate(rel.ini):"início"} a ${rel.fim?fmtDate(rel.fim):"hoje"}`:"Todo o período")} style={{flex:1,minWidth:"120px",padding:"11px",borderRadius:12,border:"2px solid #25D366",background:"#25D36615",color:"#16a34a",fontWeight:900,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>📲 WhatsApp</button>
-                  <button onClick={gerarPDFGeral} style={{flex:1,minWidth:"120px",padding:"11px",borderRadius:12,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>📊 Financeiro</button>
-                  <button onClick={gerarPDFMudancas} style={{flex:1,minWidth:"120px",padding:"11px",borderRadius:12,border:`2px solid ${COLORS.blue}`,background:COLORS.blue+"15",color:COLORS.blue,fontWeight:900,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>📋 Mudanças</button>
+                  <button onClick={()=>compartilharRelatorio(rel,rel.ini||rel.fim?`${rel.ini?fmtDate(rel.ini):"início"} a ${rel.fim?fmtDate(rel.fim):"hoje"}`:"Todo o período")} style={{flex:1,minWidth:"120px",padding:"11px",borderRadius:16,border:"2px solid #25D366",background:"#25D36615",color:"#16a34a",fontWeight:900,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>📲 WhatsApp</button>
+                  <button onClick={gerarPDFGeral} style={{flex:1,minWidth:"120px",padding:"11px",borderRadius:16,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>📊 Financeiro</button>
+                  <button onClick={gerarPDFMudancas} style={{flex:1,minWidth:"120px",padding:"11px",borderRadius:16,border:`2px solid ${COLORS.blue}`,background:COLORS.blue+"15",color:COLORS.blue,fontWeight:900,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>📋 Mudanças</button>
                 </div>
               </>
             )}
@@ -1247,6 +1277,7 @@ export default function App(){
         {/* ══ SEMANA ══ */}
         {tab==="semana"&&(
           <div>
+<button onClick={exportarPDFSemana} style={{display:'flex',alignItems:'center',gap:6,margin:'0 0 16px auto',padding:'8px 18px',background:'#ea580c',color:'#fff',border:'none',borderRadius:14,fontWeight:700,fontSize:13,cursor:'pointer'}}>📄 Exportar PDF</button>
             <div style={{fontSize:15,fontWeight:800,color:COLORS.blue,marginBottom:12}}>📆 Relatório Semanal</div>
             {semanas.length===0&&<div style={{textAlign:"center",color:COLORS.muted,padding:40}}>Nenhuma mudança registrada.</div>}
             {semanas.length>0&&(
@@ -1311,20 +1342,20 @@ export default function App(){
                         <div style={{display:"flex",gap:5,alignItems:"center"}}>{verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}{m.van&&<Badge color={COLORS.blue}>🚐</Badge>}
               {podeEditar&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
                 {!m.inicio_em
-                  ?<button onClick={()=>marcarTempo('inicio',m,'mudancas')} style={{background:"#dcfce7",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
-                  :<span style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#15803d"}}>▶ {fmtTempo(m.inicio_em)}</span>
+                  ?<button onClick={()=>marcarTempo('inicio',m,'mudancas')} style={{background:"#dcfce7",border:"1.5px solid #86efac",borderRadius:14,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
+                  :<span style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:14,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#15803d"}}>▶ {fmtTempo(m.inicio_em)}</span>
                 }
                 {m.inicio_em&&(!m.termino_em
-                  ?<button onClick={()=>marcarTempo('termino',m,'mudancas')} style={{background:"#fee2e2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
-                  :<span style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#dc2626"}}>⏹ {fmtTempo(m.termino_em)}</span>
+                  ?<button onClick={()=>marcarTempo('termino',m,'mudancas')} style={{background:"#fee2e2",border:"1.5px solid #fca5a5",borderRadius:14,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
+                  :<span style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:14,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#dc2626"}}>⏹ {fmtTempo(m.termino_em)}</span>
                 )}
                 {m.inicio_em&&m.termino_em&&<span style={{fontSize:11,color:"#64748b",fontWeight:600,background:"#f1f5f9",borderRadius:8,padding:"4px 8px"}}>{Math.round((new Date(m.termino_em)-new Date(m.inicio_em))/60000)}min</span>}
               </div>}</div>
                       </div>
                     ))}
                   </Card>                  <div style={{display:"flex",gap:8,marginTop:4}}>
-                    <button onClick={()=>compartilharRelatorio(sr,sw.label)} style={{flex:1,padding:"13px",borderRadius:12,border:"2px solid #25D366",background:"#25D36615",color:"#16a34a",fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📲 WhatsApp</button>
-                    <button onClick={()=>gerarPDFSemana(sw,sr)} style={{flex:1,padding:"13px",borderRadius:12,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📄 Exportar PDF</button>
+                    <button onClick={()=>compartilharRelatorio(sr,sw.label)} style={{flex:1,padding:"13px",borderRadius:16,border:"2px solid #25D366",background:"#25D36615",color:"#16a34a",fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📲 WhatsApp</button>
+                    <button onClick={()=>gerarPDFSemana(sw,sr)} style={{flex:1,padding:"13px",borderRadius:16,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📄 Exportar PDF</button>
                   </div>
                 </>
               );
@@ -1493,7 +1524,7 @@ export default function App(){
           <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:400,boxShadow:"0 8px 40px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:16,fontWeight:900,color:COLORS.green,marginBottom:4}}>✅ Registrar Mudança</div>
             <div style={{fontSize:12,color:COLORS.muted,marginBottom:14}}>Agendamento de <strong>{convertModal.nome}</strong></div>
-            <div style={{background:"#f8fafc",borderRadius:10,padding:"10px 12px",marginBottom:14,fontSize:12,lineHeight:1.9}}>
+            <div style={{background:"#f8fafc",borderRadius:14,padding:"10px 12px",marginBottom:14,fontSize:12,lineHeight:1.9}}>
               <div>📅 <strong>{fmtDate(convertModal.data)}</strong> {convertModal.horario?"⏰ "+convertModal.horario+"h":""}</div>
               <div>📍 {convertModal.comunidade||"—"}</div>
               <div>📦 {convertModal.origem||"—"}</div>
@@ -1505,26 +1536,27 @@ export default function App(){
               <input type="number" placeholder="Ex: 27" autoFocus
                 value={convertModal._medicao||""}
                 onChange={e=>setConvertModal(p=>({...p,_medicao:e.target.value}))}
-                style={{width:"100%",background:"#f8fafc",border:"1.5px solid "+COLORS.accent,borderRadius:10,color:COLORS.text,padding:"12px 14px",fontSize:16,outline:"none",boxSizing:"border-box"}}/>
+                style={{width:"100%",background:"#f8fafc",border:"1.5px solid "+COLORS.accent,borderRadius:14,color:COLORS.text,padding:"12px 14px",fontSize:16,outline:"none",boxSizing:"border-box"}}/>
             </div>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setConvertModal(null)} style={{flex:1,padding:12,borderRadius:12,border:"1px solid "+COLORS.cardBorder,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
-              <button onClick={()=>confirmarConversao(convertModal,convertModal._medicao)} style={{flex:2,padding:12,borderRadius:12,border:"none",background:COLORS.green,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>✅ Confirmar</button>
+              <button onClick={()=>setConvertModal(null)} style={{flex:1,padding:12,borderRadius:16,border:"1px solid "+COLORS.cardBorder,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
+              <button onClick={()=>confirmarConversao(convertModal,convertModal._medicao)} style={{flex:2,padding:12,borderRadius:16,border:"none",background:COLORS.green,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>✅ Confirmar</button>
             </div>
           </div>
         </div>
       )}
 
-            {tab==="usuarios"&&isAdmin&&(<div style={{paddingBottom:80}} onMouseEnter={()=>listaUsuarios.length===0&&carregarUsuarios()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:900}}>👥 Gerenciar Usuários</div><button onClick={carregarUsuarios} style={{background:"#eff6ff",border:"1px solid #3b82f6",color:"#3b82f6",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔄 Atualizar</button></div><Card style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>USUÁRIOS ({listaUsuarios.length})</div>{listaUsuarios.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Clique em Atualizar</div>:listaUsuarios.map(u=>(<div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}><div><div style={{fontWeight:700,fontSize:13}}>{u.nome}</div><div style={{fontSize:11,color:"#94a3b8"}}>{u.email}</div><span style={{display:"inline-block",marginTop:3,background:u.perfil==="admin"?"#dbeafe":u.perfil==="promorar"?"#dcfce7":"#fef9c3",borderRadius:12,padding:"2px 8px",fontSize:10,fontWeight:800,color:u.perfil==="admin"?"#1d4ed8":u.perfil==="promorar"?"#15803d":"#a16207"}}>{u.perfil==="admin"?"👑 Admin":u.perfil==="promorar"?"🏢 Promorar":"🤝 Social"}</span></div><button onClick={()=>toggleAtivoUser(u)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid "+(u.ativo?"#ef4444":"#22c55e"),background:u.ativo?"#fef2f2":"#f0fdf4",color:u.ativo?"#ef4444":"#22c55e",fontSize:11,fontWeight:700,cursor:"pointer"}}>{u.ativo?"🚫 Desativar":"✅ Ativar"}</button></div>))}</Card><Card><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>+ NOVO USUÁRIO</div><Inp label="Nome" icon="👤" value={novoUser.nome} onChange={v=>setNovoUser(f=>({...f,nome:v}))}/><Inp label="Email" icon="📧" value={novoUser.email} onChange={v=>setNovoUser(f=>({...f,email:v}))}/><Inp label="Senha" icon="🔒" value={novoUser.senha} onChange={v=>setNovoUser(f=>({...f,senha:v}))}/><div style={{marginBottom:12}}><label style={{display:"block",color:"#94a3b8",fontSize:11,fontWeight:700,marginBottom:5}}>PERFIL</label><div style={{display:"flex",gap:8}}>{[["admin","👑 Admin"],["promorar","🏢 Promorar"],["social","🤝 Social"]].map(([val,lab])=>(<button key={val} onClick={()=>setNovoUser(f=>({...f,perfil:val}))} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"1.5px solid "+(novoUser.perfil===val?"#f97316":"#e2e8f0"),background:novoUser.perfil===val?"#fff7ed":"#f8fafc",color:novoUser.perfil===val?"#f97316":"#94a3b8",fontWeight:800,fontSize:11,cursor:"pointer"}}>{lab}</button>))}</div></div>{userMsg&&<div style={{background:userMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:userMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{userMsg}</div>}<button onClick={criarUsuario} disabled={savingUser} style={{width:"100%",padding:13,borderRadius:12,background:savingUser?"#94a3b8":"#f97316",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:savingUser?"not-allowed":"pointer"}}>{savingUser?"⏳ Criando...":"➕ Criar Usuário"}</button></Card></div>)}
+            {tab==="usuarios"&&isAdmin&&(<div style={{paddingBottom:80}} onMouseEnter={()=>
+{isAdmin&&<button onClick={exportarBackupExcel} style={{display:'flex',alignItems:'center',gap:6,marginBottom:12,padding:'8px 16px',background:'#0f172a',color:'#fff',border:'none',borderRadius:14,fontWeight:700,fontSize:13,cursor:'pointer'}}>💾 Exportar Backup CSV</button>}listaUsuarios.length===0&&carregarUsuarios()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:900}}>👥 Gerenciar Usuários</div><button onClick={carregarUsuarios} style={{background:"#eff6ff",border:"1px solid #3b82f6",color:"#3b82f6",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔄 Atualizar</button></div><Card style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>USUÁRIOS ({listaUsuarios.length})</div>{listaUsuarios.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Clique em Atualizar</div>:listaUsuarios.map(u=>(<div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}><div><div style={{fontWeight:700,fontSize:13}}>{u.nome}</div><div style={{fontSize:11,color:"#94a3b8"}}>{u.email}</div><span style={{display:"inline-block",marginTop:3,background:u.perfil==="admin"?"#dbeafe":u.perfil==="promorar"?"#dcfce7":"#fef9c3",borderRadius:16,padding:"2px 8px",fontSize:10,fontWeight:800,color:u.perfil==="admin"?"#1d4ed8":u.perfil==="promorar"?"#15803d":"#a16207"}}>{u.perfil==="admin"?"👑 Admin":u.perfil==="promorar"?"🏢 Promorar":"🤝 Social"}</span></div><button onClick={()=>toggleAtivoUser(u)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid "+(u.ativo?"#ef4444":"#22c55e"),background:u.ativo?"#fef2f2":"#f0fdf4",color:u.ativo?"#ef4444":"#22c55e",fontSize:11,fontWeight:700,cursor:"pointer"}}>{u.ativo?"🚫 Desativar":"✅ Ativar"}</button></div>))}</Card><Card><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>+ NOVO USUÁRIO</div><Inp label="Nome" icon="👤" value={novoUser.nome} onChange={v=>setNovoUser(f=>({...f,nome:v}))}/><Inp label="Email" icon="📧" value={novoUser.email} onChange={v=>setNovoUser(f=>({...f,email:v}))}/><Inp label="Senha" icon="🔒" value={novoUser.senha} onChange={v=>setNovoUser(f=>({...f,senha:v}))}/><div style={{marginBottom:12}}><label style={{display:"block",color:"#94a3b8",fontSize:11,fontWeight:700,marginBottom:5}}>PERFIL</label><div style={{display:"flex",gap:8}}>{[["admin","👑 Admin"],["promorar","🏢 Promorar"],["social","🤝 Social"]].map(([val,lab])=>(<button key={val} onClick={()=>setNovoUser(f=>({...f,perfil:val}))} style={{flex:1,padding:"9px 4px",borderRadius:14,border:"1.5px solid "+(novoUser.perfil===val?"#f97316":"#e2e8f0"),background:novoUser.perfil===val?"#fff7ed":"#f8fafc",color:novoUser.perfil===val?"#f97316":"#94a3b8",fontWeight:800,fontSize:11,cursor:"pointer"}}>{lab}</button>))}</div></div>{userMsg&&<div style={{background:userMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:userMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{userMsg}</div>}<button onClick={criarUsuario} disabled={savingUser} style={{width:"100%",padding:13,borderRadius:16,background:savingUser?"#94a3b8":"#f97316",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:savingUser?"not-allowed":"pointer"}}>{savingUser?"⏳ Criando...":"➕ Criar Usuário"}</button></Card></div>)}
             {/* ══ MODAL IMPORTAR (MUDANÇA) ══ */}
       {showImport&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setShowImport(false)}><div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480,maxHeight:"80vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
         <div style={{fontSize:15,fontWeight:900,color:COLORS.text,marginBottom:4}}>📥 Importar Solicitação</div>
         <div style={{fontSize:11,color:COLORS.muted,marginBottom:12}}>Cole o texto recebido. O app preenche automaticamente!</div>
-        <textarea value={importText} onChange={e=>setImportText(e.target.value)} placeholder="Sr. José Luiz Ramos - Número do Selo: VT-022-006-A&#10;de (Chesf Vietnã), informou...&#10;Data solicitada: Quarta: 25/03&#10;Horário: 11:00h&#10;Endereço de saída: Rua...&#10;Endereço Final: Rua..." style={{width:"100%",minHeight:140,background:"#f8fafc",border:"1.5px solid "+COLORS.cardBorder,borderRadius:10,padding:"10px",fontSize:12,color:COLORS.text,resize:"vertical",outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
-        {importText&&(()=>{const p=parseImport(importText);return(<div style={{background:"#fff7ed",border:"1px solid "+COLORS.accent+"44",borderRadius:10,padding:"10px",marginTop:10,fontSize:11}}><div style={{fontWeight:800,color:COLORS.accent,marginBottom:6}}>✨ Dados extraídos:</div>{[["👤 Nome",p.nome],["🏷️ Selo",p.selo],["📍 Comunidade",p.comunidade],["📅 Data",p.data?fmtDate(p.data):"—"],["⏰ Horário",p.horario||"—"],["📦 Saída",p.origem],["🏠 Destino",p.destino],["🚐 Van",p.van?"✅":"—"],["🚚 Caminhão",p.caminhao?"✅":"—"]].map(([k,v])=>(<div key={k} style={{display:"flex",gap:8,marginBottom:3}}><span style={{color:COLORS.muted,minWidth:90}}>{k}:</span><span style={{fontWeight:600,color:COLORS.text}}>{v||"—"}</span></div>))}</div>);})()}
+        <textarea value={importText} onChange={e=>setImportText(e.target.value)} placeholder="Sr. José Luiz Ramos - Número do Selo: VT-022-006-A&#10;de (Chesf Vietnã), informou...&#10;Data solicitada: Quarta: 25/03&#10;Horário: 11:00h&#10;Endereço de saída: Rua...&#10;Endereço Final: Rua..." style={{width:"100%",minHeight:140,background:"#f8fafc",border:"1.5px solid "+COLORS.cardBorder,borderRadius:14,padding:"10px",fontSize:12,color:COLORS.text,resize:"vertical",outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+        {importText&&(()=>{const p=parseImport(importText);return(<div style={{background:"#fff7ed",border:"1px solid "+COLORS.accent+"44",borderRadius:14,padding:"10px",marginTop:10,fontSize:11}}><div style={{fontWeight:800,color:COLORS.accent,marginBottom:6}}>✨ Dados extraídos:</div>{[["👤 Nome",p.nome],["🏷️ Selo",p.selo],["📍 Comunidade",p.comunidade],["📅 Data",p.data?fmtDate(p.data):"—"],["⏰ Horário",p.horario||"—"],["📦 Saída",p.origem],["🏠 Destino",p.destino],["🚐 Van",p.van?"✅":"—"],["🚚 Caminhão",p.caminhao?"✅":"—"]].map(([k,v])=>(<div key={k} style={{display:"flex",gap:8,marginBottom:3}}><span style={{color:COLORS.muted,minWidth:90}}>{k}:</span><span style={{fontWeight:600,color:COLORS.text}}>{v||"—"}</span></div>))}</div>);})()}
         <div style={{display:"flex",gap:8,marginTop:14}}>
-          <button onClick={()=>setShowImport(false)} style={{flex:1,padding:"11px",borderRadius:10,border:"1.5px solid "+COLORS.cardBorder,background:"#f8fafc",color:COLORS.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancelar</button>
-          <button onClick={()=>{if(!importText.trim())return;const p=parseImport(importText);setForm(f=>({...f,nome:p.nome||f.nome,selo:p.selo||f.selo,comunidade:p.comunidade||f.comunidade,data:p.data||f.data,origem:p.origem||f.origem,destino:p.destino||f.destino,van:p.van||f.van,caminhao:p.caminhao||f.caminhao}));setShowImport(false);setFlash("✅ Dados importados!");setTimeout(()=>setFlash(""),2500);}} style={{flex:2,padding:"11px",borderRadius:10,background:COLORS.accent,color:"#fff",fontWeight:900,fontSize:13,cursor:"pointer",border:"none"}}>✅ Importar e Preencher</button>
+          <button onClick={()=>setShowImport(false)} style={{flex:1,padding:"11px",borderRadius:14,border:"1.5px solid "+COLORS.cardBorder,background:"#f8fafc",color:COLORS.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancelar</button>
+          <button onClick={()=>{if(!importText.trim())return;const p=parseImport(importText);setForm(f=>({...f,nome:p.nome||f.nome,selo:p.selo||f.selo,comunidade:p.comunidade||f.comunidade,data:p.data||f.data,origem:p.origem||f.origem,destino:p.destino||f.destino,van:p.van||f.van,caminhao:p.caminhao||f.caminhao}));setShowImport(false);setFlash("✅ Dados importados!");setTimeout(()=>setFlash(""),2500);}} style={{flex:2,padding:"11px",borderRadius:14,background:COLORS.accent,color:"#fff",fontWeight:900,fontSize:13,cursor:"pointer",border:"none"}}>✅ Importar e Preencher</button>
         </div>
       </div></div>)}
 
@@ -1545,8 +1577,8 @@ export default function App(){
             <Inp label="Medição (m³)" icon="📐" type="number" value={editMud.medicao} onChange={v=>setEditMud(f=>({...f,medicao:v}))} placeholder="Ex: 27"/>
             <Tog label="🚐 Van" value={editMud.van} onChange={v=>setEditMud(f=>({...f,van:v}))}/>
             <div style={{display:"flex",gap:8,marginTop:6}}>
-              <button onClick={()=>setEditMud(null)} style={{flex:1,padding:12,borderRadius:12,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
-              <button onClick={handleSaveEditMud} style={{flex:2,padding:12,borderRadius:12,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>💾 Salvar</button>
+              <button onClick={()=>setEditMud(null)} style={{flex:1,padding:12,borderRadius:16,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
+              <button onClick={handleSaveEditMud} style={{flex:2,padding:12,borderRadius:16,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>💾 Salvar</button>
             </div>
           </div>
         </div>
@@ -1556,11 +1588,11 @@ export default function App(){
       {showImportAg&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setShowImportAg(false)}><div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480,maxHeight:"80vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
         <div style={{fontSize:15,fontWeight:900,color:COLORS.text,marginBottom:4}}>📥 Importar Solicitação</div>
         <div style={{fontSize:11,color:COLORS.muted,marginBottom:12}}>Cole o texto recebido. O app preenche o agendamento automaticamente!</div>
-        <textarea value={importTextAg} onChange={e=>setImportTextAg(e.target.value)} placeholder="Sr. José Luiz Ramos - Número do Selo: VT-022-006-A&#10;de (Chesf Vietnã), informou...&#10;Data solicitada: Quarta: 25/03&#10;Horário: 11:00h&#10;Endereço de saída: Rua...&#10;Endereço Final: Rua..." style={{width:"100%",minHeight:140,background:"#f8fafc",border:"1.5px solid "+COLORS.cardBorder,borderRadius:10,padding:"10px",fontSize:12,color:COLORS.text,resize:"vertical",outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
-        {importTextAg&&(()=>{const p=parseImport(importTextAg);return(<div style={{background:"#f5f3ff",border:"1px solid "+COLORS.purple+"44",borderRadius:10,padding:"10px",marginTop:10,fontSize:11}}><div style={{fontWeight:800,color:COLORS.purple,marginBottom:6}}>✨ Dados extraídos:</div>{[["👤 Nome",p.nome],["🏷️ Selo",p.selo],["📍 Comunidade",p.comunidade],["📅 Data",p.data?fmtDate(p.data):"—"],["⏰ Horário",p.horario||"—"],["📦 Saída",p.origem],["🏠 Destino",p.destino],["🚐 Van",p.van?"✅":"—"],["🚚 Caminhão",p.caminhao?"✅":"—"]].map(([k,v])=>(<div key={k} style={{display:"flex",gap:8,marginBottom:3}}><span style={{color:COLORS.muted,minWidth:90}}>{k}:</span><span style={{fontWeight:600,color:COLORS.text}}>{v||"—"}</span></div>))}</div>);})()}
+        <textarea value={importTextAg} onChange={e=>setImportTextAg(e.target.value)} placeholder="Sr. José Luiz Ramos - Número do Selo: VT-022-006-A&#10;de (Chesf Vietnã), informou...&#10;Data solicitada: Quarta: 25/03&#10;Horário: 11:00h&#10;Endereço de saída: Rua...&#10;Endereço Final: Rua..." style={{width:"100%",minHeight:140,background:"#f8fafc",border:"1.5px solid "+COLORS.cardBorder,borderRadius:14,padding:"10px",fontSize:12,color:COLORS.text,resize:"vertical",outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+        {importTextAg&&(()=>{const p=parseImport(importTextAg);return(<div style={{background:"#f5f3ff",border:"1px solid "+COLORS.purple+"44",borderRadius:14,padding:"10px",marginTop:10,fontSize:11}}><div style={{fontWeight:800,color:COLORS.purple,marginBottom:6}}>✨ Dados extraídos:</div>{[["👤 Nome",p.nome],["🏷️ Selo",p.selo],["📍 Comunidade",p.comunidade],["📅 Data",p.data?fmtDate(p.data):"—"],["⏰ Horário",p.horario||"—"],["📦 Saída",p.origem],["🏠 Destino",p.destino],["🚐 Van",p.van?"✅":"—"],["🚚 Caminhão",p.caminhao?"✅":"—"]].map(([k,v])=>(<div key={k} style={{display:"flex",gap:8,marginBottom:3}}><span style={{color:COLORS.muted,minWidth:90}}>{k}:</span><span style={{fontWeight:600,color:COLORS.text}}>{v||"—"}</span></div>))}</div>);})()}
         <div style={{display:"flex",gap:8,marginTop:14}}>
-          <button onClick={()=>setShowImportAg(false)} style={{flex:1,padding:"11px",borderRadius:10,border:"1.5px solid "+COLORS.cardBorder,background:"#f8fafc",color:COLORS.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancelar</button>
-          <button onClick={()=>{if(!importTextAg.trim())return;const p=parseImport(importTextAg);setAgForm(f=>({...f,nome:p.nome||f.nome,selo:p.selo||f.selo,comunidade:p.comunidade||f.comunidade,data:p.data||f.data,horario:p.horario||f.horario,origem:p.origem||f.origem,destino:p.destino||f.destino,van:p.van||f.van,caminhao:p.caminhao||f.caminhao}));setShowImportAg(false);setFlash("✅ Dados importados!");setTimeout(()=>setFlash(""),2500);}} style={{flex:2,padding:"11px",borderRadius:10,background:COLORS.purple,color:"#fff",fontWeight:900,fontSize:13,cursor:"pointer",border:"none"}}>✅ Importar e Preencher</button>
+          <button onClick={()=>setShowImportAg(false)} style={{flex:1,padding:"11px",borderRadius:14,border:"1.5px solid "+COLORS.cardBorder,background:"#f8fafc",color:COLORS.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancelar</button>
+          <button onClick={()=>{if(!importTextAg.trim())return;const p=parseImport(importTextAg);setAgForm(f=>({...f,nome:p.nome||f.nome,selo:p.selo||f.selo,comunidade:p.comunidade||f.comunidade,data:p.data||f.data,horario:p.horario||f.horario,origem:p.origem||f.origem,destino:p.destino||f.destino,van:p.van||f.van,caminhao:p.caminhao||f.caminhao}));setShowImportAg(false);setFlash("✅ Dados importados!");setTimeout(()=>setFlash(""),2500);}} style={{flex:2,padding:"11px",borderRadius:14,background:COLORS.purple,color:"#fff",fontWeight:900,fontSize:13,cursor:"pointer",border:"none"}}>✅ Importar e Preencher</button>
         </div>
       </div></div>)}
 
@@ -1593,12 +1625,24 @@ export default function App(){
               </div>
             </div>
             <div style={{display:"flex",gap:8,marginTop:6}}>
-              <button onClick={()=>setEditAg(null)} style={{flex:1,padding:12,borderRadius:12,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
-              <button onClick={handleSaveEditAg} style={{flex:2,padding:12,borderRadius:12,border:"none",background:COLORS.purple,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>💾 Salvar</button>
+              <button onClick={()=>setEditAg(null)} style={{flex:1,padding:12,borderRadius:16,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
+              <button onClick={handleSaveEditAg} style={{flex:2,padding:12,borderRadius:16,border:"none",background:COLORS.purple,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>💾 Salvar</button>
             </div>
           </div>
         </div>
       )}
     </div>
+
+  {usuario&&(
+    <nav style={{position:'fixed',bottom:0,left:0,right:0,background:'#fff',borderTop:'1px solid #e2e8f0',display:'flex',zIndex:9999,paddingBottom:'env(safe-area-inset-bottom,0px)',boxShadow:'0 -4px 20px rgba(0,0,0,0.08)'}}>
+      {[{id:'inicio',icon:'🏠',label:'Hoje'},{id:'registros',icon:'📋',label:'Mudanças'},{id:'agenda',icon:'📅',label:'Agenda'},...(isAdmin?[{id:'relatorio',icon:'💰',label:'Financeiro'}]:[]),...(isAdmin?[{id:'usuarios',icon:'⚙️',label:'Config'}]:[])].map(m=>(
+        <button key={m.id} onClick={()=>setTab(m.id)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'8px 4px 6px',background:'none',border:'none',cursor:'pointer',color:tab===m.id?'#ea580c':'#94a3b8',transition:'color 0.15s'}}>
+          <span style={{fontSize:20,lineHeight:1}}>{m.icon}</span>
+          <span style={{fontSize:10,fontWeight:tab===m.id?700:500,marginTop:3,color:tab===m.id?'#ea580c':'#94a3b8'}}>{m.label}</span>
+          {tab===m.id&&<span style={{width:20,height:3,background:'#ea580c',borderRadius:2,marginTop:2}}/>}
+        </button>
+      ))}
+    </nav>
+  )}
   );
 }
