@@ -1631,8 +1631,7 @@ listaUsuarios.length===0&&carregarUsuarios()}><div style={{display:"flex",justif
           </div>
         </div>
       )}
-    </div>
-
+    
   {usuario&&(
     <nav style={{position:'fixed',bottom:0,left:0,right:0,background:'#fff',borderTop:'1px solid #e2e8f0',display:'flex',zIndex:9999,paddingBottom:'env(safe-area-inset-bottom,0px)',boxShadow:'0 -4px 20px rgba(0,0,0,0.08)'}}>
       {[{id:'inicio',icon:'🏠',label:'Hoje'},{id:'registros',icon:'📋',label:'Mudanças'},{id:'agenda',icon:'📅',label:'Agenda'},...(isAdmin?[{id:'relatorio',icon:'💰',label:'Financeiro'}]:[]),...(isAdmin?[{id:'usuarios',icon:'⚙️',label:'Config'}]:[])].map(m=>(
@@ -1644,5 +1643,8 @@ listaUsuarios.length===0&&carregarUsuarios()}><div style={{display:"flex",justif
       ))}
     </nav>
   )}
+
+</div>
+
   );
 }
