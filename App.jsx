@@ -255,7 +255,7 @@ export default function App(){
     setSyncStatus("🔄 Salvando...");
     try {
       for(const a of list){
-        const row={id:a.id,nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado"};
+        const row={id:a.id,nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:it.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado"};
         await fetch(`${SUPA_URL}/rest/v1/agenda`,{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify([row])});
       }
       setSyncStatus("✅ Sinc");
@@ -289,21 +289,21 @@ export default function App(){
     setAgForm({...initForm,status:"confirmado"}); setFlash("✅ Agendado!"); setTimeout(()=>setFlash(""),1800); setTab("agenda");
   }
   async function handleDelAg(id){
-    setAgenda(prev=>prev.filter(a=>a.id!==id));
+    setAgenda(prev=>prev.filter(it=>it.id!==id));
     setSyncStatus("🔄 Salvando...");
     try { await dbDelete("agenda",id); setSyncStatus("✅ Sincronizado"); }
     catch(e){ setSyncStatus("⚠️ Erro ao salvar"); }
   }
   async function handleSaveEditAg(){
     if(!editAg) return;
-    const updated=agenda.map(a=>a.id===editAg.id?{...editAg}:a);
+    const updated=agenda.map(it=>it.id===editAg.id?{...editAg}:a);
     await saveAg(updated); setEditAg(null);
   }
   async function converterEmMudanca(ag){
     if(!ag.medicao){ alert("Informe a medição (m³) antes de converter!"); return; }
     const nova={id:Date.now(),nome:ag.nome,selo:ag.selo||"",comunidade:ag.comunidade||"",data:ag.data,origem:ag.origem||"",destino:ag.destino||"",medicao:parseFloat(ag.medicao)||0,van:ag.van||false};
     await saveMud([...mudancas,nova]);
-    const updated=agenda.map(a=>a.id===ag.id?{...a,status:"realizado"}:a);
+    const updated=agenda.map(it=>it.id===it.id?{...it,status:"realizado"}:a);
     await saveAg(updated);
     setFlash("✅ Convertido!"); setTimeout(()=>setFlash(""),2000); setTab("lista");
   }
@@ -312,7 +312,7 @@ export default function App(){
     if(!medicao){ alert("Informe a medição em m³!"); return; }
     const nova = { id: Date.now(), nome:ag.nome, selo:ag.selo||"", comunidade:ag.comunidade||"", data:ag.data, origem:ag.origem||"", destino:ag.destino||"", medicao:parseFloat(medicao)||0, van:ag.van||false };
     await saveMud([...mudancas, nova]);
-    const updated = agenda.map(a => a.id===ag.id ? {...a,status:"realizado"} : a);
+    const updated = agenda.map(it => it.id===it.id ? {...it,status:"realizado"} : a);
     await saveAg(updated);
     setConvertModal(null);
     setTab("lista");
@@ -321,21 +321,21 @@ export default function App(){
 
   async function toggleStatus(id){
     setAgenda(prev=>{
-      const updated=prev.map(a=>a.id===id?{...a,status:a.status==="confirmado"?"pendente":a.status==="pendente"?"realizado":"confirmado"}:a);
+      const updated=prev.map(it=>it.id===id?{...it,status:a.status==="confirmado"?"pendente":a.status==="pendente"?"realizado":"confirmado"}:a);
       dbUpsert("agenda",updated).catch(()=>{});
       return updated;
     });
   }
   async function toggleAgField(id,field){
     setAgenda(prev=>{
-      const updated=prev.map(a=>a.id===id?{...a,[field]:!a[field]}:a);
+      const updated=prev.map(it=>it.id===id?{...it,[field]:!a[field]}:a);
       dbUpsert("agenda",updated).catch(()=>{});
       return updated;
     });
   }
   async function updateAgField(id,field,value){
     setAgenda(prev=>{
-      const updated=prev.map(a=>a.id===id?{...a,[field]:value}:a);
+      const updated=prev.map(it=>it.id===id?{...it,[field]:value}:a);
       dbUpsert("agenda",updated).catch(()=>{});
       return updated;
     });
@@ -530,12 +530,12 @@ export default function App(){
 
   // ── PDF AGENDAMENTO INDIVIDUAL ─────────────────────────────────────────────
   function gerarPDFAgendamento(a){
-    const veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
+    const veiculos=[a.van&&"🚐 Van",it.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
     const sc={confirmado:"#16a34a",pendente:"#e67e22",realizado:"#64748b"};
     const sb={confirmado:"#f0fdf4",pendente:"#fff7ed",realizado:"#f8fafc"};
     const cor=sc[a.status]||"#64748b";
     const bg=sb[a.status]||"#f8fafc";
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TELEMIM — Agendamento ${a.nome}</title><style>${pdfCSS}</style></head><body>
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TELEMIM — Agendamento ${it.nome}</title><style>${pdfCSS}</style></head><body>
     <div class="page">
       <div class="header">
         <div class="header-top">
@@ -546,22 +546,22 @@ export default function App(){
       <div class="body">
         <div style="background:${bg};border:2px solid ${cor};border-radius:12px;padding:18px;text-align:center;margin-bottom:20px">
           <div style="font-size:10px;font-weight:700;color:${cor};letter-spacing:2px;text-transform:uppercase;margin-bottom:5px">📅 MUDANÇA AGENDADA</div>
-          <div style="font-size:24px;font-weight:900;color:#1e293b">${a.nome}</div>
-          <div style="font-size:13px;color:#64748b;margin-top:5px">📅 ${fmtDate(a.data)}${a.horario?` ⏰ ${a.horario}h`:""}</div>
+          <div style="font-size:24px;font-weight:900;color:#1e293b">${it.nome}</div>
+          <div style="font-size:13px;color:#64748b;margin-top:5px">📅 ${fmtDate(a.data)}${a.horario?` ⏰ ${it.horario}h`:""}</div>
           <div style="margin-top:8px;display:inline-block;padding:4px 14px;border-radius:20px;background:${cor}22;color:${cor};font-size:12px;font-weight:700">${a.status==="confirmado"?"✅ Confirmado":a.status==="pendente"?"⏳ Pendente":"✔ Realizado"}</div>
         </div>
         <div class="section"><div class="section-title title-ag">📋 Dados do Agendamento</div>
           <div style="padding:4px 0">
-            <div class="info-row"><span class="info-label">👤 Beneficiário</span><span class="info-val">${a.nome}</span></div>
+            <div class="info-row"><span class="info-label">👤 Beneficiário</span><span class="info-val">${it.nome}</span></div>
             <div class="info-row"><span class="info-label">🏷️ Selo</span><span class="info-val">${a.selo||"—"}</span></div>
             <div class="info-row"><span class="info-label">📍 Comunidade</span><span class="info-val">${a.comunidade||"—"}</span></div>
             <div class="info-row"><span class="info-label">📅 Data</span><span class="info-val" style="font-weight:800;color:#2563eb">${fmtDate(a.data)}</span></div>
-            ${a.horario?`<div class="info-row"><span class="info-label">⏰ Horário</span><span class="info-val" style="font-weight:800;color:#16a34a">${a.horario}h</span></div>`:""}
+            ${a.horario?`<div class="info-row"><span class="info-label">⏰ Horário</span><span class="info-val" style="font-weight:800;color:#16a34a">${it.horario}h</span></div>`:""}
             <div class="info-row"><span class="info-label">📦 Saída</span><span class="info-val">${a.origem||"—"}</span></div>
             <div class="info-row"><span class="info-label">🏠 Chegada</span><span class="info-val">${a.destino||"—"}</span></div>
             <div class="info-row"><span class="info-label">🚗 Veículos</span><span class="info-val" style="font-weight:800">${veiculos}</span></div>
-            ${a.contato?`<div class="info-row"><span class="info-label">📞 Contato</span><span class="info-val">${a.contato}</span></div>`:""}
-            ${a.medicao?`<div class="info-row"><span class="info-label">📐 Medição</span><span class="info-val" style="font-weight:800;color:#16a34a">${a.medicao} m³</span></div>`:""}
+            ${a.contato?`<div class="info-row"><span class="info-label">📞 Contato</span><span class="info-val">${it.contato}</span></div>`:""}
+            ${a.medicao?`<div class="info-row"><span class="info-label">📐 Medição</span><span class="info-val" style="font-weight:800;color:#16a34a">${it.medicao} m³</span></div>`:""}
             ${a.ajudantes?`<div class="info-row"><span class="info-label">👷 Ajudantes</span><span class="info-val">${a.ajudantes}</span></div>`:""}
           </div>
         </div>
@@ -573,8 +573,8 @@ export default function App(){
 
   // ── WHATSAPP ───────────────────────────────────────────────────────────────
   function compartilharWhatsApp(a,tipo="agendamento"){
-    const veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
-    const texto=`🚛 *TELEMIM — ${tipo==="hoje"?"MUDANÇA HOJE":"MUDANÇA AGENDADA"}*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* ${a.nome}\n🏷️ *Selo:* ${a.selo||"—"}\n📅 *Data:* ${fmtDate(a.data)}${a.horario?` ⏰ ${a.horario}`:""}\n📍 *Comunidade:* ${a.comunidade||"—"}\n📦 *Saída:* ${a.origem||"—"}\n🏠 *Chegada:* ${a.destino||"—"}\n🚗 *Veículos:* ${veiculos}${a.contato?`\n📞 *Contato:* ${a.contato}`:""}\n━━━━━━━━━━━━━━━━━\n✅ *Status:* ${a.status==="confirmado"?"Confirmado":a.status==="pendente"?"Pendente":"Realizado"}`;
+    const veiculos=[a.van&&"🚐 Van",it.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
+    const texto=`🚛 *TELEMIM — ${tipo==="hoje"?"MUDANÇA HOJE":"MUDANÇA AGENDADA"}*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* ${it.nome}\n🏷️ *Selo:* ${a.selo||"—"}\n📅 *Data:* ${fmtDate(a.data)}${a.horario?` ⏰ ${it.horario}`:""}\n📍 *Comunidade:* ${a.comunidade||"—"}\n📦 *Saída:* ${a.origem||"—"}\n🏠 *Chegada:* ${a.destino||"—"}\n🚗 *Veículos:* ${veiculos}${a.contato?`\n📞 *Contato:* ${it.contato}`:""}\n━━━━━━━━━━━━━━━━━\n✅ *Status:* ${a.status==="confirmado"?"Confirmado":a.status==="pendente"?"Pendente":"Realizado"}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`,"_blank");
   }
   function compartilharMudanca(m){
@@ -609,10 +609,10 @@ export default function App(){
   const agendaOrdenada=[...agenda].sort((a,b)=>a.data.localeCompare(b.data)||(a.horario||"").localeCompare(b.horario||""));
   const hoje=new Date().toISOString().split("T")[0];
   const amanha=new Date(new Date().getTime()+86400000).toISOString().split("T")[0];
-  const proximas=agendaOrdenada.filter(a=>a.data>=hoje);
-  const passadas=agendaOrdenada.filter(a=>a.data<hoje);
-  const mudancasHoje=agendaOrdenada.filter(a=>a.data===hoje&&a.status!=="realizado");
-  const mudancasAmanha=agendaOrdenada.filter(a=>a.data===amanha&&a.status!=="realizado");
+  const proximas=agendaOrdenada.filter(it=>a.data>=hoje);
+  const passadas=agendaOrdenada.filter(it=>a.data<hoje);
+  const mudancasHoje=agendaOrdenada.filter(it=>a.data===hoje&&a.status!=="realizado");
+  const mudancasAmanha=agendaOrdenada.filter(it=>a.data===amanha&&a.status!=="realizado");
 
   const statusColor={confirmado:COLORS.green,pendente:COLORS.accent,realizado:COLORS.muted};
   const statusLabel={confirmado:"✅ Confirmado",pendente:"⏳ Pendente",realizado:"✔ Realizado"};
@@ -676,23 +676,23 @@ export default function App(){
         {/* Alertas */}
         {mudancasHoje.length>0&&(
           <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
-            {mudancasHoje.map(a=>(
-              <div key={a.id} className={a.inicio_em&&!a.termino_em?"em-andamento":""} style={{background:"#dcfce7",border:`2px solid ${COLORS.green}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(22,163,74,0.15)"}}>
+            {mudancasHoje.map(it=>(
+              <div key={it.id} className={it.inicio_em&&!it.termino_em?"em-andamento":""} style={{background:"#dcfce7",border:`2px solid ${COLORS.green}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(22,163,74,0.15)"}}>
                 <div style={{flex:1}}>
                   <div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>🔔 MUDANÇA HOJE!</div>
-                  <div style={{fontWeight:800,fontSize:13,color:COLORS.text}}>{a.nome}</div>
-                  <div style={{color:COLORS.muted,fontSize:11}}>{a.horario?`⏰ ${a.horario}h · `:""}{a.origem||"—"}</div>
+                  <div style={{fontWeight:800,fontSize:13,color:COLORS.text}}>{it.nome}</div>
+                  <div style={{color:COLORS.muted,fontSize:11}}>{a.horario?`⏰ ${it.horario}h · `:""}{a.origem||"—"}</div>
                 </div>
                 {podeEditar&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
-                  {!a.inicio_em
-                    ?<button onClick={()=>marcarTempo('inicio',a,'agenda')} style={{flex:1,background:"#dcfce7",border:"1.5px solid #16a34a",borderRadius:10,padding:"7px 0",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
+                  {!it.inicio_em
+                    ?<button onClick={()=>marcarTempo('inicio',it,'agenda')} style={{flex:1,background:"#dcfce7",border:"1.5px solid #16a34a",borderRadius:10,padding:"7px 0",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
                     :<span style={{flex:1,background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:10,padding:"7px 10px",fontSize:12,fontWeight:700,color:"#15803d",textAlign:"center"}}>▶ {fmtTempo(a.inicio_em)}</span>
                   }
-                  {a.inicio_em&&(!a.termino_em
-                    ?<button onClick={()=>marcarTempo('termino',a,'agenda')} style={{flex:1,background:"#fee2e2",border:"1.5px solid #dc2626",borderRadius:10,padding:"7px 0",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
+                  {it.inicio_em&&(!it.termino_em
+                    ?<button onClick={()=>marcarTempo('termino',it,'agenda')} style={{flex:1,background:"#fee2e2",border:"1.5px solid #dc2626",borderRadius:10,padding:"7px 0",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
                     :<span style={{flex:1,background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"7px 10px",fontSize:12,fontWeight:700,color:"#dc2626",textAlign:"center"}}>⏹ {fmtTempo(a.termino_em)}</span>
                   )}
-                  {a.inicio_em&&a.termino_em&&<span style={{fontSize:11,color:"#64748b",fontWeight:700,background:"#f1f5f9",borderRadius:8,padding:"4px 8px"}}>🕒 {Math.round((new Date(a.termino_em)-new Date(a.inicio_em))/60000)}min</span>}
+                  {it.inicio_em&&it.termino_em&&<span style={{fontSize:11,color:"#64748b",fontWeight:700,background:"#f1f5f9",borderRadius:8,padding:"4px 8px"}}>🕒 {Math.round((new Date(a.termino_em)-new Date(a.inicio_em))/60000)}min</span>}
                 </div>}
                 <button onClick={()=>compartilharWhatsApp(a,"hoje")} style={{background:COLORS.green,border:"none",color:"#fff",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontSize:15,flexShrink:0,fontWeight:700}}>📲</button>
               </div>
@@ -701,12 +701,12 @@ export default function App(){
         )}
         {mudancasAmanha.length>0&&(
           <div style={{margin:"8px 0 0",display:"flex",flexDirection:"column",gap:7}}>
-            {mudancasAmanha.map(a=>(
-              <div key={a.id} className={a.inicio_em&&!a.termino_em?"em-andamento":""} style={{background:"#fff7ed",border:`2px solid ${COLORS.accent}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(230,126,34,0.15)"}}>
+            {mudancasAmanha.map(it=>(
+              <div key={it.id} className={it.inicio_em&&!it.termino_em?"em-andamento":""} style={{background:"#fff7ed",border:`2px solid ${COLORS.accent}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(230,126,34,0.15)"}}>
                 <div style={{flex:1}}>
                   <div style={{color:COLORS.accent,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>⚠️ MUDANÇA AMANHÃ!</div>
-                  <div style={{fontWeight:800,fontSize:13,color:COLORS.text}}>{a.nome}</div>
-                  <div style={{color:COLORS.muted,fontSize:11}}>{a.horario?`⏰ ${a.horario}h · `:""}{a.origem||"—"}</div>
+                  <div style={{fontWeight:800,fontSize:13,color:COLORS.text}}>{it.nome}</div>
+                  <div style={{color:COLORS.muted,fontSize:11}}>{a.horario?`⏰ ${it.horario}h · `:""}{a.origem||"—"}</div>
                 </div>
                 <button onClick={()=>compartilharWhatsApp(a,"amanha")} style={{background:COLORS.accent,border:"none",color:"#fff",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontSize:15,flexShrink:0,fontWeight:700}}>📲</button>
               </div>
@@ -741,15 +741,15 @@ export default function App(){
           const diasVanT=[...new Set(mudancas.filter(m=>m.van).map(m=>m.data))].length;
           const fatT=totalM3t*150+diasVanT*1000;
           const lucroT=fatT-fatT*0.16-diasVanT*400-mudancas.length*350;
-          const agHoje2=agenda.filter(a=>a.data===hoje2&&a.status!=="realizado");
-          const agProx2=agenda.filter(a=>a.data>hoje2&&a.status!=="realizado");
-          const agPend2=agenda.filter(a=>a.status==="pendente");
+          const agHoje2=agenda.filter(it=>a.data===hoje2&&a.status!=="realizado");
+          const agProx2=agenda.filter(it=>a.data>hoje2&&a.status!=="realizado");
+          const agPend2=agenda.filter(it=>a.status==="pendente");
           const meses4=[];
           for(let i=3;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);const k=d.toISOString().substring(0,7);const lb=d.toLocaleDateString("pt-BR",{month:"short",year:"2-digit"});const mds=mudancas.filter(m=>m.data.startsWith(k));const m3=mds.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);const vd=[...new Set(mds.filter(m=>m.van).map(m=>m.data))].length;const fat=m3*150+vd*1000;const luc=fat-fat*0.16-vd*400-mds.length*350;meses4.push({k,lb,fat,luc,m3,n:mds.length});}
           const maxF=Math.max(...meses4.map(m=>m.fat),1);
           return(
             <div>
-              {agHoje2.length>0&&<div style={{background:"#dcfce7",border:"2px solid "+COLORS.green,borderRadius:14,padding:"12px 15px",marginBottom:12}}><div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🔔 {agHoje2.length} MUDANÇA{agHoje2.length!==1?"S":""} HOJE!</div>{agHoje2.map(a=><div key={a.id} style={{fontSize:12,color:COLORS.text,marginTop:2}}>👤 {a.nome}{a.horario?" · ⏰ "+a.horario+"h":""}</div>)}</div>}
+              {agHoje2.length>0&&<div style={{background:"#dcfce7",border:"2px solid "+COLORS.green,borderRadius:14,padding:"12px 15px",marginBottom:12}}><div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🔔 {agHoje2.length} MUDANÇA{agHoje2.length!==1?"S":""} HOJE!</div>{agHoje2.map(it=><div key={it.id} style={{fontSize:12,color:COLORS.text,marginTop:2}}>👤 {it.nome}{a.horario?" · ⏰ "+a.horario+"h":""}</div>)}</div>}
               <div style={{fontSize:11,fontWeight:800,color:COLORS.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📅 Mês Atual</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
                 {[{icon:"📦",label:"Mudanças",val:mudMes.length,color:COLORS.accent,sub:"este mês"},{icon:"📐",label:"m³ Medidos",val:m3Mes+" m³",color:COLORS.blue,sub:"este mês"},{icon:"💵",label:"Faturamento",val:fmt(fatMes),color:COLORS.green,sub:"bruto"},{icon:"💰",label:"Lucro Líq.",val:fmt(lucroMes),color:lucroMes>=0?COLORS.green:COLORS.red,sub:"estimado"}].map(k=>(
@@ -822,10 +822,10 @@ export default function App(){
           const sM=(ym)=>{const l=mudancas.filter(m=>m.data.startsWith(ym));const vd=[...new Set(l.filter(m=>m.van).map(m=>m.data))].length;const m3=l.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);const b=m3*150+vd*1000;return {n:l.length,m3,b,l:b-b*0.16-vd*400-l.length*350};};
           const atual=sM(getM(0));
           const am=new Date(new Date().getTime()+86400000).toISOString().split("T")[0];
-          const mudHoje=agendaOrdenada.filter(a=>a.data===hoje&&a.status!=="realizado");
-          const mudAmanha=agendaOrdenada.filter(a=>a.data===am&&a.status!=="realizado");
-          const semMed=agenda.filter(a=>a.status==="realizado"&&!a.medicao);
-          const semVeic=proximas.filter(a=>!a.van&&!a.caminhao);
+          const mudHoje=agendaOrdenada.filter(it=>a.data===hoje&&a.status!=="realizado");
+          const mudAmanha=agendaOrdenada.filter(it=>a.data===am&&a.status!=="realizado");
+          const semMed=agenda.filter(it=>a.status==="realizado"&&!a.medicao);
+          const semVeic=proximas.filter(it=>!a.van&&!it.caminhao);
           const maxB=Math.max(...meses.map(m=>sM(m).b),1);
           return(
             <div>
@@ -853,26 +853,26 @@ export default function App(){
               </Card>
               {mudHoje.length>0&&<Card style={{marginBottom:10,border:"1.5px solid #16a34a44",background:"#f0fdf4"}}>
                 <div style={{fontWeight:900,fontSize:13,color:COLORS.green,marginBottom:8}}>🔔 Hoje — {mudHoje.length} mudança{mudHoje.length!==1?"s":""}</div>
-                {mudHoje.map(a=><div key={a.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #dcfce7",fontSize:12}}>
-                  <div><div style={{fontWeight:700}}>{a.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>{a.horario?"⏰ "+a.horario+"h · ":""}{a.comunidade||""}</div></div>
+                {mudHoje.map(it=><div key={it.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #dcfce7",fontSize:12}}>
+                  <div><div style={{fontWeight:700}}>{it.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>{a.horario?"⏰ "+a.horario+"h · ":""}{a.comunidade||""}</div></div>
                   <div style={{display:"flex",gap:4}}>{a.van&&<Badge color={COLORS.blue}>🚐</Badge>}
               {podeEditar&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
-                {!a.inicio_em
-                  ?<button onClick={()=>marcarTempo('inicio',a,'agenda')} style={{background:"#dcfce7",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
+                {!it.inicio_em
+                  ?<button onClick={()=>marcarTempo('inicio',it,'agenda')} style={{background:"#dcfce7",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
                   :<span style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#15803d"}}>▶ {fmtTempo(a.inicio_em)}</span>
                 }
-                {a.inicio_em&&(!a.termino_em
-                  ?<button onClick={()=>marcarTempo('termino',a,'agenda')} style={{background:"#fee2e2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
+                {it.inicio_em&&(!it.termino_em
+                  ?<button onClick={()=>marcarTempo('termino',it,'agenda')} style={{background:"#fee2e2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
                   :<span style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#dc2626"}}>⏹ {fmtTempo(a.termino_em)}</span>
                 )}
-                {a.inicio_em&&a.termino_em&&<span style={{fontSize:11,color:"#64748b",fontWeight:600,background:"#f1f5f9",borderRadius:8,padding:"4px 8px"}}>{Math.round((new Date(a.termino_em)-new Date(a.inicio_em))/60000)}min</span>}
-              </div>}{a.caminhao&&<Badge color={COLORS.accent}>🚚</Badge>}</div>
+                {it.inicio_em&&it.termino_em&&<span style={{fontSize:11,color:"#64748b",fontWeight:600,background:"#f1f5f9",borderRadius:8,padding:"4px 8px"}}>{Math.round((new Date(a.termino_em)-new Date(a.inicio_em))/60000)}min</span>}
+              </div>}{it.caminhao&&<Badge color={COLORS.accent}>🚚</Badge>}</div>
                 </div>)}
               </Card>}
               {mudAmanha.length>0&&<Card style={{marginBottom:10,border:"1.5px solid "+COLORS.accent+"44",background:"#fff7ed"}}>
                 <div style={{fontWeight:900,fontSize:13,color:COLORS.accent,marginBottom:8}}>⚠️ Amanhã — {mudAmanha.length} mudança{mudAmanha.length!==1?"s":""}</div>
-                {mudAmanha.map(a=><div key={a.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #ffedd5",fontSize:12}}>
-                  <div style={{fontWeight:700}}>{a.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>{a.horario?"⏰ "+a.horario+"h":""}</div>
+                {mudAmanha.map(it=><div key={it.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid #ffedd5",fontSize:12}}>
+                  <div style={{fontWeight:700}}>{it.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>{a.horario?"⏰ "+a.horario+"h":""}</div>
                 </div>)}
               </Card>}
               {(semMed.length>0||semVeic.length>0)&&<Card style={{marginBottom:10,border:"1.5px solid "+COLORS.red+"33",background:"#fef2f2"}}>
@@ -975,14 +975,14 @@ export default function App(){
               <div style={{display:"flex",gap:7}}>
                 {mudancasHoje.length>0&&(<>
                   <button onClick={()=>{
-                    const lista=agendaOrdenada.filter(a=>a.data===hoje);
-                    const linhas=lista.map(a=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ");return `👤 *${a.nome}*\n🏷️ Selo: ${a.selo||"—"} · ⏰ ${a.horario||"—"}h\n📍 ${a.comunidade||"—"}\n📦 Saída: ${a.origem||"—"}\n🏠 Chegada: ${a.destino||"—"}\n🚗 Veículos: ${v||"—"}${a.contato?`\n📞 ${a.contato}`:""}${a.medicao?`\n📐 ${a.medicao} m³`:""}`;});
+                    const lista=agendaOrdenada.filter(it=>a.data===hoje);
+                    const linhas=lista.map(it=>{const v=[a.van&&"🚐 Van",it.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ");return `👤 *${it.nome}*\n🏷️ Selo: ${a.selo||"—"} · ⏰ ${a.horario||"—"}h\n📍 ${a.comunidade||"—"}\n📦 Saída: ${a.origem||"—"}\n🏠 Chegada: ${a.destino||"—"}\n🚗 Veículos: ${v||"—"}${a.contato?`\n📞 ${it.contato}`:""}${a.medicao?`\n📐 ${it.medicao} m³`:""}`;});
                     const txt=`🚛 *TELEMIM — MUDANÇAS DO DIA*\n📅 *${new Date().toLocaleDateString("pt-BR")}*\n━━━━━━━━━━━━━━━━━\n${linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")}\n\n━━━━━━━━━━━━━━━━━\n_Total: ${lista.length} mudança${lista.length!==1?"s":""} · TELEMIM_`;
                     window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`,"_blank");
                   }} style={{background:"#dcfce7",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📲 Dia ({mudancasHoje.length})</button>
                   <button onClick={()=>{
-                    const lista=agendaOrdenada.filter(a=>a.data===hoje);
-                    const linhas=lista.map((a,i)=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return (i+1)+". *"+a.nome+"*\n🏷️ "+a.selo+" · ⏰ "+(a.horario||"—")+"h\n📍 "+(a.comunidade||"—")+"\n📦 "+(a.origem||"—")+"\n🏠 "+(a.destino||"—")+"\n🚗 "+(v||"—")+(a.contato?"\n📞 "+a.contato:"")+(a.medicao?"\n📐 "+a.medicao+" m³":"");});
+                    const lista=agendaOrdenada.filter(it=>a.data===hoje);
+                    const linhas=lista.map((a,i)=>{const v=[a.van&&"🚐 Van",it.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return (i+1)+". *"+a.nome+"*\n🏷️ "+a.selo+" · ⏰ "+(a.horario||"—")+"h\n📍 "+(a.comunidade||"—")+"\n📦 "+(a.origem||"—")+"\n🏠 "+(a.destino||"—")+"\n🚗 "+(v||"—")+(a.contato?"\n📞 "+a.contato:"")+(a.medicao?"\n📐 "+a.medicao+" m³":"");});
                     const tot=lista.length, nV=lista.filter(x=>x.van).length, nC=lista.filter(x=>x.caminhao).length;
                     const txt="📋 *RELATÓRIO DO DIA — TELEMIM*\n📅 *"+new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})+"*\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *Total: "+tot+" mudança"+(tot!==1?"s":"")+" hoje*\n🚐 "+nV+" c/ van · 🚚 "+nC+" c/ caminhão\n_TELEMIM_";
                     window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
@@ -991,15 +991,15 @@ export default function App(){
                 )}
                 <button onClick={()=>{
                   const hj=new Date().toISOString().split("T")[0];
-                  const diasFut=[...new Set(agendaOrdenada.filter(a=>a.data>=hj&&a.status!=="realizado").map(m=>m.data))].sort();
+                  const diasFut=[...new Set(agendaOrdenada.filter(it=>a.data>=hj&&a.status!=="realizado").map(m=>m.data))].sort();
                   if(!diasFut.length){alert("Nenhuma mudança agendada!");return;}
                   const proxDia=diasFut[0];
-                  const lista=agendaOrdenada.filter(a=>a.data===proxDia&&a.status!=="realizado");
+                  const lista=agendaOrdenada.filter(it=>a.data===proxDia&&a.status!=="realizado");
                   const nDia=["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"][new Date(proxDia+"T12:00:00").getDay()];
-                  const linhas=lista.map((a,i)=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return (i+1)+". *"+a.nome+"*\n🏷️ "+a.selo+" · ⏰ "+(a.horario||"—")+"h\n📍 "+(a.comunidade||"—")+"\n📦 "+(a.origem||"—")+"\n🏠 "+(a.destino||"—")+"\n🚗 "+(v||"—")+(a.contato?"\n📞 "+a.contato:"")+(a.medicao?"\n📐 "+a.medicao+" m³":"");});
+                  const linhas=lista.map((a,i)=>{const v=[a.van&&"🚐 Van",it.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return (i+1)+". *"+a.nome+"*\n🏷️ "+a.selo+" · ⏰ "+(a.horario||"—")+"h\n📍 "+(a.comunidade||"—")+"\n📦 "+(a.origem||"—")+"\n🏠 "+(a.destino||"—")+"\n🚗 "+(v||"—")+(a.contato?"\n📞 "+a.contato:"")+(a.medicao?"\n📐 "+a.medicao+" m³":"");});
                   const isHoje=proxDia===hj;
                   const dtFmt=new Date(proxDia+"T12:00:00").toLocaleDateString("pt-BR");
-                  const txt="📋 *RELATÓRIO DE MUDANÇAS*\n📅 "+nDia+", "+dtFmt+(isHoje?" (HOJE)":"")+"\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *"+lista.length+" mudança"+(lista.length!==1?"s":"")+" · "+nDia+"*\n🚐 "+lista.filter(a=>a.van).length+" c/ van  🚚 "+lista.filter(a=>a.caminhao).length+" c/ caminhão\n_TELEMIM · PROMORAR_";
+                  const txt="📋 *RELATÓRIO DE MUDANÇAS*\n📅 "+nDia+", "+dtFmt+(isHoje?" (HOJE)":"")+"\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *"+lista.length+" mudança"+(lista.length!==1?"s":"")+" · "+nDia+"*\n🚐 "+lista.filter(it=>it.van).length+" c/ van  🚚 "+lista.filter(it=>it.caminhao).length+" c/ caminhão\n_TELEMIM · PROMORAR_";
                   window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
                 }} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Mudança do Dia</button>
                 <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button>
@@ -1008,24 +1008,24 @@ export default function App(){
             {proximas.length>0&&(
               <div style={{marginBottom:16}}>
                 <div style={{color:COLORS.green,fontWeight:800,fontSize:12,marginBottom:8,letterSpacing:1,textTransform:"uppercase"}}>📌 Próximas</div>
-                {proximas.map(a=>(
-                  <Card key={a.id} style={{marginBottom:9,padding:"14px 16px",border:`1.5px solid ${statusColor[a.status]||COLORS.cardBorder}33`}}>
+                {proximas.map(it=>(
+                  <Card key={it.id} style={{marginBottom:9,padding:"14px 16px",border:`1.5px solid ${statusColor[a.status]||COLORS.cardBorder}33`}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                       <div style={{flex:1}}>
-                        <div style={{fontWeight:800,fontSize:14,color:COLORS.text,marginBottom:6}}>👤 {a.nome}</div>
+                        <div style={{fontWeight:800,fontSize:14,color:COLORS.text,marginBottom:6}}>👤 {it.nome}</div>
                         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-                          <TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/><TagCom v={a.comunidade}/>
+                          <TagSelo v={it.selo}/><TagData v={it.data}/><TagHora v={it.horario}/><TagCom v={it.comunidade}/>
                         </div>
                         <div style={{fontSize:12,lineHeight:1.9,background:"#f8fafc",borderRadius:10,padding:"8px 12px",marginBottom:10}}>
-                          <div>📦 <strong>Saída:</strong> {a.origem?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.origem)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
-                          <div>🏠 <strong>Chegada:</strong> {a.destino?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.destino)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
-                          {a.contato&&<div>📞 <strong>Contato:</strong> <a href={`tel:${a.contato.replace(/\D/g,"")}`} style={{color:COLORS.green,textDecoration:"none",fontWeight:700}}>{a.contato} 📲</a></div>}
+                          <div>📦 <strong>Saída:</strong> {a.origem?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.origem)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{it.origem} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
+                          <div>🏠 <strong>Chegada:</strong> {a.destino?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.destino)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{it.destino} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
+                          {a.contato&&<div>📞 <strong>Contato:</strong> <a href={`tel:${a.contato.replace(/\D/g,"")}`} style={{color:COLORS.green,textDecoration:"none",fontWeight:700}}>{it.contato} 📲</a></div>}
                         </div>
                         <div style={{marginBottom:10}}>
                           <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>🚗 Veículos</div>
                           <div style={{display:"flex",gap:8}}>
-                            <button onClick={()=>toggleAgField(a.id,"van")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.van?COLORS.blue:"#e2e8f0"}`,background:a.van?"#eff6ff":"#f8fafc",color:a.van?COLORS.blue:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚐 Van {a.van?"✓":"✗"}</button>
-                            <button onClick={()=>toggleAgField(a.id,"caminhao")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.caminhao?COLORS.accent:"#e2e8f0"}`,background:a.caminhao?"#fff7ed":"#f8fafc",color:a.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚚 Caminhão {a.caminhao?"✓":"✗"}</button>
+                            <button onClick={()=>toggleAgField(a.id,"van")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${it.van?COLORS.blue:"#e2e8f0"}`,background:it.van?"#eff6ff":"#f8fafc",color:it.van?COLORS.blue:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚐 Van {it.van?"✓":"✗"}</button>
+                            <button onClick={()=>toggleAgField(a.id,"caminhao")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${it.caminhao?COLORS.accent:"#e2e8f0"}`,background:it.caminhao?"#fff7ed":"#f8fafc",color:it.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚚 Caminhão {it.caminhao?"✓":"✗"}</button>
                           </div>
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
@@ -1047,7 +1047,7 @@ export default function App(){
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
                           <button onClick={()=>toggleStatus(a.id)} style={{background:statusColor[a.status]+"18",border:`1.5px solid ${statusColor[a.status]}44`,color:statusColor[a.status],borderRadius:20,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>{statusLabel[a.status]||"⏳ Pendente"}</button>
                           <div style={{display:"flex",gap:5,alignItems:"center"}}>
-                            {a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
+                            {a.medicao&&<Badge color={COLORS.green}>📐 {it.medicao} m³</Badge>}
                             <button onClick={()=>compartilharWhatsApp(a)} style={{...btnGreen,fontSize:14,padding:"6px 10px"}}>📲</button>
                             <button onClick={()=>gerarPDFAgendamento(a)} style={{...btnRed,background:"#fff1f0",fontSize:14,padding:"6px 10px"}}>📄</button>
                           </div>
@@ -1066,12 +1066,12 @@ export default function App(){
             {passadas.length>0&&(
               <div>
                 <div style={{color:COLORS.muted,fontWeight:800,fontSize:12,marginBottom:8,letterSpacing:1,textTransform:"uppercase"}}>🗓️ Anteriores</div>
-                {passadas.map(a=>(
-                  <Card key={a.id} style={{marginBottom:7,padding:"12px 15px",opacity:0.75}}>
+                {passadas.map(it=>(
+                  <Card key={it.id} style={{marginBottom:7,padding:"12px 15px",opacity:0.75}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <div style={{flex:1}}>
-                        <div style={{fontWeight:800,fontSize:13,color:COLORS.text,marginBottom:5}}>👤 {a.nome}</div>
-                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/></div>
+                        <div style={{fontWeight:800,fontSize:13,color:COLORS.text,marginBottom:5}}>👤 {it.nome}</div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><TagSelo v={it.selo}/><TagData v={it.data}/><TagHora v={it.horario}/></div>
                       </div>
                       <div style={{display:"flex",gap:5,alignItems:"center",marginLeft:8}}>
                         <Badge color={statusColor[a.status]||COLORS.muted}>{statusLabel[a.status]||"—"}</Badge>
@@ -1148,7 +1148,7 @@ export default function App(){
                   {label:"📅 Fevereiro/26",ini:"2026-02-01",fim:"2026-02-28"},
                   {label:"📅 Março/26",ini:"2026-03-01",fim:"2026-03-31"},
                   {label:"📅 Abril/26",ini:"2026-04-01",fim:"2026-04-30"},
-                ].map(a=>{
+                ].map(it=>{
                   const ativo=relDataIni===a.ini&&relDataFim===a.fim;
                   return(
                     <button key={a.label} onClick={()=>{
