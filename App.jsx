@@ -46,7 +46,7 @@ const COLORS = {
   blue:"#2563eb", purple:"#7c3aed", text:"#1e293b", muted:"#64748b", inputBg:"#f8fafc",
   shadow:"0 2px 12px rgba(0,0,0,0.08)", headerBg:"#1e293b",
 };
-const RULES = { medicaoPorM3:150, vanGanho:1000, vanCusto:400, caminhao:350, ajudante:80, imposto:0.16 };
+  const RULES = { medicaoPorM3:150, vanGanho:1000, vanCusto:400, caminhao:350, ajudante:80, imposto:0.16, van1a:350, vanAdd:130, aj1a:80, ajAdd:20, dataInicioRegra:'' };
 
 const DADOS_INICIAIS = [
   { id:1,  selo:"180",               nome:"Joyce Rosendo",                               origem:"Travessa João Murilo de Oliveira, Beira da Maré",            destino:"Rua Sargento Silvino de Macedo, N°210, 5° Travessa, Aritana",                                     data:"2026-03-09", medicao:26, van:true, comunidade:"Comunidade do Bem" },
@@ -91,9 +91,9 @@ function weekRange(ds){
 function calcRel(list,aj,alm){
   const diasVan=[...new Set(list.filter(m=>m.van).map(m=>m.data))];
   const vd=diasVan.length, m3=list.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
-  const fatM=m3*RULES.medicaoPorM3, fatV=vd*RULES.vanGanho, bruto=fatM+fatV;
+  const fatM=m3*RULES.medicaoPorM3; const fatV=vd>0?RULES.van1a+(vd-1)*RULES.vanAdd:0; const bruto=fatM+fatV;
   const imp=bruto*RULES.imposto;
-  const cV=vd*RULES.vanCusto, cC=list.length*RULES.caminhao, cA=(parseInt(aj)||0)*RULES.ajudante, cAlm=parseFloat(alm)||0;
+  const cV=vd*RULES.vanCusto, cC=list.length*RULES.caminhao, cA=(parseInt(aj)||0)>0?RULES.aj1a+((parseInt(aj)||0)-1)*RULES.ajAdd:0, cAlm=parseFloat(alm)||0;
   const custos=cV+cC+cA+cAlm, liq=bruto-imp-custos, marg=bruto>0?(liq/bruto)*100:0;
   return {fatM,fatV,bruto,imp,cV,cC,cA,cAlm,custos,liq,marg,m3,vd,nAj:parseInt(aj)||0};
 }
@@ -137,6 +137,8 @@ export default function App(){
   const [savingUser,setSavingUser]=useState(false);
   const [userMsg,setUserMsg]=useState("");
   const [tab,setTab]=useState("inicio");
+  const [cfgEdit,setCfgEdit]=useState({van1a:350,vanAdd:130,aj1a:80,ajAdd:20,dataInicioRegra:'',imposto:16,caminhao:350,medicaoPorM3:150});
+  const [cfgSaved,setCfgSaved]=useState(false);
   const [bioLock,setBioLock]=useState(localStorage.getItem('tmim_bio_enabled')==='true'&&!!localStorage.getItem('tmim_u'));
   const [mudancas,setMudancas]=useState([]);
   const [agenda,setAgenda]=useState([]);
@@ -225,7 +227,10 @@ export default function App(){
       setSyncStatus("✅ Sinc");
     } catch(e){ setSyncStatus("⚠️ Erro"); }
   }
-  useEffect(()=>{const s=localStorage.getItem('tmim_u');if(s){try{setUsuario(JSON.parse(s));}catch(e){}}setAuthChecked(true);if(!document.getElementById('tmim-anim')){const st=document.createElement('style');st.id='tmim-anim';st.textContent='@keyframes piscarVerde{0%,100%{opacity:1;box-shadow:0 2px 8px rgba(22,163,74,0.15);}50%{opacity:0.88;box-shadow:0 0 0 8px rgba(22,163,74,0.35),0 4px 20px rgba(22,163,74,0.6);}}.em-andamento{animation:piscarVerde 1.2s ease-in-out infinite!important;}';document.head.appendChild(st);}if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){});}},[]);
+  useEffect(()=>{const s=localStorage.getItem('tmim_u');if(s){try{setUsuario(JSON.parse(s));}catch(e){}}setAuthChecked(true);
+    // Carregar configs progressivas do Supabase
+    fetch(SUPA_URL+'/rest/v1/configuracoes?select=chave,valor',{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}}).then(res=>res.json()).then(rows=>{if(!Array.isArray(rows))return;const cfg={};rows.forEach(row=>{cfg[row.chave]=row.valor;});RULES.van1a=Number(cfg.van_1a_mudanca)||350;RULES.vanAdd=Number(cfg.van_adicional)||130;RULES.aj1a=Number(cfg.ajudante_1a_mudanca)||80;RULES.ajAdd=Number(cfg.ajudante_adicional)||20;RULES.imposto=(Number(cfg.imposto_pct)||16)/100;RULES.caminhao=Number(cfg.valor_caminhao)||350;RULES.medicaoPorM3=Number(cfg.valor_m3)||150;RULES.dataInicioRegra=cfg.data_inicio_regra||'';setCfgEdit({van1a:RULES.van1a,vanAdd:RULES.vanAdd,aj1a:RULES.aj1a,ajAdd:RULES.ajAdd,dataInicioRegra:RULES.dataInicioRegra,imposto:Number(cfg.imposto_pct)||16,caminhao:RULES.caminhao,medicaoPorM3:RULES.medicaoPorM3});}).catch(()=>{});
+    if(!document.getElementById('tmim-anim')){const st=document.createElement('style');st.id='tmim-anim';st.textContent='@keyframes piscarVerde{0%,100%{opacity:1;box-shadow:0 2px 8px rgba(22,163,74,0.15);}50%{opacity:0.88;box-shadow:0 0 0 8px rgba(22,163,74,0.35),0 4px 20px rgba(22,163,74,0.6);}}.em-andamento{animation:piscarVerde 1.2s ease-in-out infinite!important;}';document.head.appendChild(st);}if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){});}},[]);
   async function handleLogin(){if(!loginForm.email||!loginForm.senha){setLoginErro("Preencha email e senha");return;}setLoginLoad(true);setLoginErro("");try{const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:loginForm.email,password:loginForm.senha})});const d=await res.json();if(!res.ok||!d.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+d.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+d.access_token}});const pd=await pr.json();if(!pd||!pd[0]||pd[0].ativo===false){setLoginErro("Sem acesso. Contate o administrador.");setLoginLoad(false);return;}const u={id:d.user.id,email:d.user.email,nome:pd[0].nome,perfil:pd[0].perfil,token:d.access_token};setUsuario(u);localStorage.setItem('tmim_u',JSON.stringify(u));}catch(e){setLoginErro("Erro.");}setLoginLoad(false);}
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
   const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar;const verMed=isAdmin||isPromorar;
@@ -1556,6 +1561,43 @@ export default function App(){
         <div style={{display:"flex",gap:8,marginTop:14}}>
           <button onClick={()=>setShowImport(false)} style={{flex:1,padding:"11px",borderRadius:10,border:"1.5px solid "+COLORS.cardBorder,background:"#f8fafc",color:COLORS.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancelar</button>
           <button onClick={()=>{if(!importText.trim())return;const p=parseImport(importText);setForm(f=>({...f,nome:p.nome||f.nome,selo:p.selo||f.selo,comunidade:p.comunidade||f.comunidade,data:p.data||f.data,origem:p.origem||f.origem,destino:p.destino||f.destino,van:p.van||f.van,caminhao:p.caminhao||f.caminhao}));setShowImport(false);setFlash("✅ Dados importados!");setTimeout(()=>setFlash(""),2500);}} style={{flex:2,padding:"11px",borderRadius:10,background:COLORS.accent,color:"#fff",fontWeight:900,fontSize:13,cursor:"pointer",border:"none"}}>✅ Importar e Preencher</button>
+        <div style={{marginTop:24,padding:20,background:'#fff',borderRadius:16,boxShadow:'0 2px 12px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0'}}>
+          <div style={{fontWeight:800,fontSize:16,color:COLORS.text,marginBottom:4}}>⚙️ Regras de Cálculo</div>
+          <div style={{fontSize:12,color:COLORS.muted,marginBottom:16}}>Valores progressivos por mudança no dia</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+            <div><label style={{fontSize:11,fontWeight:600,color:COLORS.muted,display:'block',marginBottom:4}}>🚛 1ª Mudança (R$)</label><input type="number" value={cfgEdit.van1a} onChange={ev=>setCfgEdit(p=>({...p,van1a:Number(ev.target.value)}))} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,boxSizing:'border-box'}}/></div>
+            <div><label style={{fontSize:11,fontWeight:600,color:COLORS.muted,display:'block',marginBottom:4}}>➕ Acréscimo p/ Mudança (R$)</label><input type="number" value={cfgEdit.vanAdd} onChange={ev=>setCfgEdit(p=>({...p,vanAdd:Number(ev.target.value)}))} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,boxSizing:'border-box'}}/></div>
+            <div><label style={{fontSize:11,fontWeight:600,color:COLORS.muted,display:'block',marginBottom:4}}>👷 1º Ajudante (R$)</label><input type="number" value={cfgEdit.aj1a} onChange={ev=>setCfgEdit(p=>({...p,aj1a:Number(ev.target.value)}))} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,boxSizing:'border-box'}}/></div>
+            <div><label style={{fontSize:11,fontWeight:600,color:COLORS.muted,display:'block',marginBottom:4}}>➕ Acréscimo p/ Ajudante (R$)</label><input type="number" value={cfgEdit.ajAdd} onChange={ev=>setCfgEdit(p=>({...p,ajAdd:Number(ev.target.value)}))} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,boxSizing:'border-box'}}/></div>
+            <div><label style={{fontSize:11,fontWeight:600,color:COLORS.muted,display:'block',marginBottom:4}}>📅 Data de Início da Regra</label><input type="date" value={cfgEdit.dataInicioRegra} onChange={ev=>setCfgEdit(p=>({...p,dataInicioRegra:ev.target.value}))} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,boxSizing:'border-box'}}/></div>
+            <div><label style={{fontSize:11,fontWeight:600,color:COLORS.muted,display:'block',marginBottom:4}}>🏚️ Custo Caminhão/Mud (R$)</label><input type="number" value={cfgEdit.caminhao} onChange={ev=>setCfgEdit(p=>({...p,caminhao:Number(ev.target.value)}))} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,boxSizing:'border-box'}}/></div>
+            <div><label style={{fontSize:11,fontWeight:600,color:COLORS.muted,display:'block',marginBottom:4}}>📐 Valor por m³ (R$)</label><input type="number" value={cfgEdit.medicaoPorM3} onChange={ev=>setCfgEdit(p=>({...p,medicaoPorM3:Number(ev.target.value)}))} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,boxSizing:'border-box'}}/></div>
+            <div><label style={{fontSize:11,fontWeight:600,color:COLORS.muted,display:'block',marginBottom:4}}>💸 Imposto (%)</label><input type="number" value={cfgEdit.imposto} onChange={ev=>setCfgEdit(p=>({...p,imposto:Number(ev.target.value)}))} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,boxSizing:'border-box'}}/></div>
+          </div>
+          <div style={{background:COLORS.bg,borderRadius:12,padding:12,marginBottom:16,fontSize:12,color:COLORS.muted}}>
+            <strong>Exemplo com {3} mudanças:</strong> R$ {(cfgEdit.van1a+2*cfgEdit.vanAdd).toFixed(2)} &nbsp;|&nbsp; {4} mudanças: R$ {(cfgEdit.van1a+3*cfgEdit.vanAdd).toFixed(2)}
+          </div>
+          {cfgSaved&&<div style={{color:'#16a34a',fontSize:12,fontWeight:600,marginBottom:8}}>✅ Salvo com sucesso!</div>}
+          <button onClick={async function(){
+            const campos=[
+              {chave:'van_1a_mudanca',valor:String(cfgEdit.van1a)},
+              {chave:'van_adicional',valor:String(cfgEdit.vanAdd)},
+              {chave:'ajudante_1a_mudanca',valor:String(cfgEdit.aj1a)},
+              {chave:'ajudante_adicional',valor:String(cfgEdit.ajAdd)},
+              {chave:'data_inicio_regra',valor:cfgEdit.dataInicioRegra},
+              {chave:'valor_caminhao',valor:String(cfgEdit.caminhao)},
+              {chave:'valor_m3',valor:String(cfgEdit.medicaoPorM3)},
+              {chave:'imposto_pct',valor:String(cfgEdit.imposto)}
+            ];
+            for(const campo of campos){
+              await fetch(SUPA_URL+'/rest/v1/configuracoes?chave=eq.'+campo.chave,{method:'PATCH',headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||SUPA_KEY),'Content-Type':'application/json'},body:JSON.stringify({valor:campo.valor})});
+            }
+            RULES.van1a=cfgEdit.van1a;RULES.vanAdd=cfgEdit.vanAdd;RULES.aj1a=cfgEdit.aj1a;RULES.ajAdd=cfgEdit.ajAdd;RULES.caminhao=cfgEdit.caminhao;RULES.medicaoPorM3=cfgEdit.medicaoPorM3;RULES.imposto=cfgEdit.imposto/100;RULES.dataInicioRegra=cfgEdit.dataInicioRegra;
+            setCfgSaved(true);setTimeout(()=>setCfgSaved(false),3000);
+          }} style={{width:'100%',background:COLORS.accent,color:'#fff',border:'none',borderRadius:12,padding:'12px 0',fontWeight:700,fontSize:15,cursor:'pointer'}}>
+            💾 Salvar Configurações
+          </button>
+        </div>
         </div>
       </div></div>)}
 
