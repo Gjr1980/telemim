@@ -645,12 +645,18 @@ export default function App(){
   const TagCom=({v})=>v?<span style={{background:"#fff7ed",borderRadius:8,padding:"3px 9px",fontSize:11,color:COLORS.accent,fontWeight:600}}>📍 {v}</span>:null;
 
     if(bioLock) return(
-    <div style={{minHeight:'100vh',background:COLORS.bg,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,padding:24}}>
-      <div style={{fontSize:64}}>\uD83D\uDD12</div>
-      <div style={{fontSize:20,fontWeight:800,color:COLORS.text}}>TELEMIM</div>
-      <div style={{fontSize:14,color:COLORS.muted,textAlign:'center'}}>Confirme sua identidade para continuar</div>
-      <button onClick={async function(){const ok=await verificarBiometria();if(ok)setBioLock(false);else alert('Biometria falhou. Tente novamente.');}} style={{background:COLORS.accent,color:'#fff',border:'none',borderRadius:16,padding:'14px 32px',fontSize:16,fontWeight:700,cursor:'pointer',marginTop:8}}>\uD83D\uDD10 Usar Biometria</button>
-      <button onClick={function(){localStorage.removeItem('tmim_u');setUsuario(null);setBioLock(false);}} style={{background:'none',border:'none',color:COLORS.muted,fontSize:13,cursor:'pointer',marginTop:4}}>Entrar com senha</button>
+    <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:0,padding:32}}>
+      <div style={{width:90,height:90,borderRadius:'50%',background:'rgba(255,255,255,0.08)',backdropFilter:'blur(10px)',border:'1.5px solid rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:24,boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
+        <span style={{fontSize:40}}>🔒</span>
+      </div>
+      <div style={{fontSize:22,fontWeight:800,color:'#ffffff',letterSpacing:3,marginBottom:8}}>TELEMIM</div>
+      <div style={{fontSize:13,color:'rgba(255,255,255,0.5)',marginBottom:40,letterSpacing:1}}>PROMORAR</div>
+      <button onClick={async function(){const ok=await verificarBiometria();if(ok)setBioLock(false);else alert('Biometria falhou. Tente novamente.');}} style={{width:220,background:'linear-gradient(135deg,#ea580c,#dc2626)',color:'#fff',border:'none',borderRadius:50,padding:'16px 0',fontSize:15,fontWeight:700,cursor:'pointer',letterSpacing:1,boxShadow:'0 4px 20px rgba(234,88,12,0.4)',display:'flex',alignItems:'center',justifyContent:'center',gap:10,marginBottom:16}}>
+        <span style={{fontSize:18}}>🔐</span> Usar Biometria
+      </button>
+      <button onClick={function(){localStorage.removeItem('tmim_u');setUsuario(null);setBioLock(false);}} style={{background:'none',border:'none',color:'rgba(255,255,255,0.35)',fontSize:12,cursor:'pointer',letterSpacing:0.5,padding:8}}>
+        Entrar com senha
+      </button>
     </div>
   );
   if(loading) return(
