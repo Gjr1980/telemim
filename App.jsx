@@ -93,7 +93,7 @@ function calcRel(list,aj,alm){
   const vd=diasVan.length, m3=list.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
   const fatM=m3*RULES.medicaoPorM3; const fatV=vd>0?RULES.van1a+(vd-1)*RULES.vanAdd:0; const bruto=fatM+fatV;
   const imp=bruto*RULES.imposto;
-  const cV=vd*RULES.vanCusto, cC=list.length*RULES.caminhao, cA=(parseInt(aj)||0)>0?RULES.aj1a+((parseInt(aj)||0)-1)*RULES.ajAdd:0, cAlm=parseFloat(alm)||0;
+  const cV=vd*RULES.vanCusto, cC=list.length*RULES.caminhao, cA=(parseInt(aj)||0)>0?(RULES.aj1a+(vd>0?vd-1:0)*RULES.ajAdd)*(parseInt(aj)||0):0, cAlm=parseFloat(alm)||0;
   const custos=cV+cC+cA+cAlm, liq=bruto-imp-custos, marg=bruto>0?(liq/bruto)*100:0;
   return {fatM,fatV,bruto,imp,cV,cC,cA,cAlm,custos,liq,marg,m3,vd,nAj:parseInt(aj)||0};
 }
