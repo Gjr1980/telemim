@@ -1163,118 +1163,171 @@ export default function App(){
 
         {/* ══ RELATÓRIO ══ */}
         {tab==="relatorio"&&(
-          <div>
-            <Card style={{marginBottom:11,padding:"13px 16px"}}>
-              <div style={{fontSize:12,fontWeight:800,color:COLORS.muted,letterSpacing:1,textTransform:"uppercase",marginBottom:10}}>⚡ Atalhos Rápidos</div>
-              <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-                {[
-                  {label:"📅 Janeiro/26",ini:"2026-01-01",fim:"2026-01-31"},
-                  {label:"📅 Fevereiro/26",ini:"2026-02-01",fim:"2026-02-28"},
-                  {label:"📅 Março/26",ini:"2026-03-01",fim:"2026-03-31"},
-                  {label:"📅 Abril/26",ini:"2026-04-01",fim:"2026-04-30"},
-                ].map(a=>{
-                  const ativo=relDataIni===a.ini&&relDataFim===a.fim;
-                  return(
-                    <button key={a.label} onClick={()=>{
-                      setRelDataIni(a.ini);setRelDataFim(a.fim);
-                      const lista=mudancas.filter(m=>m.data>=a.ini&&m.data<=a.fim);
-                      setRel({...calcRel(lista,relAj,relAlm),lista,ini:a.ini,fim:a.fim});
-                    }} style={{padding:"7px 13px",borderRadius:9,border:`1.5px solid ${ativo?COLORS.accent:COLORS.cardBorder}`,background:ativo?COLORS.accent+"18":"transparent",color:ativo?COLORS.accent:COLORS.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>
-                      {a.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {rel&&(
-                <button onClick={gerarPDFGeral} style={{width:"100%",marginTop:11,padding:"10px",borderRadius:10,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
-                  📄 Exportar PDF — {rel.ini?fmtDate(rel.ini).slice(3):"Todo período"}
-                </button>
-              )}
-            </Card>
-            <Card style={{marginBottom:13}}>
-              <div style={{fontSize:14,fontWeight:800,color:COLORS.accent,marginBottom:13}}>📊 Gerar Relatório por Período</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-                <div>
-                  <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>📅 Data Início</label>
-                  <input type="date" value={relDataIni} onChange={e=>setRelDataIni(e.target.value)} style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${relDataIni?COLORS.accent:COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"9px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}/>
-                </div>
-                <div>
-                  <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>📅 Data Término</label>
-                  <input type="date" value={relDataFim} onChange={e=>setRelDataFim(e.target.value)} style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${relDataFim?COLORS.accent:COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"9px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}/>
-                </div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:13}}>
-                <div>
-                  <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>👷 Ajudantes</label>
-                  <input type="number" value={relAj} onChange={e=>setRelAj(e.target.value)} placeholder="Ex: 3" style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"9px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}/>
-                </div>
-                <div>
-                  <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>🍽️ Almoço (R$)</label>
-                  <input type="number" value={relAlm} onChange={e=>setRelAlm(e.target.value)} placeholder="0" style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"9px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}/>
-                </div>
-              </div>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>{setRelDataIni("");setRelDataFim("");setRel(null);}} style={{flex:1,padding:"10px",borderRadius:10,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:700,fontSize:13,cursor:"pointer"}}>🔄 Limpar</button>
-                <button onClick={gerarRel} style={{flex:2,padding:"10px",borderRadius:10,border:"none",background:COLORS.green,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>📊 Gerar Relatório</button>
-              </div>
-            </Card>
-            {!rel?(
-              <div style={{textAlign:"center",color:COLORS.muted,padding:30,fontSize:14}}>Selecione o período e clique em <strong style={{color:COLORS.green}}>"Gerar Relatório"</strong>. 📊</div>
-            ):(
-              <>
-                <div style={{textAlign:"center",color:COLORS.muted,fontSize:12,marginBottom:10}}>
-                  {rel.ini||rel.fim?`📅 ${rel.ini?fmtDate(rel.ini):"início"} até ${rel.fim?fmtDate(rel.fim):"hoje"} · ${rel.lista.length} mudanças`:`📅 Todo o período · ${rel.lista.length} mudanças`}
-                </div>
-                <Card style={{marginBottom:11,background:rel.liq>=0?"linear-gradient(135deg,#f0fdf4,#dcfce7)":"linear-gradient(135deg,#fef2f2,#fee2e2)",border:`1.5px solid ${rel.liq>=0?COLORS.green:COLORS.red}44`,textAlign:"center"}}>
-                  <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",marginBottom:7}}>💰 Lucro Líquido</div>
-                  <div style={{fontSize:36,fontWeight:900,color:rel.liq>=0?COLORS.green:COLORS.red}}>{fmt(rel.liq)}</div>
-                  <div style={{marginTop:7}}><Badge color={rel.marg>=30?COLORS.green:rel.marg>=0?COLORS.accent:COLORS.red}>Margem: {rel.marg.toFixed(1)}%</Badge></div>
-                </Card>
-                <Card style={{marginBottom:11}}>
-                  <div style={{fontSize:13,fontWeight:800,color:COLORS.accent,marginBottom:11}}>💵 Faturamento</div>
-                  {[[`📐 Medição (${rel.m3} m³ × R$150)`,rel.fatM],[`🚐 Van (${rel.vd} dias × R$1.000)`,rel.fatV]].map(([l,v])=>(
-                    <div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:13}}><span style={{color:COLORS.muted}}>{l}</span><span style={{fontWeight:700,color:COLORS.green}}>{fmt(v)}</span></div>
-                  ))}
-                  <div style={{borderTop:`1px solid ${COLORS.cardBorder}`,paddingTop:8,display:"flex",justifyContent:"space-between"}}>
-                    <span style={{fontWeight:800}}>Faturamento Bruto</span><span style={{fontWeight:900,color:COLORS.accent,fontSize:16}}>{fmt(rel.bruto)}</span>
-                  </div>
-                </Card>
-                <Card style={{marginBottom:11,border:`1px solid ${COLORS.red}22`}}>
-                  <div style={{fontSize:13,fontWeight:800,color:COLORS.red,marginBottom:8}}>🏛️ Imposto (16%)</div>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span style={{color:COLORS.muted}}>Dedução sobre Faturamento Bruto</span><span style={{fontWeight:700,color:COLORS.red}}>- {fmt(rel.imp)}</span></div>
-                </Card>
-                <Card style={{marginBottom:11}}>
-                  <div style={{fontSize:13,fontWeight:800,color:COLORS.blue,marginBottom:11}}>🔧 Custos Operacionais</div>
-                  {[rel.vd>0&&[`🚐 Van (${rel.vd} dias × R$400)`,rel.cV],[`🚚 Caminhão (${rel.lista.length}× × R$350)`,rel.cC],[`👷 Ajudantes (${rel.nAj}× × R$80)`,rel.cA],rel.cAlm>0&&[`🍽️ Almoço`,rel.cAlm]].filter(Boolean).map(([l,v])=>(
-                    <div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:13}}><span style={{color:COLORS.muted}}>{l}</span><span style={{fontWeight:700,color:COLORS.red}}>- {fmt(v)}</span></div>
-                  ))}
-                  <div style={{borderTop:`1px solid ${COLORS.cardBorder}`,paddingTop:8,display:"flex",justifyContent:"space-between"}}>
-                    <span style={{fontWeight:800}}>Total de Custos</span><span style={{fontWeight:900,color:COLORS.blue,fontSize:15}}>- {fmt(rel.custos)}</span>
-                  </div>
-                </Card>
-                <Card style={{marginBottom:11}}>
-                  <div style={{fontSize:13,fontWeight:800,color:COLORS.muted,marginBottom:3}}>📋 Resumo Final — PROMORAR</div>
-                  <div style={{fontSize:11,color:COLORS.muted,marginBottom:11}}>{rel.lista.length} mudanças · {rel.m3} m³</div>
-                  {[["Faturamento Bruto",fmt(rel.bruto),COLORS.accent],["(-) Imposto 16%","- "+fmt(rel.imp),COLORS.red],["(-) Custos Operacionais","- "+fmt(rel.custos),COLORS.blue],["(=) Lucro Líquido",fmt(rel.liq),rel.liq>=0?COLORS.green:COLORS.red]].map(([l,v,c])=>(
-                    <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${COLORS.cardBorder}`,fontSize:13}}><span style={{color:COLORS.muted}}>{l}</span><span style={{fontWeight:800,color:c}}>{v}</span></div>
-                  ))}
-                </Card>
-                <Card>
-                  <div style={{fontSize:13,fontWeight:800,color:COLORS.muted,marginBottom:10}}>📋 Mudanças do Período ({rel.lista.length})</div>
-                  {rel.lista.map((m,i)=>(
-                    <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:i<rel.lista.length-1?`1px solid ${COLORS.cardBorder}`:"none",fontSize:12}}>
-                      <div><div style={{fontWeight:700}}>{m.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>📅 {fmtDate(m.data)} · 🏷️ {m.selo}</div></div>
-                      {verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
+          <div style={{paddingBottom:80}}>
+            {/* ═══ CABEÇALHO ═══ */}
+            <div style={{background:'linear-gradient(135deg,#ea580c,#dc2626)',borderRadius:'0 0 24px 24px',padding:'20px 16px 24px',marginBottom:20}}>
+              <div style={{color:'rgba(255,255,255,0.8)',fontSize:12,fontWeight:600,letterSpacing:1,marginBottom:4}}>💰 FINANCEIRO</div>
+              <div style={{color:'#fff',fontSize:22,fontWeight:900}}>{new Date().toLocaleString('pt-BR',{month:'long',year:'numeric'}).toUpperCase()}</div>
+            </div>
+            {/* ═══ KPIs DO MÊS ═══ */}
+            {(()=>{
+              const diasMes=Object.entries(registros.reduce((acc,m)=>{const d=m.data;if(!acc[d])acc[d]={mud:0,m3:0};acc[d].mud++;acc[d].m3+=parseFloat(m.medicao||0);return acc;},{}));
+              const totalMud=diasMes.reduce((s,[,v])=>s+v.mud,0);
+              const totalM3=diasMes.reduce((s,[,v])=>s+v.m3,0);
+              const fatBruto=diasMes.reduce((s,[,v])=>{const fv=v.mud>0?RULES.van1a+(v.mud-1)*RULES.vanAdd:0;return s+fv+(v.m3*RULES.medicaoPorM3);},0);
+              const recLiq=fatBruto*(1-RULES.imposto);
+              const diasComCusto=custos.reduce((acc,cd)=>{acc[cd.data]={aj:cd.ajudantes||0,alm:parseFloat(cd.custo_almoco||0)};return acc;},{});
+              const custTotal=diasMes.reduce((s,[d])=>{const dc=diasComCusto[d]||{aj:0,alm:0};const dv=diasMes.find(([k])=>k===d);const nMud=dv?dv[1].mud:0;const caj=dc.aj>0?(RULES.aj1a+(nMud>0?nMud-1:0)*RULES.ajAdd)*dc.aj:0;return s+RULES.vanCusto+caj+dc.alm;},0);
+              const lucro=recLiq-custTotal;
+              return(
+                <div style={{padding:'0 16px',marginBottom:20}}>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+                    <div style={{background:'#fff',borderRadius:16,padding:'14px 16px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+                      <div style={{fontSize:11,color:COLORS.muted,fontWeight:600,marginBottom:4}}>🚛 MUDANÇAS</div>
+                      <div style={{fontSize:28,fontWeight:900,color:COLORS.text}}>{totalMud}</div>
+                      <div style={{fontSize:11,color:COLORS.muted}}>{diasMes.length} dias trabalhados</div>
                     </div>
-                  ))}
-                </Card>
-                <div style={{display:"flex",gap:8,marginTop:11,flexWrap:"wrap"}}>
-                  <button onClick={()=>compartilharRelatorio(rel,rel.ini||rel.fim?`${rel.ini?fmtDate(rel.ini):"início"} a ${rel.fim?fmtDate(rel.fim):"hoje"}`:"Todo o período")} style={{flex:1,minWidth:"120px",padding:"11px",borderRadius:12,border:"2px solid #25D366",background:"#25D36615",color:"#16a34a",fontWeight:900,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>📲 WhatsApp</button>
-                  <button onClick={gerarPDFGeral} style={{flex:1,minWidth:"120px",padding:"11px",borderRadius:12,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>📊 Financeiro</button>
-                  <button onClick={gerarPDFMudancas} style={{flex:1,minWidth:"120px",padding:"11px",borderRadius:12,border:`2px solid ${COLORS.blue}`,background:COLORS.blue+"15",color:COLORS.blue,fontWeight:900,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>📋 Mudanças</button>
+                    <div style={{background:'#fff',borderRadius:16,padding:'14px 16px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+                      <div style={{fontSize:11,color:COLORS.muted,fontWeight:600,marginBottom:4}}>📏 M³ TOTAL</div>
+                      <div style={{fontSize:28,fontWeight:900,color:COLORS.text}}>{Math.round(totalM3)}</div>
+                      <div style={{fontSize:11,color:COLORS.muted}}>R$ {(totalM3*RULES.medicaoPorM3).toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
+                    </div>
+                  </div>
+                  <div style={{background:'linear-gradient(135deg,#16a34a,#15803d)',borderRadius:16,padding:'16px',marginBottom:10,boxShadow:'0 4px 16px rgba(22,163,74,0.3)'}}>
+                    <div style={{fontSize:11,color:'rgba(255,255,255,0.8)',fontWeight:600,marginBottom:4}}>💫 LUCRO DO MÊS</div>
+                    <div style={{fontSize:32,fontWeight:900,color:'#fff'}}>R$ {lucro.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+                    <div style={{display:'flex',gap:16,marginTop:8}}>
+                      <div><div style={{fontSize:10,color:'rgba(255,255,255,0.7)'}}>RECEITA LÍQ.</div><div style={{fontSize:13,color:'#fff',fontWeight:700}}>R$ {recLiq.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div></div>
+                      <div><div style={{fontSize:10,color:'rgba(255,255,255,0.7)'}}>CUSTOS</div><div style={{fontSize:13,color:'#fff',fontWeight:700}}>R$ {custTotal.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div></div>
+                      <div><div style={{fontSize:10,color:'rgba(255,255,255,0.7)'}}>MARGEM</div><div style={{fontSize:13,color:'#fff',fontWeight:700}}>{recLiq>0?Math.round((lucro/recLiq)*100):0}%</div></div>
+                    </div>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+                    <div style={{background:'#fff',borderRadius:14,padding:'12px',textAlign:'center',boxShadow:'0 2px 6px rgba(0,0,0,0.05)'}}>
+                      <div style={{fontSize:10,color:COLORS.muted,fontWeight:600}}>FAT. BRUTO</div>
+                      <div style={{fontSize:14,fontWeight:800,color:COLORS.accent}}>R$ {(fatBruto/1000).toFixed(1)}k</div>
+                    </div>
+                    <div style={{background:'#fff',borderRadius:14,padding:'12px',textAlign:'center',boxShadow:'0 2px 6px rgba(0,0,0,0.05)'}}>
+                      <div style={{fontSize:10,color:COLORS.muted,fontWeight:600}}>IMPOSTO</div>
+                      <div style={{fontSize:14,fontWeight:800,color:'#dc2626'}}>R$ {((fatBruto*RULES.imposto)/1000).toFixed(1)}k</div>
+                    </div>
+                    <div style={{background:'#fff',borderRadius:14,padding:'12px',textAlign:'center',boxShadow:'0 2px 6px rgba(0,0,0,0.05)'}}>
+                      <div style={{fontSize:10,color:COLORS.muted,fontWeight:600}}>CUSTO VAN</div>
+                      <div style={{fontSize:14,fontWeight:800,color:'#7c3aed'}}>R$ {(diasMes.length*RULES.vanCusto).toLocaleString('pt-BR')}</div>
+                    </div>
+                  </div>
                 </div>
-              </>
-            )}
+              );
+            })()}
+            {/* ═══ GRÁFICO DIAS DO MÊS ═══ */}
+            {(()=>{
+              const diasMes=Object.entries(registros.reduce((acc,m)=>{const d=m.data;if(!acc[d])acc[d]={mud:0,m3:0};acc[d].mud++;acc[d].m3+=parseFloat(m.medicao||0);return acc;},{})).sort(([a],[b])=>a.localeCompare(b));
+              const diasComCusto=custos.reduce((acc,cd)=>{acc[cd.data]={aj:cd.ajudantes||0,alm:parseFloat(cd.custo_almoco||0)};return acc;},{});
+              const dadosDia=diasMes.map(([d,v])=>{
+                const fv=v.mud>0?RULES.van1a+(v.mud-1)*RULES.vanAdd:0;
+                const fat=fv+(v.m3*RULES.medicaoPorM3);
+                const rl=fat*(1-RULES.imposto);
+                const dc=diasComCusto[d]||{aj:0,alm:0};
+                const caj=dc.aj>0?(RULES.aj1a+(v.mud>0?v.mud-1:0)*RULES.ajAdd)*dc.aj:0;
+                const ct=RULES.vanCusto+caj+dc.alm;
+                return{d,mud:v.mud,fat,rl,ct,lucro:rl-ct};
+              });
+              const maxLucro=Math.max(...dadosDia.map(x=>x.lucro),1);
+              return(
+                <div style={{padding:'0 16px',marginBottom:20}}>
+                  <div style={{fontWeight:800,fontSize:15,color:COLORS.text,marginBottom:12}}>📅 Resultado por Dia</div>
+                  <div style={{background:'#fff',borderRadius:16,padding:'16px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+                    <div style={{display:'flex',gap:6,alignItems:'flex-end',height:100,marginBottom:8}}>
+                      {dadosDia.map((dd,i)=>(
+                        <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                          <div style={{fontSize:8,color:COLORS.muted,fontWeight:700}}>{dd.mud}🚛</div>
+                          <div style={{width:'100%',background:'linear-gradient(to top,#16a34a,#22c55e)',borderRadius:'4px 4px 0 0',height:Math.max(8,Math.round((dd.lucro/maxLucro)*80))+'px',transition:'height 0.3s'}}/>
+                          <div style={{fontSize:7,color:COLORS.muted}}>{new Date(dd.d+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}).replace(///g,'/')}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{borderTop:'1px solid #f0f0f0',paddingTop:8}}>
+                      {dadosDia.map((dd,i)=>(
+                        <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:i<dadosDia.length-1?'1px solid #f8f8f8':'none'}}>
+                          <div style={{fontSize:12,fontWeight:600,color:COLORS.text}}>{new Date(dd.d+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</div>
+                          <div style={{fontSize:11,color:COLORS.muted}}>{dd.mud} mud.</div>
+                          <div style={{fontSize:12,fontWeight:700,color:'#16a34a'}}>R$ {dd.lucro.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+            {/* ═══ SEMANA ATUAL ═══ */}
+            {(()=>{
+              const hoje=new Date();
+              const dow=hoje.getDay();
+              const seg=new Date(hoje);seg.setDate(hoje.getDate()-(dow===0?6:dow-1));
+              const sex=new Date(seg);sex.setDate(seg.getDate()+5);
+              const fmt=d=>d.toISOString().split('T')[0];
+              const diasSem=registros.reduce((acc,m)=>{
+                if(m.data>=fmt(seg)&&m.data<=fmt(sex)){
+                  if(!acc[m.data])acc[m.data]={mud:0,m3:0};
+                  acc[m.data].mud++;acc[m.data].m3+=parseFloat(m.medicao||0);
+                }return acc;
+              },{});
+              const diasComCusto=custos.reduce((acc,cd)=>{acc[cd.data]={aj:cd.ajudantes||0,alm:parseFloat(cd.custo_almoco||0)};return acc;},{});
+              const entradasSem=Object.entries(diasSem).sort(([a],[b])=>a.localeCompare(b));
+              const fatSem=entradasSem.reduce((s,[d,v])=>{const fv=v.mud>0?RULES.van1a+(v.mud-1)*RULES.vanAdd:0;return s+fv+(v.m3*RULES.medicaoPorM3);},0);
+              const rlSem=fatSem*(1-RULES.imposto);
+              const ctSem=entradasSem.reduce((s,[d,v])=>{const dc=diasComCusto[d]||{aj:0,alm:0};const caj=dc.aj>0?(RULES.aj1a+(v.mud>0?v.mud-1:0)*RULES.ajAdd)*dc.aj:0;return s+RULES.vanCusto+caj+dc.alm;},0);
+              const lucroSem=rlSem-ctSem;
+              const mudSem=entradasSem.reduce((s,[,v])=>s+v.mud,0);
+              return(
+                <div style={{padding:'0 16px',marginBottom:20}}>
+                  <div style={{fontWeight:800,fontSize:15,color:COLORS.text,marginBottom:12}}>📆 Semana Atual</div>
+                  <div style={{background:'linear-gradient(135deg,#1e40af,#3b82f6)',borderRadius:16,padding:'16px',boxShadow:'0 4px 16px rgba(59,130,246,0.3)',marginBottom:10}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                      <div>
+                        <div style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>LUCRO DA SEMANA</div>
+                        <div style={{fontSize:26,fontWeight:900,color:'#fff'}}>R$ {lucroSem.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+                      </div>
+                      <div style={{textAlign:'right'}}>
+                        <div style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>{mudSem} mudanças</div>
+                        <div style={{fontSize:13,color:'rgba(255,255,255,0.9)',fontWeight:600}}>{entradasSem.length} dias</div>
+                      </div>
+                    </div>
+                    <div style={{display:'flex',gap:12,justifyContent:'space-between'}}>
+                      <div><div style={{fontSize:10,color:'rgba(255,255,255,0.6)'}}>RECEITA</div><div style={{fontSize:12,color:'#fff',fontWeight:700}}>R$ {rlSem.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div></div>
+                      <div><div style={{fontSize:10,color:'rgba(255,255,255,0.6)'}}>CUSTOS</div><div style={{fontSize:12,color:'#fff',fontWeight:700}}>R$ {ctSem.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div></div>
+                      <div><div style={{fontSize:10,color:'rgba(255,255,255,0.6)'}}>MARGEM</div><div style={{fontSize:12,color:'#fff',fontWeight:700}}>{rlSem>0?Math.round((lucroSem/rlSem)*100):0}%</div></div>
+                    </div>
+                  </div>
+                  {entradasSem.length>0?(
+                    <div style={{background:'#fff',borderRadius:14,padding:'12px',boxShadow:'0 2px 6px rgba(0,0,0,0.05)'}}>
+                      {entradasSem.map(([d,v],i)=>{
+                        const fv=v.mud>0?RULES.van1a+(v.mud-1)*RULES.vanAdd:0;
+                        const fat=fv+(v.m3*RULES.medicaoPorM3);
+                        const rl=fat*(1-RULES.imposto);
+                        const dc=diasComCusto[d]||{aj:0,alm:0};
+                        const caj=dc.aj>0?(RULES.aj1a+(v.mud>0?v.mud-1:0)*RULES.ajAdd)*dc.aj:0;
+                        const ct=RULES.vanCusto+caj+dc.alm;
+                        return(
+                          <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:i<entradasSem.length-1?'1px solid #f0f0f0':'none'}}>
+                            <div>
+                              <div style={{fontSize:13,fontWeight:700,color:COLORS.text}}>{new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</div>
+                              <div style={{fontSize:11,color:COLORS.muted}}>{v.mud} mud. · {Math.round(v.m3)} m³{dc.aj>0?' · '+dc.aj+' aj.':''}</div>
+                            </div>
+                            <div style={{textAlign:'right'}}>
+                              <div style={{fontSize:14,fontWeight:800,color:'#16a34a'}}>R$ {(rl-ct).toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
+                              <div style={{fontSize:10,color:COLORS.muted}}>fat. R$ {fat.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ):(
+                    <div style={{background:'#f8fafc',borderRadius:14,padding:'20px',textAlign:'center',color:COLORS.muted,fontSize:13}}>Nenhuma mudança esta semana</div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
