@@ -137,6 +137,8 @@ export default function App(){
   const [savingUser,setSavingUser]=useState(false);
   const [userMsg,setUserMsg]=useState("");
   const [tab,setTab]=useState("inicio");
+  const [cfgEdit,setCfgEdit]=useState({van1a:350,vanAdd:130,aj1a:80,ajAdd:20,dataInicioRegra:'',imposto:16});
+  const [cfgSaved,setCfgSaved]=useState(false);
   const [bioLock,setBioLock]=useState(localStorage.getItem('tmim_bio_enabled')==='true'&&!!localStorage.getItem('tmim_u'));
   const [mudancas,setMudancas]=useState([]);
   const [agenda,setAgenda]=useState([]);
