@@ -879,7 +879,7 @@ export default function App(){
             </div>
             {proximas.length>0&&(
               <div style={{marginBottom:16}}>
-                <div style={{color:'#fff',fontWeight:900,fontSize:22,marginBottom:8,letterSpacing:0.5,background:'#1e40af',padding:'4px 12px',borderRadius:8,display:'inline-block'}}>📌 Próximas</div>
+                <div style={{color:'#fff',fontWeight:900,fontSize:28,marginBottom:10,letterSpacing:1,background:'linear-gradient(135deg,#1e40af,#2563eb)',padding:'8px 18px',borderRadius:12,display:'inline-block',boxShadow:'0 4px 12px rgba(30,64,175,0.4)',textShadow:'0 1px 2px rgba(0,0,0,0.2)'}}>📌 Próximas</div>
                 {proximas.map(a=>(
                   <Card key={a.id} style={{marginBottom:9,padding:"14px 16px",border:`1.5px solid ${statusColor[a.status]||COLORS.cardBorder}33`}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
