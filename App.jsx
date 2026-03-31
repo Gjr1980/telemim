@@ -879,7 +879,7 @@ export default function App(){
             </div>
             {proximas.length>0&&(
               <div style={{marginBottom:16}}>
-                <div style={{color:'#1e40af',fontWeight:900,fontSize:20,marginBottom:6,letterSpacing:0}}>📌 Próximas</div>
+                <div style={{color:'#fff',fontWeight:900,fontSize:22,marginBottom:8,letterSpacing:0.5,background:'#1e40af',padding:'4px 12px',borderRadius:8,display:'inline-block'}}>📌 Próximas</div>
                 {proximas.map(a=>(
                   <Card key={a.id} style={{marginBottom:9,padding:"14px 16px",border:`1.5px solid ${statusColor[a.status]||COLORS.cardBorder}33`}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -927,27 +927,6 @@ export default function App(){
                       </div>
                       <div style={{display:"flex",flexDirection:"column",gap:5,marginLeft:9}}>
                         <button onClick={()=>converterEmMudanca(a)} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>
-                        <button onClick={()=>setEditAg({...a})} style={btnBlue}>✏️</button>
-                        <button onClick={()=>handleDelAg(a.id)} style={btnRed}>✕</button>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-            {passadas.length>0&&(
-              <div>
-                <div style={{color:COLORS.muted,fontWeight:800,fontSize:12,marginBottom:8,letterSpacing:1,textTransform:"uppercase"}}>🗓️ Anteriores</div>
-                {passadas.map(a=>(
-                  <Card key={a.id} style={{marginBottom:7,padding:"12px 15px",opacity:0.75}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <div style={{flex:1}}>
-                        <div style={{fontWeight:800,fontSize:13,color:COLORS.text,marginBottom:5}}>👤 {a.nome}</div>
-                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/></div>
-                      </div>
-                      <div style={{display:"flex",gap:5,alignItems:"center",marginLeft:8}}>
-                        <Badge color={statusColor[a.status]||COLORS.muted}>{statusLabel[a.status]||"—"}</Badge>
-                        <button onClick={()=>gerarPDFAgendamento(a)} style={{...btnRed,background:"#fff1f0"}}>📄</button>
                         <button onClick={()=>setEditAg({...a})} style={btnBlue}>✏️</button>
                         <button onClick={()=>handleDelAg(a.id)} style={btnRed}>✕</button>
                       </div>
