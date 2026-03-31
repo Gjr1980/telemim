@@ -193,35 +193,18 @@ export default function App(){
 
   // ── SYNC HELPERS ───────────────────────────────────────────────────────────
   function parseImport(txt){
-    var linhas=txt.split(/\n/).map(function(l){return l.trim();}).filter(Boolean);
-    var get=function(keys){
-      for(var i=0;i<linhas.length;i++){
-        for(var j=0;j<keys.length;j++){
-          var rx=new RegExp(keys[j]+'[:\\s]+(.+)','i');
-          var m=linhas[i].match(rx);
-          if(m&&m[1].trim())return m[1].trim();
-        }
-      }
-      return '';
-    };
-    var nome=get(['nome','morador','residente','cliente','benefici\u00e1rio','sr','sra','senhor','senhora']);
-    var dataM=txt.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
-    var data='';
-    if(dataM){var pts=dataM[1].split(/[\/\-]/);var dd=pts[0],mm=pts[1],yy=pts[2];data=(yy.length===4?yy:'20'+yy)+'-'+mm.padStart(2,'0')+'-'+dd.padStart(2,'0');}
-    var seloM=txt.match(/(?:selo|apto?|apartamento|casa|unidade|bloco)[\s:]+([A-Z0-9\-\/]+)/i);
-    var selo=seloM?seloM[1].trim():'';
-    var comunidade=get(['comunidade','condom\u00ednio','conjunto','residencial','bairro','local']);
-    var origem=get(['origem','sa\u00edda','saida','endere\u00e7o de sa\u00edda','endere\u00e7o origin']);
-    var destino=get(['destino','chegada','endere\u00e7o de chegada','endere\u00e7o destino']);
-    var contato=get(['contato','fone','telefone','celular','whatsapp','tel']);
-    var van=/\bvan\b/i.test(txt);
-    var medicaoM=txt.match(/(?:medi\u00e7\u00e3o|m3|m\u00b3|volume|metros)[\s:]+([\d,\.]+)/i);
-    var medicao=medicaoM?parseFloat(medicaoM[1].replace(',','.'))):0;
-    var ajM=txt.match(/(?:ajudante|auxiliar)[\s:]*(\d+)/i);
-    var ajudantes=ajM?parseInt(ajM[1]):0;
-    var obsM=txt.match(/(?:obs|observa\u00e7\u00e3o|observacao|nota)[\s:]+(.+)/i);
-    var observacao=obsM?obsM[1].trim():'';
-    return {nome:nome,data:data,selo:selo,comunidade:comunidade,origem:origem,destino:destino,contato:contato,van:van,medicao:medicao,ajudantes:ajudantes,observacao:observacao};
+    const nome=(txt.match(/Sr[a]?\.\s*\*?([^-\n*]+?)\*?\s*[-–]/)||txt.match(/Sr[a]?\.\s*\*?([^\n*]+?)\*?\s*[\n]/)||[])[1]?.trim()||"";
+    const selo=(txt.match(/Selo[:\s]*\*?([A-Z]{2,3}-[\d\w-]+)\*?/i)||[])[1]?.trim()||"";
+    const comunidade=(txt.match(/\(([^)]+)\)/)||[])[1]?.trim()||"";
+    const van=/van/i.test(txt);
+    const caminhao=/caminhão|caminhao/i.test(txt);
+    let data="";
+    const dMatch=txt.match(/(segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)[:\s*]*([\d]{1,2})\/([\d]{1,2})/i);
+    if(dMatch){const d=dMatch[2].padStart(2,'0'),m=dMatch[3].padStart(2,'0'),yr=new Date().getFullYear();data=yr+"-"+m+"-"+d;}
+    const horario=(txt.match(/[Hh]or[aá]rio[:\s*]*([\d]{1,2}:[\d]{2})/)||txt.match(/([\d]{1,2}:[\d]{2})h/)||[])[1]?.replace('h','').trim()||"";
+    const origem=(txt.match(/[Ss]a[íi]da[:\s*]+([^\n*]+)/)||txt.match(/[Ee]ndere[cç]o de sa[íi]da[:\s*]+([^\n*]+)/)||[])[1]?.trim()||"";
+    const destino=(txt.match(/[Ee]ndere[cç]o [Ff]inal[:\s*]+([^\n*]+)/)||txt.match(/[Dd]estino[:\s*]+([^\n*]+)/)||[])[1]?.trim()||"";
+    return {nome,selo,comunidade,van,caminhao,data,horario,origem,destino};
   }
 
     async function saveCustoDia(data, ajudantes, custo_almoco, pago_van=false, pago_caminhao=false, pago_ajudante=false, pago_almoco=false){
@@ -326,15 +309,15 @@ export default function App(){
     await saveAg(updated); setEditAg(null);
   }
   async function converterEmMudanca(ag){
-    if(!ag.medicao){alert("Informe a medi\u00e7\u00e3o (m\u00b3) antes de finalizar.");return;}
-    if(!window.confirm("Confirmar mudan\u00e7a como realizada?\nEla ser\u00e1 movida para Mudan\u00e7as Registradas."))return;
-    const nova={id:Date.now(),nome:ag.nome,selo:ag.selo||'',comunidade:ag.comunidade||'',data:ag.data,origem:ag.origem||ag.destino||'',destino:ag.destino||'',contato:ag.contato||null,van:ag.van||false,caminhao:ag.caminhao||false,medicao:ag.medicao||0,ajudantes:ag.ajudantes||0,observacao:ag.observacao||'',status:'concluida',registrado_por:usuario.email};
-    const{error:errM}=await supabase.from('mudancas').insert([{...nova,id:undefined}]);
-    if(errM){alert('Erro ao registrar: '+errM.message);return;}
+    if(!ag.medicao){alert('Informe a medição (m³) antes de finalizar.');return;}
+    if(!window.confirm('Confirmar como realizada?\nSerá movida para Mudanças Registradas.'))return;
+    const nova={nome:ag.nome,selo:ag.selo||'',comunidade:ag.comunidade||'',data:ag.data,origem:ag.origem||'',destino:ag.destino||'',contato:ag.contato||null,van:ag.van||false,caminhao:ag.caminhao||false,medicao:ag.medicao||0,ajudantes:ag.ajudantes||0,observacao:ag.observacao||'',status:'concluida',registrado_por:usuario.email};
+    const{error:errM}=await supabase.from('mudancas').insert([nova]);
+    if(errM){alert('Erro: '+errM.message);return;}
     await supabase.from('agenda').update({status:'concluida'}).eq('id',ag.id);
-    setMudancas(prev=>[...prev,nova]);
+    setMudancas(prev=>[...prev,{...nova,id:Date.now()}]);
     setAgenda(prev=>prev.filter(a=>a.id!==ag.id));
-    setFlash('\u2705 Mudan\u00e7a finalizada e registrada!');
+    setFlash('✅ Mudança finalizada!');
   }
 
   async function confirmarConversao(ag, medicao){
