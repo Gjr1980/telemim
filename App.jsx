@@ -216,7 +216,7 @@ export default function App(){
     var contato=get(['contato','fone','telefone','celular','whatsapp','tel']);
     var van=/\bvan\b/i.test(txt);
     var medicaoM=txt.match(/(?:medi\u00e7\u00e3o|m3|m\u00b3|volume|metros)[\s:]+([\d,\.]+)/i);
-    var medicao=medicaoM?parseFloat(medicaoM[1].replace(',','.'.)):0;
+    var medicao=medicaoM?parseFloat(medicaoM[1].replace(',','.'))):0;
     var ajM=txt.match(/(?:ajudante|auxiliar)[\s:]*(\d+)/i);
     var ajudantes=ajM?parseInt(ajM[1]):0;
     var obsM=txt.match(/(?:obs|observa\u00e7\u00e3o|observacao|nota)[\s:]+(.+)/i);
