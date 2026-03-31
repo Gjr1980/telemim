@@ -1162,447 +1162,136 @@ export default function App(){
         )}
 
         {/* ══ RELATÓRIO ══ */}
-        {tab==="relatorio"&&(
-          <div style={{paddingBottom:80}}>
-            {/* ═══ CABEÇALHO ═══ */}
-            <div style={{background:'linear-gradient(135deg,#ea580c,#dc2626)',borderRadius:'0 0 24px 24px',padding:'20px 16px 24px',marginBottom:20}}>
-              <div style={{color:'rgba(255,255,255,0.8)',fontSize:12,fontWeight:600,letterSpacing:1,marginBottom:4}}>💰 FINANCEIRO</div>
-              <div style={{color:'#fff',fontSize:22,fontWeight:900}}>{new Date().toLocaleString('pt-BR',{month:'long',year:'numeric'}).toUpperCase()}</div>
-            </div>
-            {/* ═══ KPIs DO MÊS ═══ */}
-            {(()=>{
-              const diasMes=Object.entries(registros.reduce((acc,m)=>{const d=m.data;if(!acc[d])acc[d]={mud:0,m3:0};acc[d].mud++;acc[d].m3+=parseFloat(m.medicao||0);return acc;},{}));
-              const totalMud=diasMes.reduce((s,[,v])=>s+v.mud,0);
-              const totalM3=diasMes.reduce((s,[,v])=>s+v.m3,0);
-              const fatBruto=diasMes.reduce((s,[,v])=>{const fv=v.mud>0?RULES.van1a+(v.mud-1)*RULES.vanAdd:0;return s+fv+(v.m3*RULES.medicaoPorM3);},0);
-              const recLiq=fatBruto*(1-RULES.imposto);
-              const diasComCusto=custos.reduce((acc,cd)=>{acc[cd.data]={aj:cd.ajudantes||0,alm:parseFloat(cd.custo_almoco||0)};return acc;},{});
-              const custTotal=diasMes.reduce((s,[d])=>{const dc=diasComCusto[d]||{aj:0,alm:0};const dv=diasMes.find(([k])=>k===d);const nMud=dv?dv[1].mud:0;const caj=dc.aj>0?(RULES.aj1a+(nMud>0?nMud-1:0)*RULES.ajAdd)*dc.aj:0;return s+RULES.vanCusto+caj+dc.alm;},0);
-              const lucro=recLiq-custTotal;
-              return(
-                <div style={{padding:'0 16px',marginBottom:20}}>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-                    <div style={{background:'#fff',borderRadius:16,padding:'14px 16px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
-                      <div style={{fontSize:11,color:COLORS.muted,fontWeight:600,marginBottom:4}}>🚛 MUDANÇAS</div>
-                      <div style={{fontSize:28,fontWeight:900,color:COLORS.text}}>{totalMud}</div>
-                      <div style={{fontSize:11,color:COLORS.muted}}>{diasMes.length} dias trabalhados</div>
-                    </div>
-                    <div style={{background:'#fff',borderRadius:16,padding:'14px 16px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
-                      <div style={{fontSize:11,color:COLORS.muted,fontWeight:600,marginBottom:4}}>📏 M³ TOTAL</div>
-                      <div style={{fontSize:28,fontWeight:900,color:COLORS.text}}>{Math.round(totalM3)}</div>
-                      <div style={{fontSize:11,color:COLORS.muted}}>R$ {(totalM3*RULES.medicaoPorM3).toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
-                    </div>
+        {(tab==="relatorio"||tab==="semana")&&isAdmin&&(
+        <div style={{paddingBottom:80}}>
+          <div style={{background:'linear-gradient(135deg,#1e293b,#1e40af)',padding:'20px 16px 24px',marginBottom:-12}}>
+            <div style={{fontSize:12,color:'rgba(255,255,255,0.65)',marginBottom:2}}>Painel Financeiro</div>
+            <div style={{fontSize:21,fontWeight:800,color:'#fff'}}>{new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^\w/,function(s){return s.toUpperCase();})}</div>
+          </div>
+          {(function(){
+            var hj=new Date();var anoMes=hj.toISOString().slice(0,7);
+            var diasMes=list.filter(function(m){return m.data&&m.data.slice(0,7)===anoMes;});
+            var diasU=[...new Set(diasMes.map(function(m){return m.data;}))];
+            var totMud=diasMes.length;
+            var totM3=diasMes.reduce(function(s,m){return s+(parseFloat(m.medicao)||0);},0);
+            var fvMes=diasU.reduce(function(s,d){var n=diasMes.filter(function(m){return m.data===d;}).length;return s+(n>0?RULES.van1a+(n-1)*RULES.vanAdd:0);},0);
+            var fmMes=totM3*RULES.medicaoPorM3;var brMes=fvMes+fmMes;
+            var impMes=brMes*RULES.imposto;var lqMes=brMes-impMes;
+            var cstMes=custos.filter(function(cd){return cd.data&&cd.data.slice(0,7)===anoMes;});
+            var cvMes=diasU.length*RULES.vanCusto;
+            var cajMes=cstMes.reduce(function(s,cd){var n=diasMes.filter(function(m){return m.data===cd.data;}).length;return s+(cd.ajudantes>0?(RULES.aj1a+(n>0?n-1:0)*RULES.ajAdd)*(cd.ajudantes):0);},0);
+            var calmMes=cstMes.reduce(function(s,cd){return s+(parseFloat(cd.custo_almoco)||0);},0);
+            var ctMes=cvMes+cajMes+calmMes;var luMes=lqMes-ctMes;
+            var mg=brMes>0?((luMes/brMes)*100).toFixed(1):'0.0';
+            var fR=function(v){return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+            var fN=function(v){return 'R$'+Math.round(v).toLocaleString('pt-BR');};
+            return(<>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,padding:'20px 12px 10px',background:'#f8fafc'}}>
+                {[{l:'Fat. Bruto',v:fR(brMes),ic:'💰',cor:'#1e40af',bg:'#eff6ff'},{l:'Rec. Líquida',v:fR(lqMes),ic:'✅',cor:'#047857',bg:'#f0fdf4'},{l:'Custo Total',v:fR(ctMes),ic:'💸',cor:'#b45309',bg:'#fffbeb'},{l:'Lucro',v:fR(luMes),ic:'🚀',cor:luMes>=0?'#047857':'#dc2626',bg:luMes>=0?'#f0fdf4':'#fef2f2'}].map(function(k,i){return(
+                  <div key={i} style={{background:k.bg,borderRadius:14,padding:'14px 12px',border:'1.5px solid '+k.cor+'33'}}>
+                    <div style={{fontSize:20,marginBottom:4}}>{k.ic}</div>
+                    <div style={{fontSize:11,color:'#64748b',marginBottom:2}}>{k.l}</div>
+                    <div style={{fontSize:15,fontWeight:800,color:k.cor}}>{k.v}</div>
                   </div>
-                  <div style={{background:'linear-gradient(135deg,#16a34a,#15803d)',borderRadius:16,padding:'16px',marginBottom:10,boxShadow:'0 4px 16px rgba(22,163,74,0.3)'}}>
-                    <div style={{fontSize:11,color:'rgba(255,255,255,0.8)',fontWeight:600,marginBottom:4}}>💫 LUCRO DO MÊS</div>
-                    <div style={{fontSize:32,fontWeight:900,color:'#fff'}}>R$ {lucro.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
-                    <div style={{display:'flex',gap:16,marginTop:8}}>
-                      <div><div style={{fontSize:10,color:'rgba(255,255,255,0.7)'}}>RECEITA LÍQ.</div><div style={{fontSize:13,color:'#fff',fontWeight:700}}>R$ {recLiq.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div></div>
-                      <div><div style={{fontSize:10,color:'rgba(255,255,255,0.7)'}}>CUSTOS</div><div style={{fontSize:13,color:'#fff',fontWeight:700}}>R$ {custTotal.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div></div>
-                      <div><div style={{fontSize:10,color:'rgba(255,255,255,0.7)'}}>MARGEM</div><div style={{fontSize:13,color:'#fff',fontWeight:700}}>{recLiq>0?Math.round((lucro/recLiq)*100):0}%</div></div>
-                    </div>
+                );})}
+              </div>
+              <div style={{display:'flex',gap:8,padding:'0 12px 12px',background:'#f8fafc'}}>
+                {[{l:'Mudanças',v:totMud,ic:'🚛'},{l:'m³',v:totM3.toFixed(0),ic:'📏'},{l:'Margem',v:mg+'%',ic:'📊'},{l:'Imposto',v:fN(impMes),ic:'🏛️'}].map(function(k,i){return(
+                  <div key={i} style={{flex:1,background:'#fff',borderRadius:10,padding:'10px 4px',textAlign:'center',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
+                    <div style={{fontSize:14}}>{k.ic}</div>
+                    <div style={{fontSize:9,color:'#94a3b8',margin:'2px 0'}}>{k.l}</div>
+                    <div style={{fontSize:11,fontWeight:700,color:'#1e293b'}}>{k.v}</div>
                   </div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-                    <div style={{background:'#fff',borderRadius:14,padding:'12px',textAlign:'center',boxShadow:'0 2px 6px rgba(0,0,0,0.05)'}}>
-                      <div style={{fontSize:10,color:COLORS.muted,fontWeight:600}}>FAT. BRUTO</div>
-                      <div style={{fontSize:14,fontWeight:800,color:COLORS.accent}}>R$ {(fatBruto/1000).toFixed(1)}k</div>
-                    </div>
-                    <div style={{background:'#fff',borderRadius:14,padding:'12px',textAlign:'center',boxShadow:'0 2px 6px rgba(0,0,0,0.05)'}}>
-                      <div style={{fontSize:10,color:COLORS.muted,fontWeight:600}}>IMPOSTO</div>
-                      <div style={{fontSize:14,fontWeight:800,color:'#dc2626'}}>R$ {((fatBruto*RULES.imposto)/1000).toFixed(1)}k</div>
-                    </div>
-                    <div style={{background:'#fff',borderRadius:14,padding:'12px',textAlign:'center',boxShadow:'0 2px 6px rgba(0,0,0,0.05)'}}>
-                      <div style={{fontSize:10,color:COLORS.muted,fontWeight:600}}>CUSTO VAN</div>
-                      <div style={{fontSize:14,fontWeight:800,color:'#7c3aed'}}>R$ {(diasMes.length*RULES.vanCusto).toLocaleString('pt-BR')}</div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-            {/* ═══ GRÁFICO DIAS DO MÊS ═══ */}
-            {(()=>{
-              const diasMes=Object.entries(registros.reduce((acc,m)=>{const d=m.data;if(!acc[d])acc[d]={mud:0,m3:0};acc[d].mud++;acc[d].m3+=parseFloat(m.medicao||0);return acc;},{})).sort(([a],[b])=>a.localeCompare(b));
-              const diasComCusto=custos.reduce((acc,cd)=>{acc[cd.data]={aj:cd.ajudantes||0,alm:parseFloat(cd.custo_almoco||0)};return acc;},{});
-              const dadosDia=diasMes.map(([d,v])=>{
-                const fv=v.mud>0?RULES.van1a+(v.mud-1)*RULES.vanAdd:0;
-                const fat=fv+(v.m3*RULES.medicaoPorM3);
-                const rl=fat*(1-RULES.imposto);
-                const dc=diasComCusto[d]||{aj:0,alm:0};
-                const caj=dc.aj>0?(RULES.aj1a+(v.mud>0?v.mud-1:0)*RULES.ajAdd)*dc.aj:0;
-                const ct=RULES.vanCusto+caj+dc.alm;
-                return{d,mud:v.mud,fat,rl,ct,lucro:rl-ct};
-              });
-              const maxLucro=Math.max(...dadosDia.map(x=>x.lucro),1);
-              return(
-                <div style={{padding:'0 16px',marginBottom:20}}>
-                  <div style={{fontWeight:800,fontSize:15,color:COLORS.text,marginBottom:12}}>📅 Resultado por Dia</div>
-                  <div style={{background:'#fff',borderRadius:16,padding:'16px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
-                    <div style={{display:'flex',gap:6,alignItems:'flex-end',height:100,marginBottom:8}}>
-                      {dadosDia.map((dd,i)=>(
-                        <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-                          <div style={{fontSize:8,color:COLORS.muted,fontWeight:700}}>{dd.mud}🚛</div>
-                          <div style={{width:'100%',background:'linear-gradient(to top,#16a34a,#22c55e)',borderRadius:'4px 4px 0 0',height:Math.max(8,Math.round((dd.lucro/maxLucro)*80))+'px',transition:'height 0.3s'}}/>
-                          <div style={{fontSize:7,color:COLORS.muted}}>{new Date(dd.d+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}).replace(///g,'/')}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{borderTop:'1px solid #f0f0f0',paddingTop:8}}>
-                      {dadosDia.map((dd,i)=>(
-                        <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:i<dadosDia.length-1?'1px solid #f8f8f8':'none'}}>
-                          <div style={{fontSize:12,fontWeight:600,color:COLORS.text}}>{new Date(dd.d+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</div>
-                          <div style={{fontSize:11,color:COLORS.muted}}>{dd.mud} mud.</div>
-                          <div style={{fontSize:12,fontWeight:700,color:'#16a34a'}}>R$ {dd.lucro.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-            {/* ═══ SEMANA ATUAL ═══ */}
-            {(()=>{
-              const hoje=new Date();
-              const dow=hoje.getDay();
-              const seg=new Date(hoje);seg.setDate(hoje.getDate()-(dow===0?6:dow-1));
-              const sex=new Date(seg);sex.setDate(seg.getDate()+5);
-              const fmt=d=>d.toISOString().split('T')[0];
-              const diasSem=registros.reduce((acc,m)=>{
-                if(m.data>=fmt(seg)&&m.data<=fmt(sex)){
-                  if(!acc[m.data])acc[m.data]={mud:0,m3:0};
-                  acc[m.data].mud++;acc[m.data].m3+=parseFloat(m.medicao||0);
-                }return acc;
-              },{});
-              const diasComCusto=custos.reduce((acc,cd)=>{acc[cd.data]={aj:cd.ajudantes||0,alm:parseFloat(cd.custo_almoco||0)};return acc;},{});
-              const entradasSem=Object.entries(diasSem).sort(([a],[b])=>a.localeCompare(b));
-              const fatSem=entradasSem.reduce((s,[d,v])=>{const fv=v.mud>0?RULES.van1a+(v.mud-1)*RULES.vanAdd:0;return s+fv+(v.m3*RULES.medicaoPorM3);},0);
-              const rlSem=fatSem*(1-RULES.imposto);
-              const ctSem=entradasSem.reduce((s,[d,v])=>{const dc=diasComCusto[d]||{aj:0,alm:0};const caj=dc.aj>0?(RULES.aj1a+(v.mud>0?v.mud-1:0)*RULES.ajAdd)*dc.aj:0;return s+RULES.vanCusto+caj+dc.alm;},0);
-              const lucroSem=rlSem-ctSem;
-              const mudSem=entradasSem.reduce((s,[,v])=>s+v.mud,0);
-              return(
-                <div style={{padding:'0 16px',marginBottom:20}}>
-                  <div style={{fontWeight:800,fontSize:15,color:COLORS.text,marginBottom:12}}>📆 Semana Atual</div>
-                  <div style={{background:'linear-gradient(135deg,#1e40af,#3b82f6)',borderRadius:16,padding:'16px',boxShadow:'0 4px 16px rgba(59,130,246,0.3)',marginBottom:10}}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-                      <div>
-                        <div style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>LUCRO DA SEMANA</div>
-                        <div style={{fontSize:26,fontWeight:900,color:'#fff'}}>R$ {lucroSem.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
-                      </div>
-                      <div style={{textAlign:'right'}}>
-                        <div style={{fontSize:11,color:'rgba(255,255,255,0.7)'}}>{mudSem} mudanças</div>
-                        <div style={{fontSize:13,color:'rgba(255,255,255,0.9)',fontWeight:600}}>{entradasSem.length} dias</div>
-                      </div>
-                    </div>
-                    <div style={{display:'flex',gap:12,justifyContent:'space-between'}}>
-                      <div><div style={{fontSize:10,color:'rgba(255,255,255,0.6)'}}>RECEITA</div><div style={{fontSize:12,color:'#fff',fontWeight:700}}>R$ {rlSem.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div></div>
-                      <div><div style={{fontSize:10,color:'rgba(255,255,255,0.6)'}}>CUSTOS</div><div style={{fontSize:12,color:'#fff',fontWeight:700}}>R$ {ctSem.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div></div>
-                      <div><div style={{fontSize:10,color:'rgba(255,255,255,0.6)'}}>MARGEM</div><div style={{fontSize:12,color:'#fff',fontWeight:700}}>{rlSem>0?Math.round((lucroSem/rlSem)*100):0}%</div></div>
-                    </div>
-                  </div>
-                  {entradasSem.length>0?(
-                    <div style={{background:'#fff',borderRadius:14,padding:'12px',boxShadow:'0 2px 6px rgba(0,0,0,0.05)'}}>
-                      {entradasSem.map(([d,v],i)=>{
-                        const fv=v.mud>0?RULES.van1a+(v.mud-1)*RULES.vanAdd:0;
-                        const fat=fv+(v.m3*RULES.medicaoPorM3);
-                        const rl=fat*(1-RULES.imposto);
-                        const dc=diasComCusto[d]||{aj:0,alm:0};
-                        const caj=dc.aj>0?(RULES.aj1a+(v.mud>0?v.mud-1:0)*RULES.ajAdd)*dc.aj:0;
-                        const ct=RULES.vanCusto+caj+dc.alm;
-                        return(
-                          <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:i<entradasSem.length-1?'1px solid #f0f0f0':'none'}}>
+                );})}
+              </div>
+              <div style={{padding:'0 12px 10px',background:'#f8fafc'}}>
+                <div style={{background:'#fff',borderRadius:14,padding:16,boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+                  <div style={{fontWeight:800,fontSize:15,color:'#1e293b',marginBottom:12}}>📅 Semana Atual</div>
+                  {(function(){
+                    var hj2=new Date();var dow=hj2.getDay();var sg=new Date(hj2);sg.setDate(hj2.getDate()-dow+(dow===0?-6:1));
+                    return Array.from({length:7},function(_,i){var dd=new Date(sg);dd.setDate(sg.getDate()+i);return dd.toISOString().slice(0,10);}).map(function(dia){
+                      var mD=list.filter(function(m){return m.data===dia;});
+                      var cD=custos.find(function(cd){return cd.data===dia;});
+                      var nD=mD.length;
+                      var fvD=nD>0?RULES.van1a+(nD-1)*RULES.vanAdd:0;
+                      var fmD=mD.reduce(function(s,m){return s+(parseFloat(m.medicao)||0);},0)*RULES.medicaoPorM3;
+                      var brD=fvD+fmD;var lqD=brD*(1-RULES.imposto);
+                      var ajD=cD?cD.ajudantes||0:0;
+                      var cAD=ajD>0?(RULES.aj1a+(nD>0?nD-1:0)*RULES.ajAdd)*ajD:0;
+                      var cuD=nD>0?RULES.vanCusto+cAD+(parseFloat(cD&&cD.custo_almoco)||0):0;
+                      var luD=nD>0?lqD-cuD:0;
+                      var isHj=dia===hj2.toISOString().slice(0,10);
+                      var nm=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(dia+'T12:00:00').getDay()];
+                      var df=dia.slice(8)+'/'+dia.slice(5,7);
+                      return(
+                        <div key={dia} style={{display:'flex',alignItems:'center',padding:'10px 12px',borderRadius:10,marginBottom:6,background:isHj?'#eff6ff':'#f8fafc',border:isHj?'1.5px solid #3b82f6':'1px solid #e2e8f0'}}>
+                          <div style={{width:42,flexShrink:0}}>
+                            <div style={{fontSize:10,color:isHj?'#3b82f6':'#94a3b8',fontWeight:700}}>{nm}</div>
+                            <div style={{fontSize:13,fontWeight:800,color:isHj?'#1e40af':'#475569'}}>{df}</div>
+                          </div>
+                          {nD>0?(<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                             <div>
-                              <div style={{fontSize:13,fontWeight:700,color:COLORS.text}}>{new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</div>
-                              <div style={{fontSize:11,color:COLORS.muted}}>{v.mud} mud. · {Math.round(v.m3)} m³{dc.aj>0?' · '+dc.aj+' aj.':''}</div>
+                              <span style={{background:'#dbeafe',color:'#1e40af',borderRadius:6,padding:'2px 6px',fontSize:11,fontWeight:700,marginRight:4}}>{nD} mud.</span>
+                              {ajD>0&&<span style={{background:'#fef3c7',color:'#92400e',borderRadius:6,padding:'2px 5px',fontSize:10}}>{ajD} aj.</span>}
                             </div>
                             <div style={{textAlign:'right'}}>
-                              <div style={{fontSize:14,fontWeight:800,color:'#16a34a'}}>R$ {(rl-ct).toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
-                              <div style={{fontSize:10,color:COLORS.muted}}>fat. R$ {fat.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
+                              <div style={{fontSize:13,fontWeight:700,color:'#047857'}}>R$ {Math.round(luD).toLocaleString('pt-BR')}</div>
+                              <div style={{fontSize:9,color:'#94a3b8'}}>bruto {fN(brD)}</div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ):(
-                    <div style={{background:'#f8fafc',borderRadius:14,padding:'20px',textAlign:'center',color:COLORS.muted,fontSize:13}}>Nenhuma mudança esta semana</div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {/* ══ SEMANA ══ */}
-        {tab==="semana"&&(
-          <div>
-            <div style={{fontSize:15,fontWeight:800,color:COLORS.blue,marginBottom:12}}>📆 Relatório Semanal</div>
-            {semanas.length===0&&<div style={{textAlign:"center",color:COLORS.muted,padding:40}}>Nenhuma mudança registrada.</div>}
-            {semanas.length>0&&(
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
-                <button onClick={()=>setSemanaIdx(Math.max(0,semanaIdx-1))} disabled={semanaIdx===0} style={{background:"#fff",border:`1px solid ${COLORS.cardBorder}`,color:semanaIdx===0?COLORS.muted:COLORS.text,borderRadius:9,padding:"8px 14px",cursor:semanaIdx===0?"not-allowed":"pointer",fontWeight:800,fontSize:14,boxShadow:COLORS.shadow}}>‹</button>
-                <div style={{flex:1,textAlign:"center"}}>
-                  <div style={{color:COLORS.blue,fontWeight:800,fontSize:14}}>Semana {semanaIdx+1} de {semanas.length}</div>
-                  <div style={{color:COLORS.muted,fontSize:12}}>{semanas[semanaIdx]?.label}</div>
-                </div>
-                <button onClick={()=>setSemanaIdx(Math.min(semanas.length-1,semanaIdx+1))} disabled={semanaIdx===semanas.length-1} style={{background:"#fff",border:`1px solid ${COLORS.cardBorder}`,color:semanaIdx===semanas.length-1?COLORS.muted:COLORS.text,borderRadius:9,padding:"8px 14px",cursor:semanaIdx===semanas.length-1?"not-allowed":"pointer",fontWeight:800,fontSize:14,boxShadow:COLORS.shadow}}>›</button>
-              </div>
-            )}
-            {semanas[semanaIdx]&&(()=>{
-              const sw=semanas[semanaIdx];
-              const sr=calcRel(sw.items,relAj,relAlm);
-              return(
-                <>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-                    {[{label:"Mudanças",val:sw.items.length,color:COLORS.accent},{label:"Total m³",val:sr.m3+" m³",color:COLORS.blue},{label:"Fat. Bruto",val:fmt(sr.bruto),color:COLORS.green},{label:"Lucro Líq.",val:fmt(sr.liq),color:sr.liq>=0?COLORS.green:COLORS.red}].map(s=>(
-                      <Card key={s.label} style={{padding:"11px 13px",textAlign:"center",border:`1.5px solid ${s.color}22`}}>
-                        <div style={{color:s.color,fontWeight:900,fontSize:14}}>{s.val}</div>
-                        <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>{s.label}</div>
-                      </Card>
-                    ))}
-                  </div>
-                  <Card style={{marginBottom:11}}>
-                    <div style={{fontSize:13,fontWeight:800,color:COLORS.accent,marginBottom:10}}>💵 Faturamento da Semana</div>
-                    {[[`📐 Medição (${sr.m3} m³ × R$150)`,sr.fatM],[`🚐 Van (${sr.vd} dias × R$1.000)`,sr.fatV]].map(([l,v])=>(
-                      <div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:12}}><span style={{color:COLORS.muted}}>{l}</span><span style={{fontWeight:700,color:COLORS.green}}>{fmt(v)}</span></div>
-                    ))}
-                    <div style={{borderTop:`1px solid ${COLORS.cardBorder}`,paddingTop:7,display:"flex",justifyContent:"space-between"}}><span style={{fontWeight:800,fontSize:13}}>Faturamento Bruto</span><span style={{fontWeight:900,color:COLORS.accent}}>{fmt(sr.bruto)}</span></div>
-                  </Card>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:11}}>
-                    <Card style={{padding:"13px 14px",border:`1px solid ${COLORS.red}22`}}>
-                      <div style={{color:COLORS.red,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>🏛️ Imposto</div>
-                      <div style={{color:COLORS.red,fontWeight:900,fontSize:16}}>- {fmt(sr.imp)}</div>
-                      <div style={{color:COLORS.muted,fontSize:10,marginTop:2}}>16% s/ bruto</div>
-                    </Card>
-                    <Card style={{padding:"13px 14px",border:`1px solid ${COLORS.blue}22`}}>
-                      <div style={{color:COLORS.blue,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>🔧 Total Custos</div>
-                      <div style={{color:COLORS.blue,fontWeight:900,fontSize:16}}>- {fmt(sr.custos)}</div>
-                      <div style={{color:COLORS.muted,fontSize:10,marginTop:2}}>{sw.items.length} mud. · {sr.vd} dias van</div>
-                    </Card>
-                  </div>
-                  <Card style={{marginBottom:11,border:`1px solid ${COLORS.blue}22`}}>
-                    <div style={{fontSize:13,fontWeight:800,color:COLORS.blue,marginBottom:12}}>🔧 Discriminação dos Custos</div>
-                    {[sr.vd>0&&[`🚐 Van (${sr.vd} dia${sr.vd!==1?"s":""} × R$400)`,sr.cV],[`🚚 Caminhão (${sw.items.length} mud. × R$350)`,sr.cC],sr.nAj>0&&[`👷 Ajudantes (${sr.nAj} × R$80)`,sr.cA],sr.cAlm>0&&[`🍽️ Almoço`,sr.cAlm]].filter(Boolean).map(([l,v])=>(
-                      <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${COLORS.cardBorder}`,fontSize:13}}><span style={{color:COLORS.muted}}>{l}</span><span style={{fontWeight:800,color:COLORS.red}}>- {fmt(v)}</span></div>
-                    ))}
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:10}}><span style={{fontWeight:800,fontSize:13}}>Total de Custos</span><span style={{fontWeight:900,color:COLORS.blue,fontSize:15}}>- {fmt(sr.custos)}</span></div>
-                  </Card>
-                  <Card style={{marginBottom:11,background:sr.liq>=0?"linear-gradient(135deg,#f0fdf4,#dcfce7)":"linear-gradient(135deg,#fef2f2,#fee2e2)",border:`1.5px solid ${sr.liq>=0?COLORS.green:COLORS.red}33`,textAlign:"center",padding:"18px"}}>
-                    <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",marginBottom:5}}>💰 Lucro da Semana</div>
-                    <div style={{fontSize:30,fontWeight:900,color:sr.liq>=0?COLORS.green:COLORS.red}}>{fmt(sr.liq)}</div>
-                    <div style={{marginTop:6}}><Badge color={sr.marg>=30?COLORS.green:sr.marg>=0?COLORS.accent:COLORS.red}>Margem: {sr.marg.toFixed(1)}%</Badge></div>
-                  </Card>
-                  <Card style={{marginBottom:11}}>
-                    <div style={{fontSize:13,fontWeight:800,color:COLORS.muted,marginBottom:10}}>📋 Mudanças da Semana ({sw.items.length})</div>
-                    {sw.items.map((m,i)=>(
-                      <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:i<sw.items.length-1?`1px solid ${COLORS.cardBorder}`:"none",fontSize:12}}>
-                        <div><div style={{fontWeight:700}}>{m.nome}</div><div style={{color:COLORS.muted,fontSize:11}}>📅 {fmtDate(m.data)} · 🏷️ {m.selo}</div></div>
-                        <div style={{display:"flex",gap:5,alignItems:"center"}}>{verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}{m.van&&<Badge color={COLORS.blue}>🚐</Badge>}
-              {podeEditar&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
-                {!m.inicio_em
-                  ?<button onClick={()=>marcarTempo('inicio',m,'mudancas')} style={{background:"#dcfce7",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
-                  :<span style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#15803d"}}>▶ {fmtTempo(m.inicio_em)}</span>
-                }
-                {m.inicio_em&&(!m.termino_em
-                  ?<button onClick={()=>marcarTempo('termino',m,'mudancas')} style={{background:"#fee2e2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:800,color:"#dc2626",cursor:"pointer"}}>⏹ Finalizar</button>
-                  :<span style={{background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:700,color:"#dc2626"}}>⏹ {fmtTempo(m.termino_em)}</span>
-                )}
-                {m.inicio_em&&m.termino_em&&<span style={{fontSize:11,color:"#64748b",fontWeight:600,background:"#f1f5f9",borderRadius:8,padding:"4px 8px"}}>{Math.round((new Date(m.termino_em)-new Date(m.inicio_em))/60000)}min</span>}
-              </div>}</div>
-                      </div>
-                    ))}
-                  </Card>                  <div style={{display:"flex",gap:8,marginTop:4}}>
-                    <button onClick={()=>compartilharRelatorio(sr,sw.label)} style={{flex:1,padding:"13px",borderRadius:12,border:"2px solid #25D366",background:"#25D36615",color:"#16a34a",fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📲 WhatsApp</button>
-                    <button onClick={()=>gerarPDFSemana(sw,sr)} style={{flex:1,padding:"13px",borderRadius:12,border:`2px solid ${COLORS.red}`,background:COLORS.red+"15",color:COLORS.red,fontWeight:900,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📄 Exportar PDF</button>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        )}
-      </div>
-
-
-      {/* ══ CONTAS A PAGAR ══ */}
-      {tab==="semana"&&semanas[semanaIdx]&&(()=>{
-        const sw=semanas[semanaIdx];
-        const dias=[...new Set(sw.items.map(m=>m.data))].sort();
-        const cSem=custosDiarios.filter(cx=>dias.includes(cx.data));
-        const vDias=[...new Set(sw.items.filter(m=>m.van).map(m=>m.data))].length;
-        const tVan=vDias*400, tCam=sw.items.length*350;
-        const tAj=cSem.reduce((s,cx)=>s+(parseInt(cx.ajudantes)||0),0)*80;
-        const tAlm=cSem.reduce((s,cx)=>s+(parseFloat(cx.custo_almoco)||0),0);
-        const tTotal=tVan+tCam+tAj+tAlm;
-        const envWpp=(tipo)=>{
-          const lbl=sw.label;
-          if(tipo==="van"){
-            const ls=dias.map(d=>{const n=sw.items.filter(m=>m.data===d&&m.van).length;return n?"📆 "+fmtDate(d)+" → "+n+" mud. → R$ 400,00":null;}).filter(Boolean);
-            if(!ls.length){alert("Nenhuma mudança com van nesta semana.");return;}
-            window.open("https://wa.me/?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO VAN*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n🚐 "+vDias+" dia"+(vDias!==1?"s":"")+" × R$ 400,00\n💰 *TOTAL: R$ "+tVan.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
-          } else if(tipo==="caminhao"){
-            const ls=dias.map(d=>{const n=sw.items.filter(m=>m.data===d).length;if(!n)return null;return "📆 "+fmtDate(d)+" → "+n+" mud. → R$ "+(n*350).toLocaleString("pt-BR",{minimumFractionDigits:2});}).filter(Boolean);
-            window.open("https://wa.me/?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO CAMINHÃO*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n🚚 "+sw.items.length+" mud. × R$ 350,00\n💰 *TOTAL: R$ "+tCam.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
-          } else if(tipo==="ajudante"){
-            const ls=dias.map(d=>{const cx=cSem.find(x=>x.data===d);const aj=parseInt(cx?.ajudantes)||0;if(!aj)return null;return "📆 "+fmtDate(d)+" → "+aj+" aj. → R$ "+(aj*80).toLocaleString("pt-BR",{minimumFractionDigits:2});}).filter(Boolean);
-            if(!ls.length){alert("Nenhum ajudante registrado.");return;}
-            const tot=cSem.reduce((s,cx)=>s+(parseInt(cx.ajudantes)||0),0);
-            window.open("https://wa.me/?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO AJUDANTES*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n👷 "+tot+" diárias × R$ 80,00\n💰 *TOTAL: R$ "+tAj.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
-          } else if(tipo==="almoco"){
-            const ls=dias.map(d=>{const cx=cSem.find(x=>x.data===d);const v=parseFloat(cx?.custo_almoco)||0;return v?"📆 "+fmtDate(d)+" → R$ "+v.toLocaleString("pt-BR",{minimumFractionDigits:2}):null;}).filter(Boolean);
-            if(!ls.length){alert("Nenhum almoço registrado.");return;}
-            window.open("https://wa.me/?text="+encodeURIComponent("🚛 *TELEMIM — PAGAMENTO ALMOÇO*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n💰 *TOTAL: R$ "+tAlm.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_"),"_blank");
-          } else if(tipo==="almoco"){
-          const ls=dias.map(d=>{const cx=cSem.find(x=>x.data===d);const v=parseFloat(cx?.custo_almoco)||0;return v?"📆 "+fmtDate(d)+" → R$ "+v.toLocaleString("pt-BR",{minimumFractionDigits:2}):null;}).filter(Boolean);
-          if(!ls.length){alert("Nenhum almoço registrado nesta semana.");return;}
-          const tAlm2=cSem.reduce((s,cx)=>s+(parseFloat(cx?.custo_almoco)||0),0);
-          const txt="🚛 *TELEMIM — PAGAMENTO ALMOÇO*\n📅 Semana: "+lbl+"\n━━━━━━━━━━━━━━━━━\n"+ls.join("\n")+"\n━━━━━━━━━━━━━━━━━\n💰 *TOTAL: R$ "+tAlm2.toLocaleString("pt-BR",{minimumFractionDigits:2})+"*\n_TELEMIM_";
-          window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
-        }
-        };
-        const cards=[
-          {tipo:"van",icon:"🚐",label:"Van",color:COLORS.blue,total:tVan,linhas:dias.map(d=>{const n=sw.items.filter(m=>m.data===d&&m.van).length;return n?{d,qt:n+" mud.",val:400}:null;}).filter(Boolean)},
-          {tipo:"caminhao",icon:"🚚",label:"Caminhão",color:COLORS.accent,total:tCam,linhas:dias.map(d=>{const n=sw.items.filter(m=>m.data===d).length;return n?{d,qt:n+" mud.",val:n*350}:null;}).filter(Boolean)},
-          {tipo:"ajudante",icon:"👷",label:"Ajudantes",color:COLORS.green,total:tAj,linhas:dias.map(d=>{const cx=cSem.find(x=>x.data===d);const aj=parseInt(cx?.ajudantes)||0;return aj?{d,qt:aj+" aj.",val:aj*80}:null;}).filter(Boolean)},
-          {tipo:"almoco",icon:"🍽️",label:"Almoço",color:COLORS.purple,total:tAlm,semRegistro:tAlm===0,linhas:dias.map(d=>{const cx=cSem.find(x=>x.data===d);const v=parseFloat(cx?.custo_almoco)||0;return v?{d,qt:"",val:v}:null;}).filter(Boolean)},
-        ];
-        return(
-          <div style={{maxWidth:640,margin:"0 auto",padding:"12px 12px 0"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-              <div style={{fontSize:15,fontWeight:900,color:COLORS.text}}>💳 Contas a Pagar</div>
-              <Badge color={COLORS.red}>Total: {fmt(tTotal)}</Badge>
-            </div>
-            <Card style={{marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:800,color:COLORS.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>📝 Lançar Custos por Dia</div>
-              {dias.map(d=>{
-                const cx=cSem.find(x=>x.data===d)||{ajudantes:0,custo_almoco:0};
-                return(
-                  <div key={d} style={{display:"grid",gridTemplateColumns:"auto 1fr 1fr",gap:8,marginBottom:8,alignItems:"center"}}>
-                    <div style={{background:"#fff7ed",borderRadius:8,padding:"5px 9px",fontSize:11,fontWeight:700,color:COLORS.accent,whiteSpace:"nowrap"}}>📅 {fmtDate(d)}</div>
-                    <div>
-                      <label style={{display:"block",fontSize:9,color:COLORS.muted,fontWeight:700,marginBottom:2,textTransform:"uppercase"}}>👷 Ajudantes</label>
-                      <input type="number" min="0" placeholder="0" defaultValue={cx.ajudantes||""}
-                        onBlur={e=>saveCustoDia(d,e.target.value,cx.custo_almoco)}
-                        style={{width:"100%",background:"#fff",border:"1.5px solid "+COLORS.cardBorder,borderRadius:7,color:COLORS.text,padding:"5px 7px",fontSize:12,outline:"none",boxSizing:"border-box"}}/>
-                    </div>
-                    <div>
-                      <label style={{display:"block",fontSize:9,color:COLORS.muted,fontWeight:700,marginBottom:2,textTransform:"uppercase"}}>🍽️ Almoço R$</label>
-                      <input type="number" min="0" placeholder="0" defaultValue={cx.custo_almoco||""}
-                        onBlur={e=>saveCustoDia(d,cx.ajudantes,e.target.value)}
-                        style={{width:"100%",background:"#fff",border:"1.5px solid "+COLORS.cardBorder,borderRadius:7,color:COLORS.text,padding:"5px 7px",fontSize:12,outline:"none",boxSizing:"border-box"}}/>
-                    </div>
-                  </div>
-                );
-              })}
-            </Card>
-            {cards.filter(({semRegistro})=>!semRegistro).map(({tipo,icon,label,color,total,linhas})=>(
-              <Card key={tipo} style={{marginBottom:10,border:"1.5px solid "+color+"22"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:linhas.length?8:0}}>
-                  <div style={{fontWeight:800,fontSize:13,color}}>{icon} {label}</div>
-                  <Badge color={color}>{fmt(total)}</Badge>
-                </div>
-                {linhas.length>0?(
-                  <>
-                    {linhas.map(({d,qt,val})=>(
-                      <div key={d} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid "+COLORS.cardBorder,fontSize:12}}>
-                        <span style={{color:COLORS.muted}}>📅 {fmtDate(d)}{qt?" · "+qt:""}</span>
-                        <span style={{fontWeight:700,color}}>{fmt(val)}</span>
-                      </div>
-                    ))}
-                    <button onClick={()=>envWpp(tipo)} style={{width:"100%",marginTop:8,padding:"9px",borderRadius:9,border:"1.5px solid "+color,background:color+"15",color,fontWeight:800,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
-                      📲 WhatsApp {label}
-                    </button>
-                    {(()=>{
-                      const pagoField=tipo==="van"?"pago_van":tipo==="caminhao"?"pago_caminhao":tipo==="ajudante"?"pago_ajudante":"pago_almoco";
-                      const isPago=cSem.some(cx=>cx&&cx[pagoField]);
-                      return(
-                        <button onClick={async ()=>{
-                          for(const d of dias){
-                            const cx=cSem.find(x=>x.data===d)||{ajudantes:0,custo_almoco:0,pago_van:false,pago_caminhao:false,pago_ajudante:false,pago_almoco:false};
-                            await saveCustoDia(d,cx.ajudantes||0,cx.custo_almoco||0,pagoField==="pago_van"?!isPago:cx.pago_van,pagoField==="pago_caminhao"?!isPago:cx.pago_caminhao,pagoField==="pago_ajudante"?!isPago:cx.pago_ajudante,pagoField==="pago_almoco"?!isPago:cx.pago_almoco);
-                          }
-                        }} style={{width:"100%",marginTop:6,padding:"9px",borderRadius:9,border:isPago?"2px solid #16a34a":"2px dashed #9ca3af",background:isPago?"#dcfce7":"#f9fafb",color:isPago?"#16a34a":"#6b7280",fontWeight:800,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
-                          {isPago?"✅ PAGO — Clique p/ desfazer":"💳 Marcar como Pago"}
-                        </button>
+                          </div>):(<div style={{flex:1,textAlign:'center',fontSize:11,color:'#cbd5e1'}}>sem mudanças</div>)}
+                        </div>
                       );
-                    })()}
-                  </>
-                ):<div style={{color:COLORS.muted,fontSize:11,fontStyle:"italic",marginTop:4}}>Sem registros nesta semana</div>}
-              </Card>
-            ))}
-            {(()=>{
-              const pagoVan=cSem.some(cx=>cx?.pago_van);
-              const pagoCam=cSem.some(cx=>cx?.pago_caminhao);
-              const pagoAj=cSem.some(cx=>cx?.pago_ajudante);
-              const pagoAlm=tAlm>0?cSem.some(cx=>cx?.pago_almoco):true;
-              const todoPago=pagoVan&&pagoCam&&pagoAj&&pagoAlm;
-              const algumPago=pagoVan||pagoCam||pagoAj||(tAlm>0&&cSem.some(cx=>cx?.pago_almoco));
-              const totalPago=(pagoVan?tVan:0)+(pagoCam?tCam:0)+(pagoAj?tAj:0)+(pagoAlm?tAlm:0);
-              const totalPend=tTotal-totalPago;
-              return(
-                <Card style={{border:"2px solid "+(todoPago?COLORS.green:COLORS.red)+"66",padding:"14px",marginBottom:16,background:todoPago?"linear-gradient(135deg,#f0fdf4,#dcfce7)":"linear-gradient(135deg,#fef2f2,#fee2e2)"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                    <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase"}}>💳 TOTAL CONTAS A PAGAR</div>
-                    <div style={{background:todoPago?"#dcfce7":"#fee2e2",border:"1.5px solid "+(todoPago?COLORS.green:COLORS.red),borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:900,color:todoPago?COLORS.green:COLORS.red}}>
-                      {todoPago?"✅ TUDO PAGO":algumPago?"⏳ PARCIAL":"🔴 PENDENTE"}
-                    </div>
-                  </div>
-                  <div style={{fontSize:26,fontWeight:900,color:todoPago?COLORS.green:COLORS.red,textAlign:"center",marginBottom:10}}>{fmt(tTotal)}</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
-                    {[
-                      {icon:"🚐",label:"Van",val:tVan,pago:pagoVan},
-                      {icon:"🚚",label:"Caminhão",val:tCam,pago:pagoCam},
-                      {icon:"👷",label:"Ajudantes",val:tAj,pago:pagoAj},
-                      {icon:"🍽️",label:"Almoço",val:tAlm,pago:tAlm>0?cSem.some(cx=>cx?.pago_almoco):true,skip:tAlm===0},
-                    ].filter(x=>!x.skip).map(({icon,label,val,pago})=>(
-                      <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:pago?"#f0fdf4":"#fff5f5",border:"1px solid "+(pago?COLORS.green:COLORS.red)+"44",borderRadius:8,padding:"6px 9px"}}>
-                        <span style={{fontSize:11,color:pago?COLORS.green:COLORS.red,fontWeight:700}}>{icon} {label}</span>
-                        <div style={{textAlign:"right"}}>
-                          <div style={{fontSize:12,fontWeight:900,color:pago?COLORS.green:COLORS.red}}>{fmt(val)}</div>
-                          <div style={{fontSize:9,fontWeight:800,color:pago?COLORS.green:COLORS.red}}>{pago?"✅ PAGO":"⏳ PENDENTE"}</div>
+                    });
+                  })()}
+                </div>
+              </div>
+              <div style={{padding:'0 12px 16px',background:'#f8fafc'}}>
+                <div style={{background:'#fff',borderRadius:14,padding:16,boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+                  <div style={{fontWeight:800,fontSize:15,color:'#1e293b',marginBottom:12}}>📋 Histórico do Mês</div>
+                  {diasU.length===0&&<div style={{textAlign:'center',color:'#94a3b8',fontSize:13,padding:20}}>Nenhuma mudança este mês</div>}
+                  {diasU.slice().sort(function(a,b){return b.localeCompare(a);}).map(function(dia){
+                    var mD2=diasMes.filter(function(m){return m.data===dia;});
+                    var cD2=cstMes.find(function(cd){return cd.data===dia;});
+                    var nD2=mD2.length;
+                    var fv2=nD2>0?RULES.van1a+(nD2-1)*RULES.vanAdd:0;
+                    var fm2=mD2.reduce(function(s,m){return s+(parseFloat(m.medicao)||0);},0)*RULES.medicaoPorM3;
+                    var br2=fv2+fm2;var lq2=br2*(1-RULES.imposto);
+                    var aj2=cD2?cD2.ajudantes||0:0;
+                    var ca2=aj2>0?(RULES.aj1a+(nD2>0?nD2-1:0)*RULES.ajAdd)*aj2:0;
+                    var cu2=RULES.vanCusto+ca2+(parseFloat(cD2&&cD2.custo_almoco)||0);
+                    var lu2=lq2-cu2;
+                    var df2=dia.slice(8)+'/'+dia.slice(5,7);
+                    return(
+                      <div key={dia} style={{borderBottom:'1px solid #f1f5f9',paddingBottom:12,marginBottom:12}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                          <div>
+                            <span style={{fontWeight:700,fontSize:14,color:'#1e293b'}}>{df2}</span>
+                            <span style={{marginLeft:8,background:'#e0e7ff',color:'#3730a3',borderRadius:6,padding:'2px 7px',fontSize:11,fontWeight:600}}>{nD2} mud.</span>
+                            {aj2>0&&<span style={{marginLeft:4,background:'#fef3c7',color:'#92400e',borderRadius:6,padding:'2px 6px',fontSize:11}}>{aj2} aj.</span>}
+                          </div>
+                          <div style={{textAlign:'right'}}>
+                            <div style={{fontSize:15,fontWeight:800,color:lu2>=0?'#047857':'#dc2626'}}>R$ {lu2.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+                            <div style={{fontSize:9,color:'#94a3b8'}}>lucro</div>
+                          </div>
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+                          {[{l:'Fat.Bruto',v:fN(br2),c:'#1e40af'},{l:'Rec.Líq.',v:fN(lq2),c:'#047857'},{l:'Custo',v:fN(cu2),c:'#b45309'}].map(function(k,i){return(
+                            <div key={i} style={{background:'#f8fafc',borderRadius:8,padding:'6px 8px',textAlign:'center'}}>
+                              <div style={{fontSize:9,color:'#94a3b8'}}>{k.l}</div>
+                              <div style={{fontSize:11,fontWeight:700,color:k.c}}>{k.v}</div>
+                            </div>
+                          );})}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                  {algumPago&&!todoPago&&(
-                    <div style={{display:"flex",justifyContent:"space-between",borderTop:"1px dashed #e5e7eb",paddingTop:8,marginTop:4}}>
-                      <div style={{fontSize:11,color:COLORS.green,fontWeight:700}}>✅ Pago: {fmt(totalPago)}</div>
-                      <div style={{fontSize:11,color:COLORS.red,fontWeight:700}}>⏳ Pendente: {fmt(totalPend)}</div>
-                    </div>
-                  )}
-                </Card>
-              );
-            })()}
-          </div>
-        );
-      })()}
-
-            {/* ══ MODAL CONVERTER AGENDAMENTO ══ */}
-      {convertModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 16px"}} onClick={()=>setConvertModal(null)}>
-          <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:400,boxShadow:"0 8px 40px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:16,fontWeight:900,color:COLORS.green,marginBottom:4}}>✅ Registrar Mudança</div>
-            <div style={{fontSize:12,color:COLORS.muted,marginBottom:14}}>Agendamento de <strong>{convertModal.nome}</strong></div>
-            <div style={{background:"#f8fafc",borderRadius:10,padding:"10px 12px",marginBottom:14,fontSize:12,lineHeight:1.9}}>
-              <div>📅 <strong>{fmtDate(convertModal.data)}</strong> {convertModal.horario?"⏰ "+convertModal.horario+"h":""}</div>
-              <div>📍 {convertModal.comunidade||"—"}</div>
-              <div>📦 {convertModal.origem||"—"}</div>
-              <div>🏠 {convertModal.destino||"—"}</div>
-              <div>🚐 Van: {convertModal.van?"✅":"—"} | 🚚 Cam.: {convertModal.caminhao?"✅":"—"}</div>
-            </div>
-            <div style={{marginBottom:16}}>
-              <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:6,textTransform:"uppercase"}}>📐 Medição em m³ *</label>
-              <input type="number" placeholder="Ex: 27" autoFocus
-                value={convertModal._medicao||""}
-                onChange={e=>setConvertModal(p=>({...p,_medicao:e.target.value}))}
-                style={{width:"100%",background:"#f8fafc",border:"1.5px solid "+COLORS.accent,borderRadius:10,color:COLORS.text,padding:"12px 14px",fontSize:16,outline:"none",boxSizing:"border-box"}}/>
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setConvertModal(null)} style={{flex:1,padding:12,borderRadius:12,border:"1px solid "+COLORS.cardBorder,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
-              <button onClick={()=>confirmarConversao(convertModal,convertModal._medicao)} style={{flex:2,padding:12,borderRadius:12,border:"none",background:COLORS.green,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>✅ Confirmar</button>
-            </div>
-          </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>);
+          })()}
         </div>
       )}
-
-            {tab==="usuarios"&&isAdmin&&(<div style={{paddingBottom:80}} onMouseEnter={()=>listaUsuarios.length===0&&carregarUsuarios()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:900}}>👥 Gerenciar Usuários</div><button onClick={carregarUsuarios} style={{background:"#eff6ff",border:"1px solid #3b82f6",color:"#3b82f6",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔄 Atualizar</button></div><Card style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>USUÁRIOS ({listaUsuarios.length})</div>{listaUsuarios.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Clique em Atualizar</div>:listaUsuarios.map(u=>(<div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}><div><div style={{fontWeight:700,fontSize:13}}>{u.nome}</div><div style={{fontSize:11,color:"#94a3b8"}}>{u.email}</div><span style={{display:"inline-block",marginTop:3,background:u.perfil==="admin"?"#dbeafe":u.perfil==="promorar"?"#dcfce7":"#fef9c3",borderRadius:12,padding:"2px 8px",fontSize:10,fontWeight:800,color:u.perfil==="admin"?"#1d4ed8":u.perfil==="promorar"?"#15803d":"#a16207"}}>{u.perfil==="admin"?"👑 Admin":u.perfil==="promorar"?"🏢 Promorar":"🤝 Social"}</span></div><button onClick={()=>toggleAtivoUser(u)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid "+(u.ativo?"#ef4444":"#22c55e"),background:u.ativo?"#fef2f2":"#f0fdf4",color:u.ativo?"#ef4444":"#22c55e",fontSize:11,fontWeight:700,cursor:"pointer"}}>{u.ativo?"🚫 Desativar":"✅ Ativar"}</button></div>))}</Card><Card><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>+ NOVO USUÁRIO</div><Inp label="Nome" icon="👤" value={novoUser.nome} onChange={v=>setNovoUser(f=>({...f,nome:v}))}/><Inp label="Email" icon="📧" value={novoUser.email} onChange={v=>setNovoUser(f=>({...f,email:v}))}/><Inp label="Senha" icon="🔒" value={novoUser.senha} onChange={v=>setNovoUser(f=>({...f,senha:v}))}/><div style={{marginBottom:12}}><label style={{display:"block",color:"#94a3b8",fontSize:11,fontWeight:700,marginBottom:5}}>PERFIL</label><div style={{display:"flex",gap:8}}>{[["admin","👑 Admin"],["promorar","🏢 Promorar"],["social","🤝 Social"]].map(([val,lab])=>(<button key={val} onClick={()=>setNovoUser(f=>({...f,perfil:val}))} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"1.5px solid "+(novoUser.perfil===val?"#f97316":"#e2e8f0"),background:novoUser.perfil===val?"#fff7ed":"#f8fafc",color:novoUser.perfil===val?"#f97316":"#94a3b8",fontWeight:800,fontSize:11,cursor:"pointer"}}>{lab}</button>))}</div></div>{userMsg&&<div style={{background:userMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:userMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{userMsg}</div>}<button onClick={criarUsuario} disabled={savingUser} style={{width:"100%",padding:13,borderRadius:12,background:savingUser?"#94a3b8":"#f97316",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:savingUser?"not-allowed":"pointer"}}>{savingUser?"⏳ Criando...":"➕ Criar Usuário"}</button></Card></div>)}
+        {tab==="usuarios"&&isAdmin&&(<div style={{paddingBottom:80}} onMouseEnter={()=>listaUsuarios.length===0&&carregarUsuarios()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:900}}>👥 Gerenciar Usuários</div><button onClick={carregarUsuarios} style={{background:"#eff6ff",border:"1px solid #3b82f6",color:"#3b82f6",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔄 Atualizar</button></div><Card style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>USUÁRIOS ({listaUsuarios.length})</div>{listaUsuarios.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Clique em Atualizar</div>:listaUsuarios.map(u=>(<div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}><div><div style={{fontWeight:700,fontSize:13}}>{u.nome}</div><div style={{fontSize:11,color:"#94a3b8"}}>{u.email}</div><span style={{display:"inline-block",marginTop:3,background:u.perfil==="admin"?"#dbeafe":u.perfil==="promorar"?"#dcfce7":"#fef9c3",borderRadius:12,padding:"2px 8px",fontSize:10,fontWeight:800,color:u.perfil==="admin"?"#1d4ed8":u.perfil==="promorar"?"#15803d":"#a16207"}}>{u.perfil==="admin"?"👑 Admin":u.perfil==="promorar"?"🏢 Promorar":"🤝 Social"}</span></div><button onClick={()=>toggleAtivoUser(u)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid "+(u.ativo?"#ef4444":"#22c55e"),background:u.ativo?"#fef2f2":"#f0fdf4",color:u.ativo?"#ef4444":"#22c55e",fontSize:11,fontWeight:700,cursor:"pointer"}}>{u.ativo?"🚫 Desativar":"✅ Ativar"}</button></div>))}</Card><Card><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>+ NOVO USUÁRIO</div><Inp label="Nome" icon="👤" value={novoUser.nome} onChange={v=>setNovoUser(f=>({...f,nome:v}))}/><Inp label="Email" icon="📧" value={novoUser.email} onChange={v=>setNovoUser(f=>({...f,email:v}))}/><Inp label="Senha" icon="🔒" value={novoUser.senha} onChange={v=>setNovoUser(f=>({...f,senha:v}))}/><div style={{marginBottom:12}}><label style={{display:"block",color:"#94a3b8",fontSize:11,fontWeight:700,marginBottom:5}}>PERFIL</label><div style={{display:"flex",gap:8}}>{[["admin","👑 Admin"],["promorar","🏢 Promorar"],["social","🤝 Social"]].map(([val,lab])=>(<button key={val} onClick={()=>setNovoUser(f=>({...f,perfil:val}))} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"1.5px solid "+(novoUser.perfil===val?"#f97316":"#e2e8f0"),background:novoUser.perfil===val?"#fff7ed":"#f8fafc",color:novoUser.perfil===val?"#f97316":"#94a3b8",fontWeight:800,fontSize:11,cursor:"pointer"}}>{lab}</button>))}</div></div>{userMsg&&<div style={{background:userMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:userMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{userMsg}</div>}<button onClick={criarUsuario} disabled={savingUser} style={{width:"100%",padding:13,borderRadius:12,background:savingUser?"#94a3b8":"#f97316",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:savingUser?"not-allowed":"pointer"}}>{savingUser?"⏳ Criando...":"➕ Criar Usuário"}</button></Card></div>)}
             {/* ══ MODAL IMPORTAR (MUDANÇA) ══ */}
       {showImport&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setShowImport(false)}><div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480,maxHeight:"80vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
         <div style={{fontSize:15,fontWeight:900,color:COLORS.text,marginBottom:4}}>📥 Importar Solicitação</div>
