@@ -806,7 +806,34 @@ export default function App(){
       )}
         {tab==="lista"&&(
           <div>
-            <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap'}}>{(function(){var opts=[{v:'',l:'Todos'}];for(var im=0;im<=2;im++){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-im);var ym=dm.toISOString().slice(0,7);var nm=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][dm.getMonth()]+'/'+String(dm.getFullYear()).slice(2);opts.push({v:ym,l:nm});}return opts.map(function(op){return(<button key={op.v} onClick={()=>setFiltroMes(op.v)} style={{padding:'4px 12px',borderRadius:16,border:'1.5px solid '+(filtroMes===op.v?'#1e40af':'#e2e8f0'),background:filtroMes===op.v?'#1e40af':'#fff',color:filtroMes===op.v?'#fff':'#475569',fontSize:12,fontWeight:filtroMes===op.v?700:400,cursor:'pointer',whiteSpace:'nowrap'}}>{op.l}</button>);});})()}</div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar nome, selo ou comunidade..."
+            <div style={{
+              display:'flex',
+              gap:6,
+              marginBottom:8,
+              flexWrap:'wrap'
+            }}>
+              <button
+                onClick={()=>setFiltroMes('')}
+                style={{padding:'4px 12px',borderRadius:16,border:'1.5px solid '+(filtroMes===''?'#1e40af':'#e2e8f0'),background:filtroMes===''?'#1e40af':'#fff',color:filtroMes===''?'#fff':'#475569',fontSize:12,fontWeight:filtroMes===''?700:400,cursor:'pointer'}}
+              >Todos</button>
+              {(function(){
+                var meses=[];
+                for(var im=0;im<=2;im++){
+                  var dm=new Date();
+                  dm.setDate(1);
+                  dm.setMonth(dm.getMonth()-im);
+                  var ym=dm.toISOString().slice(0,7);
+                  var nm=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][dm.getMonth()]+'/'+String(dm.getFullYear()).slice(2);
+                  meses.push({v:ym,l:nm});
+                }
+                return meses.map(function(op){
+                  return(<button key={op.v}
+                    onClick={()=>setFiltroMes(op.v)}
+                    style={{padding:'4px 12px',borderRadius:16,border:'1.5px solid '+(filtroMes===op.v?'#1e40af':'#e2e8f0'),background:filtroMes===op.v?'#1e40af':'#fff',color:filtroMes===op.v?'#fff':'#475569',fontSize:12,fontWeight:filtroMes===op.v?700:400,cursor:'pointer',whiteSpace:'nowrap'}}
+                  >{op.l}</button>);
+                });
+              })()}
+            </div>
               style={{width:"100%",background:"#fff",border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:12,color:COLORS.text,padding:"10px 14px",fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:12,boxShadow:COLORS.shadow}}/>
             {filtered.map(m=>(
               <Card key={m.id} style={{marginBottom:8,padding:"13px 15px"}}>
