@@ -653,12 +653,12 @@ export default function App(){
 
   const totalM3=mudancas.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
   const comunidades=[...new Set(mudancas.map(m=>m.comunidade).filter(Boolean))];
-  const filtered=[...mudancas].filter(m=>
-    m.nome.toLowerCase().includes(search.toLowerCase())||
-    m.selo.toLowerCase().includes(search.toLowerCase())||
-    (m.comunidade||"").toLowerCase().includes(search.toLowerCase())
-  )&&(!filtroMes||m.data.slice(0,7)===filtroMes)
-  ).sort((a,b)=>b.data.localeCompare(a.data));
+  const filtered=[...mudancas].filter(m=>{
+    const txt=search.toLowerCase();
+    const matchSearch=!search||m.nome.toLowerCase().includes(txt)||m.selo.toLowerCase().includes(txt)||(m.comunidade||"").toLowerCase().includes(txt);
+    const matchMes=!filtroMes||m.data.slice(0,7)===filtroMes;
+    return matchSearch&&matchMes;
+  }).sort((a,b)=>b.data.localeCompare(a.data));
 
   const agendaOrdenada=[...agenda].filter(a=>a.status!=='concluida').sort((a,b)=>a.data.localeCompare(b.data)||(a.horario||"").localeCompare(b.horario||""));
   const hoje=new Date().toISOString().split("T")[0];
