@@ -768,7 +768,7 @@ export default function App(){
               {(()=>{
                 const dv=[...new Set(mudancas.filter(m=>m.van).map(m=>m.data))].length;
                 const fb=totalM3*RULES.medicaoPorM3+dv*RULES.vanGanho;
-                return [{label:"Total m³",val:totalM3,color:COLORS.accent},{label:"Fat. Bruto",val:fmt(fb),color:COLORS.green},{label:"Comunidades",val:comunidades.length,color:COLORS.blue}];
+                return [{label:"Total m³",val:totalM3,color:COLORS.accent},{label:"Fat. Bruto",val:fmt(fb),color:COLORS.green}];
               })().map(s=>(
                 <Card key={s.label} style={{padding:"12px 10px",textAlign:"center",border:`1.5px solid ${s.color}22`}}>
                   <div style={{color:s.color,fontWeight:900,fontSize:14}}>{s.val}</div>
@@ -778,63 +778,7 @@ export default function App(){
             </div>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar nome, selo ou comunidade..."
               style={{width:"100%",background:"#fff",border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:12,color:COLORS.text,padding:"10px 14px",fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:12,boxShadow:COLORS.shadow}}/>
-            {comunidades.map(com=>{
-              const items=filtered.filter(m=>m.comunidade===com);
-              if(!items.length) return null;
-              const sub=items.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
-              return(
-                <div key={com} style={{marginBottom:14}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7}}>
-                    <span style={{background:COLORS.accent+"15",borderRadius:6,padding:"3px 10px",color:COLORS.accent,fontWeight:800,fontSize:12}}>📍 {com}</span>
-                    <Badge color={COLORS.accent}>{sub} m³ · {items.length} mud.</Badge>
-                  </div>
-                  {items.map(m=>(
-                    <Card key={m.id} style={{marginBottom:8,padding:"13px 15px",cursor:"pointer",border:`1.5px solid ${expand===m.id?COLORS.accent:COLORS.cardBorder}`}} onClick={()=>setExpand(expand===m.id?null:m.id)}>
-                      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
-                        <div style={{flex:1}}>
-                          <div style={{fontWeight:800,fontSize:14,color:COLORS.text,marginBottom:5}}>👤 {m.nome}</div>
-                          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
-                            <TagSelo v={m.selo}/><TagData v={m.data}/>
-                          </div>
-                          {expand===m.id&&(
-                            <div style={{marginTop:8,fontSize:12,lineHeight:1.9,background:"#f8fafc",borderRadius:10,padding:"10px 12px"}}>
-                              <div>📦 <strong>Origem:</strong> {m.origem?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.origem)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{m.origem} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
-                              <div>🏠 <strong>Destino:</strong> {m.destino?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.destino)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{m.destino} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
-                            </div>
-                          )}
-                        </div>
-                        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,marginLeft:8}}>
-                          {verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
-                          <div style={{display:"flex",gap:4}}>
-                            <button onClick={e=>{e.stopPropagation();compartilharMudanca(m);}} style={btnGreen}>📲</button>
-                            <button onClick={e=>{e.stopPropagation();gerarPDFMudanca(m);}} style={{...btnRed,background:"#fff1f0"}}>📄</button>
-                            <button onClick={e=>{e.stopPropagation();setEditMud({...m});}} style={btnBlue}>✏️</button>
-                            <button onClick={e=>{e.stopPropagation();handleDelMud(m.id);}} style={btnRed}>✕</button>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              );
-            })}
-            {filtered.filter(m=>!m.comunidade).map(m=>(
-              <Card key={m.id} style={{marginBottom:8,padding:"13px 15px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:800,fontSize:14,color:COLORS.text,marginBottom:5}}>👤 {m.nome}</div>
-                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><TagSelo v={m.selo}/><TagData v={m.data}/></div>
-                  </div>
-                  <div style={{display:"flex",gap:5,alignItems:"center",marginLeft:8}}>
-                    {verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
-                    <button onClick={()=>compartilharMudanca(m)} style={btnGreen}>📲</button>
-                    <button onClick={()=>gerarPDFMudanca(m)} style={{...btnRed,background:"#fff1f0"}}>📄</button>
-                    <button onClick={()=>setEditMud({...m})} style={btnBlue}>✏️</button>
-                    <button onClick={()=>handleDelMud(m.id)} style={btnRed}>✕</button>
-                  </div>
-                </div>
-              </Card>
-            ))}
+            
             {filtered.length===0&&<div style={{textAlign:"center",color:COLORS.muted,padding:40,fontSize:14}}>Nenhum resultado.</div>}
           </div>
         )}
