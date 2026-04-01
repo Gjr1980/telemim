@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"; // v2
+import { useState, useEffect } from "react";
 
 // ── SUPABASE CONFIG ──────────────────────────────────────────────────────────
 const SUPA_URL = "https://netoufukpmmfhzwirogi.supabase.co";
@@ -653,13 +653,21 @@ export default function App(){
 
   const totalM3=mudancas.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
   const comunidades=[...new Set(mudancas.map(m=>m.comunidade).filter(Boolean))];
-  const filtered=[...mudancas].filter(m=>{
-    const txt=search.toLowerCase();
-    const matchSearch=!search||m.nome.toLowerCase().includes(txt)||m.selo.toLowerCase().includes(txt)||(m.comunidade||"").toLowerCase().includes(txt);
-    const matchMes=!filtroMes||m.data.slice(0,7)===filtroMes;
-    return matchSearch&&matchMes;
+  const filtered=[...mudancas].filter(function(m){
+    var txt=search.toLowerCase();
+    var ok=!search||m.nome.toLowerCase().includes(txt)||m.selo.toLowerCase().includes(txt)||(m.comunidade||"").toLowerCase().includes(txt);
+    return ok&&(!filtroMes||m.data.slice(0,7)===filtroMes);
   }).sort((a,b)=>b.data.localeCompare(a.data));
 
+  var dm0=new Date();dm0.setDate(1);
+  var dm1=new Date();dm1.setDate(1);dm1.setMonth(dm1.getMonth()-1);
+  var dm2=new Date();dm2.setDate(1);dm2.setMonth(dm2.getMonth()-2);
+  var mNms=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  var mesFiltros=[
+    {v:dm0.toISOString().slice(0,7),l:mNms[dm0.getMonth()]+'/'+String(dm0.getFullYear()).slice(2)},
+    {v:dm1.toISOString().slice(0,7),l:mNms[dm1.getMonth()]+'/'+String(dm1.getFullYear()).slice(2)},
+    {v:dm2.toISOString().slice(0,7),l:mNms[dm2.getMonth()]+'/'+String(dm2.getFullYear()).slice(2)},
+  ];
   const agendaOrdenada=[...agenda].filter(a=>a.status!=='concluida').sort((a,b)=>a.data.localeCompare(b.data)||(a.horario||"").localeCompare(b.horario||""));
   const hoje=new Date().toISOString().split("T")[0];
   const amanha=new Date(new Date().getTime()+86400000).toISOString().split("T")[0];
@@ -806,34 +814,7 @@ export default function App(){
       )}
         {tab==="lista"&&(
           <div>
-            <div style={{
-              display:'flex',
-              gap:6,
-              marginBottom:8,
-              flexWrap:'wrap'
-            }}>
-              <button
-                onClick={()=>setFiltroMes('')}
-                style={{padding:'4px 12px',borderRadius:16,border:'1.5px solid '+(filtroMes===''?'#1e40af':'#e2e8f0'),background:filtroMes===''?'#1e40af':'#fff',color:filtroMes===''?'#fff':'#475569',fontSize:12,fontWeight:filtroMes===''?700:400,cursor:'pointer'}}
-              >Todos</button>
-              {(function(){
-                var meses=[];
-                for(var im=0;im<=2;im++){
-                  var dm=new Date();
-                  dm.setDate(1);
-                  dm.setMonth(dm.getMonth()-im);
-                  var ym=dm.toISOString().slice(0,7);
-                  var nm=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][dm.getMonth()]+'/'+String(dm.getFullYear()).slice(2);
-                  meses.push({v:ym,l:nm});
-                }
-                return meses.map(function(op){
-                  return(<button key={op.v}
-                    onClick={()=>setFiltroMes(op.v)}
-                    style={{padding:'4px 12px',borderRadius:16,border:'1.5px solid '+(filtroMes===op.v?'#1e40af':'#e2e8f0'),background:filtroMes===op.v?'#1e40af':'#fff',color:filtroMes===op.v?'#fff':'#475569',fontSize:12,fontWeight:filtroMes===op.v?700:400,cursor:'pointer',whiteSpace:'nowrap'}}
-                  >{op.l}</button>);
-                });
-              })()}
-            </div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:8}}><button onClick={()=>setFiltroMes('')} style={(fm)=>({padding:'4px 12px',borderRadius:16,border:'1.5px solid '+(filtroMes===fm?'#1e40af':'#e2e8f0'),background:filtroMes===fm?'#1e40af':'#fff',color:filtroMes===fm?'#fff':'#475569',fontSize:12,fontWeight:filtroMes===fm?700:400,cursor:'pointer',marginRight:4,marginBottom:4})('')}>Todos</button>{mesFiltros.map(function(mf){return(<button key={mf.v} onClick={()=>setFiltroMes(mf.v)} style={(fm)=>({padding:'4px 12px',borderRadius:16,border:'1.5px solid '+(filtroMes===fm?'#1e40af':'#e2e8f0'),background:filtroMes===fm?'#1e40af':'#fff',color:filtroMes===fm?'#fff':'#475569',fontSize:12,fontWeight:filtroMes===fm?700:400,cursor:'pointer',marginRight:4,marginBottom:4})(mf.v)}>{mf.l}</button>);})}</div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar nome, selo ou comunidade..."
               style={{width:"100%",background:"#fff",border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:12,color:COLORS.text,padding:"10px 14px",fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:12,boxShadow:COLORS.shadow}}/>
             {filtered.map(m=>(
               <Card key={m.id} style={{marginBottom:8,padding:"13px 15px"}}>
