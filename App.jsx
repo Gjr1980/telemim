@@ -218,18 +218,24 @@ export default function App(){
 
   // ── SYNC HELPERS ───────────────────────────────────────────────────────────
   function parseImport(txt){
-    const nome=(txt.match(/Sr[a]?\.\s*\*?([^-\n*]+?)\*?\s*[-–]/)||txt.match(/Sr[a]?\.\s*\*?([^\n*]+?)\*?\s*[\n]/)||[])[1]?.trim()||"";
-    const selo=(txt.match(/Selo[:\s]*\*?([A-Z]{2,3}-[\d\w-]+)\*?/i)||[])[1]?.trim()||"";
-    const comunidade=(txt.match(/\(([^)]+)\)/)||[])[1]?.trim()||"";
-    const van=/van/i.test(txt);
-    const caminhao=/caminhão|caminhao/i.test(txt);
+    const nomeM=txt.match(/\*([^*\n]+?)\s*-\s*N[uú]mero/i)||txt.match(/Sr[a]?\.?\s*\*?([^\n*]+?)\*?\s*[-–]/);
+    const nome=nomeM?nomeM[1].trim():"";
+    const seloM=txt.match(/\b([A-Z]{2,3}-\d{3}-\d{3}-?[A-Z]?)\b/i)||txt.match(/Selo[:\s]*\*?([A-Z]{2,3}-[\d\w-]+)\*?/i);
+    const selo=seloM?seloM[1].trim():"";
+    const comM=txt.match(/\(([^)]+)\)/);
+    const comunidade=comM?comM[1].trim():"";
+    const contatoM=txt.match(/Contato\s*:\s*([^\n*]+)/i);
+    const contato=contatoM?contatoM[1].trim():"";
     let data="";
-    const dMatch=txt.match(/(segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)[:\s*]*([\d]{1,2})\/([\d]{1,2})/i);
-    if(dMatch){const d=dMatch[2].padStart(2,'0'),m=dMatch[3].padStart(2,'0'),yr=new Date().getFullYear();data=yr+"-"+m+"-"+d;}
-    const horario=(txt.match(/[Hh]or[aá]rio[:\s*]*([\d]{1,2}:[\d]{2})/)||txt.match(/([\d]{1,2}:[\d]{2})h/)||[])[1]?.replace('h','').trim()||"";
-    const origem=(txt.match(/[Ss]a[íi]da[:\s*]+([^\n*]+)/)||txt.match(/[Ee]ndere[cç]o de sa[íi]da[:\s*]+([^\n*]+)/)||[])[1]?.trim()||"";
-    const destino=(txt.match(/[Ee]ndere[cç]o [Ff]inal[:\s*]+([^\n*]+)/)||txt.match(/[Dd]estino[:\s*]+([^\n*]+)/)||[])[1]?.trim()||"";
-    return {nome,selo,comunidade,van,caminhao,data,horario,origem,destino};
+    const dM=txt.match(/(segunda|ter[cç]a|quarta|quinta|sexta|s[áa]bado|domingo)\s*:?\s*(\d{1,2})\/(\d{1,2})/i);
+    if(dM){const d=dM[2].padStart(2,"0"),m=dM[3].padStart(2,"0"),y=new Date().getFullYear();data=y+"-"+m+"-"+d;}
+    const horM=txt.match(/[Hh]or[aá]rio\s*:\s*([^\n*]+)/i);
+    const horario=horM?horM[1].replace(/[*h]/gi,"").trim():"";
+    const origM=txt.match(/[Ee]ndere[cç]o\s+de\s+[Ss]a[íi]da\s*:\s*\*?\s*([^\n]+)/)||txt.match(/[Ss]a[íi]da\s*:\s*\*?\s*([^\n]+)/);
+    const origem=origM?origM[1].replace(/\*+/g,"").trim():"";
+    const destM=txt.match(/[Ee]ndere[cç]o\s+[Ff]inal\s*:\s*\*?\s*([^\n]+)/)||txt.match(/[Dd]estino\s*:\s*([^\n]+)/);
+    const destino=destM?destM[1].replace(/\*+/g,"").replace(/^[Rr]ua\s+para\s+onde\s+vai\s*:\s*/,"").trim():"";
+    return {nome,selo,comunidade,contato,data,horario,origem,destino};
   }
 
     async function saveCustoDia(data, ajudantes, custo_almoco, pago_van=false, pago_caminhao=false, pago_ajudante=false, pago_almoco=false){
