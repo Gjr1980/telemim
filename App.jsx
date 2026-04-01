@@ -646,7 +646,7 @@ export default function App(){
 
   // ── TAG HELPERS ────────────────────────────────────────────────────────────
   const TagSelo=({v})=><span style={{background:"#f1f5f9",borderRadius:8,padding:"3px 9px",fontSize:11,color:COLORS.muted,fontWeight:600}}>🏷️ {v||"—"}</span>;
-  const TagData=({v})=><span style={{background:"#eff6ff",borderRadius:8,padding:"5px 14px",fontSize:18,color:COLORS.blue,fontWeight:700}}>📅 {fmtDate(v)}</span>;
+  const TagData=({v})=><span style={{background:"#eff6ff",borderRadius:8,padding:"6px 16px",fontSize:20,color:COLORS.blue,fontWeight:700}}>📅 {fmtDate(v)}</span>;
   const TagHora=({v})=>v?<span style={{background:"#f0fdf4",borderRadius:8,padding:"3px 9px",fontSize:11,color:COLORS.green,fontWeight:700}}>⏰ {v}h</span>:null;
   const TagCom=({v})=>v?<span style={{background:"#fff7ed",borderRadius:8,padding:"3px 9px",fontSize:11,color:COLORS.accent,fontWeight:600}}>📍 {v}</span>:null;
 
@@ -883,7 +883,7 @@ export default function App(){
                   <Card key={a.id} style={{marginBottom:9,padding:"14px 16px",border:`1.5px solid ${statusColor[a.status]||COLORS.cardBorder}33`}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                       <div style={{flex:1}}>
-                        <div style={{fontWeight:900,fontSize:22,color:COLORS.text,marginBottom:8}}>👤 {a.nome}</div>
+                        <div style={{fontWeight:900,fontSize:24,color:COLORS.text,marginBottom:8}}>👤 {a.nome}</div>
                         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
                           <TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/><TagCom v={a.comunidade}/>
                         </div>
