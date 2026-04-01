@@ -653,21 +653,19 @@ export default function App(){
 
   const totalM3=mudancas.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
   const comunidades=[...new Set(mudancas.map(m=>m.comunidade).filter(Boolean))];
-  const filtered=[...mudancas].filter(function(m){
-    var txt=search.toLowerCase();
-    var ok=!search||m.nome.toLowerCase().includes(txt)||m.selo.toLowerCase().includes(txt)||(m.comunidade||"").toLowerCase().includes(txt);
-    return ok&&(!filtroMes||m.data.slice(0,7)===filtroMes);
+  const filtered=[...mudancas].filter(function(mx){
+    var tx=search.toLowerCase();
+    var okS=!search||mx.nome.toLowerCase().includes(tx)||mx.selo.toLowerCase().includes(tx)||(mx.comunidade||"").toLowerCase().includes(tx);
+    return okS&&(!filtroMes||mx.data.slice(0,7)===filtroMes);
   }).sort((a,b)=>b.data.localeCompare(a.data));
 
-  var dm0=new Date();dm0.setDate(1);
-  var dm1=new Date();dm1.setDate(1);dm1.setMonth(dm1.getMonth()-1);
-  var dm2=new Date();dm2.setDate(1);dm2.setMonth(dm2.getMonth()-2);
-  var mNms=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  var mesFiltros=[
-    {v:dm0.toISOString().slice(0,7),l:mNms[dm0.getMonth()]+'/'+String(dm0.getFullYear()).slice(2)},
-    {v:dm1.toISOString().slice(0,7),l:mNms[dm1.getMonth()]+'/'+String(dm1.getFullYear()).slice(2)},
-    {v:dm2.toISOString().slice(0,7),l:mNms[dm2.getMonth()]+'/'+String(dm2.getFullYear()).slice(2)},
-  ];
+  var _d0=new Date();_d0.setDate(1);
+  var _d1=new Date();_d1.setDate(1);_d1.setMonth(_d1.getMonth()-1);
+  var _d2=new Date();_d2.setDate(1);_d2.setMonth(_d2.getMonth()-2);
+  var _nms=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  var _m0={v:_d0.toISOString().slice(0,7),l:_nms[_d0.getMonth()]+'/'+String(_d0.getFullYear()).slice(2)};
+  var _m1={v:_d1.toISOString().slice(0,7),l:_nms[_d1.getMonth()]+'/'+String(_d1.getFullYear()).slice(2)};
+  var _m2={v:_d2.toISOString().slice(0,7),l:_nms[_d2.getMonth()]+'/'+String(_d2.getFullYear()).slice(2)};
   const agendaOrdenada=[...agenda].filter(a=>a.status!=='concluida').sort((a,b)=>a.data.localeCompare(b.data)||(a.horario||"").localeCompare(b.horario||""));
   const hoje=new Date().toISOString().split("T")[0];
   const amanha=new Date(new Date().getTime()+86400000).toISOString().split("T")[0];
@@ -814,7 +812,7 @@ export default function App(){
       )}
         {tab==="lista"&&(
           <div>
-            <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:8}}><button onClick={()=>setFiltroMes('')} style={(fm)=>({padding:'4px 12px',borderRadius:16,border:'1.5px solid '+(filtroMes===fm?'#1e40af':'#e2e8f0'),background:filtroMes===fm?'#1e40af':'#fff',color:filtroMes===fm?'#fff':'#475569',fontSize:12,fontWeight:filtroMes===fm?700:400,cursor:'pointer',marginRight:4,marginBottom:4})('')}>Todos</button>{mesFiltros.map(function(mf){return(<button key={mf.v} onClick={()=>setFiltroMes(mf.v)} style={(fm)=>({padding:'4px 12px',borderRadius:16,border:'1.5px solid '+(filtroMes===fm?'#1e40af':'#e2e8f0'),background:filtroMes===fm?'#1e40af':'#fff',color:filtroMes===fm?'#fff':'#475569',fontSize:12,fontWeight:filtroMes===fm?700:400,cursor:'pointer',marginRight:4,marginBottom:4})(mf.v)}>{mf.l}</button>);})}</div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar nome, selo ou comunidade..."
+            <div style={{display:'flex',flexWrap:'wrap',gap:0,marginBottom:8}}><button onClick={()=>setFiltroMes('')} style={filtroMes===''?{'padding':'4px 12px','borderRadius':'16px','border':'1.5px solid #1e40af','background':'#1e40af','color':'#fff','fontSize':'12px','fontWeight':700,'cursor':'pointer','marginRight':'4px','marginBottom':'4px'}:{'padding':'4px 12px','borderRadius':'16px','border':'1.5px solid #e2e8f0','background':'#fff','color':'#475569','fontSize':'12px','fontWeight':400,'cursor':'pointer','marginRight':'4px','marginBottom':'4px'}}>Todos</button><button onClick={()=>setFiltroMes(_m0.v)} style={filtroMes===_m0.v?{'padding':'4px 12px','borderRadius':'16px','border':'1.5px solid #1e40af','background':'#1e40af','color':'#fff','fontSize':'12px','fontWeight':700,'cursor':'pointer','marginRight':'4px','marginBottom':'4px'}:{'padding':'4px 12px','borderRadius':'16px','border':'1.5px solid #e2e8f0','background':'#fff','color':'#475569','fontSize':'12px','fontWeight':400,'cursor':'pointer','marginRight':'4px','marginBottom':'4px'}}>{_m0.l}</button><button onClick={()=>setFiltroMes(_m1.v)} style={filtroMes===_m1.v?{'padding':'4px 12px','borderRadius':'16px','border':'1.5px solid #1e40af','background':'#1e40af','color':'#fff','fontSize':'12px','fontWeight':700,'cursor':'pointer','marginRight':'4px','marginBottom':'4px'}:{'padding':'4px 12px','borderRadius':'16px','border':'1.5px solid #e2e8f0','background':'#fff','color':'#475569','fontSize':'12px','fontWeight':400,'cursor':'pointer','marginRight':'4px','marginBottom':'4px'}}>{_m1.l}</button><button onClick={()=>setFiltroMes(_m2.v)} style={filtroMes===_m2.v?{'padding':'4px 12px','borderRadius':'16px','border':'1.5px solid #1e40af','background':'#1e40af','color':'#fff','fontSize':'12px','fontWeight':700,'cursor':'pointer','marginRight':'4px','marginBottom':'4px'}:{'padding':'4px 12px','borderRadius':'16px','border':'1.5px solid #e2e8f0','background':'#fff','color':'#475569','fontSize':'12px','fontWeight':400,'cursor':'pointer','marginRight':'4px','marginBottom':'4px'}}>{_m2.l}</button></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar nome, selo ou comunidade..."
               style={{width:"100%",background:"#fff",border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:12,color:COLORS.text,padding:"10px 14px",fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:12,boxShadow:COLORS.shadow}}/>
             {filtered.map(m=>(
               <Card key={m.id} style={{marginBottom:8,padding:"13px 15px"}}>
