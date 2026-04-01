@@ -764,21 +764,25 @@ export default function App(){
       )}
         {tab==="lista"&&(
           <div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:13}}>
-              {(()=>{
-                const dv=[...new Set(mudancas.filter(m=>m.van).map(m=>m.data))].length;
-                const fb=totalM3*RULES.medicaoPorM3+dv*RULES.vanGanho;
-                return [{label:"Total m³",val:totalM3,color:COLORS.accent},{label:"Fat. Bruto",val:fmt(fb),color:COLORS.green}];
-              })().map(s=>(
-                <Card key={s.label} style={{padding:"12px 10px",textAlign:"center",border:`1.5px solid ${s.color}22`}}>
-                  <div style={{color:s.color,fontWeight:900,fontSize:14}}>{s.val}</div>
-                  <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginTop:3}}>{s.label}</div>
-                </Card>
-              ))}
-            </div>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar nome, selo ou comunidade..."
               style={{width:"100%",background:"#fff",border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:12,color:COLORS.text,padding:"10px 14px",fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:12,boxShadow:COLORS.shadow}}/>
-            
+            {filtered.map(m=>(
+              <Card key={m.id} style={{marginBottom:8,padding:"13px 15px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:800,fontSize:14,color:COLORS.text,marginBottom:5}}>👤 {m.nome}</div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><TagSelo v={m.selo}/><TagData v={m.data}/></div>
+                  </div>
+                  <div style={{display:"flex",gap:5,alignItems:"center",marginLeft:8}}>
+                    {verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
+                    <button onClick={()=>compartilharMudanca(m)} style={btnGreen}>📲</button>
+                    <button onClick={()=>gerarPDFMudanca(m)} style={{...btnRed,background:"#fff1f0"}}>📄</button>
+                    <button onClick={()=>setEditMud({...m})} style={btnBlue}>✏️</button>
+                    <button onClick={()=>handleDelMud(m.id)} style={btnRed}>✕</button>
+                  </div>
+                </div>
+              </Card>
+            ))}
             {filtered.length===0&&<div style={{textAlign:"center",color:COLORS.muted,padding:40,fontSize:14}}>Nenhum resultado.</div>}
           </div>
         )}
