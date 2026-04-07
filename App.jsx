@@ -310,7 +310,7 @@ export default function App(){
     if(tabela==="agenda")loadAg();else loadMud();
   }
   function fmtTempo(iso){if(!iso)return null;const d=new Date(iso);return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
-    async   async function handleValidar(mudId,tipo){
+  async function handleValidar(mudId,tipo){
     const campo=tipo==="promorar"?"confirmed_promorar":"confirmed_telemim";
     const campBy=tipo==="promorar"?"confirmed_promorar_by":"confirmed_telemim_by";
     const nome=usuario?.nome||usuario?.email||"?";
@@ -325,7 +325,7 @@ export default function App(){
       setTimeout(()=>setFlash(""),2500);
     }
   }
-  function saveAg(list){
+    async function saveAg(list){
     setAgenda(list);
     setSyncStatus("🔄 Salvando...");
     try {
