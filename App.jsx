@@ -269,7 +269,7 @@ export default function App(){
     setSyncStatus("🔄 Salvando...");
     try {
       for(const m of list){
-        const row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false};
+        const row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,requires_validation:m.requires_validation||false,social_approved:m.social_approved||false,social_approved_by:m.social_approved_by||null,promorar_approved:m.promorar_approved||false,promorar_approved_by:m.promorar_approved_by||null,adm_approved:m.adm_approved||false,adm_approved_by:m.adm_approved_by||null};
         await fetch(`${SUPA_URL}/rest/v1/mudancas`,{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify([row])});
       }
       setSyncStatus("✅ Sinc");
