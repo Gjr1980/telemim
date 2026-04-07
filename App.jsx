@@ -310,25 +310,7 @@ export default function App(){
     if(tabela==="agenda")loadAg();else loadMud();
   }
   function fmtTempo(iso){if(!iso)return null;const d=new Date(iso);return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
-    function renderBadges3vias(mud,usr){
-    if(!mud||!mud.requires_validation) return null;
-    const perfil=usr?.perfil||"";
-    const badges=[
-      {key:"social",label:"Social",ap:mud.social_approved},
-      {key:"promorar",label:"Promorar",ap:mud.promorar_approved},
-      {key:"adm",label:"Adm",ap:mud.adm_approved}
-    ];
-    return React.createElement("div",{style:{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}},
-      badges.map(function(b){
-        const ehMeu=perfil===b.key||(b.key==="adm"&&(perfil==="admin"||perfil==="telemim"));
-        const base={padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",lineHeight:"18px",cursor:"default"};
-        if(b.ap) return React.createElement("button",{key:b.key,disabled:true,style:{...base,background:"#dcfce7",color:"#15803d"}},"✅ "+b.label);
-        if(ehMeu) return React.createElement("button",{key:b.key,onClick:function(e){e.stopPropagation();handleValidar3vias(mud.id,b.key);},style:{...base,background:"#facc15",color:"#713f12",cursor:"pointer"}},"👆 Validar "+b.label);
-        return React.createElement("button",{key:b.key,disabled:true,style:{...base,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}},"⏳ "+b.label);
-      })
-    );
-  }
-  async function handleValidar3vias(id,tipo){
+    async function handleValidar3vias(id,tipo){
     const campo=tipo==="social"?"social_approved":tipo==="promorar"?"promorar_approved":"adm_approved";
     const campoPor=tipo+"_approved_by";
     const nome=usuario?.nome||usuario?.email||"?";
@@ -1012,7 +994,24 @@ export default function App(){
                 {["confirmado","pendente"].map(s=>(
                   <button key={s} onClick={()=>setAgForm(f=>({...f,status:s}))} style={{flex:1,padding:"9px",borderRadius:10,border:`1.5px solid ${agForm.status===s?statusColor[s]:COLORS.cardBorder}`,background:agForm.status===s?statusColor[s]+"18":"#f8fafc",color:agForm.status===s?statusColor[s]:COLORS.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>{statusLabel[s]}</button>
                 ))}
-                {renderBadges3vias(a,usuario)}
+                {(function(_b3mud,_b3usr){
+                  if(!_b3mud||!_b3mud.requires_validation) return null;
+                  var _b3p=_b3usr?_b3usr.perfil||"":"";
+                  var _b3list=[
+                    {key:"social",label:"Social",ap:_b3mud.social_approved},
+                    {key:"promorar",label:"Promorar",ap:_b3mud.promorar_approved},
+                    {key:"adm",label:"Adm",ap:_b3mud.adm_approved}
+                  ];
+                  return React.createElement("div",{style:{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}},
+                    _b3list.map(function(_b3b){
+                      var _b3mine=_b3p===_b3b.key||(_b3b.key==="adm"&&(_b3p==="admin"||_b3p==="telemim"));
+                      var _b3base={padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",lineHeight:"18px"};
+                      if(_b3b.ap) return React.createElement("button",{key:_b3b.key,disabled:true,style:Object.assign({},_b3base,{background:"#dcfce7",color:"#15803d",cursor:"default"})},"✅ "+_b3b.label);
+                      if(_b3mine) return React.createElement("button",{key:_b3b.key,onClick:function(e){e.stopPropagation();handleValidar3vias(_b3mud.id,_b3b.key);},style:Object.assign({},_b3base,{background:"#facc15",color:"#713f12",cursor:"pointer"})},"👆 Validar "+_b3b.label);
+                      return React.createElement("button",{key:_b3b.key,disabled:true,style:Object.assign({},_b3base,{background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0",cursor:"not-allowed"})},"⏳ "+_b3b.label);
+                    })
+                  );
+                })(a,usuario)}
               </div>
             </div>
             <div style={{display:"flex",gap:8,marginTop:6}}>
