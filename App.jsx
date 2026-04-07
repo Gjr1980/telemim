@@ -310,22 +310,14 @@ export default function App(){
     if(tabela==="agenda")loadAg();else loadMud();
   }
   function fmtTempo(iso){if(!iso)return null;const d=new Date(iso);return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
-  async function handleValidar(mudId,tipo){
-    const campo=tipo==="promorar"?"confirmed_promorar":"confirmed_telemim";
-    const campBy=tipo==="promorar"?"confirmed_promorar_by":"confirmed_telemim_by";
+    async function handleValidar3vias(id,tipo){
+    const campo=tipo==="social"?"social_approved":tipo==="promorar"?"promorar_approved":"adm_approved";
+    const campoPor=tipo+"_approved_by";
     const nome=usuario?.nome||usuario?.email||"?";
-    const res=await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+mudId,{
-      method:"PATCH",
-      headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(usuario?.token||""),"Content-Type":"application/json","Prefer":"return=representation"},
-      body:JSON.stringify({[campo]:true,[campBy]:nome})
-    });
-    if(res.ok){
-      setMudancas(prev=>prev.map(m=>m.id===mudId?{...m,[campo]:true,[campBy]:nome}:m));
-      setFlash("✅ Validação registada!");
-      setTimeout(()=>setFlash(""),2500);
-    }
+    setMudancas(prev=>prev.map(m=>m.id===id?{...m,[campo]:true,[campoPor]:nome}:m));
+    await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(usuario?.token||""),"Content-Type":"application/json"},body:JSON.stringify({[campo]:true,[campoPor]:nome})}).catch(()=>{});
   }
-    async function saveAg(list){
+  async function saveAg(list){
     setAgenda(list);
     setSyncStatus("🔄 Salvando...");
     try {
@@ -340,7 +332,7 @@ export default function App(){
   // ── MUDANÇAS CRUD ──────────────────────────────────────────────────────────
   async function handleAddMud(){
     if(!form.nome||!form.selo) return;
-    const nova={...form,id:Date.now(),medicao:parseFloat(form.medicao)||0};
+    const nova={...form,id:Date.now(),medicao:parseFloat(form.medicao)||0,requires_validation:true,social_approved:false,promorar_approved:false,adm_approved:false};
     await saveMud([...mudancas,nova]);
     setForm(initForm); setFlash("✅ Salvo!"); setTimeout(()=>setFlash(""),1800); setTab("lista");
   }
@@ -839,36 +831,7 @@ export default function App(){
         {/* ══ DASHBOARD ══ */}
         {tab==="dashboard"&&(
         <div style={{paddingBottom:16}}>
-        {(()=>{
-            const _pv=mudancas.filter(m=>!m.confirmed_promorar||!m.confirmed_telemim);
-            if(!_pv.length) return null;
-            return <div style={{padding:"0 12px 10px"}}>
-              <div style={{background:"#fff1f2",border:"2px solid #ef4444",borderRadius:14,padding:"12px 14px"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                  <div style={{position:"relative",width:12,height:12,flexShrink:0}}>
-                    <div style={{position:"absolute",inset:0,borderRadius:"50%",background:"#ef4444",opacity:0.5,animation:"ping 1s ease-in-out infinite"}}></div>
-                    <div style={{position:"absolute",inset:0,borderRadius:"50%",background:"#ef4444"}}></div>
-                  </div>
-                  <div style={{fontSize:11,fontWeight:900,color:"#b91c1c"}}>🚨 AÇÃO REQUERIDA: VALIDAÇÃO PENDENTE</div>
-                </div>
-                {_pv.slice(0,3).map(m=>(
-                  <div key={m.id} style={{background:"#fff",borderRadius:10,padding:"8px 10px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center",border:"1px solid #fecaca",gap:8}}>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:12,fontWeight:700,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.nome}</div>
-                      <div style={{fontSize:10,color:"#64748b",marginTop:2}}>
-                        👤 {m.created_by||"?"} ({m.creator_role||"?"})
-                        {!m.confirmed_promorar&&<span style={{color:"#dc2626",fontWeight:700,marginLeft:6}}>⏳ Promorar</span>}
-                        {!m.confirmed_telemim&&<span style={{color:"#d97706",fontWeight:700,marginLeft:6}}>⏳ Telemim</span>}
-                      </div>
-                    </div>
-                    <button onClick={()=>setTab("lista")} style={{fontSize:10,padding:"6px 10px",borderRadius:8,background:"#ef4444",color:"#fff",border:"none",fontWeight:800,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Validar Agora</button>
-                  </div>
-                ))}
-                {_pv.length>3&&<div style={{fontSize:10,color:"#dc2626",fontWeight:700,textAlign:"center",marginTop:4}}>+{_pv.length-3} mais aguardando</div>}
-              </div>
-            </div>;
-          })()}
-          <div style={{padding:"0 12px 14px"}}><div style={{fontSize:10,fontWeight:800,color:COLORS.muted,letterSpacing:1,textTransform:"uppercase",marginBottom:10}}>📅 {_mesesNome[_mesAtual]} {_anoAtual}</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div style={{background:"linear-gradient(135deg,#065f46,#047857)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 12px rgba(6,95,70,0.3)"}}><div style={{fontSize:9,color:"rgba(255,255,255,0.7)",fontWeight:800,letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>REALIZADAS</div><div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_realizadasMes}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>mudanças ✔️</div></div><div style={{background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 12px rgba(29,78,216,0.3)"}}><div style={{fontSize:9,color:"rgba(255,255,255,0.7)",fontWeight:800,letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>PENDENTES</div><div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_pendentesMes}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>a realizar 🗓️</div></div></div></div><div style={{padding:"0 12px 2px"}}><div style={{fontSize:10,fontWeight:800,color:COLORS.muted,letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🔔 Notificações</div></div>{_mudHoje.map(a=>(<div key={a.id} style={{margin:"0 12px 8px",background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:12,padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:18}}>🚛</span><div style={{flex:1}}><div style={{fontSize:10,fontWeight:800,color:"#b91c1c",letterSpacing:0.5}}>MUDANÇA HOJE!</div><div style={{fontSize:13,fontWeight:700,color:COLORS.text}}>{a.nome}</div><div style={{fontSize:11,color:COLORS.muted}}>{a.horario?"⏰ "+a.horario+"h":""}{a.comunidade?" · "+a.comunidade:""}</div></div><button onClick={()=>setTab("agenda")} style={{fontSize:10,padding:"5px 10px",borderRadius:8,background:"#ef4444",color:"#fff",border:"none",fontWeight:700,cursor:"pointer"}}>Ver</button></div>))}{mudancasAmanha.length>0&&(
+        <div style={{padding:"0 12px 14px"}}><div style={{fontSize:10,fontWeight:800,color:COLORS.muted,letterSpacing:1,textTransform:"uppercase",marginBottom:10}}>📅 {_mesesNome[_mesAtual]} {_anoAtual}</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div style={{background:"linear-gradient(135deg,#065f46,#047857)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 12px rgba(6,95,70,0.3)"}}><div style={{fontSize:9,color:"rgba(255,255,255,0.7)",fontWeight:800,letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>REALIZADAS</div><div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_realizadasMes}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>mudanças ✔️</div></div><div style={{background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 12px rgba(29,78,216,0.3)"}}><div style={{fontSize:9,color:"rgba(255,255,255,0.7)",fontWeight:800,letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>PENDENTES</div><div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_pendentesMes}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>a realizar 🗓️</div></div></div></div><div style={{padding:"0 12px 2px"}}><div style={{fontSize:10,fontWeight:800,color:COLORS.muted,letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🔔 Notificações</div></div>{_mudHoje.map(a=>(<div key={a.id} style={{margin:"0 12px 8px",background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:12,padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:18}}>🚛</span><div style={{flex:1}}><div style={{fontSize:10,fontWeight:800,color:"#b91c1c",letterSpacing:0.5}}>MUDANÇA HOJE!</div><div style={{fontSize:13,fontWeight:700,color:COLORS.text}}>{a.nome}</div><div style={{fontSize:11,color:COLORS.muted}}>{a.horario?"⏰ "+a.horario+"h":""}{a.comunidade?" · "+a.comunidade:""}</div></div><button onClick={()=>setTab("agenda")} style={{fontSize:10,padding:"5px 10px",borderRadius:8,background:"#ef4444",color:"#fff",border:"none",fontWeight:700,cursor:"pointer"}}>Ver</button></div>))}{mudancasAmanha.length>0&&(
           <div style={{margin:"8px 0 0",display:"flex",flexDirection:"column",gap:7}}>
             {mudancasAmanha.map(a=>(
               <div key={a.id} className={a.inicio_em&&!a.termino_em?"em-andamento":""} style={{background:"#fff7ed",border:`2px solid ${COLORS.accent}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(230,126,34,0.15)"}}>
@@ -904,37 +867,6 @@ export default function App(){
                     <button onClick={()=>setEditMud({...m})} style={btnBlue}>✏️</button>
                     <button onClick={()=>handleDelMud(m.id)} style={btnRed}>✕</button>
                   </div>
-                </div>
-                <div style={{borderTop:"1.5px solid #e2e8f0",marginTop:10,paddingTop:10}}>
-                  {(m.created_by||m.creator_role)&&<div style={{background:"#f1f5f9",borderRadius:8,padding:"3px 8px",fontSize:10,color:"#475569",marginBottom:8,display:"inline-block"}}>👤 {m.created_by||"?"} ({m.creator_role||"?"})</div>}
-                  <div style={{fontSize:9,fontWeight:900,color:"#94a3b8",letterSpacing:1,marginBottom:5}}>VALIDAÇÕES OBRIGATÓRIAS</div>
-                  <div style={{display:"flex",gap:5}}>
-                    <button
-                      disabled={usuario?.perfil!=="promorar"||!!m.confirmed_promorar}
-                      onClick={()=>handleValidar(m.id,"promorar")}
-                      style={{flex:1,padding:"7px 3px",borderRadius:8,fontSize:10,fontWeight:700,border:"none",
-                        cursor:(usuario?.perfil==="promorar"&&!m.confirmed_promorar)?"pointer":"not-allowed",
-                        background:m.confirmed_promorar?"#f0fdf4":usuario?.perfil==="promorar"?"#fef3c7":"#f1f5f9",
-                        color:m.confirmed_promorar?"#15803d":usuario?.perfil==="promorar"?"#92400e":"#94a3b8",
-                        opacity:usuario?.perfil==="social"?0.4:1}}>
-                      {m.confirmed_promorar?"✅ Promorar ("+(m.confirmed_promorar_by||"?")+")":"⏳ Aguardar Promorar"}
-                    </button>
-                    <button
-                      disabled={usuario?.perfil!=="admin"||!!m.confirmed_telemim}
-                      onClick={()=>handleValidar(m.id,"telemim")}
-                      style={{flex:1,padding:"7px 3px",borderRadius:8,fontSize:10,fontWeight:700,border:"none",
-                        cursor:(usuario?.perfil==="admin"&&!m.confirmed_telemim)?"pointer":"not-allowed",
-                        background:m.confirmed_telemim?"#f0fdf4":usuario?.perfil==="admin"?"#eff6ff":"#f1f5f9",
-                        color:m.confirmed_telemim?"#15803d":usuario?.perfil==="admin"?"#1e40af":"#94a3b8",
-                        opacity:usuario?.perfil==="social"?0.4:1}}>
-                      {m.confirmed_telemim?"✅ Telemim ("+(m.confirmed_telemim_by||"?")+")":"⏳ Aguardar Telemim"}
-                    </button>
-                  </div>
-                  {m.confirmed_promorar&&m.confirmed_telemim&&(
-                    <div style={{marginTop:7,background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:700,color:"#15803d",textAlign:"center"}}>
-                      🚀 Mudança 100% Autorizada!
-                    </div>
-                  )}
                 </div>
               </Card>
             ))}
@@ -1062,6 +994,23 @@ export default function App(){
                 {["confirmado","pendente"].map(s=>(
                   <button key={s} onClick={()=>setAgForm(f=>({...f,status:s}))} style={{flex:1,padding:"9px",borderRadius:10,border:`1.5px solid ${agForm.status===s?statusColor[s]:COLORS.cardBorder}`,background:agForm.status===s?statusColor[s]+"18":"#f8fafc",color:agForm.status===s?statusColor[s]:COLORS.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>{statusLabel[s]}</button>
                 ))}
+                {a.requires_validation&&(()=>{
+                  const perfil=usuario?.perfil||"";
+                  const mapa=[
+                    {key:"social",label:"Social",ap:a.social_approved},
+                    {key:"promorar",label:"Promorar",ap:a.promorar_approved},
+                    {key:"adm",label:"Adm",ap:a.adm_approved}
+                  ];
+                  return <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
+                    {mapa.map(b=>{
+                      const ehMeu=perfil===b.key||(b.key==="adm"&&(perfil==="admin"||perfil==="telemim"));
+                      const base={padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",lineHeight:"18px"};
+                      if(b.ap) return <button key={b.key} disabled style={{...base,background:"#dcfce7",color:"#15803d",cursor:"default"}}>✅ {b.label}</button>;
+                      if(ehMeu) return <button key={b.key} onClick={(e)=>{e.stopPropagation();handleValidar3vias(a.id,b.key);}} style={{...base,background:"#facc15",color:"#713f12",cursor:"pointer"}}>👆 Validar {b.label}</button>;
+                      return <button key={b.key} disabled style={{...base,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0",cursor:"not-allowed"}}>⏳ {b.label}</button>;
+                    })}
+                  </div>;
+                })()}
               </div>
             </div>
             <div style={{display:"flex",gap:8,marginTop:6}}>
