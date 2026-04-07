@@ -310,13 +310,7 @@ export default function App(){
     if(tabela==="agenda")loadAg();else loadMud();
   }
   function fmtTempo(iso){if(!iso)return null;const d=new Date(iso);return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
-    async function handleValidar3vias(id,tipo){
-    const campo=tipo==="social"?"social_approved":tipo==="promorar"?"promorar_approved":"adm_approved";
-    const campoPor=tipo+"_approved_by";
-    const nome=usuario?.nome||usuario?.email||"?";
-    setMudancas(function(prev){return prev.map(function(m){return m.id===id?Object.assign({},m,{[campo]:true,[campoPor]:nome}):m;});});
-    fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(usuario?.token||""),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(Object.assign({},{[campo]:true,[campoPor]:nome}))}).catch(function(){});
-  }
+    async function handleValidar3vias(id,tipo){var campo=tipo==="social"?"social_approved":tipo==="promorar"?"promorar_approved":"adm_approved";var campoPor=tipo+"_approved_by";var nome=usuario&&(usuario.nome||usuario.email)||"?";setMudancas(function(prev){return prev.map(function(m){return m.id===id?Object.assign({},m,{[campo]:true,[campoPor]:nome}):m;});});fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(usuario&&usuario.token||""),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(Object.assign({},{[campo]:true,[campoPor]:nome}))}).catch(function(){});}
   async function saveAg(list){
     setAgenda(list);
     setSyncStatus("🔄 Salvando...");
@@ -993,24 +987,10 @@ export default function App(){
               <div style={{display:"flex",gap:7}}>
                 {["confirmado","pendente"].map(s=>(
                   <button key={s} onClick={()=>setAgForm(f=>({...f,status:s}))} style={{flex:1,padding:"9px",borderRadius:10,border:`1.5px solid ${agForm.status===s?statusColor[s]:COLORS.cardBorder}`,background:agForm.status===s?statusColor[s]+"18":"#f8fafc",color:agForm.status===s?statusColor[s]:COLORS.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>{statusLabel[s]}</button>
-                )
-            {a.requires_validation&&<div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>
-              {a.social_approved
-                ?<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#15803d"}}>✅ Social</span>
-                :usuario&&usuario.perfil==="social"
-                  ?<button onClick={function(e){e.stopPropagation();handleValidar3vias(a.id,"social");}} style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",background:"#facc15",color:"#713f12",cursor:"pointer"}}>👆 Validar Social</button>
-                  :<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}}>⏳ Social</span>}
-              {a.promorar_approved
-                ?<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#15803d"}}>✅ Promorar</span>
-                :usuario&&usuario.perfil==="promorar"
-                  ?<button onClick={function(e){e.stopPropagation();handleValidar3vias(a.id,"promorar");}} style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",background:"#facc15",color:"#713f12",cursor:"pointer"}}>👆 Validar Promorar</button>
-                  :<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}}>⏳ Promorar</span>}
-              {a.adm_approved
-                ?<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#15803d"}}>✅ Adm</span>
-                :usuario&&(usuario.perfil==="admin"||usuario.perfil==="telemim")
-                  ?<button onClick={function(e){e.stopPropagation();handleValidar3vias(a.id,"adm");}} style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",background:"#facc15",color:"#713f12",cursor:"pointer"}}>👆 Validar Adm</button>
-                  :<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}}>⏳ Adm</span>}
-            </div>}
+                ))}
+              </div>
+            {a.requires_validation&&<div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>{a.social_approved?<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#15803d"}}>✅ Social</span>:usuario&&usuario.perfil==="social"?<button onClick={function(e){e.stopPropagation();handleValidar3vias(a.id,"social");}} style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",background:"#facc15",color:"#713f12",cursor:"pointer"}}>👆 Validar Social</button>:<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}}>⏳ Social</span>}{a.promorar_approved?<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#15803d"}}>✅ Promorar</span>:usuario&&usuario.perfil==="promorar"?<button onClick={function(e){e.stopPropagation();handleValidar3vias(a.id,"promorar");}} style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",background:"#facc15",color:"#713f12",cursor:"pointer"}}>👆 Validar Promorar</button>:<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}}>⏳ Promorar</span>}{a.adm_approved?<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#15803d"}}>✅ Adm</span>:usuario&&(usuario.perfil==="admin"||usuario.perfil==="telemim")?<button onClick={function(e){e.stopPropagation();handleValidar3vias(a.id,"adm");}} style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",background:"#facc15",color:"#713f12",cursor:"pointer"}}>👆 Validar Adm</button>:<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}}>⏳ Adm</span>}</div>}
+            </div>
             <div style={{display:"flex",gap:8,marginTop:6}}>
               <button onClick={()=>setTab("agenda")} style={{flex:1,padding:12,borderRadius:12,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
               <button onClick={handleAddAg} style={{flex:2,padding:12,borderRadius:12,border:"none",background:COLORS.purple,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>{flash||"📅 Confirmar"}</button>
