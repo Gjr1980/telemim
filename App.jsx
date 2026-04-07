@@ -821,20 +821,9 @@ export default function App(){
           </div>
         )}
 
-        {/* Tabs */}
-        <div style={{marginTop:14,marginBottom:13}}>
-          <div style={{display:"flex",gap:6,marginBottom:6}}>
-            {TABS.slice(0,3).map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"10px 2px",borderRadius:12,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
-            ))}
-          </div>
-          <div style={{display:"flex",gap:6}}>
-            {TABS.slice(3).map(t=>(
-              <button key={t.id} onClick={()=>t.id==="importar_mud"?setShowImportAg(true):setTab(t.id)} style={{flex:1,padding:"10px 2px",borderRadius:12,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
-            ))}
-          </div>
         </div>
 
+    <div style={{background:"#fff",borderBottom:"1.5px solid #e2e8f0",padding:"8px 12px 6px",position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}><div style={{display:"flex",gap:5,marginBottom:5}}>{TABS.slice(0,3).map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"9px 2px",borderRadius:10,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 6px rgba(230,126,34,0.2)":"none"}}>{t.label}</button>))}</div><div style={{display:"flex",gap:5}}>{TABS.slice(3).map(t=>(<button key={t.id} onClick={()=>t.id==="importar_mud"?setShowImportAg(true):setTab(t.id)} style={{flex:1,padding:"9px 2px",borderRadius:10,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 6px rgba(230,126,34,0.2)":"none"}}>{t.label}</button>))}</div></div>
         {/* ══ DASHBOARD ══ */}
         {tab==="inicio"&&(
         <div style={{paddingBottom:80}}>{tab==="financeiro"&&<div style={{padding:"8px 12px 12px",background:"#f8fafc"}}><button onClick={function(){window.print();}} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#1e40af,#1e293b)",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📄 Exportar PDF</button></div>}
@@ -1108,17 +1097,6 @@ export default function App(){
           </div>
         </div>
       )}
-    {usuario&&(
-      <nav style={{position:'fixed',bottom:0,left:0,right:0,background:'#fff',borderTop:'1px solid #e2e8f0',display:'flex',zIndex:9999,paddingBottom:'env(safe-area-inset-bottom,0px)',boxShadow:'0 -4px 20px rgba(0,0,0,0.08)'}}>
-        {[{id:'inicio',icon:'🏠',label:'Hoje'},{id:'registros',icon:'📋',label:'Mudânças'},{id:'agenda',icon:'📅',label:'Agenda'},...(isAdmin?[{id:'financeiro',icon:'💰',label:'Financeiro'}]:[]),...(isAdmin?[{id:'usuarios',icon:'⚙️',label:'Config'}]:[])].map(mn=>(
-          <button key={mn.id} onClick={()=>setTab(mn.id)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'8px 4px 6px',background:'none',border:'none',cursor:'pointer',color:tab===mn.id?'#ea580c':'#94a3b8'}}>
-            <span style={{fontSize:20,lineHeight:1}}>{mn.icon}</span>
-            <span style={{fontSize:10,fontWeight:tab===mn.id?700:500,marginTop:3,color:tab===mn.id?'#ea580c':'#94a3b8'}}>{mn.label}</span>
-            {tab===mn.id&&<span style={{width:20,height:3,background:'#ea580c',borderRadius:2,marginTop:2}}/>}
-          </button>
-        ))}
-      </nav>
-    )}
     </div>
   );
 }
