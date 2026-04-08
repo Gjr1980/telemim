@@ -178,6 +178,8 @@ export default function App(){
   const [relDataFim,setRelDataFim]=useState("");
   const [relAj,setRelAj]=useState("3");
   const [relAlm,setRelAlm]=useState("0");
+  const [exportFmt,setExportFmt]=useState("pdf");
+  const [showRelModal,setShowRelModal]=useState(false);
   const [semanaIdx,setSemanaIdx]=useState(0);
   const [loading,setLoading]=useState(true);
   const [flash,setFlash]=useState("");
@@ -448,6 +450,43 @@ export default function App(){
       return true;
     });
     setRel({...calcRel(lista,relAj,relAlm),lista,ini:relDataIni,fim:relDataFim});
+  }
+
+  function gerarRelWpp(){
+    const lista=mudancas.filter(m=>{
+      if(relDataIni&&m.data<relDataIni)return false;
+      if(relDataFim&&m.data>relDataFim)return false;
+      return true;
+    });
+    if(!lista.length){alert("Nenhuma mudaça neste período.");return;}
+    const fd=d=>{
+      if(!d)return"?";
+      const p=d.split("-");
+      return p[2]+"/"+p[1];
+    };
+    const per=(relDataIni&&relDataFim)?(fd(relDataIni)+" a "+fd(relDataFim)):relDataIni?fd(relDataIni):new Date().toLocaleDateString("pt-BR");
+    const lin=lista.map(m=>"👤 *"+m.nome+"* | 📅 "+fd(m.data)+" | 📍 "+(m.comunidade||m.destino||m.selo||""));
+    const SEP="━━━━━━━━━━━━━━━━━";
+    const txt="🚚 *RELATÓRIO DE MUDANÇAS*\n"+
+      "📅 Período: "+per+"\n"+SEP+"\n"+
+      lin.join("\n")+"\n"+SEP+"\n"+
+      "📊 *Total: "+lista.length+" mudaça"+(lista.length!==1?"s":"")+"*\n_TELEMIM_";
+    const cb=()=>{
+      setToast({msg:"📋 Copiado! Cole no WhatsApp 💬"});
+      setTimeout(()=>setToast(null),4000);
+      setShowRelModal(false);
+    };
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(txt).then(cb).catch(()=>{
+        const t=document.createElement("textarea");t.value=txt;
+        document.body.appendChild(t);t.select();
+        document.execCommand("copy");document.body.removeChild(t);cb();
+      });
+    } else {
+      const t=document.createElement("textarea");t.value=txt;
+      document.body.appendChild(t);t.select();
+      document.execCommand("copy");document.body.removeChild(t);cb();
+    }
   }
 
   // ── HELPER: abrir PDF via Blob (funciona em todos os ambientes) ────────────
@@ -901,28 +940,7 @@ export default function App(){
                     const txt=`🚛 *TELEMIM — MUDANÇAS DO DIA*\n📅 *${new Date().toLocaleDateString("pt-BR")}*\n━━━━━━━━━━━━━━━━━\n${linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")}\n\n━━━━━━━━━━━━━━━━━\n_Total: ${lista.length} mudança${lista.length!==1?"s":""} · TELEMIM_`;
                     window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`,"_blank");
                   }} style={{background:"#dcfce7",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📲 Dia ({mudancasHoje.length})</button>
-                  <button onClick={()=>{
-                    const lista=agendaOrdenada.filter(a=>a.data===hoje);
-                    const linhas=lista.map((a,i)=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return (i+1)+". *"+a.nome+"*\n🏷️ "+a.selo+" · ⏰ "+(a.horario||"—")+"h\n📍 "+(a.comunidade||"—")+"\n📦 "+(a.origem||"—")+"\n🏠 "+(a.destino||"—")+"\n🚗 "+(v||"—")+(a.contato?"\n📞 "+a.contato:"")+(a.medicao?"\n📐 "+a.medicao+" m³":"");});
-                    const tot=lista.length, nV=lista.filter(x=>x.van).length, nC=lista.filter(x=>x.caminhao).length;
-                    const txt="📋 *RELATÓRIO DO DIA — TELEMIM*\n📅 *"+new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})+"*\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *Total: "+tot+" mudança"+(tot!==1?"s":"")+" hoje*\n🚐 "+nV+" c/ van · 🚚 "+nC+" c/ caminhão\n_TELEMIM_";
-                    window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
-                  }} style={{background:"#eff6ff",border:"1.5px solid #2563eb",color:"#2563eb",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Dia</button>
-                  </>
-                )}
-                <button onClick={()=>{
-                  const hj=(function(){var _d=new Date();var _y=_d.getFullYear();var _m=String(_d.getMonth()+1).padStart(2,"0");var _dd=String(_d.getDate()).padStart(2,"0");return _y+"-"+_m+"-"+_dd;})();
-                  const diasFut=[...new Set(agendaOrdenada.filter(a=>a.data>=hj&&a.status!=="realizado").map(m=>m.data))].sort();
-                  if(!diasFut.length){alert("Nenhuma mudança agendada!");return;}
-                  const proxDia=diasFut[0];
-                  const lista=agendaOrdenada.filter(a=>a.data===proxDia&&a.status!=="realizado");
-                  const nDia=["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"][new Date(proxDia+"T12:00:00").getDay()];
-                  const linhas=lista.map((a,i)=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return (i+1)+". *"+a.nome+"*\n🏷️ "+a.selo+" · ⏰ "+(a.horario||"—")+"h\n📍 "+(a.comunidade||"—")+"\n📦 "+(a.origem||"—")+"\n🏠 "+(a.destino||"—")+"\n🚗 "+(v||"—")+(a.contato?"\n📞 "+a.contato:"")+(a.medicao?"\n📐 "+a.medicao+" m³":"");});
-                  const isHoje=proxDia===hj;
-                  const dtFmt=new Date(proxDia+"T12:00:00").toLocaleDateString("pt-BR");
-                  const txt="📋 *RELATÓRIO DE MUDANÇAS*\n📅 "+nDia+", "+dtFmt+(isHoje?" (HOJE)":"")+"\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *"+lista.length+" mudança"+(lista.length!==1?"s":"")+" · "+nDia+"*\n🚐 "+lista.filter(a=>a.van).length+" c/ van  🚚 "+lista.filter(a=>a.caminhao).length+" c/ caminhão\n_TELEMIM · PROMORAR_";
-                  window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
-                }} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Mudança do Dia</button>
+                  <button onClick={()=>{setExportFmt("pdf");setShowRelModal(true);}} style={{background:COLORS.accent,border:"none",color:"#fff",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Gerar Relatório</button>{showRelModal&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:9990,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setShowRelModal(false)}><div style={{background:"#fff",borderRadius:20,padding:"24px 20px",maxWidth:360,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}><div style={{fontWeight:800,fontSize:16,color:"#1e293b",marginBottom:16,textAlign:"center"}}>📊 Gerar Relatório</div><div style={{fontSize:11,fontWeight:700,color:COLORS.muted,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Período</div><div style={{display:"flex",gap:6,marginBottom:10}}><button onClick={()=>{const d=new Date();const s=d.toISOString().slice(0,10);setRelDataIni(s);setRelDataFim(s);}} style={{flex:1,padding:"7px 2px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:11,fontWeight:700,cursor:"pointer",color:"#334155"}}>Hoje</button><button onClick={()=>{const d=new Date();const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,"0");setRelDataIni(y+"-"+m+"-01");setRelDataFim(d.toISOString().slice(0,10));}} style={{flex:1,padding:"7px 2px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:11,fontWeight:700,cursor:"pointer",color:"#334155"}}>Este Mês</button><button onClick={()=>{setRelDataIni("");setRelDataFim("");}} style={{flex:1,padding:"7px 2px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:11,fontWeight:700,cursor:"pointer",color:"#334155"}}>Tudo</button></div><div style={{display:"flex",gap:6,alignItems:"center",marginBottom:18}}><input type="date" value={relDataIni} onChange={e=>setRelDataIni(e.target.value)} style={{flex:1,padding:"6px 8px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:12,color:"#334155"}}/><span style={{color:COLORS.muted,fontSize:11,fontWeight:600}}>a</span><input type="date" value={relDataFim} onChange={e=>setRelDataFim(e.target.value)} style={{flex:1,padding:"6px 8px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:12,color:"#334155"}}/></div><div style={{fontSize:11,fontWeight:700,color:COLORS.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>Como exportar?</div><div style={{display:"flex",gap:10,marginBottom:20}}><button onClick={()=>setExportFmt("pdf")} style={{flex:1,padding:"16px 8px",borderRadius:14,border:exportFmt==="pdf"?"2.5px solid "+COLORS.accent:"1.5px solid #e2e8f0",background:exportFmt==="pdf"?"#eff6ff":"#f8fafc",display:"flex",flexDirection:"column",alignItems:"center",gap:5,cursor:"pointer",transition:"all 0.15s"}}><span style={{fontSize:28}}>📄</span><span style={{fontSize:12,fontWeight:800,color:exportFmt==="pdf"?COLORS.accent:"#64748b"}}>Documento</span><span style={{fontSize:10,color:"#94a3b8"}}>PDF / Excel</span></button><button onClick={()=>setExportFmt("wpp")} style={{flex:1,padding:"16px 8px",borderRadius:14,border:exportFmt==="wpp"?"2.5px solid #25d366":"1.5px solid #e2e8f0",background:exportFmt==="wpp"?"#f0fdf4":"#f8fafc",display:"flex",flexDirection:"column",alignItems:"center",gap:5,cursor:"pointer",transition:"all 0.15s"}}><span style={{fontSize:28}}>💬</span><span style={{fontSize:12,fontWeight:800,color:exportFmt==="wpp"?"#25d366":"#64748b"}}>WhatsApp</span><span style={{fontSize:10,color:"#94a3b8"}}>Copiar texto</span></button></div><div style={{display:"flex",gap:8}}><button onClick={()=>setShowRelModal(false)} style={{flex:1,padding:"12px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancelar</button><button onClick={()=>{if(exportFmt==="wpp"){gerarRelWpp();}else{gerarRel();setShowRelModal(false);}}} style={{flex:2,padding:"12px 0",borderRadius:12,border:"none",background:exportFmt==="wpp"?"#25d366":COLORS.accent,color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>{exportFmt==="wpp"?"💬 Gerar Texto p/ Copiar":"📥 Baixar Arquivo"}</button></div></div></div>}
                 <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button>
               </div>
             </div>
