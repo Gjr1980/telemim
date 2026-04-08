@@ -235,6 +235,11 @@ export default function App(){
     }
     load();
   },[]);
+  async function loadMud(){const r=await dbGet("mudancas");if(r)setMudancas(r);}
+  async function loadAg(){const r=await dbGet("agenda");if(r)setAgenda(r);}
+
+  async function loadMud(){const rows=await dbGet("mudancas");if(rows)setMudancas(rows);}
+  async function loadAg(){const rows=await dbGet("agenda");if(rows)setAgenda(rows);}
 
   // ── SYNC HELPERS ───────────────────────────────────────────────────────────
   function parseImport(txt){
@@ -310,7 +315,11 @@ export default function App(){
     const campo=tipo==='inicio'?'inicio_em':'termino_em';
     const agora=new Date().toISOString();
     await fetch(SUPA_URL+"/rest/v1/"+tabela+"?id=eq."+item.id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(usuario?.token||SUPA_KEY),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({[campo]:agora})});
-    if(tabela==="agenda")loadAg();else loadMud();
+    if(tabela==="agenda"){
+      setAgenda(prev=>prev.map(a=>a.id===item.id?{...a,[campo]:agora}:a));
+    }else{
+      setMudancas(prev=>prev.map(m=>m.id===item.id?{...m,[campo]:agora}:m));
+    }
   }
   function fmtTempo(iso){if(!iso)return null;const d=new Date(iso);return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
     function addLog(msg){var ts=new Date();var hora=String(ts.getHours()).padStart(2,"0")+":"+String(ts.getMinutes()).padStart(2,"0");setActivityLogs(function(prev){return [{id:ts.getTime(),hora:hora,msg:msg},...prev].slice(0,10);});setToast({id:ts.getTime(),msg:msg});setTimeout(function(){setToast(null);},4000);}
@@ -352,7 +361,7 @@ export default function App(){
     if(!agForm.nome||!agForm.data) return;
     var _pa=usuario&&usuario.perfil||"";var _na=usuario&&(usuario.nome||usuario.email)||"";const nova={...agForm,id:Date.now(),requires_validation:true,social_approved:_pa==="social",social_approved_by:_pa==="social"?_na:null,promorar_approved:_pa==="promorar",promorar_approved_by:_pa==="promorar"?_na:null,adm_approved:_pa==="admin"||_pa==="telemim",adm_approved_by:(_pa==="admin"||_pa==="telemim")?_na:null};
     await saveAg([...agenda,nova]);
-    setAgForm({...initForm,status:"confirmado"}); setFlash("✅ Agendado!"); setTimeout(()=>setFlash(""),1800); setTab("agenda");
+    setAgForm({...initForm,status:"confirmado"}); setAgenda(prev=>[nova,...prev]); setFlash("✅ Agendado!"); setTimeout(()=>setFlash(""),1800); setTab("agenda");
   }
   async function handleDelAg(id){
     setAgenda(prev=>prev.filter(a=>a.id!==id));
@@ -389,6 +398,8 @@ export default function App(){
     if(!window.confirm('Confirmar como realizada?\nSerá movida para Mudanças Registradas.'))return;
     const nova={nome:ag.nome,selo:ag.selo||'',comunidade:ag.comunidade||'',data:ag.data,origem:ag.origem||'',destino:ag.destino||'',contato:ag.contato||null,van:ag.van||false,caminhao:ag.caminhao||false,medicao:ag.medicao||0,ajudantes:ag.ajudantes||0,observacao:ag.observacao||'',status:'concluida',registrado_por:usuario.email};
     const{error:errM}=await supabase.from('mudancas').insert([nova]);
+    if(!errM)setMudancas(prev=>[nova,...prev]);
+    if(!errM)setMudancas(prev=>[nova,...prev]);
     if(errM){alert('Erro: '+errM.message);return;}
     await supabase.from('agenda').update({status:'concluida'}).eq('id',ag.id);
     setMudancas(prev=>[...prev,{...nova,id:Date.now()}]);
