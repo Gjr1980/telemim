@@ -450,6 +450,57 @@ export default function App(){
     setRel({...calcRel(lista,relAj,relAlm),lista,ini:relDataIni,fim:relDataFim});
   }
 
+    function _openRelModal(){
+    var p=document.getElementById("_rm");if(p)p.parentNode.removeChild(p);
+    var ov=document.createElement("div");ov.id="_rm";
+    ov.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9990;display:flex;align-items:center;justify-content:center;padding:16px";
+    var box=document.createElement("div");box.style.cssText="background:#fff;border-radius:20px;padding:24px 20px;max-width:360px;width:100%";
+    var close=function(){var x=document.getElementById("_rm");if(x)x.parentNode.removeChild(x);};
+    ov.onclick=function(e){if(e.target===ov)close();};
+    function el(t,css,txt){var d=document.createElement(t);if(css)d.style.cssText=css;if(txt)d.textContent=txt;return d;}
+    var iI=el("input","flex:1;padding:6px 8px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:12px;color:#334155");iI.type="date";iI.value=relDataIni||"";
+    var iF=el("input","flex:1;padding:6px 8px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:12px;color:#334155");iF.type="date";iF.value=relDataFim||"";
+    var fmt=["pdf"];
+    var bPdf=el("button","flex:1;padding:14px 8px;border-radius:12px;border:2.5px solid #3b82f6;background:#eff6ff;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer");
+    bPdf.appendChild(el("span","font-size:26px","\uD83D\uDCC4"));bPdf.appendChild(el("span","font-size:11px;font-weight:800;color:#3b82f6","Documento"));bPdf.appendChild(el("span","font-size:9px;color:#94a3b8","PDF/Excel"));
+    var bWpp=el("button","flex:1;padding:14px 8px;border-radius:12px;border:1.5px solid #e2e8f0;background:#f8fafc;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer");
+    bWpp.appendChild(el("span","font-size:26px","\uD83D\uDCAC"));bWpp.appendChild(el("span","font-size:11px;font-weight:800;color:#64748b","WhatsApp"));bWpp.appendChild(el("span","font-size:9px;color:#94a3b8","Copiar texto"));
+    var bAc=el("button","flex:2;padding:12px 0;border-radius:12px;border:none;background:#3b82f6;color:#fff;font-weight:800;font-size:13px;cursor:pointer","\uD83D\uDCE5 Baixar Arquivo");
+    bPdf.onclick=function(){fmt[0]="pdf";bPdf.style.border="2.5px solid #3b82f6";bPdf.style.background="#eff6ff";bPdf.querySelector("span:nth-child(2)").style.color="#3b82f6";bWpp.style.border="1.5px solid #e2e8f0";bWpp.style.background="#f8fafc";bWpp.querySelector("span:nth-child(2)").style.color="#64748b";bAc.textContent="\uD83D\uDCE5 Baixar Arquivo";bAc.style.background="#3b82f6";};
+    bWpp.onclick=function(){fmt[0]="wpp";bWpp.style.border="2.5px solid #25d366";bWpp.style.background="#f0fdf4";bWpp.querySelector("span:nth-child(2)").style.color="#25d366";bPdf.style.border="1.5px solid #e2e8f0";bPdf.style.background="#f8fafc";bPdf.querySelector("span:nth-child(2)").style.color="#64748b";bAc.textContent="\uD83D\uDCAC Gerar Texto p/Copiar";bAc.style.background="#25d366";};
+    bAc.onclick=function(){
+      setRelDataIni(iI.value);setRelDataFim(iF.value);
+      if(fmt[0]==="wpp"){
+        close();
+        setTimeout(function(){
+          var lista=mudancas.filter(function(m){if(iI.value&&m.data<iI.value)return false;if(iF.value&&m.data>iF.value)return false;return true;});
+          if(!lista.length){alert("Nenhuma muda\u00E7a neste per\u00EDodo.");return;}
+          var fd=function(d){if(!d)return"?";var p=d.split("-");return p[2]+"/"+p[1];};
+          var per=(iI.value&&iF.value)?(fd(iI.value)+" a "+fd(iF.value)):iI.value?fd(iI.value):new Date().toLocaleDateString("pt-BR");
+          var lin=lista.map(function(m){return"\uD83D\uDC64 *"+m.nome+"* | \uD83D\uDCC5 "+fd(m.data)+" | \uD83D\uDCCD "+(m.comunidade||m.destino||m.selo||"");});
+          var SEP="\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501";
+          var txt="\uD83D\uDE9A *RELAT\u00D3RIO*\n\uD83D\uDCC5 "+per+"\n"+SEP+"\n"+lin.join("\n")+"\n"+SEP+"\n\uD83D\uDCCA *Total: "+lista.length+"*\n_TELEMIM_";
+          var cb=function(){setToast({msg:"\uD83D\uDCCB Copiado! Cole no WhatsApp"});setTimeout(function(){setToast(null);},4000);};
+          if(navigator.clipboard){navigator.clipboard.writeText(txt).then(cb).catch(function(){var t=document.createElement("textarea");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();});}
+          else{var t=document.createElement("textarea");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();}
+        },100);
+      }else{setTimeout(function(){gerarRel();},100);close();}
+    };
+    var rA=el("div","display:flex;gap:8px");var bCn=el("button","flex:1;padding:12px 0;border-radius:12px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;font-weight:700;font-size:13px;cursor:pointer","Cancelar");bCn.onclick=close;rA.appendChild(bCn);rA.appendChild(bAc);
+    var h=el("div","font-weight:800;font-size:16px;color:#1e293b;margin-bottom:16px;text-align:center","\uD83D\uDCCA Gerar Relat\u00F3rio");
+    var lp=el("div","font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase","Per\u00EDodo");
+    var r1=el("div","display:flex;gap:6px;margin-bottom:10px");
+    function bS(t,fn2){var b=el("button","flex:1;padding:7px 2px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;font-weight:700;cursor:pointer;color:#334155",t);b.onclick=fn2;return b;}
+    r1.appendChild(bS("Hoje",function(){var d=new Date().toISOString().slice(0,10);iI.value=d;iF.value=d;}));
+    r1.appendChild(bS("Este M\u00EAs",function(){var d=new Date();var y=d.getFullYear();var m=String(d.getMonth()+1).padStart(2,"0");iI.value=y+"-"+m+"-01";iF.value=d.toISOString().slice(0,10);}));
+    r1.appendChild(bS("Tudo",function(){iI.value="";iF.value="";}));
+    var rD=el("div","display:flex;gap:6px;align-items:center;margin-bottom:18px");rD.appendChild(iI);rD.appendChild(el("span","color:#94a3b8;font-size:11px;font-weight:600","a"));rD.appendChild(iF);
+    var lF=el("div","font-size:11px;font-weight:700;color:#64748b;margin-bottom:10px;text-transform:uppercase","Como exportar?");
+    var rF=el("div","display:flex;gap:10px;margin-bottom:20px");rF.appendChild(bPdf);rF.appendChild(bWpp);
+    box.appendChild(h);box.appendChild(lp);box.appendChild(r1);box.appendChild(rD);box.appendChild(lF);box.appendChild(rF);box.appendChild(rA);
+    ov.appendChild(box);document.body.appendChild(ov);
+  }
+
   // ── HELPER: abrir PDF via Blob (funciona em todos os ambientes) ────────────
   function abrirPDF(html, nomeArquivo){
     const printStyle = `<style>@media print{body{margin:0;padding:0;background:#fff}.page{box-shadow:none!important;border-radius:0!important;border:none!important}}@page{size:A4;margin:8mm}</style>`;
@@ -901,28 +952,7 @@ export default function App(){
                     const txt=`🚛 *TELEMIM — MUDANÇAS DO DIA*\n📅 *${new Date().toLocaleDateString("pt-BR")}*\n━━━━━━━━━━━━━━━━━\n${linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")}\n\n━━━━━━━━━━━━━━━━━\n_Total: ${lista.length} mudança${lista.length!==1?"s":""} · TELEMIM_`;
                     window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`,"_blank");
                   }} style={{background:"#dcfce7",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📲 Dia ({mudancasHoje.length})</button>
-                  <button onClick={()=>{
-                    const lista=agendaOrdenada.filter(a=>a.data===hoje);
-                    const linhas=lista.map((a,i)=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return (i+1)+". *"+a.nome+"*\n🏷️ "+a.selo+" · ⏰ "+(a.horario||"—")+"h\n📍 "+(a.comunidade||"—")+"\n📦 "+(a.origem||"—")+"\n🏠 "+(a.destino||"—")+"\n🚗 "+(v||"—")+(a.contato?"\n📞 "+a.contato:"")+(a.medicao?"\n📐 "+a.medicao+" m³":"");});
-                    const tot=lista.length, nV=lista.filter(x=>x.van).length, nC=lista.filter(x=>x.caminhao).length;
-                    const txt="📋 *RELATÓRIO DO DIA — TELEMIM*\n📅 *"+new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})+"*\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *Total: "+tot+" mudança"+(tot!==1?"s":"")+" hoje*\n🚐 "+nV+" c/ van · 🚚 "+nC+" c/ caminhão\n_TELEMIM_";
-                    window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
-                  }} style={{background:"#eff6ff",border:"1.5px solid #2563eb",color:"#2563eb",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Dia</button>
-                  </>
-                )}
-                <button onClick={()=>{
-                  const hj=(function(){var _d=new Date();var _y=_d.getFullYear();var _m=String(_d.getMonth()+1).padStart(2,"0");var _dd=String(_d.getDate()).padStart(2,"0");return _y+"-"+_m+"-"+_dd;})();
-                  const diasFut=[...new Set(agendaOrdenada.filter(a=>a.data>=hj&&a.status!=="realizado").map(m=>m.data))].sort();
-                  if(!diasFut.length){alert("Nenhuma mudança agendada!");return;}
-                  const proxDia=diasFut[0];
-                  const lista=agendaOrdenada.filter(a=>a.data===proxDia&&a.status!=="realizado");
-                  const nDia=["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"][new Date(proxDia+"T12:00:00").getDay()];
-                  const linhas=lista.map((a,i)=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return (i+1)+". *"+a.nome+"*\n🏷️ "+a.selo+" · ⏰ "+(a.horario||"—")+"h\n📍 "+(a.comunidade||"—")+"\n📦 "+(a.origem||"—")+"\n🏠 "+(a.destino||"—")+"\n🚗 "+(v||"—")+(a.contato?"\n📞 "+a.contato:"")+(a.medicao?"\n📐 "+a.medicao+" m³":"");});
-                  const isHoje=proxDia===hj;
-                  const dtFmt=new Date(proxDia+"T12:00:00").toLocaleDateString("pt-BR");
-                  const txt="📋 *RELATÓRIO DE MUDANÇAS*\n📅 "+nDia+", "+dtFmt+(isHoje?" (HOJE)":"")+"\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *"+lista.length+" mudança"+(lista.length!==1?"s":"")+" · "+nDia+"*\n🚐 "+lista.filter(a=>a.van).length+" c/ van  🚚 "+lista.filter(a=>a.caminhao).length+" c/ caminhão\n_TELEMIM · PROMORAR_";
-                  window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
-                }} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Mudança do Dia</button>
+                  <button onClick={function(){_openRelModal();}} style={{background:COLORS.accent,border:"none",color:"#fff",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Gerar Relatório</button>
                 <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button>
               </div>
             </div>
