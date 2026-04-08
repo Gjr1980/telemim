@@ -316,7 +316,7 @@ export default function App(){
     setSyncStatus("🔄 Salvando...");
     try {
       for(const a of list){
-        const row={id:a.id,nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado"};
+        const row={id:a.id,nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado",requires_validation:a.requires_validation||false,social_approved:a.social_approved||false,social_approved_by:a.social_approved_by||null,promorar_approved:a.promorar_approved||false,promorar_approved_by:a.promorar_approved_by||null,adm_approved:a.adm_approved||false,adm_approved_by:a.adm_approved_by||null};
         await fetch(`${SUPA_URL}/rest/v1/agenda`,{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify([row])});
       }
       setSyncStatus("✅ Sinc");
@@ -345,7 +345,7 @@ export default function App(){
   // ── AGENDA CRUD ────────────────────────────────────────────────────────────
   async function handleAddAg(){
     if(!agForm.nome||!agForm.data) return;
-    const nova={...agForm,id:Date.now()};
+    var _pa=usuario&&usuario.perfil||"";var _na=usuario&&(usuario.nome||usuario.email)||"";const nova={...agForm,id:Date.now(),requires_validation:true,social_approved:_pa==="social",social_approved_by:_pa==="social"?_na:null,promorar_approved:_pa==="promorar",promorar_approved_by:_pa==="promorar"?_na:null,adm_approved:_pa==="admin"||_pa==="telemim",adm_approved_by:(_pa==="admin"||_pa==="telemim")?_na:null};
     await saveAg([...agenda,nova]);
     setAgForm({...initForm,status:"confirmado"}); setFlash("✅ Agendado!"); setTimeout(()=>setFlash(""),1800); setTab("agenda");
   }
