@@ -178,7 +178,6 @@ export default function App(){
   const [relDataFim,setRelDataFim]=useState("");
   const [relAj,setRelAj]=useState("3");
   const [relAlm,setRelAlm]=useState("0");
-  const [relFmtLocal,setRelFmtLocal]=useState("pdf");
   const [semanaIdx,setSemanaIdx]=useState(0);
   const [loading,setLoading]=useState(true);
   const [flash,setFlash]=useState("");
@@ -449,63 +448,6 @@ export default function App(){
       return true;
     });
     setRel({...calcRel(lista,relAj,relAlm),lista,ini:relDataIni,fim:relDataFim});
-  }
-
-    function _openRelModal(){
-    var pr=document.getElementById("_rm");if(pr)pr.parentNode.removeChild(pr);
-    var ov=document.createElement("div");ov.id="_rm";
-    ov.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9990;display:flex;align-items:center;justify-content:center;padding:16px";
-    var box=document.createElement("div");box.style.cssText="background:#fff;border-radius:20px;padding:24px 20px;max-width:360px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.2)";
-    var close=function(){var x=document.getElementById("_rm");if(x&&x.parentNode)x.parentNode.removeChild(x);};
-    ov.onclick=function(e){if(e.target===ov)close();};
-    var h=document.createElement("div");h.style.cssText="font-weight:800;font-size:16px;color:#1e293b;margin-bottom:16px;text-align:center";h.textContent="📊 Gerar Relatório";
-    var lp=document.createElement("div");lp.style.cssText="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px";lp.textContent="Período";
-    var r1=document.createElement("div");r1.style.cssText="display:flex;gap:6px;margin-bottom:10px";
-    var bS=function(t,fn2){var b=document.createElement("button");b.style.cssText="flex:1;padding:7px 2px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;font-weight:700;cursor:pointer;color:#334155";b.textContent=t;b.onclick=fn2;return b;};
-    var iI=document.createElement("input");iI.type="date";iI.value=relDataIni||"";iI.style.cssText="flex:1;padding:6px 8px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:12px;color:#334155";
-    var iF=document.createElement("input");iF.type="date";iF.value=relDataFim||"";iF.style.cssText="flex:1;padding:6px 8px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:12px;color:#334155";
-    r1.appendChild(bS("Hoje",function(){var d=new Date().toISOString().slice(0,10);iI.value=d;iF.value=d;}));
-    r1.appendChild(bS("Este Mês",function(){var d=new Date();var y=d.getFullYear();var m=String(d.getMonth()+1).padStart(2,"0");iI.value=y+"-"+m+"-01";iF.value=d.toISOString().slice(0,10);}));
-    r1.appendChild(bS("Tudo",function(){iI.value="";iF.value="";}));
-    var rD=document.createElement("div");rD.style.cssText="display:flex;gap:6px;align-items:center;margin-bottom:18px";
-    var sA=document.createElement("span");sA.style.cssText="color:#94a3b8;font-size:11px;font-weight:600";sA.textContent="a";
-    rD.appendChild(iI);rD.appendChild(sA);rD.appendChild(iF);
-    var lF=document.createElement("div");lF.style.cssText="font-size:11px;font-weight:700;color:#64748b;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px";lF.textContent="Como exportar?";
-    var rF=document.createElement("div");rF.style.cssText="display:flex;gap:10px;margin-bottom:20px";
-    var fmt=["pdf"];
-    function mkFBtn(em,lb,sb,id2){var b=document.createElement("button");b.style.cssText="flex:1;padding:16px 8px;border-radius:14px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer";b.id=id2;var e=document.createElement("span");e.style.fontSize="28px";e.textContent=em;var l=document.createElement("span");l.style.cssText="font-size:12px;font-weight:800";l.textContent=lb;var s=document.createElement("span");s.style.cssText="font-size:10px;color:#94a3b8";s.textContent=sb;b.appendChild(e);b.appendChild(l);b.appendChild(s);return b;}
-    var bPdf=mkFBtn("📄","Documento","PDF/Excel","_rp");bPdf.style.border="2.5px solid #3b82f6";bPdf.style.background="#eff6ff";bPdf.querySelector("span:nth-child(2)").style.color="#3b82f6";
-    var bWpp=mkFBtn("💬","WhatsApp","Copiar texto","_rw");bWpp.style.border="1.5px solid #e2e8f0";bWpp.style.background="#f8fafc";bWpp.querySelector("span:nth-child(2)").style.color="#64748b";
-    var bAc=document.createElement("button");bAc.style.cssText="flex:2;padding:12px 0;border-radius:12px;border:none;background:#3b82f6;color:#fff;font-weight:800;font-size:13px;cursor:pointer";bAc.textContent="📥 Baixar Arquivo";
-    bPdf.onclick=function(){fmt[0]="pdf";bPdf.style.border="2.5px solid #3b82f6";bPdf.style.background="#eff6ff";bPdf.querySelector("span:nth-child(2)").style.color="#3b82f6";bWpp.style.border="1.5px solid #e2e8f0";bWpp.style.background="#f8fafc";bWpp.querySelector("span:nth-child(2)").style.color="#64748b";bAc.textContent="📥 Baixar Arquivo";bAc.style.background="#3b82f6";};
-    bWpp.onclick=function(){fmt[0]="wpp";bWpp.style.border="2.5px solid #25d366";bWpp.style.background="#f0fdf4";bWpp.querySelector("span:nth-child(2)").style.color="#25d366";bPdf.style.border="1.5px solid #e2e8f0";bPdf.style.background="#f8fafc";bPdf.querySelector("span:nth-child(2)").style.color="#64748b";bAc.textContent="💬 Gerar Texto p/Copiar";bAc.style.background="#25d366";};
-    bAc.onclick=function(){
-      setRelDataIni(iI.value);setRelDataFim(iF.value);
-      if(fmt[0]==="wpp"){
-        close();
-        setTimeout(function(){
-          var lista=mudancas.filter(function(m){if(iI.value&&m.data<iI.value)return false;if(iF.value&&m.data>iF.value)return false;return true;});
-          if(!lista.length){alert("Nenhuma mudaça neste período.");return;}
-          var fd=function(d){if(!d)return"?";var p=d.split("-");return p[2]+"/"+p[1];};
-          var per=(iI.value&&iF.value)?(fd(iI.value)+" a "+fd(iF.value)):iI.value?fd(iI.value):new Date().toLocaleDateString("pt-BR");
-          var lin=lista.map(function(m){return"👤 *"+m.nome+"* | 📅 "+fd(m.data)+" | 📍 "+(m.comunidade||m.destino||m.selo||"");});
-          var SEP="━━━━━━━━━━━━━━━━━";
-          var txt="🚚 *RELATÓRIO*\n📅 "+per+"\n"+SEP+"\n"+lin.join("\n")+"\n"+SEP+"\n📊 *Total: "+lista.length+"*\n_TELEMIM_";
-          var cb=function(){setToast({msg:"📋 Copiado! Cole no WhatsApp"});setTimeout(function(){setToast(null);},4000);};
-          if(navigator.clipboard){navigator.clipboard.writeText(txt).then(cb).catch(function(){var t=document.createElement("textarea");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();});}
-          else{var t=document.createElement("textarea");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();}
-        },100);
-      } else {
-        setTimeout(function(){gerarRel();},100);
-        close();
-      }
-    };
-    rF.appendChild(bPdf);rF.appendChild(bWpp);
-    var rA=document.createElement("div");rA.style.cssText="display:flex;gap:8px";
-    var bCn=document.createElement("button");bCn.style.cssText="flex:1;padding:12px 0;border-radius:12px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;font-weight:700;font-size:13px;cursor:pointer";bCn.textContent="Cancelar";bCn.onclick=close;
-    rA.appendChild(bCn);rA.appendChild(bAc);
-    box.appendChild(h);box.appendChild(lp);box.appendChild(r1);box.appendChild(rD);box.appendChild(lF);box.appendChild(rF);box.appendChild(rA);
-    ov.appendChild(box);document.body.appendChild(ov);
   }
 
   // ── HELPER: abrir PDF via Blob (funciona em todos os ambientes) ────────────
@@ -959,8 +901,29 @@ export default function App(){
                     const txt=`🚛 *TELEMIM — MUDANÇAS DO DIA*\n📅 *${new Date().toLocaleDateString("pt-BR")}*\n━━━━━━━━━━━━━━━━━\n${linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")}\n\n━━━━━━━━━━━━━━━━━\n_Total: ${lista.length} mudança${lista.length!==1?"s":""} · TELEMIM_`;
                     window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`,"_blank");
                   }} style={{background:"#dcfce7",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📲 Dia ({mudancasHoje.length})</button>
-                  <button onClick={function(){_openRelModal();}} style={{background:COLORS.accent,border:"none",color:"#fff",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Gerar Relatório</button>
-                <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button></>
+                  <button onClick={()=>{
+                    const lista=agendaOrdenada.filter(a=>a.data===hoje);
+                    const linhas=lista.map((a,i)=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return (i+1)+". *"+a.nome+"*\n🏷️ "+a.selo+" · ⏰ "+(a.horario||"—")+"h\n📍 "+(a.comunidade||"—")+"\n📦 "+(a.origem||"—")+"\n🏠 "+(a.destino||"—")+"\n🚗 "+(v||"—")+(a.contato?"\n📞 "+a.contato:"")+(a.medicao?"\n📐 "+a.medicao+" m³":"");});
+                    const tot=lista.length, nV=lista.filter(x=>x.van).length, nC=lista.filter(x=>x.caminhao).length;
+                    const txt="📋 *RELATÓRIO DO DIA — TELEMIM*\n📅 *"+new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})+"*\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *Total: "+tot+" mudança"+(tot!==1?"s":"")+" hoje*\n🚐 "+nV+" c/ van · 🚚 "+nC+" c/ caminhão\n_TELEMIM_";
+                    window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
+                  }} style={{background:"#eff6ff",border:"1.5px solid #2563eb",color:"#2563eb",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Dia</button>
+                  </>
+                )}
+                <button onClick={()=>{
+                  const hj=(function(){var _d=new Date();var _y=_d.getFullYear();var _m=String(_d.getMonth()+1).padStart(2,"0");var _dd=String(_d.getDate()).padStart(2,"0");return _y+"-"+_m+"-"+_dd;})();
+                  const diasFut=[...new Set(agendaOrdenada.filter(a=>a.data>=hj&&a.status!=="realizado").map(m=>m.data))].sort();
+                  if(!diasFut.length){alert("Nenhuma mudança agendada!");return;}
+                  const proxDia=diasFut[0];
+                  const lista=agendaOrdenada.filter(a=>a.data===proxDia&&a.status!=="realizado");
+                  const nDia=["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"][new Date(proxDia+"T12:00:00").getDay()];
+                  const linhas=lista.map((a,i)=>{const v=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join("+");return (i+1)+". *"+a.nome+"*\n🏷️ "+a.selo+" · ⏰ "+(a.horario||"—")+"h\n📍 "+(a.comunidade||"—")+"\n📦 "+(a.origem||"—")+"\n🏠 "+(a.destino||"—")+"\n🚗 "+(v||"—")+(a.contato?"\n📞 "+a.contato:"")+(a.medicao?"\n📐 "+a.medicao+" m³":"");});
+                  const isHoje=proxDia===hj;
+                  const dtFmt=new Date(proxDia+"T12:00:00").toLocaleDateString("pt-BR");
+                  const txt="📋 *RELATÓRIO DE MUDANÇAS*\n📅 "+nDia+", "+dtFmt+(isHoje?" (HOJE)":"")+"\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *"+lista.length+" mudança"+(lista.length!==1?"s":"")+" · "+nDia+"*\n🚐 "+lista.filter(a=>a.van).length+" c/ van  🚚 "+lista.filter(a=>a.caminhao).length+" c/ caminhão\n_TELEMIM · PROMORAR_";
+                  window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
+                }} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Mudança do Dia</button>
+                <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button>
               </div>
             </div>
             {proximas.length>0&&(
