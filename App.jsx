@@ -227,12 +227,16 @@ export default function App(){
         setMudancas(DADOS_INICIAIS);
         setAgenda(AGENDA_INICIAIS);
         setSyncStatus("⚠️ Offline");
+      } finally {
+        // finally garante que setLoading(false) é sempre executado
+        try{
+          const cpRows=await dbGetContas('pendente');
+          setContasPagar(cpRows);
+          const chRows=await dbGetContas('pago');
+          setContasHist(chRows);
+        }catch(e2){/* contas falhou mas nao bloqueia o app */}
+        setLoading(false);
       }
-      const cpRows=await dbGetContas('pendente');
-      setContasPagar(cpRows);
-      const chRows=await dbGetContas('pago');
-      setContasHist(chRows);
-      setLoading(false);
     }
     load();
     // === REALTIME: Supabase WebSocket + polling 30s ===
