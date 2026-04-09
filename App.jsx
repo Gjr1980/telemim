@@ -472,7 +472,7 @@ export default function App(){
     bAc.onclick=function(){
       setRelDataIni(iI.value);setRelDataFim(iF.value);
       if(fmt[0]==="wpp"){close();setTimeout(function(){
-          var lista=(window.__mudancas||[]).filter(function(m){if(iI.value&&m.data<iI.value)return false;if(iF.value&&m.data>iF.value)return false;return true;});
+          var lista=_filterByPeriod(window.__mudancas||[],iI.value,iF.value);
           if(!lista.length){alert("Nenhuma mudança neste período.");return;}
           var fd=function(d){if(!d)return"?";var p=d.split("-");return p[2]+"/"+p[1];};
           var per=(iI.value&&iF.value)?(fd(iI.value)+" a "+fd(iF.value)):iI.value?fd(iI.value):new Date().toLocaleDateString("pt-BR");
@@ -483,7 +483,7 @@ export default function App(){
           var cb=function(){setToast({msg:"📋 Copiado! Cole no WhatsApp"});setTimeout(function(){setToast(null);},4000);};
           if(navigator.clipboard){navigator.clipboard.writeText(txt).then(cb).catch(function(){var t=mk("textarea","","");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();});}
           else{var t=mk("textarea","","");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();}
-        },100);}else{gerarPDFRelatorio((window.__mudancas||[]).filter(function(m){if(iI.value&&m.data<iI.value)return false;if(iF.value&&m.data>iF.value)return false;return true;}),iI.value,iF.value,bAc);close();}
+        },100);}else{gerarPDFRelatorio(_filterByPeriod(window.__mudancas||[],iI.value,iF.value),iI.value,iF.value,bAc);close();}
     };
     var r1=mk("div","display:flex;gap:6px;margin-bottom:10px");
     function bS(txt2,fn2){var b=mk("button","flex:1;padding:7px 2px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;font-weight:700;cursor:pointer;color:#334155",txt2);b.onclick=fn2;return b;}
@@ -498,171 +498,184 @@ export default function App(){
     box.appendChild(rF);box.appendChild(rA);ov.appendChild(box);document.body.appendChild(ov);
   }
   // ── HELPER: gerar PDF nativo com jsPDF + autoTable ─────────────
-  async function gerarPDFRelatorio(lista, dataIni, dataFim, btnRef){
-    // Bloquear botão durante geração
-    if(btnRef){btnRef.disabled=true;btnRef.textContent="⏳ A gerar documento...";}
+    // ── FUNÇÕES PURAS (testadas unitariamente) ──────────────────────────────────
+  function _parseDateISO(iso){
+    if(!iso||typeof iso!=='string')return null;
+    var p=iso.split('-');if(p.length!==3)return null;
+    var y=parseInt(p[0],10),m=parseInt(p[1],10),d=parseInt(p[2],10);
+    if(isNaN(y)||isNaN(m)||isNaN(d)||m<1||m>12||d<1||d>31)return null;
+    return new Date(y,m-1,d);
+  }
+  function _filterByPeriod(moves,ini,fim){
+    var dIni=ini?_parseDateISO(ini):null;
+    var dFim=fim?_parseDateISO(fim):null;
+    return moves.filter(function(m){
+      var d=_parseDateISO(m.data);
+      if(!d)return false;
+      if(dIni&&d<dIni)return false;
+      if(dFim&&d>dFim)return false;
+      return true;
+    });
+  }
+  function _fmtDateISO(iso){
+    var d=_parseDateISO(iso);if(!d)return'-';
+    return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+  }
+  function _fmtTime(ts){
+    if(!ts)return'-';
+    var d=new Date(ts);if(isNaN(d.getTime()))return'-';
+    return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  }
+  function _vehicleLabel(m){return m.van?'Van':'Caminhão';}
+  function _statusLabel(m){
+    var p=[];
+    if(m.adm_approved)p.push('✅ ADM');
+    else if(m.confirmed_telemim)p.push('🟡 TELE');
+    else p.push('⏳ Pend.');
+    if(m.promorar_approved)p.push('✅ PRO');
+    return p.join(' ');
+  }
+  function _buildTableRows(lista){
+    return lista.map(function(m){return[
+      _fmtDateISO(m.data),
+      _fmtTime(m.inicio_em),
+      m.nome||'-',
+      m.comunidade||m.origem||'-',
+      m.destino||'-',
+      m.medicao?(Number(m.medicao).toFixed(1)+' m³'):'-',
+      _vehicleLabel(m),
+      _statusLabel(m)
+    ];});
+  }
+  function _buildSingleCardRows(m){
+    var rows=[
+      ['Cliente',m.nome||'-'],
+      ['Data',_fmtDateISO(m.data)],
+      ['Hora',_fmtTime(m.inicio_em)],
+      ['Saída',m.comunidade||m.origem||'-'],
+      ['Destino',m.destino||'-'],
+      ['Medição',m.medicao?(Number(m.medicao).toFixed(1)+' m³'):'-'],
+      ['Veículo',_vehicleLabel(m)],
+      ['Status',_statusLabel(m)]
+    ];
+    if(m.observacao)rows.push(['Observação',m.observacao]);
+    return rows;
+  }
+  function _pdfFileName(d){
+    var dt=d||new Date();
+    return 'Telemim_Relatorio_'+String(dt.getDate()).padStart(2,'0')+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+dt.getFullYear()+'.pdf';
+  }
+  function _singleCardFileName(m){
+    var n=(m.nome||'').replace(/\s+/g,'')||'Cliente';
+    return 'OS_'+n+'.pdf';
+  }
+
+  // ── HELPER: carregar jsPDF + autoTable via CDN ────────────────────────────────
+  async function _loadJsPDF(){
+    if(!window.jspdf){
+      await new Promise(function(res,rej){
+        var s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload=res;s.onerror=rej;document.head.appendChild(s);
+      });
+    }
+    if(!window.jspdfAutoTable){
+      await new Promise(function(res,rej){
+        var s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+        s.onload=res;s.onerror=rej;document.head.appendChild(s);
+      });
+      window.jspdfAutoTable=true;
+    }
+    return window.jspdf.jsPDF;
+  }
+
+  // ── RELATÓRIO GLOBAL (modal 📊 Gerar Relatório) ──────────────────────────────
+  async function gerarPDFRelatorio(lista,dataIni,dataFim,btnRef){
+    if(btnRef){btnRef.disabled=true;btnRef.textContent='⏳ A gerar documento...';}
     try{
-      // Carregar jsPDF e autoTable via CDN de forma dinâmica
-      if(!window.jspdf){
-        await new Promise((res,rej)=>{
-          var s=document.createElement("script");
-          s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-          s.onload=res;s.onerror=rej;document.head.appendChild(s);
-        });
-      }
-      if(!window.jspdfAutoTable){
-        await new Promise((res,rej)=>{
-          var s=document.createElement("script");
-          s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js";
-          s.onload=res;s.onerror=rej;document.head.appendChild(s);
-        });
-        window.jspdfAutoTable=true;
-      }
-      const {jsPDF}=window.jspdf;
-      const doc=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
-      const pgW=doc.internal.pageSize.getWidth();
-      const pgH=doc.internal.pageSize.getHeight();
-      const extractDate=new Date();
-      const extractStr=extractDate.toLocaleDateString("pt-BR")+' '+extractDate.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
-      // Formatação de datas
-      const fd=function(d){if(!d)return"-";var p=d.split("-");return p[2]+"/"+p[1]+"/"+p[0];};
-      const fh=function(ts){if(!ts)return"-";var d=new Date(ts);return d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});};
-      // Período
-      var perStr=dataIni&&dataFim?(fd(dataIni)+" a "+fd(dataFim)):dataIni?("A partir de "+fd(dataIni)):dataFim?("Até "+fd(dataFim)):"Todo o período";
-      // === CABÇALHO ===
+      var JsPDF=await _loadJsPDF();
+      var doc=new JsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+      var pgW=doc.internal.pageSize.getWidth();
+      var pgH=doc.internal.pageSize.getHeight();
+      var now=new Date();
+      var extractStr=now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      var perStr=dataIni&&dataFim?(_fmtDateISO(dataIni)+' a '+_fmtDateISO(dataFim)):dataIni?('A partir de '+_fmtDateISO(dataIni)):dataFim?('Até '+_fmtDateISO(dataFim)):'Todo o período';
+      // Cabeçalho
       doc.setFillColor(17,24,39);
       doc.rect(0,0,pgW,18,'F');
       doc.setTextColor(255,255,255);
-      doc.setFontSize(14);
-      doc.setFont("helvetica","bold");
-      doc.text("🚚 RELATÓRIO DE OPERAÇÕES — TELEMIM",14,8);
-      doc.setFontSize(9);
-      doc.setFont("helvetica","normal");
-      doc.text("Contrato: PROMORAR  |  Período: "+perStr,14,13.5);
-      doc.text("Total: "+lista.length+" mudança"+(lista.length!==1?"s":""),pgW-14,13.5,{align:"right"});
+      doc.setFontSize(14);doc.setFont('helvetica','bold');
+      doc.text('🚚 RELATÓRIO DE OPERAÇÕES — TELEMIM',14,8);
+      doc.setFontSize(9);doc.setFont('helvetica','normal');
+      doc.text('Contrato: PROMORAR  |  Período: '+perStr,14,13.5);
+      doc.text('Total: '+lista.length+' mudança'+(lista.length!==1?'s':''),pgW-14,13.5,{align:'right'});
       doc.setTextColor(30,41,59);
-      // === TABELA ===
-      var statusStr=function(m){
-        var parts=[];
-        if(m.adm_approved)parts.push("✅ ADM");
-        else if(m.confirmed_telemim)parts.push("🟡 TELE");
-        else parts.push("⏳ Pend.");
-        if(m.promorar_approved)parts.push("✅ PRO");
-        return parts.join(" ");
-      };
-      var vehicleStr=function(m){
-        var v=[];
-        if(m.van)v.push("Van");
-        if(!m.van)v.push("Caminhão");
-        return v.join("+");
-      };
-      var rows=lista.map(function(m){
-        return[
-          fd(m.data),
-          fh(m.inicio_em),
-          m.nome||"-",
-          m.comunidade||m.origem||"-",
-          m.destino||"-",
-          m.medicao?(Number(m.medicao).toFixed(1)+" m³"):"-",
-          vehicleStr(m),
-          statusStr(m)
-        ];
-      });
+      // Tabela
       doc.autoTable({
         startY:22,
-        head:[["📅 Data","⏰ Hora","Cliente","Origem","Destino","m³","Veículo","Validações"]],
-        body:rows,
-        theme:"grid",
-        styles:{fontSize:8,cellPadding:2,overflow:"linebreak",font:"helvetica"},
-        headStyles:{fillColor:[17,24,39],textColor:[255,255,255],fontStyle:"bold",fontSize:9},
+        head:[['📅 Data','⏰ Hora','Cliente','Origem','Destino','m³','Veículo','Validações']],
+        body:_buildTableRows(lista),
+        theme:'grid',
+        styles:{fontSize:8,cellPadding:2,overflow:'linebreak',font:'helvetica'},
+        headStyles:{fillColor:[17,24,39],textColor:[255,255,255],fontStyle:'bold',fontSize:9},
         alternateRowStyles:{fillColor:[248,250,252]},
-        columnStyles:{
-          0:{cellWidth:20,halign:"center"},
-          1:{cellWidth:14,halign:"center"},
-          2:{cellWidth:40},
-          3:{cellWidth:40},
-          4:{cellWidth:40},
-          5:{cellWidth:16,halign:"center"},
-          6:{cellWidth:20,halign:"center"},
-          7:{cellWidth:30,halign:"center"}
-        },
+        columnStyles:{0:{cellWidth:20,halign:'center'},1:{cellWidth:14,halign:'center'},2:{cellWidth:40},3:{cellWidth:40},4:{cellWidth:40},5:{cellWidth:16,halign:'center'},6:{cellWidth:20,halign:'center'},7:{cellWidth:30,halign:'center'}},
         didDrawPage:function(data){
-          // Rodapé em cada página
           var pN=doc.internal.getNumberOfPages();
           var cur=doc.internal.getCurrentPageInfo().pageNumber;
-          doc.setFontSize(7);
-          doc.setTextColor(100,116,139);
-          doc.text("TELEMIM — Relatório gerado em: "+extractStr,14,pgH-4);
-          doc.text("Página "+cur+" de "+pN,pgW-14,pgH-4,{align:"right"});
+          doc.setFontSize(7);doc.setTextColor(100,116,139);
+          doc.text('TELEMIM — Relatório gerado em: '+extractStr,14,pgH-4);
+          doc.text('Página '+cur+' de '+pN,pgW-14,pgH-4,{align:'right'});
           doc.setTextColor(30,41,59);
         }
       });
-      // === NOME DO FICHEIRO ===
-      var d=extractDate;
-      var nomeFich="Telemim_Relatorio_"+String(d.getDate()).padStart(2,"0")+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+d.getFullYear()+".pdf";
-      doc.save(nomeFich);
+      doc.save(_pdfFileName(now));
     }finally{
-      if(btnRef){btnRef.disabled=false;btnRef.textContent="📥 Baixar PDF";}
+      if(btnRef){btnRef.disabled=false;btnRef.textContent='📥 Baixar PDF';}
+    }
+  }
+
+  // ── PDF INDIVIDUAL DO CARD ─────────────────────────────────────────────────────
+  async function gerarPDFCardIndividual(move,btnRef){
+    if(btnRef){btnRef.disabled=true;btnRef.textContent='⏳ A gerar...';}
+    try{
+      var JsPDF=await _loadJsPDF();
+      var doc=new JsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+      var pgW=doc.internal.pageSize.getWidth();
+      var pgH=doc.internal.pageSize.getHeight();
+      var now=new Date();
+      // Cabeçalho
+      doc.setFillColor(17,24,39);
+      doc.rect(0,0,pgW,22,'F');
+      doc.setTextColor(255,255,255);
+      doc.setFontSize(16);doc.setFont('helvetica','bold');
+      doc.text('TELEMIM — Ordem de Serviço',14,10);
+      doc.setFontSize(9);doc.setFont('helvetica','normal');
+      doc.text('Contrato: PROMORAR  |  Gerado em: '+now.toLocaleDateString('pt-BR'),14,17);
+      doc.setTextColor(30,41,59);
+      // Tabela de dados do card
+      doc.autoTable({
+        startY:28,
+        head:[['Campo','Detalhe']],
+        body:_buildSingleCardRows(move),
+        theme:'grid',
+        styles:{fontSize:10,cellPadding:4},
+        headStyles:{fillColor:[17,24,39],textColor:[255,255,255],fontStyle:'bold'},
+        columnStyles:{0:{cellWidth:40,fontStyle:'bold',fillColor:[248,250,252]},1:{cellWidth:130}},
+        didDrawPage:function(){
+          doc.setFontSize(7);doc.setTextColor(100,116,139);
+          doc.text('TELEMIM — Documento gerado automaticamente',14,pgH-8);
+          doc.setTextColor(30,41,59);
+        }
+      });
+      doc.save(_singleCardFileName(move));
+    }finally{
+      if(btnRef){btnRef.disabled=false;btnRef.textContent='📄 PDF';}
     }
   }
 
   
-  function gerarPDFGeral(){
-    if(!rel) return;
-    const periodo=rel.ini||rel.fim?`${rel.ini?fmtDate(rel.ini):"início"} a ${rel.fim?fmtDate(rel.fim):"hoje"}`:"Todo o período";
-    const corLucro=rel.liq>=0?"#16a34a":"#dc2626";
-    const bgLucro=rel.liq>=0?"linear-gradient(135deg,#f0fdf4,#dcfce7)":"linear-gradient(135deg,#fef2f2,#fee2e2)";
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TELEMIM — Relatório Financeiro</title><style>${pdfCSS}</style></head><body>
-    <div class="page">
-      <div class="header">
-        <div class="header-top">
-          <div><div class="logo">🚛 TELEMIM</div><div class="subtitle">Gestão Financeira de Mudanças</div></div>
-          <div class="header-meta"><div>CONTRATO: PROMORAR</div><div>Gerado: ${new Date().toLocaleDateString("pt-BR")} ${new Date().toLocaleTimeString("pt-BR")}</div></div>
-        </div>
-        <div style="margin-top:10px;font-size:13px;color:#e67e22;font-weight:700">📅 Período: ${periodo}</div>
-      </div>
-      <div class="body">
-        <div class="lucro-box" style="background:${bgLucro};border:2px solid ${corLucro}">
-          <div class="lucro-label" style="color:${corLucro}">💰 LUCRO LÍQUIDO</div>
-          <div class="lucro-val" style="color:${corLucro}">R$ ${rel.liq.toLocaleString("pt-BR",{minimumFractionDigits:2})}</div>
-          <div class="lucro-sub" style="color:${corLucro}">Margem de Lucro: ${rel.marg.toFixed(1)}%</div>
-        </div>
-        <div class="stats" style="grid-template-columns:repeat(3,1fr)">
-          <div class="stat"><div class="stat-val">${rel.lista.length}</div><div class="stat-label">Mudanças</div></div>
-          <div class="stat"><div class="stat-val">${rel.m3} m³</div><div class="stat-label">Total Medido</div></div>
-          <div class="stat"><div class="stat-val">${rel.vd} dia${rel.vd!==1?"s":""}</div><div class="stat-label">Com Van</div></div>
-        </div>
-        <div class="section"><div class="section-title title-fat">💵 Faturamento</div><table>
-          <tr><td>📐 Medição (${rel.m3} m³ × R$ 150,00)</td><td class="green">R$ ${rel.fatM.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
-          <tr><td>🚐 Van (${rel.vd} dia${rel.vd!==1?"s":""} × R$ 1.000,00)</td><td class="green">R$ ${rel.fatV.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
-          <tr class="total"><td>Faturamento Bruto</td><td class="orange">R$ ${rel.bruto.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
-        </table></div>
-        <div class="section"><div class="section-title title-imp">🏛️ Imposto (16%)</div><table>
-          <tr><td>Dedução sobre Faturamento Bruto</td><td class="red">- R$ ${rel.imp.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
-        </table></div>
-        <div class="section"><div class="section-title title-cust">🔧 Discriminação dos Custos</div><table>
-          ${rel.vd>0?`<tr><td>🚐 Van (${rel.vd} dia${rel.vd!==1?"s":""} × R$ 400,00)</td><td class="red">- R$ ${rel.cV.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>`:""}
-          <tr><td>🚚 Caminhão (${rel.lista.length} × R$ 350,00)</td><td class="red">- R$ ${rel.cC.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
-          <tr><td>👷 Ajudantes (${rel.nAj} × R$ 80,00)</td><td class="red">- R$ ${rel.cA.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
-          ${rel.cAlm>0?`<tr><td>🍽️ Almoço</td><td class="red">- R$ ${rel.cAlm.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>`:""}
-          <tr class="total"><td>Total de Custos</td><td class="blue">- R$ ${rel.custos.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
-        </table></div>
-        <div class="section"><div class="section-title title-res">📊 Resumo Final</div><table>
-          <tr><td>Faturamento Bruto</td><td class="orange">R$ ${rel.bruto.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
-          <tr><td>(-) Imposto 16%</td><td class="red">- R$ ${rel.imp.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
-          <tr><td>(-) Custos Operacionais</td><td class="blue">- R$ ${rel.custos.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
-          <tr class="total"><td>(=) Lucro Líquido</td><td style="color:${corLucro}">R$ ${rel.liq.toLocaleString("pt-BR",{minimumFractionDigits:2})}</td></tr>
-        </table></div>
-        <div class="section"><div class="section-title title-mud">📋 Mudanças do Período (${rel.lista.length})</div><table>
-          <tr class="hrow"><td>Beneficiário</td><td>Selo</td><td>Comunidade</td><td>Data</td><td>m³</td></tr>
-          ${rel.lista.map((m,i)=>`<tr style="background:${i%2===0?"#fff":"#fafafa"}"><td>${m.nome}</td><td>${m.selo||"—"}</td><td>${m.comunidade||"—"}</td><td>${fmtDate(m.data)}</td><td>${m.medicao}</td></tr>`).join("")}
-        </table></div>
-      </div>
-      <div class="footer"><div class="footer-logo">🚛 TELEMIM</div><div class="footer-info">Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}</div></div>
-    </div></body></html>`;
-    abrirPDF(html, `TELEMIM-Relatorio-${periodo.replace(/\//g,"-")}`);
-  }
-
   // ── PDF SEMANA ─────────────────────────────────────────────────────────────
   function gerarPDFMudancas(){
     if(!rel) return;
@@ -736,123 +749,8 @@ export default function App(){
   }
 
   // ── PDF MUDANÇA INDIVIDUAL ─────────────────────────────────────────────────
-  async function gerarPDFMudanca(m,btn){
-    if(btn){btn.disabled=true;btn.textContent="⏳";}
-    try{
-      if(!window.jspdf){await new Promise((res,rej)=>{var s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
-      if(!window.jspdfAutoTable){await new Promise((res,rej)=>{var s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js";s.onload=res;s.onerror=rej;document.head.appendChild(s);});window.jspdfAutoTable=true;}
-      const {jsPDF}=window.jspdf;
-      const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
-      const pgW=doc.internal.pageSize.getWidth();
-      const pgH=doc.internal.pageSize.getHeight();
-      const now=new Date();
-      const nowStr=now.toLocaleDateString("pt-BR")+" "+now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
-      const fd=function(d){if(!d)return"-";var p=d.split("-");return p[2]+"/"+p[1]+"/"+p[0];};
-      const fh=function(ts){if(!ts)return"-";var d=new Date(ts);return d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});};	
-      // Cabeçalho
-      doc.setFillColor(17,24,39);doc.rect(0,0,pgW,22,"F");
-      doc.setTextColor(255,255,255);doc.setFontSize(16);doc.setFont("helvetica","bold");
-      doc.text("🚚 ORDEM DE SERVIÇO — TELEMIM",14,10);
-      doc.setFontSize(9);doc.setFont("helvetica","normal");
-      doc.text("Contrato: PROMORAR  |  Gerado em: "+nowStr,14,16.5);
-      var statusBadge=m.adm_approved?"✅ ADM Aprovado":m.confirmed_telemim?"🟡 Aguarda PROMORAR":"⏳ Pendente";
-      doc.text(statusBadge,pgW-14,16.5,{align:"right"});
-      doc.setTextColor(30,41,59);
-      // Dados do cliente
-      doc.autoTable({
-        startY:28,
-        head:[[{content:"DADOS DA MUDANÇA",colSpan:4,styles:{halign:"center",fillColor:[37,99,235],textColor:[255,255,255],fontStyle:"bold",fontSize:11}}]],
-        body:[
-          ["👤 Cliente",{content:m.nome||"-",styles:{fontStyle:"bold"}},"Data",fd(m.data)],
-          ["📍 Comunidade",m.comunidade||"-","Origem",m.origem||"-"],
-          ["Destino",{content:m.destino||"-",colSpan:3},"",""],
-          ["📏 m³",m.medicao?(Number(m.medicao).toFixed(1)+" m³"):"-","Veículo",m.van?"🚐 Van":"🚚 Caminhão"],
-          ["Início",fh(m.inicio_em),"Término",fh(m.termino_em)],
-          ["Selos",m.selo||"-","Observação",m.observacao||"-"],
-        ],
-        theme:"grid",
-        styles:{fontSize:10,cellPadding:3},
-        headStyles:{},
-        columnStyles:{0:{cellWidth:30,fontStyle:"bold",fillColor:[239,246,255]},2:{cellWidth:30,fontStyle:"bold",fillColor:[239,246,255]}},
-      });
-      // Validações
-      var y=doc.lastAutoTable.finalY+8;
-      doc.setFontSize(11);doc.setFont("helvetica","bold");doc.setFillColor(17,24,39);
-      doc.text("VALIDAÇÕES",14,y);y+=6;
-      doc.autoTable({
-        startY:y,
-        head:[["Validação","Status","Responsável"]],
-        body:[
-          ["TELEMIM",m.confirmed_telemim?"✅ Confirmado":"⏳ Pendente",m.confirmed_telemim_by||"-"],
-          ["PROMORAR",m.promorar_approved?"✅ Aprovado":"⏳ Pendente",m.promorar_approved_by||"-"],
-          ["ADM",m.adm_approved?"✅ Aprovado":"⏳ Pendente",m.adm_approved_by||"-"],
-        ],
-        theme:"striped",
-        headStyles:{fillColor:[17,24,39],textColor:[255,255,255],fontStyle:"bold"},
-        styles:{fontSize:10,cellPadding:3},
-      });
-      // Assinaturas
-      var yA=doc.lastAutoTable.finalY+14;
-      doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(100,116,139);
-      doc.line(14,yA,80,yA);doc.line(100,yA,166,yA);
-      doc.text("Assinatura do Morador",14,yA+5);
-      doc.text("Assinatura TELEMIM",100,yA+5);
-      // Rodapé
-      doc.setFontSize(7);doc.setTextColor(100,116,139);
-      doc.text("TELEMIM — "+nowStr,14,pgH-6);
-      doc.text("ID: "+m.id,pgW-14,pgH-6,{align:"right"});
-      // Download
-      var nomeCliente=(m.nome||"Cliente").replace(/[^a-zA-Z0-9À-ÿ]/g,"_");
-      doc.save("OS_"+nomeCliente+".pdf");
-    }finally{
-      if(btn){btn.disabled=false;btn.textContent="🗄";}
-    }
-  }
-
-  async function gerarPDFAgendamento(a,btn){
-    if(btn){btn.disabled=true;btn.textContent="⏳";}
-    try{
-      if(!window.jspdf){await new Promise((res,rej)=>{var s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
-      if(!window.jspdfAutoTable){await new Promise((res,rej)=>{var s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js";s.onload=res;s.onerror=rej;document.head.appendChild(s);});window.jspdfAutoTable=true;}
-      const {jsPDF}=window.jspdf;
-      const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
-      const pgW=doc.internal.pageSize.getWidth();const pgH=doc.internal.pageSize.getHeight();
-      const now=new Date();
-      const nowStr=now.toLocaleDateString("pt-BR")+" "+now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
-      const fd=function(d){if(!d)return"-";var p=d.split("-");return p[2]+"/"+p[1]+"/"+p[0];};
-      // Cabeçalho
-      doc.setFillColor(109,40,217);doc.rect(0,0,pgW,22,"F");
-      doc.setTextColor(255,255,255);doc.setFontSize(16);doc.setFont("helvetica","bold");
-      doc.text("📅 AGENDAMENTO — TELEMIM",14,10);
-      doc.setFontSize(9);doc.setFont("helvetica","normal");
-      doc.text("Contrato: PROMORAR  |  Gerado em: "+nowStr,14,16.5);
-      doc.text(a.status||"confirmado",pgW-14,16.5,{align:"right"});
-      doc.setTextColor(30,41,59);
-      // Dados
-      doc.autoTable({
-        startY:28,
-        head:[[{content:"DADOS DO AGENDAMENTO",colSpan:4,styles:{halign:"center",fillColor:[109,40,217],textColor:[255,255,255],fontStyle:"bold",fontSize:11}}]],
-        body:[
-          ["👤 Cliente",{content:a.nome||"-",styles:{fontStyle:"bold"}},"Data",fd(a.data)],
-          ["📏 Horário",a.horario||"-","Comunidade",a.comunidade||"-"],
-          ["Origem",a.origem||"-","Destino",a.destino||"-"],
-          ["m³",a.medicao?(Number(a.medicao).toFixed(1)+" m³"):"-","Ajudantes",a.ajudantes||"-"],
-          ["Veículos",(a.van?"🚐 Van ":"")+( a.caminhao?"🚚 Caminhão":""),"Contato",a.contato||"-"],
-          ["Observação",{content:a.observacao||"-",colSpan:3},"",""],
-        ],
-        theme:"grid",styles:{fontSize:10,cellPadding:3},
-        columnStyles:{0:{cellWidth:30,fontStyle:"bold",fillColor:[245,243,255]},2:{cellWidth:30,fontStyle:"bold",fillColor:[245,243,255]}},
-      });
-      // Rodapé
-      doc.setFontSize(7);doc.setTextColor(100,116,139);
-      doc.text("TELEMIM — "+nowStr,14,pgH-6);
-      doc.text("ID: "+a.id,pgW-14,pgH-6,{align:"right"});
-      var nomeCliente=(a.nome||"Cliente").replace(/[^a-zA-Z0-9À-ÿ]/g,"_");
-      doc.save("Agendamento_"+nomeCliente+"_"+fd(a.data).replace(/\/g,"-")+".pdf");
-    }finally{
-      if(btn){btn.disabled=false;btn.textContent="🗄";}
-    }
-  }
+  async   function gerarPDFMudanca(m,btn){gerarPDFCardIndividual(m,btn);}
+  function gerarPDFAgendamento(a,btn){gerarPDFCardIndividual(a,btn);}
 
   function compartilharWhatsApp(a,tipo="agendamento"){
     const veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
