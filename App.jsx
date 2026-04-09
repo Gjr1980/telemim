@@ -235,6 +235,19 @@ export default function App(){
       setLoading(false);
     }
     load();
+    // === REALTIME: Supabase WebSocket + polling 30s ===
+    var wsUrl=SUPA_URL.replace("https://","wss://").replace("http://","ws://")+"/realtime/v1/websocket?apikey="+SUPA_KEY+"&log_level=info";
+    var ws=null;
+    try{
+      ws=new WebSocket(wsUrl);
+      ws.onopen=function(){ws.send(JSON.stringify({topic:"realtime:public:mudancas",event:"phx_join",payload:{},ref:"1"}));ws.send(JSON.stringify({topic:"realtime:public:agenda",event:"phx_join",payload:{},ref:"2"}));};
+      ws.onmessage=function(e){try{var m=JSON.parse(e.data);if(m.event==="INSERT"||m.event==="UPDATE"||m.event==="DELETE"){if(m.topic&&m.topic.includes("mudancas"))loadMud();else if(m.topic&&m.topic.includes("agenda"))loadAg();}}catch(err){}};
+      ws.onerror=function(){};
+    }catch(err){}
+    var pollId=setInterval(function(){if(document.visibilityState==="visible"){loadMud();loadAg();}},30000);
+    var onVisible=function(){if(document.visibilityState==="visible"){loadMud();loadAg();}};
+    document.addEventListener("visibilitychange",onVisible);
+    return function(){clearInterval(pollId);document.removeEventListener("visibilitychange",onVisible);if(ws&&ws.readyState===1)ws.close();};
   },[]);
   async function loadMud(){const r=await dbGet("mudancas");if(r)setMudancas(r);}
   async function loadAg(){const r=await dbGet("agenda");if(r)setAgenda(r);}
@@ -273,21 +286,15 @@ export default function App(){
     await dbUpsertCusto(row);
   }
 
-  async function saveMud(list){
+  async function saveMud(list,changed){
     setMudancas(list);
     setSyncStatus("🔄 Salvando...");
-    try {
-      for(const m of list){
-        const row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,requires_validation:m.requires_validation||false,social_approved:m.social_approved||false,social_approved_by:m.social_approved_by||null,promorar_approved:m.promorar_approved||false,promorar_approved_by:m.promorar_approved_by||null,adm_approved:m.adm_approved||false,adm_approved_by:m.adm_approved_by||null};
-        await fetch(`${SUPA_URL}/rest/v1/mudancas`,{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify([row])});
-      }
-      setSyncStatus("✅ Sinc");
-    } catch(e){ setSyncStatus("⚠️ Erro"); }
+    try{
+      var ts=changed?[changed]:list;
+      for(var i=0;i<ts.length;i++){var m=ts[i];var row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,contato:m.contato||"",observacao:m.observacao||"",confirmed_promorar:m.confirmed_promorar||false,confirmed_telemim:m.confirmed_telemim||false,adm_approved:m.adm_approved||false,promorar_approved:m.promorar_approved||false,social_approved:m.social_approved||false};await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
+      setSyncStatus("✅ Sinc");window.__mudancas=list;
+    }catch(e){setSyncStatus("⚠️ Erro");loadMud();}
   }
-  useEffect(()=>{const s=localStorage.getItem('tmim_u');if(s){try{setUsuario(JSON.parse(s));}catch(e){}}setAuthChecked(true);
-    fetch(SUPA_URL+'/rest/v1/configuracoes?select=chave,valor',{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}}).then(res=>res.json()).then(rows=>{if(!Array.isArray(rows))return;const cfg={};rows.forEach(row=>{cfg[row.chave]=row.valor;});RULES.van1a=Number(cfg.van_1a_mudanca)||1000;RULES.vanAdd=Number(cfg.van_adicional)||130;RULES.aj1a=Number(cfg.ajudante_1a_mudanca)||80;RULES.ajAdd=Number(cfg.ajudante_adicional)||20;RULES.imposto=(Number(cfg.imposto_pct)||16)/100;RULES.dataInicioRegra=cfg.data_inicio_regra||'';setCfgEdit({van1a:RULES.van1a,vanAdd:RULES.vanAdd,aj1a:RULES.aj1a,ajAdd:RULES.ajAdd,dataInicioRegra:RULES.dataInicioRegra,imposto:Number(cfg.imposto_pct)||16});
-        setBackupCfg({ativo:cfg.backup_ativo==="true",clientId:cfg.backup_gdrive_client_id||"",clientSecret:cfg.backup_gdrive_client_secret||"",refreshToken:cfg.backup_gdrive_refresh_token||""});
-        fetch(SUPA_URL+"/rest/v1/backup_historico?select=*&order=executado_em.desc&limit=8",{headers:{apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY}}).then(function(re){return re.json();}).then(function(_bhJ){if(Array.isArray(_bhJ))setBackupHist(_bhJ);}).catch(function(){});}).catch(()=>{});if(!document.getElementById('tmim-anim')){const st=document.createElement('style');st.id='tmim-anim';st.textContent='@keyframes piscarVerde{0%,100%{opacity:1;box-shadow:0 2px 8px rgba(22,163,74,0.15);}50%{opacity:0.88;box-shadow:0 0 0 8px rgba(22,163,74,0.35),0 4px 20px rgba(22,163,74,0.6);}}.em-andamento{animation:piscarVerde 1.2s ease-in-out infinite!important;}';document.head.appendChild(st);}if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){});}},[]);
   async function handleLogin(){if(!loginForm.email||!loginForm.senha){setLoginErro("Preencha email e senha");return;}setLoginLoad(true);setLoginErro("");try{const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:loginForm.email,password:loginForm.senha})});const d=await res.json();if(!res.ok||!d.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+d.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+d.access_token}});const pd=await pr.json();if(!pd||!pd[0]||pd[0].ativo===false){setLoginErro("Sem acesso. Contate o administrador.");setLoginLoad(false);return;}const u={id:d.user.id,email:d.user.email,nome:pd[0].nome,perfil:pd[0].perfil,token:d.access_token};setUsuario(u);setTab("dashboard");localStorage.setItem('tmim_u',JSON.stringify(u));}catch(e){setLoginErro("Erro.");}setLoginLoad(false);}
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
   const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar;const verMed=isAdmin||isPromorar;
@@ -324,24 +331,34 @@ export default function App(){
   }
   function fmtTempo(iso){if(!iso)return null;const d=new Date(iso);return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
     function addLog(msg){var ts=new Date();var hora=String(ts.getHours()).padStart(2,"0")+":"+String(ts.getMinutes()).padStart(2,"0");setActivityLogs(function(prev){return [{id:ts.getTime(),hora:hora,msg:msg},...prev].slice(0,10);});setToast({id:ts.getTime(),msg:msg});setTimeout(function(){setToast(null);},4000);}
-  async function handleValidar3vias(id,tipo){var campo=tipo==="social"?"social_approved":tipo==="promorar"?"promorar_approved":"adm_approved";var campoPor=tipo+"_approved_by";var nome=usuario&&(usuario.nome||usuario.email)||"?";setMudancas(function(prev){return prev.map(function(m){return m.id===id?Object.assign({},m,{[campo]:true,[campoPor]:nome}):m;});});fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(usuario&&usuario.token||""),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(Object.assign({},{[campo]:true,[campoPor]:nome}))}).catch(function(){});var _mn=(mudancas.find(function(mx){return mx.id===id;})||{}).nome||"?";var _pl=tipo==="social"?"Social":tipo==="promorar"?"Promorar":"Adm";var _nu=usuario&&(usuario.nome||usuario.email)||"?";addLog("✅ "+_nu+" ("+_pl+") aprovou: "+_mn);}
-  async function saveAg(list){
+  async function handleValidar3vias(id,tipo){
+    var campo=tipo==="social"?"social_approved":tipo==="promorar"?"promorar_approved":"adm_approved";
+    var campoPor=tipo+"_approved_by";
+    var nome=usuario&&(usuario.nome||usuario.email)||"";
+    var anterior=mudancas.find(function(m){return m.id===id;});
+    setMudancas(prev=>prev.map(m=>m.id===id?{...m,[campo]:true,[campoPor]:nome}:m));
+    window.__mudancas=(window.__mudancas||[]).map(m=>m.id===id?{...m,[campo]:true,[campoPor]:nome}:m);
+    try{
+      await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+id,{method:"PATCH",headers:{...HEADERS,"Prefer":"return=representation"},body:JSON.stringify({[campo]:true,[campoPor]:nome})});
+    }catch(e){
+      if(anterior)setMudancas(prev=>prev.map(m=>m.id===id?{...anterior}:m));
+      setSyncStatus("⚠️ Erro ao validar");
+    }
+  }
+  async function saveAg(list,changed){
     setAgenda(list);
     setSyncStatus("🔄 Salvando...");
-    try {
-      for(const a of list){
-        const row={id:a.id,nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado",requires_validation:a.requires_validation||false,social_approved:a.social_approved||false,social_approved_by:a.social_approved_by||null,promorar_approved:a.promorar_approved||false,promorar_approved_by:a.promorar_approved_by||null,adm_approved:a.adm_approved||false,adm_approved_by:a.adm_approved_by||null};
-        await fetch(`${SUPA_URL}/rest/v1/agenda`,{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify([row])});
-      }
+    try{
+      var ts=changed?[changed]:list;
+      for(var i=0;i<ts.length;i++){var a=ts[i];var row={id:a.id,nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado",observacao:a.observacao||"",social_approved:a.social_approved||false,promorar_approved:a.promorar_approved||false,adm_approved:a.adm_approved||false};await fetch(SUPA_URL+"/rest/v1/agenda",{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
       setSyncStatus("✅ Sinc");
-    } catch(e){ setSyncStatus("⚠️ Erro"); }
+    }catch(e){setSyncStatus("⚠️ Erro");loadAg();}
   }
-
-  // ── MUDANÇAS CRUD ──────────────────────────────────────────────────────────
   async function handleAddMud(){
     if(!form.nome||!form.selo) return;
     var _p=usuario&&usuario.perfil||"";var _isSocial=_p==="social";var _isPromorar=_p==="promorar";var _isAdm=_p==="admin"||_p==="telemim";var _nomeUser=usuario&&(usuario.nome||usuario.email)||"";const nova={...form,id:Date.now(),medicao:parseFloat(form.medicao)||0,requires_validation:true,social_approved:_isSocial,social_approved_by:_isSocial?_nomeUser:null,promorar_approved:_isPromorar,promorar_approved_by:_isPromorar?_nomeUser:null,adm_approved:_isAdm,adm_approved_by:_isAdm?_nomeUser:null};
-    await saveMud([...mudancas,nova]);
+    setMudancas(prev=>[nova,...prev]);
+    await saveMud([nova,...mudancas],nova);
     setForm(initForm); setFlash("✅ Salvo!"); setTimeout(()=>setFlash(""),1800); setTab("lista");
   }
   async function handleDelMud(id){
@@ -353,15 +370,29 @@ export default function App(){
   async function handleSaveEditMud(){
     if(!editMud) return;
     const updated=mudancas.map(m=>m.id===editMud.id?{...editMud,medicao:parseFloat(editMud.medicao)||0}:m);
-    await saveMud(updated); setEditMud(null);
+    setMudancas(()=>updated);
+    await saveMud(updated,editMud); setEditMud(null);
   }
 
   // ── AGENDA CRUD ────────────────────────────────────────────────────────────
-  async function handleValidarAg(id,tipo){var campo=tipo==="social"?"social_approved":tipo==="promorar"?"promorar_approved":"adm_approved";var campoPor=tipo+"_approved_by";var nome=usuario&&(usuario.nome||usuario.email)||"?";setAgenda(function(prev){return prev.map(function(a){return a.id===id?Object.assign({},a,{[campo]:true,[campoPor]:nome}):a;});});fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+id,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(usuario&&usuario.token||""),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(Object.assign({},{[campo]:true,[campoPor]:nome}))}).catch(function(){});var _an=(agenda.find(function(ax){return ax.id===id;})||{}).nome||"?";var _pla=tipo==="social"?"Social":tipo==="promorar"?"Promorar":"Adm";var _nua=usuario&&(usuario.nome||usuario.email)||"?";addLog("✅ "+_nua+" ("+_pla+") aprovou: "+_an);}
+  async function handleValidarAg(id,tipo){
+    var campo=tipo==="social"?"social_approved":tipo==="promorar"?"promorar_approved":"adm_approved";
+    var campoPor=tipo+"_approved_by";
+    var nome=usuario&&(usuario.nome||usuario.email)||"";
+    var anterior=agenda.find(function(a){return a.id===id;});
+    setAgenda(prev=>prev.map(a=>a.id===id?{...a,[campo]:true,[campoPor]:nome}:a));
+    try{
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+id,{method:"PATCH",headers:{...HEADERS,"Prefer":"return=representation"},body:JSON.stringify({[campo]:true,[campoPor]:nome})});
+    }catch(e){
+      if(anterior)setAgenda(prev=>prev.map(a=>a.id===id?{...anterior}:a));
+      setSyncStatus("⚠️ Erro ao validar");
+    }
+  }
   async function handleAddAg(){
     if(!agForm.nome||!agForm.data) return;
     var _pa=usuario&&usuario.perfil||"";var _na=usuario&&(usuario.nome||usuario.email)||"";const nova={...agForm,id:Date.now(),requires_validation:true,social_approved:_pa==="social",social_approved_by:_pa==="social"?_na:null,promorar_approved:_pa==="promorar",promorar_approved_by:_pa==="promorar"?_na:null,adm_approved:_pa==="admin"||_pa==="telemim",adm_approved_by:(_pa==="admin"||_pa==="telemim")?_na:null};
-    await saveAg([...agenda,nova]);
+    setAgenda(prev=>[nova,...prev]);
+    await saveAg([nova,...agenda],nova);
     setAgForm({...initForm,status:"confirmado"}); setAgenda(prev=>[nova,...prev]); setFlash("✅ Agendado!"); setTimeout(()=>setFlash(""),1800); setTab("agenda");
   }
   async function handleDelAg(id){
