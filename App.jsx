@@ -147,7 +147,7 @@ export default function App(){
   const [loginForm,setLoginForm]=useState({email:"",senha:""});
   const [loginErro,setLoginErro]=useState("");
   const [loginLoad,setLoginLoad]=useState(false);
-  const [authChecked,setAuthChecked]=useState(false);
+  const [authChecked,setAuthChecked]=useState(true);
   const [listaUsuarios,setListaUsuarios]=useState([])
   const [confirmDelete,setConfirmDelete]=useState(null);
   const [activityLogs,setActivityLogs]=useState([]);
@@ -233,6 +233,7 @@ export default function App(){
         }catch(e3){setContasHist([]);}
       }finally{
         // SEMPRE executado — garante que o app abre
+                setAuthChecked(true);
         setLoading(false);
       }
     }
