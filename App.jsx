@@ -209,9 +209,12 @@ export default function App(){
   async function loadContasSemana(){
     try{
       var hj=new Date();var dw=hj.getDay();var dif=dw===0?6:dw-1;
-      var s0=new Date(hj);s0.setDate(s0.getDate()-dif);s0.setHours(0,0,0,0);
-      var s1=new Date(s0);s1.setDate(s0.getDate()+6);s1.setHours(23,59,59,999);
-      var si=_fmtDate(s0);var sf=_fmtDate(s1);
+      // Usar year/month/date local para evitar bug UTC no fuso BRT (-3h)
+      var s0=new Date(hj.getFullYear(),hj.getMonth(),hj.getDate()-dif);
+      var s1=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+6);
+      var _pad=function(n){return String(n).padStart(2,"0");};
+      var si=s0.getFullYear()+"-"+_pad(s0.getMonth()+1)+"-"+_pad(s0.getDate());
+      var sf=s1.getFullYear()+"-"+_pad(s1.getMonth()+1)+"-"+_pad(s1.getDate());
       var res=await fetch(SUPA_URL+"/rest/v1/contas_semana",{method:"POST",headers:{"Content-Type":"application/json",apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Prefer":"return=representation"},body:JSON.stringify({semana_inicio:si,semana_fim:sf,tipo:"outro",tipo_conta:"pagar",status:"pendente"})});
       if(!res.ok)return;
       var novo=await res.json();
@@ -221,15 +224,18 @@ export default function App(){
 
   // ── DERIVED STATE: useMemo reactivos ─────────────────────────────────
   var custoSemanal=useMemo(function(){
-    // Custo semana actual = soma de valor_editado||valor_calculado dos registos da semana
+    // Calcular inicio da semana actual (segunda-feira) em formato YYYY-MM-DD
     var hj=new Date();
-    var dw=hj.getDay();var dS=dw===0?6:dw-1;
-    var s0=new Date(hj);s0.setDate(s0.getDate()-dS);s0.setHours(0,0,0,0);
-    var s6=new Date(s0);s6.setDate(s6.getDate()+6);s6.setHours(23,59,59,999);
+    var dw=hj.getDay(); // 0=dom,1=seg,...,6=sab
+    var dS=dw===0?6:dw-1; // dias desde segunda
+    var s0=new Date(hj.getFullYear(),hj.getMonth(),hj.getDate()-dS); // local, sem UTC
+    var s6=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+6);
+    // Formatar como YYYY-MM-DD para comparar com semana_inicio (string)
+    var pad=function(n){return String(n).padStart(2,"0");};
+    var siStr=s0.getFullYear()+"-"+pad(s0.getMonth()+1)+"-"+pad(s0.getDate());
+    var sfStr=s6.getFullYear()+"-"+pad(s6.getMonth()+1)+"-"+pad(s6.getDate());
     return custosSemana.filter(function(x){
-      if(!x.semana_inicio)return false;
-      var d=new Date(x.semana_inicio+'T00:00:00');
-      return d>=s0&&d<=s6;
+      return x.semana_inicio&&x.semana_inicio>=siStr&&x.semana_inicio<=sfStr;
     }).reduce(function(acc,x){
       return acc+(Number(x.valor_editado||x.valor_calculado)||0);
     },0);
