@@ -483,7 +483,7 @@ export default function App(){
           var cb=function(){setToast({msg:"📋 Copiado! Cole no WhatsApp"});setTimeout(function(){setToast(null);},4000);};
           if(navigator.clipboard){navigator.clipboard.writeText(txt).then(cb).catch(function(){var t=mk("textarea","","");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();});}
           else{var t=mk("textarea","","");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();}
-        },100);}else{setTimeout(function(){gerarRel();},100);close();}
+        },100);}else{gerarPDFRelatorio((window.__mudancas||[]).filter(function(m){if(iI.value&&m.data<iI.value)return false;if(iF.value&&m.data>iF.value)return false;return true;}),iI.value,iF.value,bAc);close();}
     };
     var r1=mk("div","display:flex;gap:6px;margin-bottom:10px");
     function bS(txt2,fn2){var b=mk("button","flex:1;padding:7px 2px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;font-weight:700;cursor:pointer;color:#334155",txt2);b.onclick=fn2;return b;}
@@ -497,21 +497,116 @@ export default function App(){
     box.appendChild(mk("div","font-size:11px;font-weight:700;color:#64748b;margin-bottom:10px;text-transform:uppercase","Como exportar?"));
     box.appendChild(rF);box.appendChild(rA);ov.appendChild(box);document.body.appendChild(ov);
   }
-  // ── HELPER: abrir PDF via Blob (funciona em todos os ambientes) ────────────
-  function abrirPDF(html, nomeArquivo){
-    const printStyle = `<style>@media print{body{margin:0;padding:0;background:#fff}.page{box-shadow:none!important;border-radius:0!important;border:none!important}}@page{size:A4;margin:8mm}</style>`;
-    const fullHtml = html.replace('</head>', printStyle + '</head>');
-    const w = window.open('', '_blank', 'width=900,height=700');
-    if(!w){ alert('Permita pop-ups para gerar PDF!'); return; }
-    w.document.write(fullHtml);
-    w.document.close();
-    w.addEventListener('load', function(){ setTimeout(function(){ w.print(); }, 600); });
+  // ── HELPER: gerar PDF nativo com jsPDF + autoTable ─────────────
+  async function gerarPDFRelatorio(lista, dataIni, dataFim, btnRef){
+    // Bloquear botão durante geração
+    if(btnRef){btnRef.disabled=true;btnRef.textContent="⏳ A gerar documento...";}
+    try{
+      // Carregar jsPDF e autoTable via CDN de forma dinâmica
+      if(!window.jspdf){
+        await new Promise((res,rej)=>{
+          var s=document.createElement("script");
+          s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+          s.onload=res;s.onerror=rej;document.head.appendChild(s);
+        });
+      }
+      if(!window.jspdfAutoTable){
+        await new Promise((res,rej)=>{
+          var s=document.createElement("script");
+          s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js";
+          s.onload=res;s.onerror=rej;document.head.appendChild(s);
+        });
+        window.jspdfAutoTable=true;
+      }
+      const {jsPDF}=window.jspdf;
+      const doc=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+      const pgW=doc.internal.pageSize.getWidth();
+      const pgH=doc.internal.pageSize.getHeight();
+      const extractDate=new Date();
+      const extractStr=extractDate.toLocaleDateString("pt-BR")+' '+extractDate.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+      // Formatação de datas
+      const fd=function(d){if(!d)return"-";var p=d.split("-");return p[2]+"/"+p[1]+"/"+p[0];};
+      const fh=function(ts){if(!ts)return"-";var d=new Date(ts);return d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});};
+      // Período
+      var perStr=dataIni&&dataFim?(fd(dataIni)+" a "+fd(dataFim)):dataIni?("A partir de "+fd(dataIni)):dataFim?("Até "+fd(dataFim)):"Todo o período";
+      // === CABÇALHO ===
+      doc.setFillColor(17,24,39);
+      doc.rect(0,0,pgW,18,'F');
+      doc.setTextColor(255,255,255);
+      doc.setFontSize(14);
+      doc.setFont("helvetica","bold");
+      doc.text("🚚 RELATÓRIO DE OPERAÇÕES — TELEMIM",14,8);
+      doc.setFontSize(9);
+      doc.setFont("helvetica","normal");
+      doc.text("Contrato: PROMORAR  |  Período: "+perStr,14,13.5);
+      doc.text("Total: "+lista.length+" mudança"+(lista.length!==1?"s":""),pgW-14,13.5,{align:"right"});
+      doc.setTextColor(30,41,59);
+      // === TABELA ===
+      var statusStr=function(m){
+        var parts=[];
+        if(m.adm_approved)parts.push("✅ ADM");
+        else if(m.confirmed_telemim)parts.push("🟡 TELE");
+        else parts.push("⏳ Pend.");
+        if(m.promorar_approved)parts.push("✅ PRO");
+        return parts.join(" ");
+      };
+      var vehicleStr=function(m){
+        var v=[];
+        if(m.van)v.push("Van");
+        if(!m.van)v.push("Caminhão");
+        return v.join("+");
+      };
+      var rows=lista.map(function(m){
+        return[
+          fd(m.data),
+          fh(m.inicio_em),
+          m.nome||"-",
+          m.comunidade||m.origem||"-",
+          m.destino||"-",
+          m.medicao?(Number(m.medicao).toFixed(1)+" m³"):"-",
+          vehicleStr(m),
+          statusStr(m)
+        ];
+      });
+      doc.autoTable({
+        startY:22,
+        head:[["📅 Data","⏰ Hora","Cliente","Origem","Destino","m³","Veículo","Validações"]],
+        body:rows,
+        theme:"grid",
+        styles:{fontSize:8,cellPadding:2,overflow:"linebreak",font:"helvetica"},
+        headStyles:{fillColor:[17,24,39],textColor:[255,255,255],fontStyle:"bold",fontSize:9},
+        alternateRowStyles:{fillColor:[248,250,252]},
+        columnStyles:{
+          0:{cellWidth:20,halign:"center"},
+          1:{cellWidth:14,halign:"center"},
+          2:{cellWidth:40},
+          3:{cellWidth:40},
+          4:{cellWidth:40},
+          5:{cellWidth:16,halign:"center"},
+          6:{cellWidth:20,halign:"center"},
+          7:{cellWidth:30,halign:"center"}
+        },
+        didDrawPage:function(data){
+          // Rodapé em cada página
+          var pN=doc.internal.getNumberOfPages();
+          var cur=doc.internal.getCurrentPageInfo().pageNumber;
+          doc.setFontSize(7);
+          doc.setTextColor(100,116,139);
+          doc.text("TELEMIM — Relatório gerado em: "+extractStr,14,pgH-4);
+          doc.text("Página "+cur+" de "+pN,pgW-14,pgH-4,{align:"right"});
+          doc.setTextColor(30,41,59);
+        }
+      });
+      // === NOME DO FICHEIRO ===
+      var d=extractDate;
+      var nomeFich="Telemim_Relatorio_"+String(d.getDate()).padStart(2,"0")+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+d.getFullYear()+".pdf";
+      doc.save(nomeFich);
+    }finally{
+      if(btnRef){btnRef.disabled=false;btnRef.textContent="📥 Baixar PDF";}
+    }
   }
 
-  // ── CSS COMPARTILHADO PARA PDFs ────────────────────────────────────────────
-  const pdfCSS=`*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f9;color:#1a1a2e;padding:20px}.page{max-width:720px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)}.header{background:linear-gradient(135deg,#1e293b 0%,#334155 100%);color:#fff;padding:24px 28px}.logo{font-size:22px;font-weight:900;color:#e67e22}.subtitle{font-size:10px;color:#94a3b8;letter-spacing:2px;text-transform:uppercase;margin-top:2px}.header-meta{font-size:11px;color:#94a3b8;text-align:right;line-height:1.8}.header-top{display:flex;justify-content:space-between;align-items:flex-start}.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}.body{padding:24px 28px}.section{margin-bottom:20px}.section-title{font-size:12px;font-weight:800;padding:7px 12px;border-radius:8px;margin-bottom:9px}.title-fat{background:#fff8e6;color:#b7840a}.title-imp{background:#fdecea;color:#c0392b}.title-cust{background:#eaf4fb;color:#1a6a99}.title-res{background:#f0f0f0;color:#333}.title-mud{background:#f0faf4;color:#1a7a45}.title-ag{background:#f5f3ff;color:#6d28d9}.title-info{background:#f0f9ff;color:#0369a1}table{width:100%;border-collapse:collapse}td{padding:8px 11px;font-size:12px;border-bottom:1px solid #f0f0f0}td:last-child{text-align:right;font-weight:700}tr.total td{background:#f8f9fb;font-weight:800;font-size:13px;border-top:2px solid #e0e0e0}tr.hrow td{background:#f0f2f5;font-weight:700;font-size:11px;color:#666;text-transform:uppercase}.green{color:#16a34a}.red{color:#dc2626}.blue{color:#2563eb}.orange{color:#e67e22}.purple{color:#7c3aed}.lucro-box{border-radius:12px;padding:20px;text-align:center;margin-bottom:20px}.lucro-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px}.lucro-val{font-size:36px;font-weight:900;line-height:1}.lucro-sub{font-size:12px;margin-top:7px;font-weight:600}.stats{display:grid;gap:10px;margin-bottom:20px}.stat{background:#f8f9fb;border-radius:10px;padding:12px;text-align:center;border:1px solid #e8eaf0}.stat-val{font-size:16px;font-weight:900;color:#1a1a2e}.stat-label{font-size:10px;color:#8890a4;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}.info-row{display:flex;gap:8px;margin-bottom:8px;font-size:12px}.info-label{font-weight:700;color:#475569;min-width:90px}.info-val{color:#64748b}.footer{background:#f8f9fb;border-top:1px solid #eee;padding:12px 28px;display:flex;justify-content:space-between;align-items:center}.footer-logo{font-size:12px;font-weight:800;color:#e67e22}.footer-info{font-size:10px;color:#aaa}@media print{body{padding:0;background:#fff}.page{box-shadow:none;border-radius:0}}`;
-
-  // ── PDF RELATÓRIO FINANCEIRO ───────────────────────────────────────────────
+  
   function gerarPDFGeral(){
     if(!rel) return;
     const periodo=rel.ini||rel.fim?`${rel.ini?fmtDate(rel.ini):"início"} a ${rel.fim?fmtDate(rel.fim):"hoje"}`:"Todo o período";
