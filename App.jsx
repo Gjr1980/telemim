@@ -207,34 +207,32 @@ export default function App(){
   // ── LOAD DATA ──────────────────────────────────────────────────────────────
   useEffect(()=>{
     async function load(){
-      try {
-        let [mRows, aRows] = await Promise.all([dbGet("mudancas"), dbGet("agenda")]);
-        if(mRows.length===0){
-          await dbUpsert("mudancas", DADOS_INICIAIS);
-          mRows = DADOS_INICIAIS;
-        }
-        if(aRows.length===0){
-          await dbUpsert("agenda", AGENDA_INICIAIS);
-          aRows = AGENDA_INICIAIS;
-        }
-        let cRows = await dbGetCustos();
-        setMudancas(mRows);
-        setAgenda(aRows);
-        setCustosDiarios(cRows);
-        try{const _cvR=await fetch(SUPA_URL+"/rest/v1/v_custos_semana_calculados?select=*&order=semana_inicio.desc",{headers:{apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY}});const _cvJ=await _cvR.json();if(Array.isArray(_cvJ)){setCustosSemana(_cvJ);}}catch(_ev){}
-        try{const _csR=await fetch(SUPA_URL+"/rest/v1/contas_semana?select=*&order=semana_inicio.desc",{headers:{apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY}});const _csJ=await _csR.json();if(Array.isArray(_csJ)){setContasSemana(_csJ);}}catch(_e){}
-      } catch(e){
-        setMudancas(DADOS_INICIAIS);
-        setAgenda(AGENDA_INICIAIS);
-        setSyncStatus("⚠️ Offline");
-      } finally {
-        // finally garante que setLoading(false) é sempre executado
+      try{
+        // Carregar mudancas e agenda em paralelo
         try{
-          const cpRows=await dbGetContas('pendente');
-          setContasPagar(cpRows);
-          const chRows=await dbGetContas('pago');
-          setContasHist(chRows);
-        }catch(e2){/* contas falhou mas nao bloqueia o app */}
+          var p=await Promise.all([dbGet("mudancas"),dbGet("agenda")]);
+          var mRows=p[0]||[];var aRows=p[1]||[];
+          if(mRows.length===0){await dbUpsert("mudancas",DADOS_INICIAIS);mRows=DADOS_INICIAIS;}
+          if(aRows.length===0){await dbUpsert("agenda",AGENDA_INICIAIS);aRows=AGENDA_INICIAIS;}
+          var cRows=await dbGetCustos();
+          setMudancas(mRows);setAgenda(aRows);setCustosDiarios(cRows||[]);
+          window.__mudancas=mRows;
+          setSyncStatus("✅ Sincronizado");
+        }catch(e1){
+          setMudancas(DADOS_INICIAIS);setAgenda(AGENDA_INICIAIS);
+          setSyncStatus("⚠️ Offline");
+        }
+        // Carregar contas (nao bloqueia o app se falhar)
+        try{
+          var cpRows=await dbGetContas("pendente");
+          setContasPagar(cpRows||[]);
+        }catch(e2){setContasPagar([]);}
+        try{
+          var chRows=await dbGetContas("pago");
+          setContasHist(chRows||[]);
+        }catch(e3){setContasHist([]);}
+      }finally{
+        // SEMPRE executado — garante que o app abre
         setLoading(false);
       }
     }
