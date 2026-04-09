@@ -178,6 +178,7 @@ export default function App(){
   const [relDataFim,setRelDataFim]=useState("");
   const [relAj,setRelAj]=useState("3");
   const [relAlm,setRelAlm]=useState("0");
+  useEffect(()=>{window.__mudancas=mudancas;},[mudancas]);
   const [semanaIdx,setSemanaIdx]=useState(0);
   const [loading,setLoading]=useState(true);
   const [flash,setFlash]=useState("");
@@ -477,14 +478,14 @@ export default function App(){
       if(fmt[0]==="wpp"){
         close();
         setTimeout(function(){
-          var lista=mudancas.filter(function(m){if(iI.value&&m.data<iI.value)return false;if(iF.value&&m.data>iF.value)return false;return true;});
+          var lista=(window.__mudancas||[]).filter(function(m){if(iI.value&&m.data<iI.value)return false;if(iF.value&&m.data>iF.value)return false;return true;});
           if(!lista.length){alert("Nenhuma mudança neste período.");return;}
           var fd=function(d){if(!d)return"?";var p=d.split("-");return p[2]+"/"+p[1];};
           var per=(iI.value&&iF.value)?(fd(iI.value)+" a "+fd(iF.value)):iI.value?fd(iI.value):new Date().toLocaleDateString("pt-BR");
-          var lin=lista.map(function(m){return"👤 *"+m.nome+"* | 📅 "+fd(m.data)+" | 📍 "+(m.comunidade||m.destino||m.selo||"");});
+          var lin=(window.__mudancas||[]).filter(function(m){if(iI.value&&m.data<iI.value)return false;if(iF.value&&m.data>iF.value)return false;return true;}).map(function(m){return"👤 *"+m.nome+"* | 📅 "+fd(m.data)+" | 📍 "+(m.comunidade||m.destino||m.selo||"");});
           var SEP="━━━━━━━━━━━━━━━━━";
           var NL="\n";
-          var txt="🚚 *RELATÓRIO*"+NL+"📅 "+per+NL+SEP+NL+lin.join(NL)+NL+SEP+NL+"📊 *Total: "+lista.length+"*"+NL+"_TELEMIM_";
+          var txt="🚚 *RELATÓRIO TELEMIM*"+NL+"📅 "+per+NL+SEP+NL+lin.join(NL)+NL+SEP+NL+"📊 *Total: "+lin.length+"*"+NL+"_TELEMIM_";
           var cb=function(){setToast({msg:"📋 Copiado! Cole no WhatsApp"});setTimeout(function(){setToast(null);},4000);};
           if(navigator.clipboard){navigator.clipboard.writeText(txt).then(cb).catch(function(){var t=mk("textarea","","");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();});}
           else{var t=mk("textarea","","");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();}
@@ -966,7 +967,6 @@ export default function App(){
                     const tot=lista.length, nV=lista.filter(x=>x.van).length, nC=lista.filter(x=>x.caminhao).length;
                     const txt="📋 *RELATÓRIO DO DIA — TELEMIM*\n📅 *"+new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})+"*\n🚛 CONTRATO: PROMORAR\n━━━━━━━━━━━━━━━━━\n"+linhas.join("\n\n━━━━━━━━━━━━━━━━━\n")+"\n\n━━━━━━━━━━━━━━━━━\n📊 *Total: "+tot+" mudança"+(tot!==1?"s":"")+" hoje*\n🚐 "+nV+" c/ van · 🚚 "+nC+" c/ caminhão\n_TELEMIM_";
                     window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
-                  }} style={{background:"#eff6ff",border:"1.5px solid #2563eb",color:"#2563eb",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Relatório Dia</button>
                   </>
                 )}
                 <button onClick={_openRelModal} style={{background:COLORS.accent,border:"none",color:"#fff",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Gerar Relatório</button>
