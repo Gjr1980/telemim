@@ -1,5 +1,5 @@
 // TELEMIM v3.1
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 /* v2 */const _getValidToken=async function(usuario,SUPA_URL,SUPA_KEY){if(!usuario?.token)return null;try{const pl=JSON.parse(atob(usuario.token.split(".")[1]));const ok=pl.exp*1000>Date.now()+30000;if(ok)return usuario.token;if(!usuario.refresh_token)return usuario.token;const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:usuario.refresh_token})});const d=await res.json();if(d.access_token){const saved=JSON.parse(localStorage.getItem("tmim_u")||"{}");saved.token=d.access_token;if(d.refresh_token)saved.refresh_token=d.refresh_token;localStorage.setItem("tmim_u",JSON.stringify(saved));return d.access_token;}}catch(e){}return usuario.token;};
 const _fmtDate=function(d){return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+d.getDate();};
 
@@ -205,6 +205,43 @@ export default function App(){
   const [contaEditVal,setContaEditVal]=useState("");
 
   // ── LOAD DATA ──────────────────────────────────────────────────────────────
+  // ── FUNÇÃO loadContasSemana ─────────────────────────────────────────
+  async function loadContasSemana(){
+    try{
+      var hj=new Date();var dw=hj.getDay();var dif=dw===0?6:dw-1;
+      var s0=new Date(hj);s0.setDate(s0.getDate()-dif);s0.setHours(0,0,0,0);
+      var s1=new Date(s0);s1.setDate(s0.getDate()+6);s1.setHours(23,59,59,999);
+      var si=_fmtDate(s0);var sf=_fmtDate(s1);
+      var res=await fetch(SUPA_URL+"/rest/v1/contas_semana",{method:"POST",headers:{"Content-Type":"application/json",apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Prefer":"return=representation"},body:JSON.stringify({semana_inicio:si,semana_fim:sf,tipo:"outro",tipo_conta:"pagar",status:"pendente"})});
+      if(!res.ok)return;
+      var novo=await res.json();
+      if(novo&&novo[0])setContasSemana(function(prev){return novo;});
+    }catch(e){}
+  }
+
+  // ── DERIVED STATE: useMemo reactivos ─────────────────────────────────
+  var custoSemanal=useMemo(function(){
+    var hj=new Date();var dw=hj.getDay();var dif=dw===0?6:dw-1;
+    var s0=new Date(hj);s0.setDate(s0.getDate()-dif);s0.setHours(0,0,0,0);
+    var s1=new Date(s0);s1.setDate(s0.getDate()+6);s1.setHours(23,59,59,999);
+    return custosDiarios.reduce(function(acc,row){
+      var d=new Date(row.data+"T00:00:00");
+      if(d>=s0&&d<=s1)acc+=(Number(row.custo_van)||0)+(Number(row.custo_caminhao)||0)+(Number(row.custo_ajudante)||0)+(Number(row.custo_almoco)||0);
+      return acc;
+    },0);
+  },[custosDiarios]);
+
+  var totalContasPendente=useMemo(function(){
+    return contasPagar.reduce(function(acc,x){return acc+(Number(x.valor)||0);},0);
+  },[contasPagar]);
+
+  var totalContasPago=useMemo(function(){
+    return contasHist.reduce(function(acc,x){return acc+(Number(x.valor)||0);},0);
+  },[contasHist]);
+
+  // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
+  useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
+
   useEffect(()=>{
     async function load(){
       try{
@@ -417,6 +454,7 @@ export default function App(){
     setContasPagar(prev=>prev.filter(x=>x.id!==cid));
     if(paga)setContasHist(prev=>[{...paga,status:'pago',pago_em:agora},...prev.slice(0,29)]);
     setFlash('✅ Conta paga!');
+    loadContasSemana();
   }
   async function criarConta(evt){
     evt.preventDefault();
@@ -427,6 +465,7 @@ export default function App(){
     setContasPagar(prev=>[nd,...prev]);
     setNovaContaForm({tipo:'van',descricao:'',valor:'',beneficiario:'',telefone:'',vencimento:''});
     setShowNovaConta(false);setFlash('✅ Conta adicionada!');
+    loadContasSemana();
   }
   async function converterEmMudanca(ag){
     if(!ag.medicao){alert('Informe a medição (m³) antes de finalizar.');return;}
