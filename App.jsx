@@ -462,9 +462,13 @@ export default function App(){
     var iF=mk("input","flex:1;padding:6px 8px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:12px;color:#334155");iF.type="date";iF.value=relDataFim||"";
     var fmt=["pdf"];
     var bPdf=mk("button","flex:1;padding:14px 8px;border-radius:12px;border:2.5px solid #3b82f6;background:#eff6ff;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer");
-    bPdf.appendChild(mk("span","font-size:26px","📄"));bPdf.appendChild(mk("span","font-size:11px;font-weight:800;color:#3b82f6","Documento"));bPdf.appendChild(mk("span","font-size:9px;color:#94a3b8","PDF/Excel"));
+    bPdf.appendChild(mk("span","font-size:26px","📄"));
+    bPdf.appendChild(mk("span","font-size:11px;font-weight:800;color:#3b82f6","Documento"));
+    bPdf.appendChild(mk("span","font-size:9px;color:#94a3b8","PDF/Excel"));
     var bWpp=mk("button","flex:1;padding:14px 8px;border-radius:12px;border:1.5px solid #e2e8f0;background:#f8fafc;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer");
-    bWpp.appendChild(mk("span","font-size:26px","💬"));bWpp.appendChild(mk("span","font-size:11px;font-weight:800;color:#64748b","WhatsApp"));bWpp.appendChild(mk("span","font-size:9px;color:#94a3b8","Copiar texto"));
+    bWpp.appendChild(mk("span","font-size:26px","💬"));
+    bWpp.appendChild(mk("span","font-size:11px;font-weight:800;color:#64748b","WhatsApp"));
+    bWpp.appendChild(mk("span","font-size:9px;color:#94a3b8","Copiar texto"));
     var bAc=mk("button","flex:2;padding:12px 0;border-radius:12px;border:none;background:#3b82f6;color:#fff;font-weight:800;font-size:13px;cursor:pointer","📥 Baixar Arquivo");
     bPdf.onclick=function(){fmt[0]="pdf";bPdf.style.border="2.5px solid #3b82f6";bPdf.style.background="#eff6ff";bPdf.children[1].style.color="#3b82f6";bWpp.style.border="1.5px solid #e2e8f0";bWpp.style.background="#f8fafc";bWpp.children[1].style.color="#64748b";bAc.textContent="📥 Baixar Arquivo";bAc.style.background="#3b82f6";};
     bWpp.onclick=function(){fmt[0]="wpp";bWpp.style.border="2.5px solid #25d366";bWpp.style.background="#f0fdf4";bWpp.children[1].style.color="#25d366";bPdf.style.border="1.5px solid #e2e8f0";bPdf.style.background="#f8fafc";bPdf.children[1].style.color="#64748b";bAc.textContent="💬 Gerar Texto p/Copiar";bAc.style.background="#25d366";};
@@ -479,14 +483,8 @@ export default function App(){
           var per=(iI.value&&iF.value)?(fd(iI.value)+" a "+fd(iF.value)):iI.value?fd(iI.value):new Date().toLocaleDateString("pt-BR");
           var lin=lista.map(function(m){return"👤 *"+m.nome+"* | 📅 "+fd(m.data)+" | 📍 "+(m.comunidade||m.destino||m.selo||"");});
           var SEP="━━━━━━━━━━━━━━━━━";
-          var txt="🚚 *RELATÓRIO*
-📅 "+per+"
-"+SEP+"
-"+lin.join("
-")+"
-"+SEP+"
-📊 *Total: "+lista.length+"*
-_TELEMIM_";
+          var NL="\n";
+          var txt="🚚 *RELATÓRIO*"+NL+"📅 "+per+NL+SEP+NL+lin.join(NL)+NL+SEP+NL+"📊 *Total: "+lista.length+"*"+NL+"_TELEMIM_";
           var cb=function(){setToast({msg:"📋 Copiado! Cole no WhatsApp"});setTimeout(function(){setToast(null);},4000);};
           if(navigator.clipboard){navigator.clipboard.writeText(txt).then(cb).catch(function(){var t=mk("textarea","","");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();});}
           else{var t=mk("textarea","","");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();}
@@ -498,7 +496,8 @@ _TELEMIM_";
     r1.appendChild(bS("Hoje",function(){var d=new Date().toISOString().slice(0,10);iI.value=d;iF.value=d;}));
     r1.appendChild(bS("Este Mês",function(){var d=new Date();var y=d.getFullYear();var m=String(d.getMonth()+1).padStart(2,"0");iI.value=y+"-"+m+"-01";iF.value=d.toISOString().slice(0,10);}));
     r1.appendChild(bS("Tudo",function(){iI.value="";iF.value="";}));
-    var rD=mk("div","display:flex;gap:6px;align-items:center;margin-bottom:18px");rD.appendChild(iI);rD.appendChild(mk("span","color:#94a3b8;font-size:11px","a"));rD.appendChild(iF);
+    var rD=mk("div","display:flex;gap:6px;align-items:center;margin-bottom:18px");
+    rD.appendChild(iI);rD.appendChild(mk("span","color:#94a3b8;font-size:11px","a"));rD.appendChild(iF);
     var rF=mk("div","display:flex;gap:10px;margin-bottom:20px");rF.appendChild(bPdf);rF.appendChild(bWpp);
     var rA=mk("div","display:flex;gap:8px");
     var bCn=mk("button","flex:1;padding:12px 0;border-radius:12px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;font-weight:700;font-size:13px;cursor:pointer","Cancelar");bCn.onclick=close;
@@ -510,7 +509,6 @@ _TELEMIM_";
     box.appendChild(rF);box.appendChild(rA);
     ov.appendChild(box);document.body.appendChild(ov);
   }
-
   // ── HELPER: abrir PDF via Blob (funciona em todos os ambientes) ────────────
   function abrirPDF(html, nomeArquivo){
     const printStyle = `<style>@media print{body{margin:0;padding:0;background:#fff}.page{box-shadow:none!important;border-radius:0!important;border:none!important}}@page{size:A4;margin:8mm}</style>`;
