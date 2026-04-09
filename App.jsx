@@ -736,83 +736,124 @@ export default function App(){
   }
 
   // ── PDF MUDANÇA INDIVIDUAL ─────────────────────────────────────────────────
-  function gerarPDFMudanca(m){
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TELEMIM — Mudança ${m.nome}</title><style>${pdfCSS}</style></head><body>
-    <div class="page">
-      <div class="header">
-        <div class="header-top">
-          <div><div class="logo">🚛 TELEMIM</div><div class="subtitle">Comprovante de Mudança Realizada</div></div>
-          <div class="header-meta"><div>CONTRATO: PROMORAR</div><div>Gerado: ${new Date().toLocaleDateString("pt-BR")}</div></div>
-        </div>
-      </div>
-      <div class="body">
-        <div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;padding:18px;text-align:center;margin-bottom:20px">
-          <div style="font-size:10px;font-weight:700;color:#16a34a;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px">✅ MUDANÇA REALIZADA</div>
-          <div style="font-size:24px;font-weight:900;color:#1e293b">${m.nome}</div>
-          <div style="font-size:13px;color:#64748b;margin-top:5px">📅 ${fmtDate(m.data)} · 🏷️ ${m.selo||"—"}</div>
-        </div>
-        <div class="section"><div class="section-title title-info">📋 Dados da Mudança</div>
-          <div style="padding:4px 0">
-            <div class="info-row"><span class="info-label">👤 Beneficiário</span><span class="info-val">${m.nome}</span></div>
-            <div class="info-row"><span class="info-label">🏷️ Selo</span><span class="info-val">${m.selo||"—"}</span></div>
-            <div class="info-row"><span class="info-label">📍 Comunidade</span><span class="info-val">${m.comunidade||"—"}</span></div>
-            <div class="info-row"><span class="info-label">📅 Data</span><span class="info-val">${fmtDate(m.data)}</span></div>
-            <div class="info-row"><span class="info-label">📦 Saída</span><span class="info-val">${m.origem||"—"}</span></div>
-            <div class="info-row"><span class="info-label">🏠 Chegada</span><span class="info-val">${m.destino||"—"}</span></div>
-            <div class="info-row"><span class="info-label">📐 Medição</span><span class="info-val" style="font-weight:800;color:#16a34a">${m.medicao} m³</span></div>
-            <div class="info-row"><span class="info-label">🚐 Van</span><span class="info-val">${m.van?"✅ Utilizada":"❌ Não utilizada"}</span></div>
-          </div>
-        </div>
-      </div>
-      <div class="footer"><div class="footer-logo">🚛 TELEMIM</div><div class="footer-info">Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}</div></div>
-    </div></body></html>`;
-    abrirPDF(html, `TELEMIM-Mudanca-${m.nome.split(" ")[0]}-${fmtDate(m.data).replace(/\//g,"-")}`);
+  async function gerarPDFMudanca(m,btn){
+    if(btn){btn.disabled=true;btn.textContent="⏳";}
+    try{
+      if(!window.jspdf){await new Promise((res,rej)=>{var s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+      if(!window.jspdfAutoTable){await new Promise((res,rej)=>{var s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js";s.onload=res;s.onerror=rej;document.head.appendChild(s);});window.jspdfAutoTable=true;}
+      const {jsPDF}=window.jspdf;
+      const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+      const pgW=doc.internal.pageSize.getWidth();
+      const pgH=doc.internal.pageSize.getHeight();
+      const now=new Date();
+      const nowStr=now.toLocaleDateString("pt-BR")+" "+now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+      const fd=function(d){if(!d)return"-";var p=d.split("-");return p[2]+"/"+p[1]+"/"+p[0];};
+      const fh=function(ts){if(!ts)return"-";var d=new Date(ts);return d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});};	
+      // Cabeçalho
+      doc.setFillColor(17,24,39);doc.rect(0,0,pgW,22,"F");
+      doc.setTextColor(255,255,255);doc.setFontSize(16);doc.setFont("helvetica","bold");
+      doc.text("🚚 ORDEM DE SERVIÇO — TELEMIM",14,10);
+      doc.setFontSize(9);doc.setFont("helvetica","normal");
+      doc.text("Contrato: PROMORAR  |  Gerado em: "+nowStr,14,16.5);
+      var statusBadge=m.adm_approved?"✅ ADM Aprovado":m.confirmed_telemim?"🟡 Aguarda PROMORAR":"⏳ Pendente";
+      doc.text(statusBadge,pgW-14,16.5,{align:"right"});
+      doc.setTextColor(30,41,59);
+      // Dados do cliente
+      doc.autoTable({
+        startY:28,
+        head:[[{content:"DADOS DA MUDANÇA",colSpan:4,styles:{halign:"center",fillColor:[37,99,235],textColor:[255,255,255],fontStyle:"bold",fontSize:11}}]],
+        body:[
+          ["👤 Cliente",{content:m.nome||"-",styles:{fontStyle:"bold"}},"Data",fd(m.data)],
+          ["📍 Comunidade",m.comunidade||"-","Origem",m.origem||"-"],
+          ["Destino",{content:m.destino||"-",colSpan:3},"",""],
+          ["📏 m³",m.medicao?(Number(m.medicao).toFixed(1)+" m³"):"-","Veículo",m.van?"🚐 Van":"🚚 Caminhão"],
+          ["Início",fh(m.inicio_em),"Término",fh(m.termino_em)],
+          ["Selos",m.selo||"-","Observação",m.observacao||"-"],
+        ],
+        theme:"grid",
+        styles:{fontSize:10,cellPadding:3},
+        headStyles:{},
+        columnStyles:{0:{cellWidth:30,fontStyle:"bold",fillColor:[239,246,255]},2:{cellWidth:30,fontStyle:"bold",fillColor:[239,246,255]}},
+      });
+      // Validações
+      var y=doc.lastAutoTable.finalY+8;
+      doc.setFontSize(11);doc.setFont("helvetica","bold");doc.setFillColor(17,24,39);
+      doc.text("VALIDAÇÕES",14,y);y+=6;
+      doc.autoTable({
+        startY:y,
+        head:[["Validação","Status","Responsável"]],
+        body:[
+          ["TELEMIM",m.confirmed_telemim?"✅ Confirmado":"⏳ Pendente",m.confirmed_telemim_by||"-"],
+          ["PROMORAR",m.promorar_approved?"✅ Aprovado":"⏳ Pendente",m.promorar_approved_by||"-"],
+          ["ADM",m.adm_approved?"✅ Aprovado":"⏳ Pendente",m.adm_approved_by||"-"],
+        ],
+        theme:"striped",
+        headStyles:{fillColor:[17,24,39],textColor:[255,255,255],fontStyle:"bold"},
+        styles:{fontSize:10,cellPadding:3},
+      });
+      // Assinaturas
+      var yA=doc.lastAutoTable.finalY+14;
+      doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(100,116,139);
+      doc.line(14,yA,80,yA);doc.line(100,yA,166,yA);
+      doc.text("Assinatura do Morador",14,yA+5);
+      doc.text("Assinatura TELEMIM",100,yA+5);
+      // Rodapé
+      doc.setFontSize(7);doc.setTextColor(100,116,139);
+      doc.text("TELEMIM — "+nowStr,14,pgH-6);
+      doc.text("ID: "+m.id,pgW-14,pgH-6,{align:"right"});
+      // Download
+      var nomeCliente=(m.nome||"Cliente").replace(/[^a-zA-Z0-9À-ÿ]/g,"_");
+      doc.save("OS_"+nomeCliente+".pdf");
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent="🗄";}
+    }
   }
 
-  // ── PDF AGENDAMENTO INDIVIDUAL ─────────────────────────────────────────────
-  function gerarPDFAgendamento(a){
-    const veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
-    const sc={confirmado:"#16a34a",pendente:"#e67e22",realizado:"#64748b"};
-    const sb={confirmado:"#f0fdf4",pendente:"#fff7ed",realizado:"#f8fafc"};
-    const cor=sc[a.status]||"#64748b";
-    const bg=sb[a.status]||"#f8fafc";
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TELEMIM — Agendamento ${a.nome}</title><style>${pdfCSS}</style></head><body>
-    <div class="page">
-      <div class="header">
-        <div class="header-top">
-          <div><div class="logo">🚛 TELEMIM</div><div class="subtitle">Comprovante de Agendamento</div></div>
-          <div class="header-meta"><div>CONTRATO: PROMORAR</div><div>Gerado: ${new Date().toLocaleDateString("pt-BR")}</div></div>
-        </div>
-      </div>
-      <div class="body">
-        <div style="background:${bg};border:2px solid ${cor};border-radius:12px;padding:18px;text-align:center;margin-bottom:20px">
-          <div style="font-size:10px;font-weight:700;color:${cor};letter-spacing:2px;text-transform:uppercase;margin-bottom:5px">📅 MUDANÇA AGENDADA</div>
-          <div style="font-size:24px;font-weight:900;color:#1e293b">${a.nome}</div>
-          <div style="font-size:13px;color:#64748b;margin-top:5px">📅 ${fmtDate(a.data)}${a.horario?` ⏰ ${a.horario}h`:""}</div>
-          <div style="margin-top:8px;display:inline-block;padding:4px 14px;border-radius:20px;background:${cor}22;color:${cor};font-size:12px;font-weight:700">${a.status==="confirmado"?"✅ Confirmado":a.status==="pendente"?"⏳ Pendente":"✔ Realizado"}</div>
-        </div>
-        <div class="section"><div class="section-title title-ag">📋 Dados do Agendamento</div>
-          <div style="padding:4px 0">
-            <div class="info-row"><span class="info-label">👤 Beneficiário</span><span class="info-val">${a.nome}</span></div>
-            <div class="info-row"><span class="info-label">🏷️ Selo</span><span class="info-val">${a.selo||"—"}</span></div>
-            <div class="info-row"><span class="info-label">📍 Comunidade</span><span class="info-val">${a.comunidade||"—"}</span></div>
-            <div class="info-row"><span class="info-label">📅 Data</span><span class="info-val" style="font-weight:800;color:#2563eb">${fmtDate(a.data)}</span></div>
-            ${a.horario?`<div class="info-row"><span class="info-label">⏰ Horário</span><span class="info-val" style="font-weight:800;color:#16a34a">${a.horario}h</span></div>`:""}
-            <div class="info-row"><span class="info-label">📦 Saída</span><span class="info-val">${a.origem||"—"}</span></div>
-            <div class="info-row"><span class="info-label">🏠 Chegada</span><span class="info-val">${a.destino||"—"}</span></div>
-            <div class="info-row"><span class="info-label">🚗 Veículos</span><span class="info-val" style="font-weight:800">${veiculos}</span></div>
-            ${a.contato?`<div class="info-row"><span class="info-label">📞 Contato</span><span class="info-val">${a.contato}</span></div>`:""}
-            ${a.medicao?`<div class="info-row"><span class="info-label">📐 Medição</span><span class="info-val" style="font-weight:800;color:#16a34a">${a.medicao} m³</span></div>`:""}
-            ${a.ajudantes?`<div class="info-row"><span class="info-label">👷 Ajudantes</span><span class="info-val">${a.ajudantes}</span></div>`:""}
-          </div>
-        </div>
-      </div>
-      <div class="footer"><div class="footer-logo">🚛 TELEMIM</div><div class="footer-info">Gerado em ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}</div></div>
-    </div></body></html>`;
-    abrirPDF(html, `TELEMIM-Agendamento-${a.nome.split(" ")[0]}-${fmtDate(a.data).replace(/\//g,"-")}`);
+  async function gerarPDFAgendamento(a,btn){
+    if(btn){btn.disabled=true;btn.textContent="⏳";}
+    try{
+      if(!window.jspdf){await new Promise((res,rej)=>{var s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+      if(!window.jspdfAutoTable){await new Promise((res,rej)=>{var s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js";s.onload=res;s.onerror=rej;document.head.appendChild(s);});window.jspdfAutoTable=true;}
+      const {jsPDF}=window.jspdf;
+      const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+      const pgW=doc.internal.pageSize.getWidth();const pgH=doc.internal.pageSize.getHeight();
+      const now=new Date();
+      const nowStr=now.toLocaleDateString("pt-BR")+" "+now.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+      const fd=function(d){if(!d)return"-";var p=d.split("-");return p[2]+"/"+p[1]+"/"+p[0];};
+      // Cabeçalho
+      doc.setFillColor(109,40,217);doc.rect(0,0,pgW,22,"F");
+      doc.setTextColor(255,255,255);doc.setFontSize(16);doc.setFont("helvetica","bold");
+      doc.text("📅 AGENDAMENTO — TELEMIM",14,10);
+      doc.setFontSize(9);doc.setFont("helvetica","normal");
+      doc.text("Contrato: PROMORAR  |  Gerado em: "+nowStr,14,16.5);
+      doc.text(a.status||"confirmado",pgW-14,16.5,{align:"right"});
+      doc.setTextColor(30,41,59);
+      // Dados
+      doc.autoTable({
+        startY:28,
+        head:[[{content:"DADOS DO AGENDAMENTO",colSpan:4,styles:{halign:"center",fillColor:[109,40,217],textColor:[255,255,255],fontStyle:"bold",fontSize:11}}]],
+        body:[
+          ["👤 Cliente",{content:a.nome||"-",styles:{fontStyle:"bold"}},"Data",fd(a.data)],
+          ["📏 Horário",a.horario||"-","Comunidade",a.comunidade||"-"],
+          ["Origem",a.origem||"-","Destino",a.destino||"-"],
+          ["m³",a.medicao?(Number(a.medicao).toFixed(1)+" m³"):"-","Ajudantes",a.ajudantes||"-"],
+          ["Veículos",(a.van?"🚐 Van ":"")+( a.caminhao?"🚚 Caminhão":""),"Contato",a.contato||"-"],
+          ["Observação",{content:a.observacao||"-",colSpan:3},"",""],
+        ],
+        theme:"grid",styles:{fontSize:10,cellPadding:3},
+        columnStyles:{0:{cellWidth:30,fontStyle:"bold",fillColor:[245,243,255]},2:{cellWidth:30,fontStyle:"bold",fillColor:[245,243,255]}},
+      });
+      // Rodapé
+      doc.setFontSize(7);doc.setTextColor(100,116,139);
+      doc.text("TELEMIM — "+nowStr,14,pgH-6);
+      doc.text("ID: "+a.id,pgW-14,pgH-6,{align:"right"});
+      var nomeCliente=(a.nome||"Cliente").replace(/[^a-zA-Z0-9À-ÿ]/g,"_");
+      doc.save("Agendamento_"+nomeCliente+"_"+fd(a.data).replace(/\/g,"-")+".pdf");
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent="🗄";}
+    }
   }
 
-  // ── WHATSAPP ───────────────────────────────────────────────────────────────
   function compartilharWhatsApp(a,tipo="agendamento"){
     const veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
     const texto=`🚛 *TELEMIM — ${tipo==="hoje"?"MUDANÇA HOJE":"MUDANÇA AGENDADA"}*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* ${a.nome}\n🏷️ *Selo:* ${a.selo||"—"}\n📅 *Data:* ${fmtDate(a.data)}${a.horario?` ⏰ ${a.horario}`:""}\n📍 *Comunidade:* ${a.comunidade||"—"}\n📦 *Saída:* ${a.origem||"—"}\n🏠 *Chegada:* ${a.destino||"—"}\n🚗 *Veículos:* ${veiculos}${a.contato?`\n📞 *Contato:* ${a.contato}`:""}\n━━━━━━━━━━━━━━━━━\n✅ *Status:* ${a.status==="confirmado"?"Confirmado":a.status==="pendente"?"Pendente":"Realizado"}`;
@@ -1018,7 +1059,7 @@ export default function App(){
                   <div style={{display:"flex",gap:5,alignItems:"center",marginLeft:8}}>
                     {verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
                     <button onClick={()=>compartilharMudanca(m)} style={btnGreen}>📲</button>
-                    <button onClick={()=>gerarPDFMudanca(m)} style={{...btnRed,background:"#fff1f0"}}>📄</button>
+                    <button onClick={e=>gerarPDFMudanca(m,e.currentTarget)} style={{...btnRed,background:"#fff1f0"}}>📄</button>
                     <button onClick={()=>setEditMud({...m})} style={btnBlue}>✏️</button>
                     {(usuario&&(usuario.perfil==="admin"||usuario.perfil==="telemim"))&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud"});}} style={btnRed}>✕</button>}
                   </div>
@@ -1091,7 +1132,7 @@ export default function App(){
                           <div style={{display:"flex",gap:5,alignItems:"center"}}>
                             {a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
                             <button onClick={()=>compartilharWhatsApp(a)} style={{...btnGreen,fontSize:14,padding:"6px 10px"}}>📲</button>
-                            <button onClick={()=>gerarPDFAgendamento(a)} style={{...btnRed,background:"#fff1f0",fontSize:14,padding:"6px 10px"}}>📄</button>
+                            <button onClick={e=>gerarPDFAgendamento(a,e.currentTarget)} style={{...btnRed,background:"#fff1f0",fontSize:14,padding:"6px 10px"}}>📄</button>
                           </div>
                         </div>
                       </div>
