@@ -105,7 +105,7 @@ function weekRange(ds){
   return `${p(mon.getDate())}/${p(mon.getMonth()+1)} – ${p(sun.getDate())}/${p(sun.getMonth()+1)}`;
 }
 function calcRel(list,aj,alm){
-  const diasVan=[...new Set(mudancas.filter(m=>m.van).map(m=>m.data))];
+  const diasVan=[...new Set((window.__mudancas||[]).filter(m=>m.van).map(m=>m.data))];
   const vd=diasVan.length, m3=list.reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
   const fatM=m3*RULES.medicaoPorM3; const fatV=vd>0?RULES.van1a:0; const bruto=fatM+fatV;
   const imp=bruto*RULES.imposto;
