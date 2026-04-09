@@ -221,15 +221,19 @@ export default function App(){
 
   // ── DERIVED STATE: useMemo reactivos ─────────────────────────────────
   var custoSemanal=useMemo(function(){
-    var hj=new Date();var dw=hj.getDay();var dif=dw===0?6:dw-1;
-    var s0=new Date(hj);s0.setDate(s0.getDate()-dif);s0.setHours(0,0,0,0);
-    var s1=new Date(s0);s1.setDate(s0.getDate()+6);s1.setHours(23,59,59,999);
-    return custosDiarios.reduce(function(acc,row){
-      var d=new Date(row.data+"T00:00:00");
-      if(d>=s0&&d<=s1)acc+=(Number(row.custo_van)||0)+(Number(row.custo_caminhao)||0)+(Number(row.custo_ajudante)||0)+(Number(row.custo_almoco)||0);
-      return acc;
+    // Custo semana actual = soma de valor_editado||valor_calculado dos registos da semana
+    var hj=new Date();
+    var dw=hj.getDay();var dS=dw===0?6:dw-1;
+    var s0=new Date(hj);s0.setDate(s0.getDate()-dS);s0.setHours(0,0,0,0);
+    var s6=new Date(s0);s6.setDate(s6.getDate()+6);s6.setHours(23,59,59,999);
+    return custosSemana.filter(function(x){
+      if(!x.semana_inicio)return false;
+      var d=new Date(x.semana_inicio+'T00:00:00');
+      return d>=s0&&d<=s6;
+    }).reduce(function(acc,x){
+      return acc+(Number(x.valor_editado||x.valor_calculado)||0);
     },0);
-  },[custosDiarios]);
+  },[custosSemana]);
 
   var totalContasPendente=useMemo(function(){
     return contasPagar.reduce(function(acc,x){return acc+(Number(x.valor)||0);},0);
