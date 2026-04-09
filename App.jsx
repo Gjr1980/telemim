@@ -405,6 +405,26 @@ export default function App(){
   }
   async function handleAddMud(){
     if(!form.nome||!form.selo) return;
+    // === TRAVA ANTI-DUPLICIDADE: nome OU selo na mesma data ===
+    var _nomeF=(form.nome||"").toLowerCase().trim();
+    var _seloF=(form.selo||"").toLowerCase().trim();
+    var _dataF=form.data;
+    var _isDupMud=mudancas.some(function(m){
+      if(m.data!==_dataF)return false;
+      var _n=(m.nome||"").toLowerCase().trim();
+      var _s=(m.selo||"").toLowerCase().trim();
+      return (_nomeF&&_n===_nomeF)||(_seloF&&_s===_seloF);
+    });
+    var _isDupAg=agenda.some(function(a){
+      if(a.data!==_dataF)return false;
+      var _n=(a.nome||"").toLowerCase().trim();
+      var _s=(a.selo||"").toLowerCase().trim();
+      return (_nomeF&&_n===_nomeF)||(_seloF&&_s===_seloF);
+    });
+    if(_isDupMud||_isDupAg){
+      setFlash("🚨 Bloqueado: Já existe uma mudança para este Cliente ou Selo nesta data. Verifique a Agenda ou os Registros.");
+      return;
+    }
     var _p=usuario&&usuario.perfil||"";var _isSocial=_p==="social";var _isPromorar=_p==="promorar";var _isAdm=_p==="admin"||_p==="telemim";var _nomeUser=usuario&&(usuario.nome||usuario.email)||"";const nova={...form,id:Date.now(),medicao:parseFloat(form.medicao)||0,requires_validation:true,social_approved:_isSocial,social_approved_by:_isSocial?_nomeUser:null,promorar_approved:_isPromorar,promorar_approved_by:_isPromorar?_nomeUser:null,adm_approved:_isAdm,adm_approved_by:_isAdm?_nomeUser:null};
     setMudancas(prev=>[nova,...prev]);
     await saveMud([nova,...mudancas],nova);
@@ -439,6 +459,26 @@ export default function App(){
   }
   async function handleAddAg(){
     if(!agForm.nome||!agForm.data) return;
+    // === TRAVA ANTI-DUPLICIDADE: nome OU selo na mesma data ===
+    var _nomeAF=(agForm.nome||"").toLowerCase().trim();
+    var _seloAF=(agForm.selo||"").toLowerCase().trim();
+    var _dataAF=agForm.data;
+    var _isDupAgMud=mudancas.some(function(m){
+      if(m.data!==_dataAF)return false;
+      var _n=(m.nome||"").toLowerCase().trim();
+      var _s=(m.selo||"").toLowerCase().trim();
+      return (_nomeAF&&_n===_nomeAF)||(_seloAF&&_s===_seloAF);
+    });
+    var _isDupAgAg=agenda.some(function(a){
+      if(a.data!==_dataAF)return false;
+      var _n=(a.nome||"").toLowerCase().trim();
+      var _s=(a.selo||"").toLowerCase().trim();
+      return (_nomeAF&&_n===_nomeAF)||(_seloAF&&_s===_seloAF);
+    });
+    if(_isDupAgMud||_isDupAgAg){
+      setFlash("🚨 Bloqueado: Já existe um agendamento para este Cliente ou Selo nesta data. Verifique a Agenda ou os Registros.");
+      return;
+    }
     var _pa=usuario&&usuario.perfil||"";var _na=usuario&&(usuario.nome||usuario.email)||"";const nova={...agForm,id:Date.now(),requires_validation:true,social_approved:_pa==="social",social_approved_by:_pa==="social"?_na:null,promorar_approved:_pa==="promorar",promorar_approved_by:_pa==="promorar"?_na:null,adm_approved:_pa==="admin"||_pa==="telemim",adm_approved_by:(_pa==="admin"||_pa==="telemim")?_na:null};
     setAgenda(prev=>[nova,...prev]);
     await saveAg([nova,...agenda],nova);
