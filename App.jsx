@@ -548,17 +548,32 @@ export default function App(){
     ];});
   }
   function _buildSingleCardRows(m){
+    // === MAPEAMENTO ESTRITO — chaves reais do Supabase ===
+    // mudancas: data,inicio_em,nome,comunidade,origem,destino,medicao,van,contato,observacao
+    // agenda:   data,horario,nome,comunidade,origem,destino,medicao,van,caminhao,ajudantes,contato,observacao
+    var hora;
+    if(m.horario&&m.horario.trim())hora=m.horario.trim();
+    else{var _h=_fmtTime(m.inicio_em);hora=(_h&&_h!=="-")?_h:"Não informada";}
+    var medicaoVal=m.medicao;
+    var medicaoOk=medicaoVal&&Number(medicaoVal)>0;
+    var veiculo;
+    if(m.van&&m.caminhao)veiculo="Van + Caminhão";
+    else if(m.van)veiculo="Van";
+    else if(m.caminhao)veiculo="Caminhão";
+    else veiculo="Caminhão";
     var rows=[
-      ['Cliente',m.nome||'-'],
-      ['Data',_fmtDateISO(m.data)],
-      ['Hora',_fmtTime(m.inicio_em)],
-      ['Saída',m.comunidade||m.origem||'-'],
-      ['Destino',m.destino||'-'],
-      ['Medição',m.medicao?(Number(m.medicao).toFixed(1)+' m³'):'-'],
-      ['Veículo',_vehicleLabel(m)],
-      ['Status',_statusLabel(m)]
+      ['Cliente',   m.nome||'Não informado'],
+      ['Data',      _fmtDateISO(m.data)||'Não informada'],
+      ['Hora',      hora],
+      ['Saída', m.comunidade||m.origem||'Não informada'],
+      ['Destino',   m.destino||'Não informado'],
+      ['Medição (m³)', medicaoOk?(Number(medicaoVal).toFixed(1)+' m³'):'A definir'],
+      ['Veículo',   veiculo],
+      ['Status',    _statusLabel(m)]
     ];
-    if(m.observacao)rows.push(['Observação',m.observacao]);
+    if(m.ajudantes&&Number(m.ajudantes)>0)rows.splice(6,0,['Ajudantes',String(m.ajudantes)]);
+    if(m.contato&&m.contato.trim())rows.splice(3,0,['Telefone',m.contato.trim()]);
+    if(m.observacao&&m.observacao.trim())rows.push(['Observação',m.observacao.trim()]);
     return rows;
   }
   function _pdfFileName(d){
