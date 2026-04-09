@@ -241,27 +241,6 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  // ── useMemo: estado derivado reactivo ──────────────────────────────────
-  const custoSemanal=useMemo(function(){
-    var hj=new Date();var dw=hj.getDay();var dS=dw===0?6:dw-1;
-    var s0=new Date(hj);s0.setDate(s0.getDate()-dS);s0.setHours(0,0,0,0);
-    var s6=new Date(s0);s6.setDate(s6.getDate()+6);s6.setHours(23,59,59,999);
-    return custosDiarios.reduce(function(acc,row){
-      var d=new Date(row.data+'T00:00:00');
-      if(d>=s0&&d<=s6)acc+=(Number(row.custo_van)||0)+(Number(row.custo_caminhao)||0)+(Number(row.custo_ajudante)||0)+(Number(row.custo_almoco)||0);
-      return acc;
-    },0);
-  },[custosDiarios]);
-
-  const totalContasPendente=useMemo(function(){
-    return contasPagar.reduce(function(acc,x){return acc+(Number(x.valor)||0);},0);
-  },[contasPagar]);
-
-  const totalContasPago=useMemo(function(){
-    return contasHist.reduce(function(acc,x){return acc+(Number(x.valor)||0);},0);
-  },[contasHist]);
-
-
   useEffect(()=>{
     async function load(){
       try{
