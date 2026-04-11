@@ -160,7 +160,8 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
   var _lbl={"caminhao":"Caminhão","van":"Van","ajudante":"Ajudante","almoco":"Almoço","outro":"Outro"};
   var _cor={"caminhao":"#92400e","van":"#1e40af","ajudante":"#065f46","almoco":"#7c3aed","outro":"#475569"};
   var _bg={"caminhao":"#fff7ed","van":"#eff6ff","ajudante":"#f0fdf4","almoco":"#faf5ff","outro":"#f8fafc"};
-  function _calcP(p){
+  // --- calcular detalhes iniciais por prestador ---
+  function _calcDetalhes(p){
     var vd=parseFloat(p.valor_diaria)||0;
     var det=[];
     if(p.cargo==="ajudante"){
@@ -178,40 +179,71 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
         if(numMud>0){var val=vd>0?vd:(p.cargo==="caminhao"?(RULES.cam1a||0):(RULES.vanCusto||0));det.push({data,numMud,val});}
       });
     }
-    var totalVal=det.reduce(function(s,d){return s+d.val;},0);
-    var totalMud=det.reduce(function(s,d){return s+d.numMud;},0);
-    return {det,totalVal,totalMud,diasT:det.length};
+    return det;
   }
+  // --- state local ---
+  var [modalP,setModalP]=useState(null);
+  var [detMap,setDetMap]=useState({});
+  var [editIdx,setEditIdx]=useState(null);
+  var [editVals,setEditVals]=useState({});
+  // --- obter detalhes reactivos (editados ou calculados) ---
+  function _getDet(p){
+    if(detMap[p.id]) return detMap[p.id];
+    return _calcDetalhes(p);
+  }
+  function _getTotais(det){
+    var totalVal=det.reduce(function(s,d){return s+(parseFloat(d.val)||0);},0);
+    var totalMud=det.reduce(function(s,d){return s+(parseInt(d.numMud)||0);},0);
+    return {totalVal,totalMud,diasT:det.length};
+  }
+  // --- gerar texto WA com dados actuais ---
   function _sendZap(p){
-    var calc=_calcP(p);
+    var det=_getDet(p);
+    var tot=_getTotais(det);
     var NL="\n";
     var txtDiario="";
-    calc.det.forEach(function(d){
-      var parts=d.data.split("-");
+    det.forEach(function(d){
+      var parts=String(d.data).split("-");
       var df=parts[2]+"/"+parts[1]+"/"+parts[0];
       if(p.cargo==="ajudante"){
-        var ajL=d.numAj===1?"ajudante":"ajudantes";
-        txtDiario+="Data "+df+" - "+d.numMud+" mudanças x "+d.numAj+" "+ajL+" = R$ "+_fvs(d.val)+NL;
+        var aj=parseInt(d.numAj)||1;
+        txtDiario+="Data "+df+" - "+d.numMud+" mudanças x "+aj+" "+(aj===1?"ajudante":"ajudantes")+" = R$ "+_fvs(d.val)+NL;
       }else{
         txtDiario+="Data "+df+" - "+d.numMud+" mudanças - R$ "+_fvs(d.val)+NL;
       }
     });
     var ico=_ico[p.cargo]||"📋";
     var lbl=_lbl[p.cargo]||p.cargo;
-    var mL=calc.totalMud===1?"mudança":"mudanças";
-    var dL=calc.diasT===1?"dia":"dias";
+    var mL=tot.totalMud===1?"mudança":"mudanças";
+    var dL=tot.diasT===1?"dia":"dias";
     var tx=
       "Olá *"+p.nome+"*, segue o fechamento da semana! 🤝"+NL+
       "📅 Período: "+_periodo+NL+NL+
       txtDiario+NL+
       ico+" Categoria: "+lbl+NL+
-      "✅ Dias trabalhados: "+calc.diasT+" "+dL+NL+
-      "📦 Total de mudanças: "+calc.totalMud+" "+mL+NL+
-      "💰 *Valor a receber: R$ "+_fvs(calc.totalVal)+"*"+NL+NL+
+      "✅ Dias trabalhados: "+tot.diasT+" "+dL+NL+
+      "📦 Total de mudanças: "+tot.totalMud+" "+mL+NL+
+      "💰 *Valor a receber: R$ "+_fvs(tot.totalVal)+"*"+NL+NL+
       "(TELEMIM)";
     var num=(p.telefone||"").replace(/[^0-9]/g,"");
     window.open(num?"https://wa.me/"+num+"?text="+encodeURIComponent(tx):"https://wa.me/?text="+encodeURIComponent(tx),"_blank");
   }
+  // --- edição inline ---
+  function _iniciarEdit(idx,d){
+    setEditIdx(idx);
+    setEditVals({data:d.data,numMud:d.numMud,numAj:d.numAj||1,val:d.val});
+  }
+  function _salvarEdit(p){
+    var det=_getDet(p).map(function(d,i){
+      return i===editIdx?{...d,data:editVals.data,numMud:parseInt(editVals.numMud)||0,numAj:parseInt(editVals.numAj)||1,val:parseFloat(String(editVals.val).replace(",","."))||0}:d;
+    });
+    setDetMap(function(prev){var m={...prev};m[p.id]=det;return m;});
+    setEditIdx(null);
+    setEditVals({});
+  }
+  function _cancelarEdit(){setEditIdx(null);setEditVals({});}
+  // --- input style ---
+  var inpS={border:"1px solid #cbd5e1",borderRadius:6,padding:"3px 6px",fontSize:11,width:"100%",background:"#fff"};
   return (
     <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 14px 10px",marginTop:6,marginBottom:10}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -225,21 +257,100 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
       ):(
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {prestadores.map(function(p){
-            var calc=_calcP(p);
+            var det=_getDet(p);
+            var tot=_getTotais(det);
+            var isOpen=modalP===p.id;
             return (
-              <div key={p.id} style={{background:_bg[p.cargo]||"#f8fafc",borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10,border:"1px solid #f1f5f9"}}>
-                <div style={{fontSize:22,flexShrink:0}}>{_ico[p.cargo]||"📋"}</div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:13,color:_cor[p.cargo]||"#334155"}}>{p.nome}</div>
-                  <div style={{fontSize:10,color:"#64748b",marginTop:1}}>{_lbl[p.cargo]||p.cargo}</div>
-                  <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>{calc.diasT} {calc.diasT===1?"dia":"dias"} | {calc.totalMud} {calc.totalMud===1?"mudança":"mudanças"}</div>
+              <div key={p.id} style={{background:_bg[p.cargo]||"#f8fafc",borderRadius:10,border:"1px solid #f1f5f9",overflow:"hidden"}}>
+                <div style={{padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{fontSize:22,flexShrink:0}}>{_ico[p.cargo]||"📋"}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:13,color:_cor[p.cargo]||"#334155"}}>{p.nome}</div>
+                    <div style={{fontSize:10,color:"#64748b",marginTop:1}}>{_lbl[p.cargo]||p.cargo}</div>
+                    <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>{tot.diasT} {tot.diasT===1?"dia":"dias"} | {tot.totalMud} {tot.totalMud===1?"mudança":"mudanças"}</div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+                    <div style={{fontWeight:800,fontSize:14,color:_cor[p.cargo]||"#334155"}}>{_fv(tot.totalVal)}</div>
+                    <div style={{display:"flex",gap:4}}>
+                      <button onClick={function(){setModalP(isOpen?null:p.id);setEditIdx(null);}} style={{background:isOpen?"#e2e8f0":"#f1f5f9",color:"#475569",border:"none",borderRadius:14,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                        {isOpen?"▲ Fechar":"✏️ Detalhes"}
+                      </button>
+                      <button onClick={function(){_sendZap(p);}} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:14,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                        📲 Zap
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div style={{textAlign:"right",flexShrink:0}}>
-                  <div style={{fontWeight:800,fontSize:14,color:_cor[p.cargo]||"#334155"}}>{_fv(calc.totalVal)}</div>
-                  <button onClick={function(){_sendZap(p);}} style={{marginTop:5,background:"#16a34a",color:"#fff",border:"none",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                    📲 Enviar Zap
-                  </button>
-                </div>
+                {isOpen&&(
+                  <div style={{borderTop:"1px solid #e2e8f0",background:"#fff",padding:"12px 12px 10px"}}>
+                    <div style={{fontWeight:700,fontSize:11,color:"#475569",marginBottom:8}}>📋 Extrato de Atividades — {p.nome}</div>
+                    <div style={{overflowX:"auto"}}>
+                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                        <thead>
+                          <tr style={{background:"#f8fafc"}}>
+                            <th style={{padding:"6px 8px",textAlign:"left",color:"#64748b",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}>Data</th>
+                            <th style={{padding:"6px 4px",textAlign:"center",color:"#64748b",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}>Mud.</th>
+                            {p.cargo==="ajudante"&&<th style={{padding:"6px 4px",textAlign:"center",color:"#64748b",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}>Aj.</th>}
+                            <th style={{padding:"6px 8px",textAlign:"right",color:"#64748b",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}>Valor (R$)</th>
+                            <th style={{padding:"6px 4px",textAlign:"center",color:"#64748b",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {det.map(function(d,i){
+                            var isEdit=editIdx===i;
+                            var pts=String(d.data).split("-");
+                            var dfmt=pts[2]+"/"+pts[1]+"/"+pts[0];
+                            if(isEdit){
+                              return (
+                                <tr key={i} style={{background:"#fffbeb"}}>
+                                  <td style={{padding:"4px 6px"}}>
+                                    <input type="date" value={editVals.data} onChange={function(e){setEditVals(function(v){return {...v,data:e.target.value};});}} style={inpS}/>
+                                  </td>
+                                  <td style={{padding:"4px 4px"}}>
+                                    <input type="number" min="0" value={editVals.numMud} onChange={function(e){setEditVals(function(v){return {...v,numMud:e.target.value};});}} style={{...inpS,width:50}}/>
+                                  </td>
+                                  {p.cargo==="ajudante"&&<td style={{padding:"4px 4px"}}>
+                                    <input type="number" min="1" value={editVals.numAj} onChange={function(e){setEditVals(function(v){return {...v,numAj:e.target.value};});}} style={{...inpS,width:40}}/>
+                                  </td>}
+                                  <td style={{padding:"4px 6px"}}>
+                                    <input type="number" step="0.01" value={editVals.val} onChange={function(e){setEditVals(function(v){return {...v,val:e.target.value};});}} style={{...inpS,width:70}}/>
+                                  </td>
+                                  <td style={{padding:"4px 4px",whiteSpace:"nowrap"}}>
+                                    <button onClick={function(){_salvarEdit(p);}} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer",marginRight:2}}>✅</button>
+                                    <button onClick={_cancelarEdit} style={{background:"#ef4444",color:"#fff",border:"none",borderRadius:8,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>❌</button>
+                                  </td>
+                                </tr>
+                              );
+                            }
+                            return (
+                              <tr key={i} style={{borderBottom:"1px solid #f1f5f9"}}>
+                                <td style={{padding:"6px 8px",color:"#334155",fontWeight:500}}>{dfmt}</td>
+                                <td style={{padding:"6px 4px",textAlign:"center",color:"#475569"}}>{d.numMud}</td>
+                                {p.cargo==="ajudante"&&<td style={{padding:"6px 4px",textAlign:"center",color:"#475569"}}>{d.numAj||1}</td>}
+                                <td style={{padding:"6px 8px",textAlign:"right",fontWeight:600,color:_cor[p.cargo]||"#334155"}}>R$ {_fvs(d.val)}</td>
+                                <td style={{padding:"6px 4px",textAlign:"center"}}>
+                                  <button onClick={function(){_iniciarEdit(i,d);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:2}} title="Editar">✏️</button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{borderTop:"2px solid #e2e8f0",background:"#f8fafc"}}>
+                            <td style={{padding:"8px 8px",fontWeight:800,fontSize:11,color:"#1e293b"}} colSpan={p.cargo==="ajudante"?3:2}>TOTAL</td>
+                            <td style={{padding:"8px 8px",textAlign:"right",fontWeight:800,fontSize:13,color:_cor[p.cargo]||"#334155"}}>{_fv(tot.totalVal)}</td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                    <div style={{marginTop:10,display:"flex",justifyContent:"flex-end"}}>
+                      <button onClick={function(){_sendZap(p);}} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:800,cursor:"pointer"}}>
+                        📲 Enviar Zap com estes valores
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -248,11 +359,12 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
       <div style={{marginTop:10,paddingTop:10,borderTop:"2px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
           <div style={{fontSize:10,color:"#64748b",fontWeight:600}}>CUSTO TOTAL SEMANA</div>
-          <div style={{fontWeight:900,fontSize:16,color:"#c2410c"}}>{_fv(prestadores.reduce(function(acc,p){return acc+_calcP(p).totalVal;},0))}</div>
+          <div style={{fontWeight:900,fontSize:16,color:"#c2410c"}}>{_fv(prestadores.reduce(function(acc,p){return acc+_getTotais(_getDet(p)).totalVal;},0))}</div>
         </div>
       </div>
     </div>
   );
+}
 }
 export default function App(){
   const [usuario,setUsuario]=useState(null);
