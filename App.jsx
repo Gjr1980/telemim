@@ -365,7 +365,6 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     </div>
   );
 }
-}
 export default function App(){
   const [usuario,setUsuario]=useState(null);
   const [loginForm,setLoginForm]=useState({email:"",senha:""});
