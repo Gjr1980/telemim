@@ -1478,6 +1478,84 @@ export default function App(){
         )}
 
         {/* ══ RELATÓRIO ══ */}
+        {tab==="financeiro"&&isAdmin&&(function(){
+          var _now=new Date();
+          var _am=_now.getFullYear()+"-"+(String(_now.getMonth()+1).padStart(2,"0"));
+          var _fv=function(v){return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);};
+          var _nm=new Date().toLocaleDateString("pt-BR",{month:"long",year:"numeric"}).replace(/^./,function(s){return s.toUpperCase();});
+          // --- FATURAMENTO BRUTO: mudancas realizadas no mes ---
+          var _mudM=(mudancas||[]).filter(function(m){return m.data&&m.data.slice(0,7)===_am;});
+          var _diasU=[...new Set(_mudM.map(function(m){return m.data;}))];
+          var _m3M=_mudM.reduce(function(s,m){return s+(parseFloat(m.medicao)||0);},0);
+          var _fatBruto=_diasU.length*(RULES.van1a||0)+_m3M*(RULES.medicaoPorM3||0);
+          var _imposto=_fatBruto*(RULES.imposto||0);
+          var _fatLiq=_fatBruto-_imposto;
+          // --- DESPESA TOTAL: custosDiarios + contasPagar do mes ---
+          var _cdM=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===_am;});
+          var _despCD=_cdM.reduce(function(s,cd){
+            var n=_mudM.filter(function(m){return m.data===cd.data;}).length;
+            var cCam=n>0?(RULES.cam1a||0)+(n-1)*(RULES.camAdd||0):0;
+            var cVan=(RULES.vanCusto||0);
+            var cAj=(cd.ajudantes>0?((RULES.aj1a||0)+(n>0?n-1:0)*(RULES.ajAdd||0))*(cd.ajudantes):0);
+            var cAlm=parseFloat(cd.custo_almoco)||0;
+            return s+cCam+cVan+cAj+cAlm;
+          },0);
+          var _cpM=(contasPagar||[]).filter(function(cp){return cp.data&&cp.data.slice(0,7)===_am;});
+          var _despCP=_cpM.reduce(function(s,cp){return s+(parseFloat(cp.valor)||0);},0);
+          var _despTotal=_despCD+_despCP;
+          // --- LUCRO LIQUIDO ---
+          var _lucroLiq=_fatLiq-_despTotal;
+          return (
+            <div style={{padding:"12px 12px 0"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>
+                📊 Gerencial — {_nm}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                <div style={{background:"#fff5f5",border:"2px solid #fca5a5",borderRadius:14,padding:"14px 12px"}}>
+                  <div style={{fontSize:10,color:"#ef4444",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>
+                    💸 Despesa Total
+                  </div>
+                  <div style={{fontSize:18,fontWeight:900,color:"#dc2626"}}>{_fv(_despTotal)}</div>
+                  <div style={{fontSize:9,color:"#f87171",marginTop:4}}>Prestadores + contas do mês</div>
+                </div>
+                <div style={{background:"#f0fdf4",border:"2px solid #86efac",borderRadius:14,padding:"14px 12px"}}>
+                  <div style={{fontSize:10,color:"#16a34a",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>
+                    💰 Receita Bruta
+                  </div>
+                  <div style={{fontSize:18,fontWeight:900,color:"#15803d"}}>{_fv(_fatBruto)}</div>
+                  <div style={{fontSize:9,color:"#4ade80",marginTop:4}}>{_diasU.length} dias | {_mudM.length} mudanças | {_m3M.toFixed(0)}m³</div>
+                </div>
+              </div>
+              <div style={{background:"linear-gradient(135deg,#1e3a5f,#1e40af)",borderRadius:14,padding:"16px 16px 14px",marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>
+                      Receita Líquida (após impostos)
+                    </div>
+                    <div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,0.85)",marginTop:2}}>{_fv(_fatLiq)}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>
+                      Impostos ({((RULES.imposto||0)*100).toFixed(0)}%)
+                    </div>
+                    <div style={{fontSize:13,fontWeight:700,color:"#fbbf24",marginTop:2}}>{_fv(_imposto)}</div>
+                  </div>
+                </div>
+                <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.15)"}}>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>
+                    🚀 Lucro Líquido
+                  </div>
+                  <div style={{fontSize:28,fontWeight:900,color:_lucroLiq>=0?"#4ade80":"#f87171"}}>
+                    {_fv(_lucroLiq)}
+                  </div>
+                  <div style={{fontSize:9,color:"rgba(255,255,255,0.5)",marginTop:4}}>
+                    Receita Líquida menos todas as despesas do mês
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         {tab==="financeiro"&&isAdmin&&(
         <div style={{paddingBottom:80}}>
           <div style={{display:'flex',gap:6,padding:'12px 12px 0',background:'#f8fafc'}}>{[{v:'semana',l:'Semana'},{v:'mes_atual',l:'Mês Atual'},{v:'mes_ant',l:'Mês Anterior'}].map(function(p){return(<button key={p.v} onClick={()=>setPeriodoFin(p.v)} style={{flex:1,padding:'8px 2px',borderRadius:10,border:'none',background:periodoFin===p.v?'#1e40af':'#e2e8f0',color:periodoFin===p.v?'#fff':'#475569',fontSize:11,fontWeight:periodoFin===p.v?700:500,cursor:'pointer'}}>{p.l}</button>);})}</div><div style={{background:'linear-gradient(135deg,#1e293b,#1e40af)',padding:'20px 16px 24px',marginBottom:-12}}><div style={{fontSize:12,color:'rgba(255,255,255,0.65)',marginBottom:2}}>Painel Financeiro</div><div style={{fontSize:21,fontWeight:800,color:'#fff'}}>{(function(){if(periodoFin==='semana'){var d=new Date();var ds=d.getDay();var s0=new Date(d);s0.setDate(d.getDate()-ds+(ds===0?-6:1));var s1=new Date(s0);s1.setDate(s0.getDate()+6);var fmt=function(dt){return dt.getDate()+'/'+(dt.getMonth()+1);};return 'Semana: '+fmt(s0)+' a '+fmt(s1)+'/'+s1.getFullYear();}if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^\w/,function(s){return s.toUpperCase();});}return new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^\w/,function(s){return s.toUpperCase();});})()}</div></div>
