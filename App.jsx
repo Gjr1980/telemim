@@ -178,13 +178,14 @@ function ResumoSemanal({mudancas,RULES,prestadores}){
     var num=(p.telefone||"").replace(/[^0-9]/g,"");
     window.open(num?"https://wa.me/"+num+"?text="+encodeURIComponent(tx):"https://wa.me/?text="+encodeURIComponent(tx),"_blank");
   }
-  var _totGeral=prestadores.length>0?prestadores.reduce(function(acc,p){return acc+_valP(p);},0):_dias*(RULES.cam1a||0)+_dias*(RULES.vanCusto||0)+_mTotal*(RULES.aj1a||0);
+  var _totGeral=prestadores&&prestadores.length>0?prestadores.reduce(function(acc,p){return acc+_valP(p);},0):_dias*(RULES.cam1a||0)+_dias*(RULES.vanCusto||0)+_mTotal*(RULES.aj1a||0);
   function _sendWAGeral(){
     var NL="\n";
+    var linhas=prestadores&&prestadores.length>0?prestadores.map(function(p){return (_ico[p.cargo]||"📋")+" *"+p.nome+" ("+(_lbl[p.cargo]||p.cargo)+"):* "+_fv(_valP(p));}).join(NL):"";
     var tx="📊 *FECHAMENTO SEMANAL - TELEMIM*"+NL+
       "📅 Período: "+_fb2(_s0c)+" a "+_fb2(_s1c)+NL+NL+
-      (prestadores.length>0?prestadores.map(function(p){return (_ico[p.cargo]||"📋")+" *"+p.nome+" ("+(_lbl[p.cargo]||p.cargo)+"):* R$ "+parseFloat(_valP(p)).toLocaleString("pt-BR",{minimumFractionDigits:2});}).join(NL):"")+NL+NL+
-      "💰 *CUSTO TOTAL DA SEMANA: R$ "+parseFloat(_totGeral).toLocaleString("pt-BR",{minimumFractionDigits:2})+"*";
+      linhas+NL+NL+
+      "💰 *CUSTO TOTAL DA SEMANA: "+_fv(_totGeral)+"*";
     window.open("https://wa.me/?text="+encodeURIComponent(tx),"_blank");
   }
   return (
@@ -193,9 +194,9 @@ function ResumoSemanal({mudancas,RULES,prestadores}){
         <div style={{fontWeight:800,fontSize:13,color:"#1e293b"}}>📊 Custo por Prestador</div>
         <div style={{fontSize:10,color:"#64748b"}}>{_fb2(_s0c)} a {_fb2(_s1c)}</div>
       </div>
-      {prestadores.length===0?(
+      {(!prestadores||prestadores.length===0)?(
         <div style={{textAlign:"center",padding:"16px 0",color:"#94a3b8",fontSize:12}}>
-          Nenhum prestador cadastrado.<br/>Adicione prestadores na aba ⚙️ Config.
+          Nenhum prestador cadastrado.<br/>Adicione na aba ⚙️ Config.
         </div>
       ):(
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -208,7 +209,7 @@ function ResumoSemanal({mudancas,RULES,prestadores}){
                   <div style={{fontWeight:700,fontSize:13,color:_cor[p.cargo]||"#334155"}}>{p.nome}</div>
                   <div style={{fontSize:10,color:"#64748b",marginTop:1}}>{_lbl[p.cargo]||p.cargo}</div>
                   <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>
-                    {p.cargo==="ajudante"||p.cargo==="almoco"?"":_dias+" dias | "}{_mTotal+" mudanças"}
+                    {(p.cargo==="ajudante"||p.cargo==="almoco")?"":_dias+" dias | "}{_mTotal+" mudanças"}
                   </div>
                 </div>
                 <div style={{textAlign:"right",flexShrink:0}}>
@@ -228,63 +229,12 @@ function ResumoSemanal({mudancas,RULES,prestadores}){
           <div style={{fontWeight:900,fontSize:16,color:"#c2410c"}}>{_fv(_totGeral)}</div>
         </div>
         <button onClick={_sendWAGeral} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:10,padding:"10px 16px",fontSize:12,fontWeight:800,cursor:"pointer"}}>
-          📲 Enviar Fechamento Geral
+          📲 Fechamento Geral
         </button>
       </div>
     </div>
   );
 }
-){
-  var _hc=new Date();var _dwc=_hc.getDay();var _dc=_dwc===0?6:_dwc-1;
-  var _s0c=new Date(_hc.getFullYear(),_hc.getMonth(),_hc.getDate()-_dc);
-  var _s1c=new Date(_s0c.getFullYear(),_s0c.getMonth(),_s0c.getDate()+6);
-  var _pc=function(n){return String(n).padStart(2,"0");};
-  var _fc=function(d){return d.getFullYear()+"-"+_pc(d.getMonth()+1)+"-"+_pc(d.getDate());};
-  var _sic=_fc(_s0c);var _sfc=_fc(_s1c);
-  var _ms=mudancas.filter(function(m){return m.data>=_sic&&m.data<=_sfc;});
-  var _ds=[...new Set(_ms.map(function(m){return m.data;}))].length;
-  var _nm=_ms.length;
-  var _cam=_ds*(RULES.cam1a||0);var _van=_ds*(RULES.vanCusto||0);
-  var _aj=_nm*(RULES.aj1a||0);var _alm=0;var _tot=_cam+_van+_aj+_alm;
-  var _fv=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
-  var _fb2=function(d){return _pc(d.getDate())+"/"+_pc(d.getMonth()+1)+"/"+d.getFullYear();};
-  function _sendWA(){
-    var NL="\n";
-    var tx="📊 *FECHAMENTO SEMANAL - TELEMIM*"+NL+
-      "📅 Período: "+_fb2(_s0c)+" a "+_fb2(_s1c)+NL+NL+
-      "🚚 *Caminhão:* "+_fv(_cam)+" ("+_ds+" dias / "+_nm+" mudanças)"+NL+
-      "🚐 *Van:* "+_fv(_van)+" ("+_ds+" dias / "+_nm+" mudanças)"+NL+
-      "👷 *Ajudantes:* "+_fv(_aj)+" ("+_nm+" diárias)"+NL+
-      "🍛 *Almoço:* "+_fv(_alm)+NL+NL+
-      "💰 *CUSTO TOTAL DA SEMANA: "+_fv(_tot)+"*";
-    window.open("https://wa.me/?text="+encodeURIComponent(tx),"_blank");
-  }
-  return (
-    <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 14px 10px",marginTop:10}}>
-      <div style={{fontWeight:800,fontSize:13,color:"#1e293b",marginBottom:10}}>📊 Resumo Detalhado da Semana</div>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-        <thead><tr>
-          <th style={{textAlign:"left",color:"#64748b",fontWeight:600,paddingBottom:6,borderBottom:"1px solid #f1f5f9"}}>Categoria</th>
-          <th style={{textAlign:"center",color:"#64748b",fontWeight:600,paddingBottom:6,borderBottom:"1px solid #f1f5f9"}}>Dias</th>
-          <th style={{textAlign:"center",color:"#64748b",fontWeight:600,paddingBottom:6,borderBottom:"1px solid #f1f5f9"}}>Mud.</th>
-          <th style={{textAlign:"right",color:"#64748b",fontWeight:600,paddingBottom:6,borderBottom:"1px solid #f1f5f9"}}>Valor</th>
-        </tr></thead>
-        <tbody>
-          <tr><td style={{padding:"6px 0",color:"#92400e",fontWeight:600}}>🚚 Caminhão</td><td style={{textAlign:"center"}}>{_ds}</td><td style={{textAlign:"center"}}>{_nm}</td><td style={{textAlign:"right",fontWeight:700,color:"#92400e"}}>{_fv(_cam)}</td></tr>
-          <tr><td style={{padding:"6px 0",color:"#1e40af",fontWeight:600}}>🚐 Van</td><td style={{textAlign:"center"}}>{_ds}</td><td style={{textAlign:"center"}}>{_nm}</td><td style={{textAlign:"right",fontWeight:700,color:"#1e40af"}}>{_fv(_van)}</td></tr>
-          <tr><td style={{padding:"6px 0",color:"#065f46",fontWeight:600}}>👷 Ajudantes</td><td style={{textAlign:"center"}}>—</td><td style={{textAlign:"center"}}>{_nm}</td><td style={{textAlign:"right",fontWeight:700,color:"#065f46"}}>{_fv(_aj)}</td></tr>
-          <tr><td style={{padding:"6px 0",color:"#7c3aed",fontWeight:600}}>🍛 Almoço</td><td style={{textAlign:"center"}}>—</td><td style={{textAlign:"center"}}>—</td><td style={{textAlign:"right",fontWeight:700,color:"#7c3aed"}}>{_fv(_alm)}</td></tr>
-        </tbody>
-        <tfoot><tr style={{borderTop:"2px solid #e2e8f0"}}>
-          <td colSpan={3} style={{padding:"8px 0",fontWeight:800,fontSize:12,color:"#1e293b"}}>CUSTO TOTAL</td>
-          <td style={{textAlign:"right",fontWeight:900,fontSize:14,color:"#c2410c",padding:"8px 0"}}>{_fv(_tot)}</td>
-        </tr></tfoot>
-      </table>
-      <button onClick={_sendWA} style={{marginTop:12,width:"100%",padding:"12px 0",borderRadius:10,background:"#16a34a",color:"#fff",fontWeight:800,fontSize:13,border:"none",cursor:"pointer"}}>
-        📲 Enviar Fechamento por WhatsApp
-      </button>
-    </div>
-  );
 }
 export default function App(){
   const [usuario,setUsuario]=useState(null);
