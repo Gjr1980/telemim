@@ -339,6 +339,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();},[tab]);
   useEffect(()=>{
     async function load(){
       try{
@@ -349,7 +350,7 @@ export default function App(){
           if(mRows.length===0){await dbUpsert("mudancas",DADOS_INICIAIS);mRows=DADOS_INICIAIS;}
           if(aRows.length===0){await dbUpsert("agenda",AGENDA_INICIAIS);aRows=AGENDA_INICIAIS;}
           var cRows=await dbGetCustos();
-          setMudancas(mRows);setAgenda(aRows);setCustosDiarios(cRows||[]);loadPrestadores();
+          setMudancas(mRows);setAgenda(aRows);setCustosDiarios(cRows||[]);
           window.__mudancas=mRows;
           setSyncStatus("✅ Sincronizado");
         }catch(e1){
@@ -366,6 +367,7 @@ export default function App(){
           setContasHist(chRows||[]);
         }catch(e3){setContasHist([]);}
       }finally{
+        loadPrestadores();
         // SEMPRE executado — garante que o app abre
                 setAuthChecked(true);
         setLoading(false);
