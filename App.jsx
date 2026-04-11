@@ -224,22 +224,26 @@ export default function App(){
 
   // ── DERIVED STATE: useMemo reactivos ─────────────────────────────────
   var custoSemanal=useMemo(function(){
-    // Calcular inicio da semana actual (segunda-feira) em formato YYYY-MM-DD
-    var hj=new Date();
-    var dw=hj.getDay(); // 0=dom,1=seg,...,6=sab
-    var dS=dw===0?6:dw-1; // dias desde segunda
-    var s0=new Date(hj.getFullYear(),hj.getMonth(),hj.getDate()-dS); // local, sem UTC
-    var s6=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+6);
-    // Formatar como YYYY-MM-DD para comparar com semana_inicio (string)
-    var pad=function(n){return String(n).padStart(2,"0");};
-    var siStr=s0.getFullYear()+"-"+pad(s0.getMonth()+1)+"-"+pad(s0.getDate());
-    var sfStr=s6.getFullYear()+"-"+pad(s6.getMonth()+1)+"-"+pad(s6.getDate());
-    return custosSemana.filter(function(x){
-      return x.semana_inicio&&x.semana_inicio>=siStr&&x.semana_inicio<=sfStr;
-    }).reduce(function(acc,x){
-      return acc+(Number(x.valor_editado||x.valor_calculado)||0);
-    },0);
-  },[custosSemana]);
+    // Calculo REACTIVO: directo de contasPagar+contasHist sem fetch externo
+    // Semana actual BRT (segunda a domingo)
+    var _hj=new Date();
+    var _dw=_hj.getDay();
+    var _dif=_dw===0?6:_dw-1;
+    var _s0=new Date(_hj.getFullYear(),_hj.getMonth(),_hj.getDate()-_dif);
+    var _s1=new Date(_s0.getFullYear(),_s0.getMonth(),_s0.getDate()+6);
+    var _pad=function(n){return String(n).padStart(2,'0');};
+    var _fmt=function(d){return d.getFullYear()+'-'+_pad(d.getMonth()+1)+'-'+_pad(d.getDate());};
+    var _si=_fmt(_s0);var _sf=_fmt(_s1);
+    // Somar tudo (pendente+pago) com vencimento ou data_pagamento na semana
+    var _tot=0;
+    var _all=[...contasPagar,...contasHist];
+    _all.forEach(function(x){
+      var _ref=x.data_pagamento||x.vencimento||'';
+      if(_ref>=_si&&_ref<=_sf) _tot+=Number(x.valor)||0;
+    });
+    return _tot;
+  },[contasPagar,contasHist]);
+
 
   var totalContasPendente=useMemo(function(){
     return contasPagar.reduce(function(acc,x){return acc+(Number(x.valor)||0);},0);
