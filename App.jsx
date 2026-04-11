@@ -442,10 +442,12 @@ export default function App(){
   const [prestadores,setPrestadores]=useState([]);
   async function loadPrestadores(){
     try{
-      var {data}=await supabase.from("prestadores").select("*").eq("ativo",true).order("cargo").order("nome");
-      if(data) setPrestadores(data);
+      var res=await fetch(SUPA_URL+"/rest/v1/prestadores?select=*&ativo=eq.true&order=cargo,nome",{headers:HEADERS});
+      var data=await res.json();
+      if(Array.isArray(data)&&data.length>0) setPrestadores(data);
     }catch(e){}
   }
+
     async function criarUsuario(){
     if(!novoUser.nome||!novoUser.email||!novoUser.senha){setUserMsg("⚠️ Preencha todos os campos");return;}
     setSavingUser(true);setUserMsg("");
