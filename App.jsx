@@ -143,120 +143,100 @@ function Tog({label,value,onChange}){
 }
 
 function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
-  // ---- helpers de data ----
-  var _pc=function(n){return String(n).padStart(2,'0');};
+  var _pc=function(n){return String(n).padStart(2,"0");};
   var _hc=new Date();var _dwc=_hc.getDay();var _dc=_dwc===0?6:_dwc-1;
   var _s0c=new Date(_hc.getFullYear(),_hc.getMonth(),_hc.getDate()-_dc);
   var _s1c=new Date(_s0c.getFullYear(),_s0c.getMonth(),_s0c.getDate()+6);
-  var _fc=function(d){return d.getFullYear()+'-'+_pc(d.getMonth()+1)+'-'+_pc(d.getDate());};
-  var _fb=function(d){return _pc(d.getDate())+'/'+_pc(d.getMonth()+1)+'/'+d.getFullYear();};
+  var _fc=function(d){return d.getFullYear()+"-"+_pc(d.getMonth()+1)+"-"+_pc(d.getDate());};
+  var _fb=function(d){return _pc(d.getDate())+"/"+_pc(d.getMonth()+1)+"/"+d.getFullYear();};
   var _sic=_fc(_s0c);var _sfc=_fc(_s1c);
-  var _periodo=_fb(_s0c)+' a '+_fb(_s1c);
-  // ---- filtrar semana ----
+  var _periodo=_fb(_s0c)+" a "+_fb(_s1c);
   var _ms=mudancas.filter(function(m){return m.data>=_sic&&m.data<=_sfc;});
-  var _cd=(custosDiarios||[]).filter(function(c){return c.data>=_sic&&c.data<=_sfc;});
-  // ---- dias únicos com contagens ----
+  var _cd=(custosDiarios||[]).filter(function(x){return x.data>=_sic&&x.data<=_sfc;});
   var _diasU=[...new Set(_ms.map(function(m){return m.data;}))].sort();
-  // ---- formatador BRL ----
-  var _fv=function(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);};
-  var _fvs=function(v){return new Intl.NumberFormat('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);};
-  // ---- helpers de cargo ----
+  var _fv=function(v){return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);};
+  var _fvs=function(v){return new Intl.NumberFormat("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);};
   var _ico={"caminhao":"🚚","van":"🚐","ajudante":"👷","almoco":"🍛","outro":"📋"};
   var _lbl={"caminhao":"Caminhão","van":"Van","ajudante":"Ajudante","almoco":"Almoço","outro":"Outro"};
   var _cor={"caminhao":"#92400e","van":"#1e40af","ajudante":"#065f46","almoco":"#7c3aed","outro":"#475569"};
   var _bg={"caminhao":"#fff7ed","van":"#eff6ff","ajudante":"#f0fdf4","almoco":"#faf5ff","outro":"#f8fafc"};
-  // ---- calcular dias trabalhados por prestador ----
-  function _calcPrestador(p){
+  function _calcP(p){
     var vd=parseFloat(p.valor_diaria)||0;
-    // Para cada dia da semana calcular o valor
-    var detalhes=[];
-    if(p.cargo==='ajudante'){
-      // Ajudantes: por mudança × qtd ajudantes do dia
+    var det=[];
+    if(p.cargo==="ajudante"){
       _diasU.forEach(function(data){
         var mDia=_ms.filter(function(m){return m.data===data;});
-        var cdDia=_cd.find(function(c){return c.data===data;})||{ajudantes:1};
+        var cdDia=_cd.find(function(x){return x.data===data;})||{ajudantes:1};
         var numAj=parseInt(cdDia.ajudantes)||1;
         var numMud=mDia.length;
-        if(numMud>0){
-          var val=vd>0?numMud*vd:(numMud*(RULES.aj1a||0));
-          detalhes.push({data,numMud,numAj,val});
-        }
+        if(numMud>0){var val=vd>0?numMud*vd:numMud*(RULES.aj1a||0);det.push({data,numMud,numAj,val});}
       });
-    } else {
-      // Caminhão / Van: valor por dia trabalhado
+    }else{
       _diasU.forEach(function(data){
         var mDia=_ms.filter(function(m){return m.data===data;});
         var numMud=mDia.length;
-        if(numMud>0){
-          var val=vd>0?vd:(p.cargo==='caminhao'?(RULES.cam1a||0):(RULES.vanCusto||0));
-          detalhes.push({data,numMud,val});
-        }
+        if(numMud>0){var val=vd>0?vd:(p.cargo==="caminhao"?(RULES.cam1a||0):(RULES.vanCusto||0));det.push({data,numMud,val});}
       });
     }
-    var totalVal=detalhes.reduce(function(s,d){return s+d.val;},0);
-    var totalMud=detalhes.reduce(function(s,d){return s+d.numMud;},0);
-    return {detalhes,totalVal,totalMud,diasT:detalhes.length};
+    var totalVal=det.reduce(function(s,d){return s+d.val;},0);
+    var totalMud=det.reduce(function(s,d){return s+d.numMud;},0);
+    return {det,totalVal,totalMud,diasT:det.length};
   }
-  // ---- gerar texto WA ----
   function _sendZap(p){
-    var calc=_calcPrestador(p);
-    var NL='
-';
-    var textoDiario='';
-    calc.detalhes.forEach(function(d){
-      // Formatar data para DD/MM/AAAA
-      var parts=d.data.split('-');
-      var dataFmt=parts[2]+'/'+parts[1]+'/'+parts[0];
-      if(p.cargo==='ajudante'){
-        var ajLabel=d.numAj===1?'ajudante':'ajudantes';
-        textoDiario+='Data '+dataFmt+' - '+d.numMud+' mudanças x '+d.numAj+' '+ajLabel+' = R$ '+_fvs(d.val)+NL;
-      } else {
-        textoDiario+='Data '+dataFmt+' - '+d.numMud+' mudanças - R$ '+_fvs(d.val)+NL;
+    var calc=_calcP(p);
+    var NL="\n";
+    var txtDiario="";
+    calc.det.forEach(function(d){
+      var parts=d.data.split("-");
+      var df=parts[2]+"/"+parts[1]+"/"+parts[0];
+      if(p.cargo==="ajudante"){
+        var ajL=d.numAj===1?"ajudante":"ajudantes";
+        txtDiario+="Data "+df+" - "+d.numMud+" mudanças x "+d.numAj+" "+ajL+" = R$ "+_fvs(d.val)+NL;
+      }else{
+        txtDiario+="Data "+df+" - "+d.numMud+" mudanças - R$ "+_fvs(d.val)+NL;
       }
     });
-    var ico=_ico[p.cargo]||'📋';
+    var ico=_ico[p.cargo]||"📋";
     var lbl=_lbl[p.cargo]||p.cargo;
-    var mudLabel=calc.totalMud===1?'mudança':'mudanças';
-    var diasLabel=calc.diasT===1?'dia':'dias';
+    var mL=calc.totalMud===1?"mudança":"mudanças";
+    var dL=calc.diasT===1?"dia":"dias";
     var tx=
-      'Olá *'+p.nome+'*, segue o fechamento da semana! 🤝'+NL+
-      '📅 Período: '+_periodo+NL+NL+
-      textoDiario+NL+
-      ico+' Categoria: '+lbl+NL+
-      '✅ Dias trabalhados: '+calc.diasT+' '+diasLabel+NL+
-      '📦 Total de mudanças: '+calc.totalMud+' '+mudLabel+NL+
-      '💰 *Valor a receber: R$ '+_fvs(calc.totalVal)+'*'+NL+NL+
-      '(TELEMIM)';
-    var num=(p.telefone||'').replace(/[^0-9]/g,'');
-    window.open(num?'https://wa.me/'+num+'?text='+encodeURIComponent(tx):'https://wa.me/?text='+encodeURIComponent(tx),'_blank');
+      "Olá *"+p.nome+"*, segue o fechamento da semana! 🤝"+NL+
+      "📅 Período: "+_periodo+NL+NL+
+      txtDiario+NL+
+      ico+" Categoria: "+lbl+NL+
+      "✅ Dias trabalhados: "+calc.diasT+" "+dL+NL+
+      "📦 Total de mudanças: "+calc.totalMud+" "+mL+NL+
+      "💰 *Valor a receber: R$ "+_fvs(calc.totalVal)+"*"+NL+NL+
+      "(TELEMIM)";
+    var num=(p.telefone||"").replace(/[^0-9]/g,"");
+    window.open(num?"https://wa.me/"+num+"?text="+encodeURIComponent(tx):"https://wa.me/?text="+encodeURIComponent(tx),"_blank");
   }
   return (
-    <div style={{background:'#fff',border:'1.5px solid #e2e8f0',borderRadius:12,padding:'14px 14px 10px',marginTop:6,marginBottom:10}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-        <div style={{fontWeight:800,fontSize:13,color:'#1e293b'}}>📊 Fechamento Semanal</div>
-        <div style={{fontSize:10,color:'#64748b'}}>{_periodo}</div>
+    <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 14px 10px",marginTop:6,marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{fontWeight:800,fontSize:13,color:"#1e293b"}}>📊 Fechamento Semanal</div>
+        <div style={{fontSize:10,color:"#64748b"}}>{_periodo}</div>
       </div>
       {(!prestadores||prestadores.length===0)?(
-        <div style={{textAlign:'center',padding:'14px 0',color:'#94a3b8',fontSize:12}}>
+        <div style={{textAlign:"center",padding:"14px 0",color:"#94a3b8",fontSize:12}}>
           Nenhum prestador cadastrado.<br/>Adicione na aba ⚙️ Config.
         </div>
       ):(
-        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {prestadores.map(function(p){
-            var calc=_calcPrestador(p);
+            var calc=_calcP(p);
             return (
-              <div key={p.id} style={{background:_bg[p.cargo]||'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',alignItems:'center',gap:10,border:'1px solid #f1f5f9'}}>
-                <div style={{fontSize:22,flexShrink:0}}>{_ico[p.cargo]||'📋'}</div>
+              <div key={p.id} style={{background:_bg[p.cargo]||"#f8fafc",borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:10,border:"1px solid #f1f5f9"}}>
+                <div style={{fontSize:22,flexShrink:0}}>{_ico[p.cargo]||"📋"}</div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:13,color:_cor[p.cargo]||'#334155'}}>{p.nome}</div>
-                  <div style={{fontSize:10,color:'#64748b',marginTop:1}}>{_lbl[p.cargo]||p.cargo}</div>
-                  <div style={{fontSize:10,color:'#94a3b8',marginTop:1}}>
-                    {calc.diasT} {calc.diasT===1?'dia':'dias'} | {calc.totalMud} {calc.totalMud===1?'mudança':'mudanças'}
-                  </div>
+                  <div style={{fontWeight:700,fontSize:13,color:_cor[p.cargo]||"#334155"}}>{p.nome}</div>
+                  <div style={{fontSize:10,color:"#64748b",marginTop:1}}>{_lbl[p.cargo]||p.cargo}</div>
+                  <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>{calc.diasT} {calc.diasT===1?"dia":"dias"} | {calc.totalMud} {calc.totalMud===1?"mudança":"mudanças"}</div>
                 </div>
-                <div style={{textAlign:'right',flexShrink:0}}>
-                  <div style={{fontWeight:800,fontSize:14,color:_cor[p.cargo]||'#334155'}}>{_fv(calc.totalVal)}</div>
-                  <button onClick={function(){_sendZap(p);}} style={{marginTop:5,background:'#16a34a',color:'#fff',border:'none',borderRadius:16,padding:'5px 12px',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontWeight:800,fontSize:14,color:_cor[p.cargo]||"#334155"}}>{_fv(calc.totalVal)}</div>
+                  <button onClick={function(){_sendZap(p);}} style={{marginTop:5,background:"#16a34a",color:"#fff",border:"none",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>
                     📲 Enviar Zap
                   </button>
                 </div>
@@ -265,10 +245,10 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
           })}
         </div>
       )}
-      <div style={{marginTop:10,paddingTop:10,borderTop:'2px solid #f1f5f9',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <div style={{marginTop:10,paddingTop:10,borderTop:"2px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
-          <div style={{fontSize:10,color:'#64748b',fontWeight:600}}>CUSTO TOTAL SEMANA</div>
-          <div style={{fontWeight:900,fontSize:16,color:'#c2410c'}}>{_fv(prestadores.reduce(function(acc,p){return acc+_calcPrestador(p).totalVal;},0))}</div>
+          <div style={{fontSize:10,color:"#64748b",fontWeight:600}}>CUSTO TOTAL SEMANA</div>
+          <div style={{fontWeight:900,fontSize:16,color:"#c2410c"}}>{_fv(prestadores.reduce(function(acc,p){return acc+_calcP(p).totalVal;},0))}</div>
         </div>
       </div>
     </div>
