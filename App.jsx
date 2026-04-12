@@ -1,4 +1,4 @@
-// TELEMIM v3.1
+// TELEMIM v3.2
 import { useState, useEffect, useMemo } from "react";
 /* v2 */const _getValidToken=async function(usuario,SUPA_URL,SUPA_KEY){if(!usuario?.token)return null;try{const pl=JSON.parse(atob(usuario.token.split(".")[1]));const ok=pl.exp*1000>Date.now()+30000;if(ok)return usuario.token;if(!usuario.refresh_token)return usuario.token;const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:usuario.refresh_token})});const d=await res.json();if(d.access_token){const saved=JSON.parse(localStorage.getItem("tmim_u")||"{}");saved.token=d.access_token;if(d.refresh_token)saved.refresh_token=d.refresh_token;localStorage.setItem("tmim_u",JSON.stringify(saved));return d.access_token;}}catch(e){}return usuario.token;};
 const _fmtDate=function(d){return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+d.getDate();};
@@ -1308,7 +1308,6 @@ export default function App(){
   }
 
   // ── PDF MUDANÇA INDIVIDUAL ─────────────────────────────────────────────────
-  async   function gerarPDFMudanca(m,btn){gerarPDFCardIndividual(m,btn);}
   function gerarPDFAgendamento(a,btn){gerarPDFCardIndividual(a,btn);}
 
   function compartilharWhatsApp(a,tipo="agendamento"){
@@ -1527,7 +1526,7 @@ export default function App(){
                     {verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
                     {m.contato&&<button onClick={()=>{var tel=(m.contato||"").replace(/\D/g,"");var txt="\uD83D\uDE9A *TELEMIM — Sua Mudan\u00E7a*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nOl\u00E1 *"+m.nome+"*! \uD83D\uDC4B\nConfirmamos sua mudan\u00E7a:\n\uD83D\uDCC5 *Data:* "+_fmtDate(m.data)+"\n\uD83D\uDCCD *Sa\u00EDda:* "+(m.comunidade||m.origem||"-")+"\n\uD83D\uDCCD *Destino:* "+(m.destino||"-")+"\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nEm caso de d\u00FAvidas, entre em contacto. \uD83D\uDE0A\n_TELEMIM_";window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent(txt),"_blank");}} style={{background:"#25d366",border:"none",color:"#fff",borderRadius:6,padding:"5px 8px",cursor:"pointer",fontSize:14}} title="WhatsApp Morador">📱</button>}
                     <button onClick={()=>compartilharMudanca(m)} style={btnGreen}>📲</button>
-                    <button onClick={e=>gerarPDFMudanca(m,e.currentTarget)} style={{...btnRed,background:"#fff1f0"}}>📄</button>
+                    <button onClick={()=>gerarPDFMudanca(m)} style={{...btnRed,background:"#fff1f0"}}>📄</button>
                     <button onClick={()=>setEditMud((function(){var _cd=(custosDiarios||[]).find(function(x){return x.data===m.data;});return {...m,_qtdAj:_cd?parseInt(_cd.ajudantes)||1:1};})())} style={btnBlue}>✏️</button>
                     {(usuario&&(usuario.perfil==="admin"||usuario.perfil==="telemim"))&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud"});}} style={btnRed}>✕</button>}
                   </div>
