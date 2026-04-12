@@ -143,16 +143,40 @@ function Tog({label,value,onChange}){
 }
 
 // ============================================================
-// CALCULADORA CENTRAL DE CUSTOS — Single Source of Truth
-// Recebe: mudancasDoPeriodo (array), custosDiariosDoPeriodo (array),
-//         contasPagarDoPeriodo (array), RULES (config)
-// Retorna: { cCam, cVan, cAj, cAlm, cExtra, despTotal,
-//            fatBruto, fatLiq, imposto, lucroLiq,
-//            numMud, m3Total, diasU, numVan }
+// AGENTE DE PRECIFICAÇÃO — Fonte Única da Verdade
+// Calcula o custo de UM DIA para UMA categoria
+// Regras escalonadas exactas conforme aba Config > Regras
+// ============================================================
+function _calcDiario(numMud, numAj, cargo, RULES){
+  if(numMud===0) return 0;
+  var cam1a=parseFloat(RULES.cam1a)||0;
+  var camAdd=parseFloat(RULES.camAdd)||0;
+  var vanD=parseFloat(RULES.vanCusto)||0;
+  var aj1a=parseFloat(RULES.aj1a)||0;
+  var ajAdd=parseFloat(RULES.ajAdd)||0;
+  if(cargo==="van"){
+    // Van: valor fixo diário independente de quantas mudanças
+    return vanD;
+  }
+  if(cargo==="caminhao"){
+    // Caminhão: base na 1ª mudança + acréscimo por cada mudança adicional
+    var extraCam=Math.max(0,numMud-1);
+    return cam1a+(extraCam*camAdd);
+  }
+  if(cargo==="ajudante"){
+    // Ajudante: escalonado igual ao caminhão × qtd ajudantes presentes
+    var extraAj=Math.max(0,numMud-1);
+    var custoPorUm=aj1a+(extraAj*ajAdd);
+    return custoPorUm*(parseInt(numAj)||1);
+  }
+  return 0;
+}
+// ============================================================
+// CALCULADORA CENTRAL — usa _calcDiario como driver
+// Itera dia a dia sobre os dias com mudanças
 // ============================================================
 function _calcCustos(mudP, cdP, cpP, RULES){
   var _fv=function(v){return parseFloat(v)||0;};
-  var _fi=function(v){return parseInt(v)||0;};
   // --- FATURAMENTO ---
   var diasU=[...new Set(mudP.map(function(m){return m.data;}))];
   var m3Total=mudP.reduce(function(s,m){return s+_fv(m.medicao);},0);
@@ -160,23 +184,18 @@ function _calcCustos(mudP, cdP, cpP, RULES){
   var fatBruto=diasU.length*_fv(RULES.van1a)+m3Total*_fv(RULES.medicaoPorM3);
   var imposto=fatBruto*_fv(RULES.imposto);
   var fatLiq=fatBruto-imposto;
-  // --- CUSTOS POR CATEGORIA ---
-  // Itera sobre dias com mudancas (driver = diasU), usa cdP como lookup de ajudantes/almoco
+  // --- CUSTOS VIA AGENTE DE PRECIFICAÇÃO ---
   var cCam=0; var cVan=0; var cAj=0; var cAlm=0;
-  var camBase=_fv(RULES.cam1a);
-  var vanBase=_fv(RULES.vanCusto);
-  var ajBase=_fv(RULES.aj1a);
   diasU.forEach(function(data){
     var numMud=mudP.filter(function(m){return m.data===data;}).length;
     if(numMud===0) return;
     var cdDia=(cdP||[]).find(function(cd){return cd.data===data;})||{ajudantes:0,custo_almoco:0};
-    var numAj=_fi(cdDia.ajudantes);
-    cCam+=numMud*camBase;
-    cVan+=numMud*vanBase;
-    cAj+=numMud*numAj*ajBase;
+    var numAj=parseInt(cdDia.ajudantes)||0;
+    cCam+=_calcDiario(numMud,0,"caminhao",RULES);
+    cVan+=_calcDiario(numMud,0,"van",RULES);
+    cAj+=_calcDiario(numMud,numAj,"ajudante",RULES);
     cAlm+=_fv(cdDia.custo_almoco);
   });
-  // Contas a Pagar extras do periodo
   var cExtra=(cpP||[]).reduce(function(s,cp){return s+_fv(cp.valor);},0);
   var despTotal=cCam+cVan+cAj+cAlm+cExtra;
   var lucroLiq=fatLiq-despTotal;
@@ -209,24 +228,24 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     var det=[];
     var _diasDetU=[...new Set(_ms.map(function(m){return m.data;}))].sort();
     if(p.cargo==="ajudante"){
-      // Ajudante: numMud * numAj * valorBase — itera sobre dias com mudancas
+      // Ajudante: usa _calcDiario (escalonado × qtd ajudantes)
       _diasDetU.forEach(function(data){
         var mDia=_ms.filter(function(m){return m.data===data;});
         var numMud=mDia.length;
         if(numMud===0) return;
         var cdDia=_cd.find(function(cd){return cd.data===data;})||{ajudantes:1};
         var numAj=parseInt(cdDia.ajudantes)||1;
-        var base=vd>0?vd:(RULES.aj1a||0);
-        det.push({data,numMud,numAj,val:numMud*numAj*base});
+        var val=_calcDiario(numMud,numAj,"ajudante",RULES);
+        det.push({data,numMud,numAj,val});
       });
     }else if(p.cargo==="caminhao"||p.cargo==="van"){
-      // Caminhão/Van: numMud * valorBase — itera sobre dias com mudancas
+      // Caminhão/Van: usa _calcDiario (escalonado / diária fixa)
       _diasDetU.forEach(function(data){
         var mDia=_ms.filter(function(m){return m.data===data;});
         var numMud=mDia.length;
         if(numMud===0) return;
-        var base=vd>0?vd:(p.cargo==="caminhao"?(RULES.cam1a||0):(RULES.vanCusto||0));
-        det.push({data,numMud,val:numMud*base});
+        var val=_calcDiario(numMud,0,p.cargo,RULES);
+        det.push({data,numMud,val});
       });
     }
     return det;
