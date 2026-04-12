@@ -322,27 +322,48 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     var naCalc=parseInt(na)||1;
     setEditVals(function(v){return {...v,numAj:na,val:raw===""?0:_recalcVal(nm,naCalc,cargo)};});
   }
-  function _salvarEdit(p){
+  async function _salvarEdit(p){
+    // PROTOCOLO 1: Capturar estado antes de qualquer mutação
+    var _idxSnap=editIdx;
+    var _valsSnap={...editVals};
+    if(_idxSnap===null||_idxSnap===undefined){return;}
+    // PROTOCOLO 2: Recalcular valor via Agente de Precificação
+    var numMudSnap=parseInt(_valsSnap.numMud)||0;
+    var numAjSnap=parseInt(_valsSnap.numAj)||1;
+    var cargoSnap=p.id==="__equipa_aj__"?"ajudante":(p.cargo||"ajudante");
+    var valRecalc=_calcDiario(numMudSnap,numAjSnap,cargoSnap,RULES);
+    // Montar payload final com valor recalculado
+    var payload={
+      data:_valsSnap.data,
+      numMud:numMudSnap,
+      numAj:numAjSnap,
+      val:valRecalc
+    };
+    // Construir novo detalhamento (Double Map — imutabilidade)
     var novoDet=_getDet(p).map(function(d,i){
-      return i===editIdx?{...d,data:editVals.data,numMud:parseInt(editVals.numMud)||0,numAj:parseInt(editVals.numAj)||1,val:parseFloat(String(editVals.val).replace(",","."))||0}:d;
+      return i===_idxSnap?{...d,...payload}:d;
     });
-    // Actualizar estado local (imutabilidade duplo-map)
-    setDetMap(function(prev){var m={...prev};m[p.id]=novoDet;return m;});
-    setEditIdx(null);setEditVals({});
-    // ---- Persistir no Supabase (custos_diarios) ----
-    // O indice correcto é o que estava em edição antes de salvar
-    var dEditado=novoDet[editIdx!==null&&editIdx<novoDet.length?editIdx:0];
-    if(!dEditado||!dEditado.data) return;
-    var numAjSave=parseInt(editVals.numAj)||1;
-    // Upsert via POST com unique constraint em data
-    // Prefer: resolution=merge-duplicates actualiza se já existe, insere se não existe
-    fetch(SUPA_URL+"/rest/v1/custos_diarios",{
-      method:"POST",
-      headers:{...HEADERS,"Prefer":"resolution=merge-duplicates,return=minimal","Content-Type":"application/json"},
-      body:JSON.stringify({data:dEditado.data,ajudantes:numAjSave})
-    }).then(function(res){
-      if(!res.ok) res.text().then(function(t){console.warn("Supabase upsert erro:",t);});
-    }).catch(function(err){console.warn("Supabase upsert custos_diarios:",err);});
+    // PROTOCOLO 3: Salvar no Supabase PRIMEIRO (await obrigatório)
+    try{
+      var res=await fetch(SUPA_URL+"/rest/v1/custos_diarios",{
+        method:"POST",
+        headers:{...HEADERS,"Prefer":"resolution=merge-duplicates,return=minimal","Content-Type":"application/json"},
+        body:JSON.stringify({data:payload.data,ajudantes:numAjSnap})
+      });
+      if(!res.ok){
+        var errTxt=await res.text();
+        console.warn("Supabase save erro:",errTxt);
+        alert("Erro ao salvar no servidor: "+errTxt.substring(0,120));
+        return;
+      }
+      // PROTOCOLO 4: Apenas após sucesso → actualizar estado React
+      setDetMap(function(prev){var m={...prev};m[p.id]=novoDet;return m;});
+      setEditIdx(null);
+      setEditVals({});
+    }catch(err){
+      console.error("Agente de Gravação erro:",err);
+      alert("Falha ao salvar. Verifique a ligação.");
+    }
   }
   function _cancelarEdit(){setEditIdx(null);setEditVals({});}
   var inpS={border:"1px solid #cbd5e1",borderRadius:6,padding:"3px 6px",fontSize:11,width:"100%",background:"#fff"};
