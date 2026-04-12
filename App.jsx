@@ -142,6 +142,52 @@ function Tog({label,value,onChange}){
   );
 }
 
+// ============================================================
+// CALCULADORA CENTRAL DE CUSTOS — Single Source of Truth
+// Recebe: mudancasDoPeriodo (array), custosDiariosDoPeriodo (array),
+//         contasPagarDoPeriodo (array), RULES (config)
+// Retorna: { cCam, cVan, cAj, cAlm, cExtra, despTotal,
+//            fatBruto, fatLiq, imposto, lucroLiq,
+//            numMud, m3Total, diasU, numVan }
+// ============================================================
+function _calcCustos(mudP, cdP, cpP, RULES){
+  var _fv=function(v){return parseFloat(v)||0;};
+  var _fi=function(v){return parseInt(v)||0;};
+  // --- FATURAMENTO ---
+  var diasU=[...new Set(mudP.map(function(m){return m.data;}))];
+  var m3Total=mudP.reduce(function(s,m){return s+_fv(m.medicao);},0);
+  var numVan=mudP.filter(function(m){return m.van;}).length;
+  var fatBruto=diasU.length*_fv(RULES.van1a)+m3Total*_fv(RULES.medicaoPorM3);
+  var imposto=fatBruto*_fv(RULES.imposto);
+  var fatLiq=fatBruto-imposto;
+  // --- CUSTOS POR CATEGORIA ---
+  // Regra: Caminhão = numMudancas * valorBase
+  //        Van      = numMudancas * valorBase
+  //        Ajudante = numMudancas * qtdAjudantes * valorBase
+  //        Almoço   = soma directa do valor lançado
+  var cCam=0; var cVan=0; var cAj=0; var cAlm=0;
+  var camBase=_fv(RULES.cam1a);
+  var vanBase=_fv(RULES.vanCusto);
+  var ajBase=_fv(RULES.aj1a);
+  (cdP||[]).forEach(function(cd){
+    var numMud=mudP.filter(function(m){return m.data===cd.data;}).length;
+    if(numMud===0) return;
+    var numAj=_fi(cd.ajudantes);
+    cCam+=numMud*camBase;
+    cVan+=numMud*vanBase;
+    cAj+=numMud*numAj*ajBase;
+    cAlm+=_fv(cd.custo_almoco);
+  });
+  // Contas a Pagar extras do periodo
+  var cExtra=(cpP||[]).reduce(function(s,cp){return s+_fv(cp.valor);},0);
+  var despTotal=cCam+cVan+cAj+cAlm+cExtra;
+  var lucroLiq=fatLiq-despTotal;
+  return {
+    cCam,cVan,cAj,cAlm,cExtra,despTotal,
+    fatBruto,fatLiq,imposto,lucroLiq,
+    numMud:mudP.length,m3Total,diasU,numVan
+  };
+}
 function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
   var _pc=function(n){return String(n).padStart(2,"0");};
   var _hc=new Date();var _dwc=_hc.getDay();var _dc=_dwc===0?6:_dwc-1;
@@ -153,50 +199,50 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
   var _periodo=_fb(_s0c)+" a "+_fb(_s1c);
   var _ms=mudancas.filter(function(m){return m.data>=_sic&&m.data<=_sfc;});
   var _cd=(custosDiarios||[]).filter(function(x){return x.data>=_sic&&x.data<=_sfc;});
-  var _diasU=[...new Set(_ms.map(function(m){return m.data;}))].sort();
   var _fv=function(v){return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);};
   var _fvs=function(v){return new Intl.NumberFormat("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);};
   var _ico={"caminhao":"🚚","van":"🚐","ajudante":"👷","almoco":"🍛","outro":"📋"};
   var _lbl={"caminhao":"Caminhão","van":"Van","ajudante":"Ajudante","almoco":"Almoço","outro":"Outro"};
   var _cor={"caminhao":"#92400e","van":"#1e40af","ajudante":"#065f46","almoco":"#7c3aed","outro":"#475569"};
   var _bg={"caminhao":"#fff7ed","van":"#eff6ff","ajudante":"#f0fdf4","almoco":"#faf5ff","outro":"#f8fafc"};
-  // --- calcular detalhes iniciais por prestador ---
-  function _calcDetalhes(p){
+  // --- calcular detalhes por prestador usando regras centralizadas ---
+  function _calcDetP(p){
     var vd=parseFloat(p.valor_diaria)||0;
     var det=[];
     if(p.cargo==="ajudante"){
-      _diasU.forEach(function(data){
-        var mDia=_ms.filter(function(m){return m.data===data;});
-        var cdDia=_cd.find(function(x){return x.data===data;})||{ajudantes:1};
-        var numAj=parseInt(cdDia.ajudantes)||1;
+      // Ajudante: numMud * numAj * valorBase
+      _cd.forEach(function(cd){
+        var mDia=_ms.filter(function(m){return m.data===cd.data;});
         var numMud=mDia.length;
-        if(numMud>0){var val=vd>0?numMud*vd:numMud*(RULES.aj1a||0);det.push({data,numMud,numAj,val});}
+        if(numMud===0) return;
+        var numAj=parseInt(cd.ajudantes)||1;
+        var base=vd>0?vd:(RULES.aj1a||0);
+        det.push({data:cd.data,numMud,numAj,val:numMud*numAj*base});
       });
-    }else{
-      _diasU.forEach(function(data){
-        var mDia=_ms.filter(function(m){return m.data===data;});
+    }else if(p.cargo==="caminhao"||p.cargo==="van"){
+      // Caminhão/Van: numMud * valorBase
+      _cd.forEach(function(cd){
+        var mDia=_ms.filter(function(m){return m.data===cd.data;});
         var numMud=mDia.length;
-        if(numMud>0){var val=vd>0?vd:(p.cargo==="caminhao"?(RULES.cam1a||0):(RULES.vanCusto||0));det.push({data,numMud,val});}
+        if(numMud===0) return;
+        var base=vd>0?vd:(p.cargo==="caminhao"?(RULES.cam1a||0):(RULES.vanCusto||0));
+        det.push({data:cd.data,numMud,val:numMud*base});
       });
     }
     return det;
   }
-  // --- state local ---
   var [modalP,setModalP]=useState(null);
   var [detMap,setDetMap]=useState({});
   var [editIdx,setEditIdx]=useState(null);
   var [editVals,setEditVals]=useState({});
-  // --- obter detalhes reactivos (editados ou calculados) ---
-  function _getDet(p){
-    if(detMap[p.id]) return detMap[p.id];
-    return _calcDetalhes(p);
-  }
+  function _getDet(p){return detMap[p.id]||_calcDetP(p);}
   function _getTotais(det){
-    var totalVal=det.reduce(function(s,d){return s+(parseFloat(d.val)||0);},0);
-    var totalMud=det.reduce(function(s,d){return s+(parseInt(d.numMud)||0);},0);
-    return {totalVal,totalMud,diasT:det.length};
+    return {
+      totalVal:det.reduce(function(s,d){return s+(parseFloat(d.val)||0);},0),
+      totalMud:det.reduce(function(s,d){return s+(parseInt(d.numMud)||0);},0),
+      diasT:det.length
+    };
   }
-  // --- gerar texto WA com dados actuais ---
   function _sendZap(p){
     var det=_getDet(p);
     var tot=_getTotais(det);
@@ -228,22 +274,18 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     var num=(p.telefone||"").replace(/[^0-9]/g,"");
     window.open(num?"https://wa.me/"+num+"?text="+encodeURIComponent(tx):"https://wa.me/?text="+encodeURIComponent(tx),"_blank");
   }
-  // --- edição inline ---
-  function _iniciarEdit(idx,d){
-    setEditIdx(idx);
-    setEditVals({data:d.data,numMud:d.numMud,numAj:d.numAj||1,val:d.val});
-  }
+  function _iniciarEdit(idx,d){setEditIdx(idx);setEditVals({data:d.data,numMud:d.numMud,numAj:d.numAj||1,val:d.val});}
   function _salvarEdit(p){
     var det=_getDet(p).map(function(d,i){
       return i===editIdx?{...d,data:editVals.data,numMud:parseInt(editVals.numMud)||0,numAj:parseInt(editVals.numAj)||1,val:parseFloat(String(editVals.val).replace(",","."))||0}:d;
     });
     setDetMap(function(prev){var m={...prev};m[p.id]=det;return m;});
-    setEditIdx(null);
-    setEditVals({});
+    setEditIdx(null);setEditVals({});
   }
   function _cancelarEdit(){setEditIdx(null);setEditVals({});}
-  // --- input style ---
   var inpS={border:"1px solid #cbd5e1",borderRadius:6,padding:"3px 6px",fontSize:11,width:"100%",background:"#fff"};
+  // Custo total semana via função centralizada
+  var _cSem=_calcCustos(_ms,_cd,[],RULES);
   return (
     <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 14px 10px",marginTop:6,marginBottom:10}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -283,7 +325,7 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
                 </div>
                 {isOpen&&(
                   <div style={{borderTop:"1px solid #e2e8f0",background:"#fff",padding:"12px 12px 10px"}}>
-                    <div style={{fontWeight:700,fontSize:11,color:"#475569",marginBottom:8}}>📋 Extrato de Atividades — {p.nome}</div>
+                    <div style={{fontWeight:700,fontSize:11,color:"#475569",marginBottom:8}}>📋 Extrato — {p.nome}</div>
                     <div style={{overflowX:"auto"}}>
                       <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                         <thead>
@@ -300,36 +342,26 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
                             var isEdit=editIdx===i;
                             var pts=String(d.data).split("-");
                             var dfmt=pts[2]+"/"+pts[1]+"/"+pts[0];
-                            if(isEdit){
-                              return (
-                                <tr key={i} style={{background:"#fffbeb"}}>
-                                  <td style={{padding:"4px 6px"}}>
-                                    <input type="date" value={editVals.data} onChange={function(e){setEditVals(function(v){return {...v,data:e.target.value};});}} style={inpS}/>
-                                  </td>
-                                  <td style={{padding:"4px 4px"}}>
-                                    <input type="number" min="0" value={editVals.numMud} onChange={function(e){setEditVals(function(v){return {...v,numMud:e.target.value};});}} style={{...inpS,width:50}}/>
-                                  </td>
-                                  {p.cargo==="ajudante"&&<td style={{padding:"4px 4px"}}>
-                                    <input type="number" min="1" value={editVals.numAj} onChange={function(e){setEditVals(function(v){return {...v,numAj:e.target.value};});}} style={{...inpS,width:40}}/>
-                                  </td>}
-                                  <td style={{padding:"4px 6px"}}>
-                                    <input type="number" step="0.01" value={editVals.val} onChange={function(e){setEditVals(function(v){return {...v,val:e.target.value};});}} style={{...inpS,width:70}}/>
-                                  </td>
-                                  <td style={{padding:"4px 4px",whiteSpace:"nowrap"}}>
-                                    <button onClick={function(){_salvarEdit(p);}} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer",marginRight:2}}>✅</button>
-                                    <button onClick={_cancelarEdit} style={{background:"#ef4444",color:"#fff",border:"none",borderRadius:8,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>❌</button>
-                                  </td>
-                                </tr>
-                              );
-                            }
-                            return (
+                            if(isEdit){return(
+                              <tr key={i} style={{background:"#fffbeb"}}>
+                                <td style={{padding:"4px 6px"}}><input type="date" value={editVals.data} onChange={function(e){setEditVals(function(v){return {...v,data:e.target.value};});}} style={inpS}/></td>
+                                <td style={{padding:"4px 4px"}}><input type="number" min="0" value={editVals.numMud} onChange={function(e){setEditVals(function(v){return {...v,numMud:e.target.value};});}} style={{...inpS,width:50}}/></td>
+                                {p.cargo==="ajudante"&&<td style={{padding:"4px 4px"}}><input type="number" min="1" value={editVals.numAj} onChange={function(e){setEditVals(function(v){return {...v,numAj:e.target.value};});}} style={{...inpS,width:40}}/></td>}
+                                <td style={{padding:"4px 6px"}}><input type="number" step="0.01" value={editVals.val} onChange={function(e){setEditVals(function(v){return {...v,val:e.target.value};});}} style={{...inpS,width:70}}/></td>
+                                <td style={{padding:"4px 4px",whiteSpace:"nowrap"}}>
+                                  <button onClick={function(){_salvarEdit(p);}} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer",marginRight:2}}>✅</button>
+                                  <button onClick={_cancelarEdit} style={{background:"#ef4444",color:"#fff",border:"none",borderRadius:8,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>❌</button>
+                                </td>
+                              </tr>
+                            );}
+                            return(
                               <tr key={i} style={{borderBottom:"1px solid #f1f5f9"}}>
                                 <td style={{padding:"6px 8px",color:"#334155",fontWeight:500}}>{dfmt}</td>
                                 <td style={{padding:"6px 4px",textAlign:"center",color:"#475569"}}>{d.numMud}</td>
                                 {p.cargo==="ajudante"&&<td style={{padding:"6px 4px",textAlign:"center",color:"#475569"}}>{d.numAj||1}</td>}
                                 <td style={{padding:"6px 8px",textAlign:"right",fontWeight:600,color:_cor[p.cargo]||"#334155"}}>R$ {_fvs(d.val)}</td>
                                 <td style={{padding:"6px 4px",textAlign:"center"}}>
-                                  <button onClick={function(){_iniciarEdit(i,d);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:2}} title="Editar">✏️</button>
+                                  <button onClick={function(){_iniciarEdit(i,d);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:2}}>✏️</button>
                                 </td>
                               </tr>
                             );
@@ -359,11 +391,12 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
       <div style={{marginTop:10,paddingTop:10,borderTop:"2px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
           <div style={{fontSize:10,color:"#64748b",fontWeight:600}}>CUSTO TOTAL SEMANA</div>
-          <div style={{fontWeight:900,fontSize:16,color:"#c2410c"}}>{_fv(prestadores.reduce(function(acc,p){return acc+_getTotais(_getDet(p)).totalVal;},0))}</div>
+          <div style={{fontWeight:900,fontSize:16,color:"#c2410c"}}>{_fv(_cSem.despTotal)}</div>
         </div>
       </div>
     </div>
   );
+}
 }
 export default function App(){
   const [usuario,setUsuario]=useState(null);
@@ -1482,28 +1515,14 @@ export default function App(){
           var _now=new Date();
           var _am=_now.getFullYear()+"-"+(String(_now.getMonth()+1).padStart(2,"0"));
           var _fv=function(v){return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);};
-          var _nm=new Date().toLocaleDateString("pt-BR",{month:"long",year:"numeric"}).replace(/^./,function(s){return s.toUpperCase();});
-          var _mudM=(mudancas||[]).filter(function(m){return m.data&&m.data.slice(0,7)===_am;});
-          var _diasU=[...new Set(_mudM.map(function(m){return m.data;}))];
-          var _m3M=_mudM.reduce(function(s,m){return s+(parseFloat(m.medicao)||0);},0);
-          var _vanM=_mudM.filter(function(m){return m.van;}).length;
-          var _fatBruto=_diasU.length*(RULES.van1a||0)+_m3M*(RULES.medicaoPorM3||0);
-          var _imposto=_fatBruto*(RULES.imposto||0);
-          var _fatLiq=_fatBruto-_imposto;
-          var _cdM=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===_am;});
-          var _cCamTotal=0;var _cVanTotal=0;var _cAjTotal=0;var _cAlmTotal=0;
-          _cdM.forEach(function(cd){
-            var n=_mudM.filter(function(m){return m.data===cd.data;}).length;
-            _cCamTotal+=(n>0?(RULES.cam1a||0)+(n-1)*(RULES.camAdd||0):0);
-            _cVanTotal+=(RULES.vanCusto||0);
-            _cAjTotal+=(cd.ajudantes>0?((RULES.aj1a||0)+(n>0?n-1:0)*(RULES.ajAdd||0))*(cd.ajudantes):0);
-            _cAlmTotal+=parseFloat(cd.custo_almoco)||0;
-          });
-          var _cpM=(contasPagar||[]).filter(function(cp){return cp.data&&cp.data.slice(0,7)===_am;});
-          var _despCP=_cpM.reduce(function(s,cp){return s+(parseFloat(cp.valor)||0);},0);
-          var _despTotal=_cCamTotal+_cVanTotal+_cAjTotal+_cAlmTotal+_despCP;
-          var _lucroLiq=_fatLiq-_despTotal;
           var _fvs=function(v){return new Intl.NumberFormat("pt-BR",{minimumFractionDigits:0,maximumFractionDigits:0}).format(v||0);};
+          var _nm=new Date().toLocaleDateString("pt-BR",{month:"long",year:"numeric"}).replace(/^./,function(s){return s.toUpperCase();});
+          // Filtrar dados do mês — usar slice(0,7) === _am (formato ISO YYYY-MM)
+          var _mudM=(mudancas||[]).filter(function(m){return m.data&&m.data.slice(0,7)===_am;});
+          var _cdM=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===_am;});
+          var _cpM=(contasPagar||[]).filter(function(cp){return cp.data&&cp.data.slice(0,7)===_am;});
+          // Usar função centralizada — MESMA lógica que aba Contas
+          var _r=_calcCustos(_mudM,_cdM,_cpM,RULES);
           return (
             <div style={{padding:"12px 12px 0"}}>
               <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>
@@ -1514,13 +1533,13 @@ export default function App(){
                   <div style={{fontSize:10,color:"#ef4444",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>
                     💸 Despesa Total
                   </div>
-                  <div style={{fontSize:18,fontWeight:900,color:"#dc2626",marginBottom:8}}>{"R$ "+_fvs(_despTotal)}</div>
+                  <div style={{fontSize:18,fontWeight:900,color:"#dc2626",marginBottom:8}}>{"R$ "+_fvs(_r.despTotal)}</div>
                   <div style={{display:"flex",flexDirection:"column",gap:3}}>
                     {[
-                      {ic:"🚚",lbl:"Caminhão",v:_cCamTotal},
-                      {ic:"🚐",lbl:"Van",v:_cVanTotal},
-                      {ic:"👷",lbl:"Ajudante",v:_cAjTotal},
-                      {ic:"🍛",lbl:"Almoço",v:_cAlmTotal+_despCP}
+                      {ic:"🚚",lbl:"Caminhão",v:_r.cCam},
+                      {ic:"🚐",lbl:"Van",v:_r.cVan},
+                      {ic:"👷",lbl:"Ajudante",v:_r.cAj},
+                      {ic:"🍛",lbl:"Almoço+Extra",v:_r.cAlm+_r.cExtra}
                     ].map(function(k,i){return(
                       <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(220,38,38,0.06)",borderRadius:6,padding:"2px 6px"}}>
                         <span style={{fontSize:10,color:"#991b1b"}}>{k.ic} {k.lbl}</span>
@@ -1534,12 +1553,12 @@ export default function App(){
                   <div style={{fontSize:10,color:"#16a34a",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>
                     💰 Receita Bruta
                   </div>
-                  <div style={{fontSize:18,fontWeight:900,color:"#15803d",marginBottom:8}}>{"R$ "+_fvs(_fatBruto)}</div>
+                  <div style={{fontSize:18,fontWeight:900,color:"#15803d",marginBottom:8}}>{"R$ "+_fvs(_r.fatBruto)}</div>
                   <div style={{display:"flex",flexDirection:"column",gap:3}}>
                     {[
-                      {ic:"📦",lbl:"Mudanças",v:_mudM.length,unit:""},
-                      {ic:"📏",lbl:"Metragem",v:_m3M.toFixed(0),unit:" m³"},
-                      {ic:"🚐",lbl:"Vans usadas",v:_vanM,unit:""}
+                      {ic:"📦",lbl:"Mudanças",v:_r.numMud,unit:""},
+                      {ic:"📏",lbl:"Metragem",v:_r.m3Total.toFixed(0),unit:" m³"},
+                      {ic:"🚐",lbl:"Vans",v:_r.numVan,unit:""}
                     ].map(function(k,i){return(
                       <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(21,128,61,0.07)",borderRadius:6,padding:"2px 6px"}}>
                         <span style={{fontSize:10,color:"#166534"}}>{k.ic} {k.lbl}</span>
@@ -1553,28 +1572,18 @@ export default function App(){
               <div style={{background:"linear-gradient(135deg,#1e3a5f,#1e40af)",borderRadius:14,padding:"16px 16px 14px",marginBottom:10}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
                   <div>
-                    <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>
-                      Receita Líquida (após impostos)
-                    </div>
-                    <div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,0.85)",marginTop:2}}>{"R$ "+_fvs(_fatLiq)}</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>Receita Líquida (após impostos)</div>
+                    <div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,0.85)",marginTop:2}}>{"R$ "+_fvs(_r.fatLiq)}</div>
                   </div>
                   <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>
-                      Impostos ({((RULES.imposto||0)*100).toFixed(0)}%)
-                    </div>
-                    <div style={{fontSize:13,fontWeight:700,color:"#fbbf24",marginTop:2}}>{"R$ "+_fvs(_imposto)}</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>Impostos ({((RULES.imposto||0)*100).toFixed(0)}%)</div>
+                    <div style={{fontSize:13,fontWeight:700,color:"#fbbf24",marginTop:2}}>{"R$ "+_fvs(_r.imposto)}</div>
                   </div>
                 </div>
                 <div style={{paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.15)"}}>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>
-                    🚀 Lucro Líquido
-                  </div>
-                  <div style={{fontSize:28,fontWeight:900,color:_lucroLiq>=0?"#4ade80":"#f87171"}}>
-                    {"R$ "+_fvs(_lucroLiq)}
-                  </div>
-                  <div style={{fontSize:9,color:"rgba(255,255,255,0.5)",marginTop:4}}>
-                    Receita Líquida menos todas as despesas do mês
-                  </div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>🚀 Lucro Líquido</div>
+                  <div style={{fontSize:28,fontWeight:900,color:_r.lucroLiq>=0?"#4ade80":"#f87171"}}>{"R$ "+_fvs(_r.lucroLiq)}</div>
+                  <div style={{fontSize:9,color:"rgba(255,255,255,0.5)",marginTop:4}}>Receita Líquida menos todas as despesas do mês</div>
                 </div>
               </div>
             </div>
