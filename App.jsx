@@ -1320,34 +1320,42 @@ export default function App(){
       doc.save(nomeArq);
     }
     _runPDF();
-    // WhatsApp: chamar Edge Function FORA de _runPDF (cfgWA acessível aqui)
+    // WhatsApp: envio automático após assinar canhoto
     if(cfgWA&&cfgWA.whatsapp_ativo==="true"){
       try{
-        // Gerar PDF em base64 separado (não bloqueia o save)
-        var _docWA=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
-        _docWA.text("Canhoto OS "+m.id,10,10);
-        // Usar o mesmo PDF já gerado via doc.output()
         var _pdfB64=doc.output("datauristring").split(",")[1];
-        var _wp={
-          osId:m.id,
-          clienteNome:m.nome||"",
-          clienteTelefone:(m.contato||"").replace(/\D/g,""),
-          adminWhatsapp:(cfgWA.admin_whatsapp||"").replace(/\D/g,""),
-          supervisorWhatsapp:(cfgWA.supervisor_whatsapp||"").replace(/\D/g,""),
-          pdfBase64:_pdfB64,
-          data:m.data||""
-        };
+        var _adminTel=(cfgWA.admin_whatsapp||"").replace(/\D/g,"");
+        var _clienteTel=(m.contato||"").replace(/\D/g,"");
+        var _supTel=(cfgWA.supervisor_whatsapp||"").replace(/\D/g,"");
+        var _msg="\uD83D\uDCCB *OS #"+m.id+" - Canhoto Assinado*\n\n\uD83D\uDC64 Cliente: "+m.nome+"\n\uD83D\uDCC5 Data: "+(m.data||"")+"\n\uD83D\uDCCD Destino: "+(m.destino||"-")+"\n\n\u2705 O canhoto electrónico foi assinado. O PDF já foi guardado. Partilhe o ficheiro em anexo.";
+        // Tentar Edge Function primeiro (se ZAPI configurado no servidor)
+        var _wp={osId:m.id,clienteNome:m.nome||"",clienteTelefone:_clienteTel,adminWhatsapp:_adminTel,supervisorWhatsapp:_supTel,pdfBase64:_pdfB64,data:m.data||""};
         fetch(SUPA_URL+"/functions/v1/enviar-whatsapp",{
           method:"POST",
           headers:{...HEADERS,"Content-Type":"application/json"},
           body:JSON.stringify(_wp)
-        }).then(function(r){return r.json();})
-          .then(function(res){
-            if(res&&res.enviados>0) console.log("[WA] "+res.enviados+" mensagens enviadas");
-            else console.warn("[WA] sem envios:",JSON.stringify(res));
-          })
-          .catch(function(e){console.warn("[WA] Edge Function indisponível (non-blocking):",e);});
-      }catch(e){console.warn("[WA] erro ao disparar:",e);}
+        }).then(function(r){return r.json();}).then(function(res){
+          if(res&&res.enviados>0){
+            console.log("[WA] "+res.enviados+" enviados via API");
+            setSyncStatus("📲 WhatsApp enviado! ("+res.enviados+" destinos)");
+          } else {
+            // Fallback: abrir wa.me para o Admin automaticamente
+            console.warn("[WA] API sem envios — fallback wa.me",JSON.stringify(res));
+            if(_adminTel){
+              var _msgEnc=encodeURIComponent(_msg.replace(/\\n/g,"\n"));
+              setTimeout(function(){window.open("https://wa.me/55"+_adminTel+"?text="+_msgEnc,"_blank");},500);
+              setSyncStatus("📲 WhatsApp aberto para Admin! Envie o PDF em anexo.");
+            }
+          }
+        }).catch(function(e){
+          console.warn("[WA] Edge Function indisponível — fallback wa.me:",e);
+          if(_adminTel){
+            var _msgEnc2=encodeURIComponent(_msg.replace(/\\n/g,"\n"));
+            setTimeout(function(){window.open("https://wa.me/55"+_adminTel+"?text="+_msgEnc2,"_blank");},500);
+            setSyncStatus("📲 WhatsApp aberto para Admin!");
+          }
+        });
+      }catch(e){console.warn("[WA] erro:",e);}
     }
   }
 
