@@ -322,8 +322,8 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     var naCalc=parseInt(na)||1;
     setEditVals(function(v){return {...v,numAj:na,val:raw===""?0:_recalcVal(nm,naCalc,cargo)};});
   }
-  async function _salvarEdit(p){
-    // PROTOCOLO 1: Capturar estado antes de qualquer mutação
+  function _salvarEdit(p){
+    // PROTOCOLO 1: Capturar estado imediatamente (antes de qualquer setState)
     var _idxSnap=editIdx;
     var _valsSnap={...editVals};
     if(_idxSnap===null||_idxSnap===undefined){return;}
@@ -332,38 +332,29 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     var numAjSnap=parseInt(_valsSnap.numAj)||1;
     var cargoSnap=p.id==="__equipa_aj__"?"ajudante":(p.cargo||"ajudante");
     var valRecalc=_calcDiario(numMudSnap,numAjSnap,cargoSnap,RULES);
-    // Montar payload final com valor recalculado
-    var payload={
-      data:_valsSnap.data,
-      numMud:numMudSnap,
-      numAj:numAjSnap,
-      val:valRecalc
-    };
-    // Construir novo detalhamento (Double Map — imutabilidade)
+    var payload={data:_valsSnap.data,numMud:numMudSnap,numAj:numAjSnap,val:valRecalc};
+    // Double Map — imutabilidade correcta
     var novoDet=_getDet(p).map(function(d,i){
       return i===_idxSnap?{...d,...payload}:d;
     });
-    // PROTOCOLO 3: Salvar no Supabase PRIMEIRO (await obrigatório)
-    try{
-      var res=await fetch(SUPA_URL+"/rest/v1/custos_diarios",{
-        method:"POST",
-        headers:{...HEADERS,"Prefer":"resolution=merge-duplicates,return=minimal","Content-Type":"application/json"},
-        body:JSON.stringify({data:payload.data,ajudantes:numAjSnap})
-      });
+    // PROTOCOLO 3: Actualizar React imediatamente (UX responsiva)
+    setDetMap(function(prev){var m={...prev};m[p.id]=novoDet;return m;});
+    setEditIdx(null);
+    setEditVals({});
+    // PROTOCOLO 4: Persistir no Supabase via .then() (não bloqueia UI)
+    fetch(SUPA_URL+"/rest/v1/custos_diarios",{
+      method:"POST",
+      headers:{...HEADERS,"Prefer":"resolution=merge-duplicates,return=minimal","Content-Type":"application/json"},
+      body:JSON.stringify({data:payload.data,ajudantes:numAjSnap})
+    }).then(function(res){
       if(!res.ok){
-        var errTxt=await res.text();
-        console.warn("Supabase save erro:",errTxt);
-        alert("Erro ao salvar no servidor: "+errTxt.substring(0,120));
-        return;
+        res.text().then(function(t){
+          console.warn("Supabase save erro:",t);
+        });
       }
-      // PROTOCOLO 4: Apenas após sucesso → actualizar estado React
-      setDetMap(function(prev){var m={...prev};m[p.id]=novoDet;return m;});
-      setEditIdx(null);
-      setEditVals({});
-    }catch(err){
-      console.error("Agente de Gravação erro:",err);
-      alert("Falha ao salvar. Verifique a ligação.");
-    }
+    }).catch(function(err){
+      console.warn("Supabase save falhou:",err);
+    });
   }
   function _cancelarEdit(){setEditIdx(null);setEditVals({});}
   var inpS={border:"1px solid #cbd5e1",borderRadius:6,padding:"3px 6px",fontSize:11,width:"100%",background:"#fff"};
