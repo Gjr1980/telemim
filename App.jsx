@@ -311,9 +311,11 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     return _calcDiario(nm,na,cargo,RULES);
   }
   function _onChangeMud(e,cargo){
-    var nm=parseInt(e.target.value)||0;
+    var raw=e.target.value;
+    var nm=raw===""?"":(parseInt(raw)||0);
     var na=parseInt(editVals.numAj)||1;
-    setEditVals(function(v){return {...v,numMud:nm,val:_recalcVal(nm,na,cargo)};});
+    var nmCalc=parseInt(nm)||0;
+    setEditVals(function(v){return {...v,numMud:nm,val:raw===""?0:_recalcVal(nmCalc,na,cargo)};});
   }
   function _onChangeAj(e,cargo){
     var raw=e.target.value;
