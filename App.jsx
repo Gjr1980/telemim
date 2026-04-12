@@ -1318,15 +1318,37 @@ export default function App(){
       // Salvar
       var nomeArq='Recibo_'+(m.nome||'').split(' ').join('_')+'_'+(m.data||'').split('/').join('-')+'.pdf';
       doc.save(nomeArq);
-      if(cfgWA&&cfgWA.whatsapp_ativo==="true"){
-        try{
-          var _pdfB64=doc.output("datauristring").split(",")[1];
-          var _wp={osId:m.id,clienteNome:m.nome||"",clienteTelefone:(m.contato||"").replace(/\D/g,""),adminWhatsapp:(cfgWA.admin_whatsapp||"").replace(/\D/g,""),supervisorWhatsapp:(cfgWA.supervisor_whatsapp||"").replace(/\D/g,""),pdfBase64:_pdfB64,data:m.data||""};
-          fetch(SUPA_URL+"/functions/v1/enviar-whatsapp",{method:"POST",headers:{...HEADERS,"Content-Type":"application/json"},body:JSON.stringify(_wp)}).then(function(r){return r.json();}).then(function(res){if(res&&res.enviados>0)console.log("[WA] "+res.enviados+" enviados");else console.warn("[WA]",JSON.stringify(res));}).catch(function(e){console.warn("[WA] Edge Function indisponível:",e);});
-        }catch(e){console.warn("[WA] payload err:",e);}
-      }
     }
     _runPDF();
+    // WhatsApp: chamar Edge Function FORA de _runPDF (cfgWA acessível aqui)
+    if(cfgWA&&cfgWA.whatsapp_ativo==="true"){
+      try{
+        // Gerar PDF em base64 separado (não bloqueia o save)
+        var _docWA=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+        _docWA.text("Canhoto OS "+m.id,10,10);
+        // Usar o mesmo PDF já gerado via doc.output()
+        var _pdfB64=doc.output("datauristring").split(",")[1];
+        var _wp={
+          osId:m.id,
+          clienteNome:m.nome||"",
+          clienteTelefone:(m.contato||"").replace(/\D/g,""),
+          adminWhatsapp:(cfgWA.admin_whatsapp||"").replace(/\D/g,""),
+          supervisorWhatsapp:(cfgWA.supervisor_whatsapp||"").replace(/\D/g,""),
+          pdfBase64:_pdfB64,
+          data:m.data||""
+        };
+        fetch(SUPA_URL+"/functions/v1/enviar-whatsapp",{
+          method:"POST",
+          headers:{...HEADERS,"Content-Type":"application/json"},
+          body:JSON.stringify(_wp)
+        }).then(function(r){return r.json();})
+          .then(function(res){
+            if(res&&res.enviados>0) console.log("[WA] "+res.enviados+" mensagens enviadas");
+            else console.warn("[WA] sem envios:",JSON.stringify(res));
+          })
+          .catch(function(e){console.warn("[WA] Edge Function indisponível (non-blocking):",e);});
+      }catch(e){console.warn("[WA] erro ao disparar:",e);}
+    }
   }
 
   // ── PDF MUDANÇA INDIVIDUAL ─────────────────────────────────────────────────
@@ -1797,12 +1819,12 @@ export default function App(){
               <button onClick={async function(){
                 setWaLoading(true);
                 try{
-                  for(var k of ["admin_whatsapp","supervisor_whatsapp"]){
-                    await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq."+k,{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA[k]||""})}).catch(function(e){console.warn(e);});
-                  }
-                  alert("📲 Contactos guardados!");
-                }catch(e){alert("Erro: "+e.message);}
-                finally{setWaLoading(false);}
+                  await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.admin_whatsapp",{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.admin_whatsapp||""})}).catch(function(e){console.warn("WA admin save:",e);});
+                  await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.supervisor_whatsapp",{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.supervisor_whatsapp||""})}).catch(function(e){console.warn("WA sup save:",e);});
+                  setSyncStatus("📲 Contactos WhatsApp guardados!");
+                  setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);
+                }catch(e){setSyncStatus("⚠️ Erro: "+e.message);}
+                setWaLoading(false);
               }} disabled={waLoading} style={{width:"100%",padding:10,borderRadius:10,border:"none",background:waLoading?"#86efac":"#16a34a",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>{waLoading?"⏳ A guardar...":"💾 Guardar Contactos WhatsApp"}</button>
             </div>
           )}
