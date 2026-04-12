@@ -323,11 +323,26 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     setEditVals(function(v){return {...v,numAj:na,val:raw===""?0:_recalcVal(nm,naCalc,cargo)};});
   }
   function _salvarEdit(p){
-    var det=_getDet(p).map(function(d,i){
+    var novoDet=_getDet(p).map(function(d,i){
       return i===editIdx?{...d,data:editVals.data,numMud:parseInt(editVals.numMud)||0,numAj:parseInt(editVals.numAj)||1,val:parseFloat(String(editVals.val).replace(",","."))||0}:d;
     });
-    setDetMap(function(prev){var m={...prev};m[p.id]=det;return m;});
+    // Actualizar estado local (imutabilidade duplo-map)
+    setDetMap(function(prev){var m={...prev};m[p.id]=novoDet;return m;});
     setEditIdx(null);setEditVals({});
+    // ---- Persistir no Supabase (custos_diarios) ----
+    // O indice correcto é o que estava em edição antes de salvar
+    var dEditado=novoDet[editIdx!==null&&editIdx<novoDet.length?editIdx:0];
+    if(!dEditado||!dEditado.data) return;
+    var numAjSave=parseInt(editVals.numAj)||1;
+    // Upsert via POST com unique constraint em data
+    // Prefer: resolution=merge-duplicates actualiza se já existe, insere se não existe
+    fetch(SUPA_URL+"/rest/v1/custos_diarios",{
+      method:"POST",
+      headers:{...HEADERS,"Prefer":"resolution=merge-duplicates,return=minimal","Content-Type":"application/json"},
+      body:JSON.stringify({data:dEditado.data,ajudantes:numAjSave})
+    }).then(function(res){
+      if(!res.ok) res.text().then(function(t){console.warn("Supabase upsert erro:",t);});
+    }).catch(function(err){console.warn("Supabase upsert custos_diarios:",err);});
   }
   function _cancelarEdit(){setEditIdx(null);setEditVals({});}
   var inpS={border:"1px solid #cbd5e1",borderRadius:6,padding:"3px 6px",fontSize:11,width:"100%",background:"#fff"};
