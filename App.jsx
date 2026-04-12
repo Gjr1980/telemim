@@ -521,6 +521,8 @@ export default function App(){
   const [agenda,setAgenda]=useState([]);
   const [custosDiarios,setCustosDiarios]=useState([]);
   const [showImport,setShowImport]=useState(false);
+  const [showViewPDF,setShowViewPDF]=useState(false);
+  const [mudViewPDF,setMudViewPDF]=useState(null);
   const [showAssinatura,setShowAssinatura]=useState(false);
   const [mudAssinatura,setMudAssinatura]=useState(null);
   const [ressalvas,setRessalvas]=useState("");
@@ -694,7 +696,7 @@ export default function App(){
     setSyncStatus("🔄 Salvando...");
     try{
       var ts=changed?[changed]:list;
-      for(var i=0;i<ts.length;i++){var m=ts[i];var row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,contato:m.contato||"",observacao:m.observacao||"",confirmed_promorar:m.confirmed_promorar||false,confirmed_telemim:m.confirmed_telemim||false,adm_approved:m.adm_approved||false,promorar_approved:m.promorar_approved||false,social_approved:m.social_approved||false,status:m.status||"Registrado"};await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
+      for(var i=0;i<ts.length;i++){var m=ts[i];var row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,contato:m.contato||"",observacao:m.observacao||"",confirmed_promorar:m.confirmed_promorar||false,confirmed_telemim:m.confirmed_telemim||false,adm_approved:m.adm_approved||false,promorar_approved:m.promorar_approved||false,social_approved:m.social_approved||false,status:m.status||"Registrado",signature_data:m.signature_data||null};await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
       setSyncStatus("✅ Sinc");window.__mudancas=list;
     }catch(e){setSyncStatus("⚠️ Erro");loadMud();}
   }
@@ -1523,7 +1525,9 @@ export default function App(){
                     {verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
                     {m.contato&&<button onClick={()=>{var tel=(m.contato||"").replace(/\D/g,"");var txt="\uD83D\uDE9A *TELEMIM — Sua Mudan\u00E7a*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nOl\u00E1 *"+m.nome+"*! \uD83D\uDC4B\nConfirmamos sua mudan\u00E7a:\n\uD83D\uDCC5 *Data:* "+_fmtDate(m.data)+"\n\uD83D\uDCCD *Sa\u00EDda:* "+(m.comunidade||m.origem||"-")+"\n\uD83D\uDCCD *Destino:* "+(m.destino||"-")+"\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nEm caso de d\u00FAvidas, entre em contacto. \uD83D\uDE0A\n_TELEMIM_";window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent(txt),"_blank");}} style={{background:"#25d366",border:"none",color:"#fff",borderRadius:6,padding:"5px 8px",cursor:"pointer",fontSize:14}} title="WhatsApp Morador">📱</button>}
                     <button onClick={()=>compartilharMudanca(m)} style={btnGreen}>📲</button>
-                    <button onClick={()=>gerarPDFMudanca(m)} style={{...btnRed,background:"#fff1f0"}}>📄</button>
+                    {m.signature_data
+                    ? <button onClick={function(){setMudViewPDF(m);setShowViewPDF(true);}} style={{...btnRed,background:"#e0f2fe",border:"1.5px solid #0284c7",color:"#0284c7"}} title="Ver PDF Assinado">📄 Assinado</button>
+                    : <button onClick={()=>gerarPDFMudanca(m)} style={{...btnRed,background:"#fff7ed",border:"1.5px solid #ea580c",color:"#ea580c"}} title="Assinar Canhoto">✍️ Assinar</button>}
                     <button onClick={()=>setEditMud((function(){var _cd=(custosDiarios||[]).find(function(x){return x.data===m.data;});return {...m,_qtdAj:_cd?parseInt(_cd.ajudantes)||1:1};})())} style={btnBlue}>✏️</button>
                     {(usuario&&(usuario.perfil==="admin"||usuario.perfil==="telemim"))&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud"});}} style={btnRed}>✕</button>}
                   </div>
@@ -1807,8 +1811,9 @@ export default function App(){
                 var assinB64=cv.toDataURL('image/png');
                 setShowAssinatura(false);
                 var _mId=mudAssinatura.id;
-                setMudancas(function(prev){return prev.map(function(m){return m.id===_mId?{...m,status:"Concluído"}:m;});});
-                fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+_mId,{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"Concluído"})}).catch(function(e){console.warn("status:",e);});
+                var _sigB64=assinB64;
+                setMudancas(function(prev){return prev.map(function(m){return m.id===_mId?{...m,status:"Concluído",signature_data:_sigB64}:m;});});
+                fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+_mId,{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"Concluído",signature_data:_sigB64})}).catch(function(e){console.warn("sig patch:",e);});
                 _gerarPDFComAssinatura(mudAssinatura,assinB64,ressalvas);
                 setMudAssinatura(null);
               }} style={{flex:2,padding:10,borderRadius:10,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,cursor:"pointer"}}>📄 Gerar Recibo PDF</button>
@@ -1816,7 +1821,32 @@ export default function App(){
           </div>
         </div>
       )}
-      {/* ══ MODAL IMPORTAR (MUDANÇA) ══ */}
+         {/* ══ MODAL VER PDF ASSINADO (READ-ONLY) ══ */}
+      {showViewPDF&&mudViewPDF&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:480,maxHeight:"92vh",overflowY:"auto",padding:20}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{fontSize:15,fontWeight:900,color:"#0284c7"}}>📄 PDF Assinado</div>
+              <button onClick={function(){setShowViewPDF(false);setMudViewPDF(null);}} style={{background:"transparent",border:"none",fontSize:20,cursor:"pointer",color:"#94a3b8"}}>✕</button>
+            </div>
+            <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:11,color:"#0369a1",fontWeight:600}}>🔒 Documento já assinado — apenas leitura. Não é possível reasinar.</div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:12}}>Cliente: <b>{mudViewPDF.nome}</b> | Selo: <b>{mudViewPDF.selo||"-"}</b></div>
+            {mudViewPDF.signature_data&&(
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:6}}>Assinatura registada:</div>
+                <div style={{border:"2px solid #e2e8f0",borderRadius:10,overflow:"hidden",background:"#f8fafc",pointerEvents:"none"}}>
+                  <img src={mudViewPDF.signature_data} alt="Assinatura" style={{width:"100%",display:"block",maxHeight:140,objectFit:"contain"}}/>
+                </div>
+              </div>
+            )}
+            <div style={{display:"flex",gap:8,marginTop:4}}>
+              <button onClick={function(){_gerarPDFComAssinatura(mudViewPDF,mudViewPDF.signature_data,"");}} style={{flex:2,padding:10,borderRadius:10,border:"none",background:"#0284c7",color:"#fff",fontWeight:900,cursor:"pointer",fontSize:13}}>⬇️ Baixar PDF</button>
+              <button onClick={function(){setShowViewPDF(false);setMudViewPDF(null);}} style={{flex:1,padding:10,borderRadius:10,border:"none",background:"#f1f5f9",color:"#64748b",fontWeight:700,cursor:"pointer"}}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+   {/* ══ MODAL IMPORTAR (MUDANÇA) ══ */}
       {showImport&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setShowImport(false)}><div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480,maxHeight:"80vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
         <div style={{fontSize:15,fontWeight:900,color:COLORS.text,marginBottom:4}}>📥 Importar Solicitação</div>
         <div style={{fontSize:11,color:COLORS.muted,marginBottom:12}}>Cole o texto recebido. O app preenche automaticamente!</div>
