@@ -341,20 +341,34 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     setDetMap(function(prev){var m={...prev};m[p.id]=novoDet;return m;});
     setEditIdx(null);
     setEditVals({});
-    // PROTOCOLO 4: Persistir no Supabase via .then() (não bloqueia UI)
-    fetch(SUPA_URL+"/rest/v1/custos_diarios",{
-      method:"POST",
-      headers:{...HEADERS,"Prefer":"resolution=merge-duplicates,return=minimal","Content-Type":"application/json"},
-      body:JSON.stringify({data:payload.data,ajudantes:numAjSnap})
-    }).then(function(res){
-      if(!res.ok){
-        res.text().then(function(t){
-          console.warn("Supabase save erro:",t);
-        });
-      }
-    }).catch(function(err){
-      console.warn("Supabase save falhou:",err);
-    });
+    // PROTOCOLO 4: Persistir no Supabase — PATCH se existe, POST se nao existe
+    var _data=payload.data;
+    var _aj=numAjSnap;
+    var _hd={...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"};
+    // Verificar se registo existe para esta data
+    fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+_data+"&select=id",{headers:HEADERS})
+      .then(function(r){return r.json();})
+      .then(function(rows){
+        if(rows&&rows.length>0){
+          // Registo existe: PATCH
+          return fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+_data,{
+            method:"PATCH",
+            headers:_hd,
+            body:JSON.stringify({ajudantes:_aj})
+          });
+        } else {
+          // Nao existe: POST
+          return fetch(SUPA_URL+"/rest/v1/custos_diarios",{
+            method:"POST",
+            headers:_hd,
+            body:JSON.stringify({data:_data,ajudantes:_aj})
+          });
+        }
+      })
+      .then(function(res){
+        if(res&&!res.ok) res.text().then(function(t){console.warn("Supabase save erro:",t);});
+      })
+      .catch(function(err){console.warn("Supabase save falhou:",err);});
   }
   function _cancelarEdit(){setEditIdx(null);setEditVals({});}
   var inpS={border:"1px solid #cbd5e1",borderRadius:6,padding:"3px 6px",fontSize:11,width:"100%",background:"#fff"};
