@@ -302,7 +302,7 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
   }
   function _iniciarEdit(idx,d,p){
     setEditIdx(idx);
-    setEditVals({data:d.data,numMud:d.numMud||0,numAj:d.numAj||1,val:d.val||0,_cargo:p.cargo,_pid:p.id});
+    setEditVals({data:d.data,numMud:d.numMud||0,numAj:d.numAj!==undefined?d.numAj:1,val:d.val||0,_cargo:p.cargo,_pid:p.id});
   }
   function _recalcVal(newMud,newAj,cargo){
     // Invocar o Agente de Precificação em tempo real
@@ -316,9 +316,11 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     setEditVals(function(v){return {...v,numMud:nm,val:_recalcVal(nm,na,cargo)};});
   }
   function _onChangeAj(e,cargo){
+    var raw=e.target.value;
     var nm=parseInt(editVals.numMud)||0;
-    var na=parseInt(e.target.value)||1;
-    setEditVals(function(v){return {...v,numAj:na,val:_recalcVal(nm,na,cargo)};});
+    var na=raw===""?"":(parseInt(raw)||1);
+    var naCalc=parseInt(na)||1;
+    setEditVals(function(v){return {...v,numAj:na,val:raw===""?0:_recalcVal(nm,naCalc,cargo)};});
   }
   function _salvarEdit(p){
     var det=_getDet(p).map(function(d,i){
