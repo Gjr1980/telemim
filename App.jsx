@@ -273,10 +273,14 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     det.forEach(function(d){
       var parts=String(d.data).split("-");
       var df=parts[2]+"/"+parts[1]+"/"+parts[0];
-      if(p.cargo==="ajudante"){
+      if(p.id==="__equipa_aj__"||p.cargo==="ajudante"){
         var aj=parseInt(d.numAj)||1;
         txtDiario+="Data "+df+" - "+d.numMud+" mudanças x "+aj+" "+(aj===1?"ajudante":"ajudantes")+" = R$ "+_fvs(d.val)+NL;
+      }else if(p.cargo==="van"){
+        // Van: diária fixa — não mencionar mudanças
+        txtDiario+="Data "+df+" - Diária - R$ "+_fvs(d.val)+NL;
       }else{
+        // Caminhão: base + acréscimo
         txtDiario+="Data "+df+" - "+d.numMud+" mudanças - R$ "+_fvs(d.val)+NL;
       }
     });
@@ -296,7 +300,26 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     var num=(p.telefone||"").replace(/[^0-9]/g,"");
     window.open(num?"https://wa.me/"+num+"?text="+encodeURIComponent(tx):"https://wa.me/?text="+encodeURIComponent(tx),"_blank");
   }
-  function _iniciarEdit(idx,d){setEditIdx(idx);setEditVals({data:d.data,numMud:d.numMud,numAj:d.numAj||1,val:d.val});}
+  function _iniciarEdit(idx,d,p){
+    setEditIdx(idx);
+    setEditVals({data:d.data,numMud:d.numMud||0,numAj:d.numAj||1,val:d.val||0,_cargo:p.cargo,_pid:p.id});
+  }
+  function _recalcVal(newMud,newAj,cargo){
+    // Invocar o Agente de Precificação em tempo real
+    var nm=parseInt(newMud)||0;
+    var na=parseInt(newAj)||1;
+    return _calcDiario(nm,na,cargo,RULES);
+  }
+  function _onChangeMud(e,cargo){
+    var nm=parseInt(e.target.value)||0;
+    var na=parseInt(editVals.numAj)||1;
+    setEditVals(function(v){return {...v,numMud:nm,val:_recalcVal(nm,na,cargo)};});
+  }
+  function _onChangeAj(e,cargo){
+    var nm=parseInt(editVals.numMud)||0;
+    var na=parseInt(e.target.value)||1;
+    setEditVals(function(v){return {...v,numAj:na,val:_recalcVal(nm,na,cargo)};});
+  }
   function _salvarEdit(p){
     var det=_getDet(p).map(function(d,i){
       return i===editIdx?{...d,data:editVals.data,numMud:parseInt(editVals.numMud)||0,numAj:parseInt(editVals.numAj)||1,val:parseFloat(String(editVals.val).replace(",","."))||0}:d;
@@ -353,8 +376,8 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
                         <thead>
                           <tr style={{background:"#f8fafc"}}>
                             <th style={{padding:"6px 8px",textAlign:"left",color:"#64748b",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}>Data</th>
-                            <th style={{padding:"6px 4px",textAlign:"center",color:"#64748b",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}>Mud.</th>
-                            {p.cargo==="ajudante"&&<th style={{padding:"6px 4px",textAlign:"center",color:"#64748b",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}>Aj.</th>}
+                            {p.cargo!=="van"&&<th style={{padding:"6px 4px",textAlign:"center",color:"#64748b",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}>Mud.</th>}
+                            {(p.id==="__equipa_aj__"||p.cargo==="ajudante")&&<th style={{padding:"6px 4px",textAlign:"center",color:"#64748b",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}>Aj.</th>}
                             <th style={{padding:"6px 8px",textAlign:"right",color:"#64748b",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}>Valor (R$)</th>
                             <th style={{padding:"6px 4px",textAlign:"center",color:"#64748b",fontWeight:600,borderBottom:"1px solid #e2e8f0"}}></th>
                           </tr>
@@ -367,8 +390,8 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
                             if(isEdit){return(
                               <tr key={i} style={{background:"#fffbeb"}}>
                                 <td style={{padding:"4px 6px"}}><input type="date" value={editVals.data} onChange={function(e){setEditVals(function(v){return {...v,data:e.target.value};});}} style={inpS}/></td>
-                                <td style={{padding:"4px 4px"}}><input type="number" min="0" value={editVals.numMud} onChange={function(e){setEditVals(function(v){return {...v,numMud:e.target.value};});}} style={{...inpS,width:50}}/></td>
-                                {p.cargo==="ajudante"&&<td style={{padding:"4px 4px"}}><input type="number" min="1" value={editVals.numAj} onChange={function(e){setEditVals(function(v){return {...v,numAj:e.target.value};});}} style={{...inpS,width:40}}/></td>}
+                                {p.cargo!=="van"&&<td style={{padding:"4px 4px"}}><input type="number" min="0" value={editVals.numMud} onChange={function(e){_onChangeMud(e,p.cargo);}} style={{...inpS,width:50}}/></td>}
+                                {(p.id==="__equipa_aj__"||p.cargo==="ajudante")&&<td style={{padding:"4px 4px"}}><input type="number" min="1" value={editVals.numAj} onChange={function(e){_onChangeAj(e,p.cargo);}} style={{...inpS,width:40}}/></td>}
                                 <td style={{padding:"4px 6px"}}><input type="number" step="0.01" value={editVals.val} onChange={function(e){setEditVals(function(v){return {...v,val:e.target.value};});}} style={{...inpS,width:70}}/></td>
                                 <td style={{padding:"4px 4px",whiteSpace:"nowrap"}}>
                                   <button onClick={function(){_salvarEdit(p);}} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer",marginRight:2}}>✅</button>
@@ -379,11 +402,11 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
                             return(
                               <tr key={i} style={{borderBottom:"1px solid #f1f5f9"}}>
                                 <td style={{padding:"6px 8px",color:"#334155",fontWeight:500}}>{dfmt}</td>
-                                <td style={{padding:"6px 4px",textAlign:"center",color:"#475569"}}>{d.numMud}</td>
-                                {p.cargo==="ajudante"&&<td style={{padding:"6px 4px",textAlign:"center",color:"#475569"}}>{d.numAj||1}</td>}
+                                {p.cargo!=="van"&&<td style={{padding:"6px 4px",textAlign:"center",color:"#475569"}}>{d.numMud}</td>}
+                                {(p.id==="__equipa_aj__"||p.cargo==="ajudante")&&<td style={{padding:"6px 4px",textAlign:"center",color:"#475569"}}>{d.numAj||1}</td>}
                                 <td style={{padding:"6px 8px",textAlign:"right",fontWeight:600,color:_cor[p.cargo]||"#334155"}}>R$ {_fvs(d.val)}</td>
                                 <td style={{padding:"6px 4px",textAlign:"center"}}>
-                                  <button onClick={function(){_iniciarEdit(i,d);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:2}}>✏️</button>
+                                  <button onClick={function(){_iniciarEdit(i,d,p);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:2}}>✏️</button>
                                 </td>
                               </tr>
                             );
@@ -391,7 +414,7 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
                         </tbody>
                         <tfoot>
                           <tr style={{borderTop:"2px solid #e2e8f0",background:"#f8fafc"}}>
-                            <td style={{padding:"8px 8px",fontWeight:800,fontSize:11,color:"#1e293b"}} colSpan={p.cargo==="ajudante"?3:2}>TOTAL</td>
+                            <td style={{padding:"8px 8px",fontWeight:800,fontSize:11,color:"#1e293b"}} colSpan={p.cargo==="van"?1:(p.id==="__equipa_aj__"||p.cargo==="ajudante")?3:2}>TOTAL</td>
                             <td style={{padding:"8px 8px",textAlign:"right",fontWeight:800,fontSize:13,color:_cor[p.cargo]||"#334155"}}>{_fv(tot.totalVal)}</td>
                             <td></td>
                           </tr>
