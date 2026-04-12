@@ -1301,7 +1301,7 @@ export default function App(){
       var lrod=doc.splitTextToSize(rodape,lw);
       doc.text(lrod,W/2,285,{align:'center'});
       // Salvar
-      var nomeArq='Recibo_'+(m.nome||'').replace(/\s+/g,'_')+'_'+(m.data||'').replace(/\/g,'-')+'.pdf';
+      var nomeArq='Recibo_'+(m.nome||'').split(' ').join('_')+'_'+(m.data||'').split('/').join('-')+'.pdf';
       doc.save(nomeArq);
     }
     _runPDF();
