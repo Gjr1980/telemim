@@ -224,11 +224,10 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
   var _bg={"caminhao":"#fff7ed","van":"#eff6ff","ajudante":"#f0fdf4","almoco":"#faf5ff","outro":"#f8fafc"};
   // --- calcular detalhes por prestador usando regras centralizadas ---
   function _calcDetP(p){
-    var vd=parseFloat(p.valor_diaria)||0;
     var det=[];
     var _diasDetU=[...new Set(_ms.map(function(m){return m.data;}))].sort();
-    if(p.cargo==="ajudante"){
-      // Ajudante: usa _calcDiario (escalonado × qtd ajudantes)
+    if(p.id==="__equipa_aj__"){
+      // Card Equipa: agrega todos os ajudantes via custosDiarios (qtd real do dia)
       _diasDetU.forEach(function(data){
         var mDia=_ms.filter(function(m){return m.data===data;});
         var numMud=mDia.length;
@@ -239,7 +238,6 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
         det.push({data,numMud,numAj,val});
       });
     }else if(p.cargo==="caminhao"||p.cargo==="van"){
-      // Caminhão/Van: usa _calcDiario (escalonado / diária fixa)
       _diasDetU.forEach(function(data){
         var mDia=_ms.filter(function(m){return m.data===data;});
         var numMud=mDia.length;
@@ -250,34 +248,15 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
     }
     return det;
   }
-  // --- GROUP BY: veículos por id, ajudantes num único "balde" ---
-  function _buildCards(){
-    var cards=[];
-    (prestadores||[]).filter(function(p){return p.cargo==="caminhao"||p.cargo==="van";}).forEach(function(p){
-      var det=_calcDetP(p);
-      cards.push({id:p.id,nome:p.nome,cargo:p.cargo,telefone:p.telefone||"",det,isEquipe:false});
-    });
-    var ajs=(prestadores||[]).filter(function(p){return p.cargo==="ajudante";});
-    if(ajs.length>0){
-      var detEq=[];
-      _diasU.forEach(function(data){
-        var mDia=_ms.filter(function(m){return m.data===data;});
-        var numMud=mDia.length;
-        if(numMud===0) return;
-        var cdDia=_cd.find(function(cd){return cd.data===data;})||{ajudantes:0};
-        var numAj=parseInt(cdDia.ajudantes)||0;
-        var val=_calcDiario(numMud,numAj,"ajudante",RULES);
-        detEq.push({data,numMud,numAj,val});
-      });
-      cards.push({id:"__equipa__",nome:"Equipe de Ajudantes",cargo:"ajudante",telefone:(ajs[0]||{}).telefone||"",det:detEq,isEquipe:true,numAj:ajs.length});
-    }
-    return cards;
-  }
-  var _cards=_buildCards();
-    var [modalP,setModalP]=useState(null);
+  var [modalP,setModalP]=useState(null);
   var [detMap,setDetMap]=useState({});
   var [editIdx,setEditIdx]=useState(null);
   var [editVals,setEditVals]=useState({});
+  // --- Grupo "Equipa de Ajudantes" (centro de custo unico) ---
+  var _aj=(prestadores||[]).filter(function(p){return p.cargo==="ajudante";});
+  var _vei=(prestadores||[]).filter(function(p){return p.cargo!=="ajudante";});
+  var _teamAj=_aj.length>0?{id:"__equipa_aj__",nome:"Equipa de Ajudantes",cargo:"ajudante",telefone:"",_numAj:_aj.length}:null;
+  var _prestRender=_teamAj?[..._vei,_teamAj]:_vei;
   function _getDet(p){return detMap[p.id]||_calcDetP(p);}
   function _getTotais(det){
     return {
@@ -341,7 +320,7 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
         </div>
       ):(
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {_cards.map(function(p){
+          {_prestRender.map(function(p){
             var det=_getDet(p);
             var tot=_getTotais(det);
             var isOpen=modalP===p.id;
@@ -350,8 +329,8 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
                 <div style={{padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}>
                   <div style={{fontSize:22,flexShrink:0}}>{_ico[p.cargo]||"📋"}</div>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:13,color:_cor[p.cargo]||"#334155"}}>{p.isEquipe?"Equipe de Ajudantes":p.nome}</div>
-                    <div style={{fontSize:10,color:"#64748b",marginTop:1}}>{p.isEquipe?"Centro de Custo Único ("+p.numAj+" ajudantes)":(_lbl[p.cargo]||p.cargo)}</div>
+                    <div style={{fontWeight:700,fontSize:13,color:_cor[p.cargo]||"#334155"}}>{p.nome}</div>
+                    <div style={{fontSize:10,color:"#64748b",marginTop:1}}>{_lbl[p.cargo]||p.cargo}</div>
                     <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>{tot.diasT} {tot.diasT===1?"dia":"dias"} | {tot.totalMud} {tot.totalMud===1?"mudança":"mudanças"}</div>
                   </div>
                   <div style={{textAlign:"right",flexShrink:0,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
@@ -368,7 +347,7 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
                 </div>
                 {isOpen&&(
                   <div style={{borderTop:"1px solid #e2e8f0",background:"#fff",padding:"12px 12px 10px"}}>
-                    <div style={{fontWeight:700,fontSize:11,color:"#475569",marginBottom:8}}>📋 Extrato — {p.isEquipe?"Equipe de Ajudantes":p.nome}</div>
+                    <div style={{fontWeight:700,fontSize:11,color:"#475569",marginBottom:8}}>📋 Extrato — {p.nome}</div>
                     <div style={{overflowX:"auto"}}>
                       <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                         <thead>
