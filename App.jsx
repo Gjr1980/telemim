@@ -709,7 +709,7 @@ export default function App(){
     setSyncStatus("🔄 Salvando...");
     try{
       var ts=changed?[changed]:list;
-      for(var i=0;i<ts.length;i++){var m=ts[i];var row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,contato:m.contato||"",observacao:m.observacao||"",confirmed_promorar:m.confirmed_promorar||false,confirmed_telemim:m.confirmed_telemim||false,adm_approved:m.adm_approved||false,promorar_approved:m.promorar_approved||false,social_approved:m.social_approved||false,status:m.status||"Registrado",signature_data:m.signature_data||null};await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
+      for(var i=0;i<ts.length;i++){var m=ts[i];var row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,contato:m.contato||"",observacao:m.observacao||"",confirmed_promorar:m.confirmed_promorar||false,confirmed_telemim:m.confirmed_telemim||false,adm_approved:m.adm_approved||false,promorar_approved:m.promorar_approved||false,social_approved:m.social_approved||false,status:m.status||"Registrado",signature_data:(m.signature_data!=null&&m.signature_data!="")?m.signature_data:null};await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
       setSyncStatus("✅ Sinc");window.__mudancas=list;
     }catch(e){setSyncStatus("⚠️ Erro");loadMud();}
   }
@@ -1821,7 +1821,8 @@ export default function App(){
                 try{
                   await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.admin_whatsapp",{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.admin_whatsapp||""})}).catch(function(e){console.warn("WA admin save:",e);});
                   await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.supervisor_whatsapp",{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.supervisor_whatsapp||""})}).catch(function(e){console.warn("WA sup save:",e);});
-                  setSyncStatus("📲 Contactos WhatsApp guardados!");
+                  await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.whatsapp_ativo",{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.whatsapp_ativo||"false"})}).catch(function(e){console.warn("WA ativo save:",e);});
+                  setSyncStatus("📲 Contactos WhatsApp guardados com sucesso!");
                   setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);
                 }catch(e){setSyncStatus("⚠️ Erro: "+e.message);}
                 setWaLoading(false);
