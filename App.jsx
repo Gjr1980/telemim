@@ -161,22 +161,20 @@ function _calcCustos(mudP, cdP, cpP, RULES){
   var imposto=fatBruto*_fv(RULES.imposto);
   var fatLiq=fatBruto-imposto;
   // --- CUSTOS POR CATEGORIA ---
-  // Regra: Caminhão = numMudancas * valorBase
-  //        Van      = numMudancas * valorBase
-  //        Ajudante = numMudancas * qtdAjudantes * valorBase
-  //        Almoço   = soma directa do valor lançado
+  // Itera sobre dias com mudancas (driver = diasU), usa cdP como lookup de ajudantes/almoco
   var cCam=0; var cVan=0; var cAj=0; var cAlm=0;
   var camBase=_fv(RULES.cam1a);
   var vanBase=_fv(RULES.vanCusto);
   var ajBase=_fv(RULES.aj1a);
-  (cdP||[]).forEach(function(cd){
-    var numMud=mudP.filter(function(m){return m.data===cd.data;}).length;
+  diasU.forEach(function(data){
+    var numMud=mudP.filter(function(m){return m.data===data;}).length;
     if(numMud===0) return;
-    var numAj=_fi(cd.ajudantes);
+    var cdDia=(cdP||[]).find(function(cd){return cd.data===data;})||{ajudantes:0,custo_almoco:0};
+    var numAj=_fi(cdDia.ajudantes);
     cCam+=numMud*camBase;
     cVan+=numMud*vanBase;
     cAj+=numMud*numAj*ajBase;
-    cAlm+=_fv(cd.custo_almoco);
+    cAlm+=_fv(cdDia.custo_almoco);
   });
   // Contas a Pagar extras do periodo
   var cExtra=(cpP||[]).reduce(function(s,cp){return s+_fv(cp.valor);},0);
@@ -209,24 +207,26 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios}){
   function _calcDetP(p){
     var vd=parseFloat(p.valor_diaria)||0;
     var det=[];
+    var _diasDetU=[...new Set(_ms.map(function(m){return m.data;}))].sort();
     if(p.cargo==="ajudante"){
-      // Ajudante: numMud * numAj * valorBase
-      _cd.forEach(function(cd){
-        var mDia=_ms.filter(function(m){return m.data===cd.data;});
+      // Ajudante: numMud * numAj * valorBase — itera sobre dias com mudancas
+      _diasDetU.forEach(function(data){
+        var mDia=_ms.filter(function(m){return m.data===data;});
         var numMud=mDia.length;
         if(numMud===0) return;
-        var numAj=parseInt(cd.ajudantes)||1;
+        var cdDia=_cd.find(function(cd){return cd.data===data;})||{ajudantes:1};
+        var numAj=parseInt(cdDia.ajudantes)||1;
         var base=vd>0?vd:(RULES.aj1a||0);
-        det.push({data:cd.data,numMud,numAj,val:numMud*numAj*base});
+        det.push({data,numMud,numAj,val:numMud*numAj*base});
       });
     }else if(p.cargo==="caminhao"||p.cargo==="van"){
-      // Caminhão/Van: numMud * valorBase
-      _cd.forEach(function(cd){
-        var mDia=_ms.filter(function(m){return m.data===cd.data;});
+      // Caminhão/Van: numMud * valorBase — itera sobre dias com mudancas
+      _diasDetU.forEach(function(data){
+        var mDia=_ms.filter(function(m){return m.data===data;});
         var numMud=mDia.length;
         if(numMud===0) return;
         var base=vd>0?vd:(p.cargo==="caminhao"?(RULES.cam1a||0):(RULES.vanCusto||0));
-        det.push({data:cd.data,numMud,val:numMud*base});
+        det.push({data,numMud,val:numMud*base});
       });
     }
     return det;
