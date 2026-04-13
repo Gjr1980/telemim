@@ -1751,25 +1751,14 @@ export default function App(){
                     {m.signature_data
                     ? <button onClick={function(){setMudViewPDF(m);setShowViewPDF(true);}} style={{...btnRed,background:"#e0f2fe",border:"1.5px solid #0284c7",color:"#0284c7"}} title="Ver PDF Assinado">📄 Assinado</button>
                     : <button onClick={()=>gerarPDFMudanca(m)} style={{...btnRed,background:"#fff7ed",border:"1.5px solid #ea580c",color:"#ea580c"}} title="Assinar Canhoto">✍️ Assinar</button>}
-                  {/* ── Carimbos de Aprovação (Optimistic UI) ── */}
-                  {(m.approved_by_admin||m.approved_by_social||m.approved_by_promorar||m.requested_by||
-                    (usuario&&['admin','social','promorar'].includes(usuario.perfil)))&&(
+                  {/* ── Carimbos de Aprovaç                  {/* ── Carimbos (histórico — só leitura) ── */}
+                  {(m.approved_by_admin||m.approved_by_social||m.approved_by_promorar||m.requested_by)&&(
                   <div style={{borderTop:"1px solid #e2e8f0",marginTop:6,paddingTop:5,fontSize:11,color:"#475569"}}>
                     <div style={{marginBottom:3}}>📝 <b>Solicitado por:</b> {m.requested_by||"Sistema"}</div>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-                      <span>Admin: {m.approved_by_admin?<b style={{color:"#16a34a"}}>✅ {m.approved_by_admin}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>
-                      {usuario&&usuario.perfil==="admin"&&!m.approved_by_admin&&(<button onClick={function(){handleApprove(m.id);}} disabled={!!isApproving[m.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[m.id]?"#94a3b8":"#1e40af",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[m.id]?"not-allowed":"pointer"}}>{isApproving[m.id]?"⏳":"Confirmar"}</button>)}
-                    </div>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
-                      <span>Social: {m.approved_by_social?<b style={{color:"#16a34a"}}>✅ {m.approved_by_social}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>
-                      {usuario&&usuario.perfil==="social"&&!m.approved_by_social&&(<button onClick={function(){handleApprove(m.id);}} disabled={!!isApproving[m.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[m.id]?"#94a3b8":"#0f766e",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[m.id]?"not-allowed":"pointer"}}>{isApproving[m.id]?"⏳":"Confirmar"}</button>)}
-                    </div>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <span>Promorar: {m.approved_by_promorar?<b style={{color:"#16a34a"}}>✅ {m.approved_by_promorar}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>
-                      {usuario&&usuario.perfil==="promorar"&&!m.approved_by_promorar&&(<button onClick={function(){handleApprove(m.id);}} disabled={!!isApproving[m.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[m.id]?"#94a3b8":"#7e22ce",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[m.id]?"not-allowed":"pointer"}}>{isApproving[m.id]?"⏳":"Confirmar"}</button>)}
-                    </div>
-                  </div>)}
-                    <button onClick={()=>setEditMud((function(){var _cd=(custosDiarios||[]).find(function(x){return x.data===m.data;});return {...m,_qtdAj:_cd?parseInt(_cd.ajudantes)||1:1};})())} style={btnBlue}>✏️</button>
+                    <div style={{marginBottom:2}}><span>Admin: {m.approved_by_admin?<b style={{color:"#16a34a"}}>✅ {m.approved_by_admin}</b>:<span style={{color:"#9ca3af"}}>⏳ Pendente</span>}</span></div>
+                    <div style={{marginBottom:2}}><span>Social: {m.approved_by_social?<b style={{color:"#16a34a"}}>✅ {m.approved_by_social}</b>:<span style={{color:"#9ca3af"}}>⏳ Pendente</span>}</span></div>
+                    <div><span>Promorar: {m.approved_by_promorar?<b style={{color:"#16a34a"}}>✅ {m.approved_by_promorar}</b>:<span style={{color:"#9ca3af"}}>⏳ Pendente</span>}</span></div>
+                  </div>)}                    <button onClick={()=>setEditMud((function(){var _cd=(custosDiarios||[]).find(function(x){return x.data===m.data;});return {...m,_qtdAj:_cd?parseInt(_cd.ajudantes)||1:1};})())} style={btnBlue}>✏️</button>
                     {(usuario&&(usuario.perfil==="admin"||usuario.perfil==="telemim"))&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud"});}} style={btnRed}>✕</button>}
                   </div>
                 </div>
