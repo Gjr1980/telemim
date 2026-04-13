@@ -7,6 +7,16 @@ const _fmtDate=function(d){return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")
 const SUPA_URL = "https://netoufukpmmfhzwirogi.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ldG91ZnVrcG1tZmh6d2lyb2dpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTkwOTksImV4cCI6MjA4OTg5NTA5OX0.iapL70SiL_GV4XvmXRNcjlK_Sc-P2-esJzuLQvovdGQ";
 var APPS_SCRIPT_URL="https://script.google.com/macros/s/AKfycbwDlHE9qFO3CLoPikpF5FvgN2yiQaQQFnf_QvMUsGiRVcoPe-Ock84tWYCJ8ziQhG0K/exec"; // Cole aqui o URL do Google Apps Script após o deploy
+// ── Supabase Realtime client ───────────────────────────────
+var _supaRealtime=null;
+function getSupaClient(){
+  if(_supaRealtime) return Promise.resolve(_supaRealtime);
+  return import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/module/index.js')
+    .then(function(m){
+      _supaRealtime=m.createClient(SUPA_URL,SUPA_KEY,{realtime:{params:{eventsPerSecond:10}}});
+      return _supaRealtime;
+    }).catch(function(){return null;});
+}
 const HEADERS = { "Content-Type": "application/json", "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}` };
 
 async function dbGet(table) {
@@ -543,6 +553,42 @@ export default function App(){
   const [relAj,setRelAj]=useState("3");
   const [relAlm,setRelAlm]=useState("0");
   useEffect(()=>{window.__mudancas=mudancas;},[mudancas]);
+  // ── Realtime: sincronização automática entre utilizadores ──────────────
+  useEffect(()=>{
+    var canal=null;
+    getSupaClient().then(function(sb){
+      if(!sb) return;
+      canal=sb.channel('telemim-live')
+        .on('postgres_changes',{event:'INSERT',schema:'public',table:'mudancas'},function(p){
+          setMudancas(function(prev){
+            if(prev.some(function(o){return o.id===p.new.id;})) return prev;
+            return [p.new,...prev];
+          });
+        })
+        .on('postgres_changes',{event:'UPDATE',schema:'public',table:'mudancas'},function(p){
+          setMudancas(function(prev){return prev.map(function(o){return o.id===p.new.id?Object.assign({},o,p.new):o;});});
+        })
+        .on('postgres_changes',{event:'DELETE',schema:'public',table:'mudancas'},function(p){
+          setMudancas(function(prev){return prev.filter(function(o){return o.id!==p.old.id;});});
+        })
+        .on('postgres_changes',{event:'INSERT',schema:'public',table:'agenda'},function(p){
+          setAgenda(function(prev){
+            if(prev.some(function(a){return a.id===p.new.id;})) return prev;
+            return [p.new,...prev];
+          });
+        })
+        .on('postgres_changes',{event:'UPDATE',schema:'public',table:'agenda'},function(p){
+          setAgenda(function(prev){return prev.map(function(a){return a.id===p.new.id?Object.assign({},a,p.new):a;});});
+        })
+        .on('postgres_changes',{event:'DELETE',schema:'public',table:'agenda'},function(p){
+          setAgenda(function(prev){return prev.filter(function(a){return a.id!==p.old.id;});});
+        })
+        .subscribe(function(status){
+          if(status==='SUBSCRIBED') setSyncStatus('✅ Sincronizado (live)');
+        });
+    });
+    return function(){if(canal){getSupaClient().then(function(sb){if(sb) sb.removeChannel(canal);});}};
+  },[]);
   const [semanaIdx,setSemanaIdx]=useState(0);
   const [loading,setLoading]=useState(true);
   const [flash,setFlash]=useState("");
@@ -708,13 +754,18 @@ export default function App(){
   }
 
   async function saveMud(list,changed){
-    setMudancas(list);
+    var _prevMud=mudancas.slice(); // Backup para rollback
+    setMudancas(list); // Optimistic: UI antes da API
     setSyncStatus("🔄 Salvando...");
     try{
       var ts=changed?[changed]:list;
       for(var i=0;i<ts.length;i++){var m=ts[i];var row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,contato:m.contato||"",observacao:m.observacao||"",confirmed_promorar:m.confirmed_promorar||false,confirmed_telemim:m.confirmed_telemim||false,adm_approved:m.adm_approved||false,promorar_approved:m.promorar_approved||false,social_approved:m.social_approved||false,status:m.status||"Registrado",signature_data:(m.signature_data!=null&&m.signature_data!="")?m.signature_data:null};await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
       setSyncStatus("✅ Sinc");window.__mudancas=list;
-    }catch(e){setSyncStatus("⚠️ Erro");loadMud();}
+    }catch(e){
+      setMudancas(_prevMud); // Rollback optimista
+      setSyncStatus("⚠️ Falha ao guardar. A repor...");
+      console.error("[saveMud]",e);
+    }
   }
   async function handleLogin(){if(!loginForm.email||!loginForm.senha){setLoginErro("Preencha email e senha");return;}setLoginLoad(true);setLoginErro("");try{const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:loginForm.email,password:loginForm.senha})});const d=await res.json();if(!res.ok||!d.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+d.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+d.access_token}});const pd=await pr.json();if(!pd||!pd[0]||pd[0].ativo===false){setLoginErro("Sem acesso. Contate o administrador.");setLoginLoad(false);return;}const u={id:d.user.id,email:d.user.email,nome:pd[0].nome,perfil:pd[0].perfil,token:d.access_token};setUsuario(u);setTab("dashboard");localStorage.setItem('tmim_u',JSON.stringify(u));}catch(e){setLoginErro("Erro.");}setLoginLoad(false);}
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
