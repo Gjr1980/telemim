@@ -1236,7 +1236,7 @@ export default function App(){
       var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
       var W=210;var M=18;var Y=0;
       // CABEÇALHO — Logo
-      try{doc.addImage(LOGO,'JPEG',M,8,37,26);}catch(e){}
+      try{doc.addImage(LOGO,'JPEG',M,5,50,36);}catch(e){}
       // Título empresa
       doc.setFont('helvetica','bold');
       doc.setFontSize(13);
@@ -1908,6 +1908,7 @@ export default function App(){
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
               <div style={{fontSize:15,fontWeight:900,color:"#0284c7"}}>📄 PDF Assinado</div>
               <button onClick={function(){setShowViewPDF(false);setMudViewPDF(null);}} style={{background:"transparent",border:"none",fontSize:20,cursor:"pointer",color:"#94a3b8"}}>✕</button>
+            <button onClick={function(){if(mudViewPDF){var _m=mudViewPDF;setShowViewPDF(false);setMudViewPDF(null);setTimeout(function(){gerarPDFMudanca(_m);},200);}}} style={{marginTop:8,padding:"8px 18px",background:"#1e40af",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",width:"100%"}}>🔄 Baixar PDF actualizado</button>
             </div>
             <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:11,color:"#0369a1",fontWeight:600}}>🔒 Documento já assinado — apenas leitura. Não é possível reasinar.</div>
             <div style={{fontSize:12,color:"#64748b",marginBottom:12}}>Cliente: <b>{mudViewPDF.nome}</b> | Selo: <b>{mudViewPDF.selo||"-"}</b></div>
