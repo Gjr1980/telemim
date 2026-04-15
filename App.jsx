@@ -1377,20 +1377,6 @@ export default function App(){
       console.error("[handleRegistarOS]",e);
     }
   }
-  async function handlePendenciaOS(agId){
-    if(!agId) return;
-    var prevAgenda=agenda.slice();
-    var cur=agenda.find(function(x){return x.id===agId;});
-    var ns=cur&&cur.status==="pendente"?"confirmado":"pendente";
-    setAgenda(function(prev){return prev.map(function(x){return x.id===agId?Object.assign({},x,{status:ns}):x;});});
-    try{
-      var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({status:ns})});
-      if(!r.ok) throw new Error("HTTP "+r.status);
-    }catch(e){
-      setAgenda(prevAgenda);
-      setSyncStatus("⚠️ Erro pendência: "+e.message);
-    }
-  }
   // ── Optimistic UI — Carimbos da Agenda ──────────────────────────────
   async function handleApproveAgenda(agId){
     if(isApproving[agId]) return;
@@ -1827,7 +1813,7 @@ export default function App(){
             {proximas.length>0&&(
               <div style={{marginBottom:16}}>
                 {proximas.map(a=>(
-                  <div id={"move-card-"+a.id}><Card key={a.id} style={{marginBottom:9,padding:"14px 16px",background:a.status==="pendente"?"#fefce8":"#fff",border:`1.5px solid ${a.status==="pendente"?"#eab308":statusColor[a.status]||COLORS.cardBorder}33`}}>
+                  <div id={"move-card-"+a.id}><Card key={a.id} style={{marginBottom:9,padding:"14px 16px",border:`1.5px solid ${statusColor[a.status]||COLORS.cardBorder}33`}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                       <div style={{flex:1}}>
                         <div style={{fontWeight:900,fontSize:24,color:COLORS.text,marginBottom:8}}>👤 {a.nome}</div>
@@ -1862,7 +1848,7 @@ export default function App(){
                           </div>}
                         </div>}
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
-                          <button onClick={function(){handleRegistarOS(a);}} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",marginRight:4}}>✅ Registar</button><button onClick={function(){handlePendenciaOS(a.id);}} style={{background:a.status==="pendente"?"#eab308":"#fff7ed",color:a.status==="pendente"?"#fff":"#d97706",border:"1.5px solid #eab308",borderRadius:8,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>{a.status==="pendente"?"⚠️ PENDÊNCIA":"⚠️ Pendência"}</button>
+                          <button onClick={function(){handleRegistarOS(a);}} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>✅ Registar</button>
                           <div style={{display:"flex",gap:5,alignItems:"center"}}>
                             {a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
                             <button onClick={()=>compartilharWhatsApp(a)} style={{...btnGreen,fontSize:14,padding:"6px 10px"}}>📲</button>
