@@ -530,7 +530,7 @@ export default function App(){
   const [bioLock,setBioLock]=useState(localStorage.getItem('tmim_bio_enabled')==='true'&&!!localStorage.getItem('tmim_u'));
   const [mudancas,setMudancas]=useState([]);
   const [agenda,setAgenda]=useState([]);
-  var _agendaApagados=React.useRef(new Set());
+  var _agendaApagados=useRef(new Set());
   const [custosDiarios,setCustosDiarios]=useState([]);
   const [showImport,setShowImport]=useState(false);
   const [cfgWA,setCfgWA]=useState({admin_whatsapp:"",supervisor_whatsapp:"",whatsapp_ativo:"false"});
