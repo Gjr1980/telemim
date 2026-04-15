@@ -507,8 +507,7 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
     </div>
   );
 }
-export default var _agendaApagados=new Set();
-function App(){
+export default function App(){
   const [usuario,setUsuario]=useState(null);
   const [loginForm,setLoginForm]=useState({email:"",senha:""});
   const [loginErro,setLoginErro]=useState("");
@@ -531,7 +530,6 @@ function App(){
   const [bioLock,setBioLock]=useState(localStorage.getItem('tmim_bio_enabled')==='true'&&!!localStorage.getItem('tmim_u'));
   const [mudancas,setMudancas]=useState([]);
   const [agenda,setAgenda]=useState([]);
-  
   const [custosDiarios,setCustosDiarios]=useState([]);
   const [showImport,setShowImport]=useState(false);
   const [cfgWA,setCfgWA]=useState({admin_whatsapp:"",supervisor_whatsapp:"",whatsapp_ativo:"false"});
@@ -574,7 +572,6 @@ function App(){
           setMudancas(function(prev){return prev.filter(function(o){return o.id!==p.old.id;});});
         })
         .on('postgres_changes',{event:'INSERT',schema:'public',table:'agenda'},function(p){
-          if(_agendaApagados.has(p.new.id)){return;}
           setAgenda(function(prev){
             if(prev.some(function(a){return a.id===p.new.id;})) return prev;
             return [p.new,...prev];
@@ -1361,7 +1358,6 @@ function App(){
   async function handleRegistarOS(ag){
     if(!ag||!ag.id) return;
     var prevAgenda=agenda.slice();
-    _agendaApagados.add(ag.id);
     setAgenda(function(prev){return prev.filter(function(x){return x.id!==ag.id;});});
     try{
       var novaOS={nome:ag.nome,data:ag.data,horario:ag.horario,selo:ag.selo,van:ag.van,caminhao:ag.caminhao,comunidade:ag.comunidade,observacao:ag.observacao||"",status:"Registrado",requested_by:ag.requested_by,approved_by_admin:ag.approved_by_admin,approved_by_social:ag.approved_by_social,approved_by_promorar:ag.approved_by_promorar};
