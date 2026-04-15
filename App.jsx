@@ -1363,12 +1363,18 @@ export default function App(){
       var novaOS={nome:ag.nome,data:ag.data,horario:ag.horario,selo:ag.selo,van:ag.van,caminhao:ag.caminhao,comunidade:ag.comunidade,observacao:ag.observacao||"",status:"Registrado",requested_by:ag.requested_by,approved_by_admin:ag.approved_by_admin,approved_by_social:ag.approved_by_social,approved_by_promorar:ag.approved_by_promorar};
       var r1=await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=representation"}),body:JSON.stringify(novaOS)});
       if(!r1.ok) throw new Error("HTTP "+r1.status);
+      var _r1Body=await r1.json().catch(function(){return null;});
       var r2=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{method:"DELETE",headers:Object.assign({},HEADERS,{"Prefer":"return=minimal"})});
       if(!r2.ok) throw new Error("HTTP r2:"+r2.status);
-      setSyncStatus("✅ OS registada!");
+      if(_r1Body&&Array.isArray(_r1Body)&&_r1Body[0]){
+        setMudancas(function(prev){return [_r1Body[0]].concat(prev);});
+      }
+      setAgenda(function(prev){return prev.filter(function(x){return x.id!==ag.id;});});
+      setSyncStatus("✅ OS registada com sucesso!");
     }catch(e){
       setAgenda(prevAgenda);
-      setSyncStatus("⚠️ Erro: "+e.message);
+      setSyncStatus("⚠️ Erro ao registar: "+e.message);
+      console.error("[handleRegistarOS]",e);
     }
   }
   async function handlePendenciaOS(agId){
