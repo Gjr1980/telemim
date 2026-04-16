@@ -19,8 +19,9 @@ function getSupaClient(){
 }
 const HEADERS = { "Content-Type": "application/json", "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}` };
 
-async function dbGet(table) {
-  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?select=*&order=id`, { headers: HEADERS });
+async function dbGet(table,extraParams) {
+  var params="?select=*&order=id"+(extraParams?"&"+extraParams:"");
+  const r = await fetch(SUPA_URL+"/rest/v1/"+table+params, { headers: HEADERS });
   if (!r.ok) return [];
   return r.json();
 }
@@ -663,7 +664,7 @@ export default function App(){
       try{
         // Carregar mudancas e agenda em paralelo
         try{
-          var p=await Promise.all([dbGet("mudancas"),dbGet("agenda"),loadCfgWA()]);
+          var p=await Promise.all([dbGet("mudancas"),dbGet("agenda","deleted_at=is.null"),loadCfgWA()]);
           var mRows=p[0]||[];var aRows=p[1]||[];
           if(mRows.length===0){await dbUpsert("mudancas",DADOS_INICIAIS);mRows=DADOS_INICIAIS;}
           if(aRows.length===0){await dbUpsert("agenda",AGENDA_INICIAIS);aRows=AGENDA_INICIAIS;}
@@ -706,7 +707,7 @@ export default function App(){
     document.addEventListener("visibilitychange",onVisible);
     return function(){clearInterval(pollId);document.removeEventListener("visibilitychange",onVisible);if(ws&&ws.readyState===1)ws.close();};
   },[]);
-  async function loadMud(){const r=await dbGet("mudancas");if(r)setMudancas(r);}
+  async function loadMud(){const r=await dbGet("mudancas","deleted_at=is.null");if(r)setMudancas(r);}
   async function loadAg(){const r=await dbGet("agenda");if(r)setAgenda(r);}
   async function loadCfgWA(){
     try{
@@ -864,10 +865,20 @@ export default function App(){
     setForm(initForm); setFlash("✅ Salvo!"); setTimeout(()=>setFlash(""),1800); setTab("lista");
   }
   async function handleDelMud(id){
-    setMudancas(prev=>prev.filter(m=>m.id!==id));
-    setSyncStatus("🔄 Salvando...");
-    try { await dbDelete("mudancas",id); setSyncStatus("✅ Sincronizado"); }
-    catch(e){ setSyncStatus("⚠️ Erro ao salvar"); }
+    var nome=usuario&&usuario.nome?usuario.nome:"Admin";
+    var prevMud=mudancas.slice();
+    setMudancas(function(m){return m.filter(function(x){return x.id!==id;});});
+    setSyncStatus("⌛ Apagando...");
+    try{
+      var r=await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+id,
+        {method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
+        body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:nome})});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      setSyncStatus("🗑️ OS apagada (mantida para auditoria).");
+    }catch(e){
+      setMudancas(prevMud);
+      setSyncStatus("⚠️ Erro ao apagar: "+e.message);
+    }
   }
   async function handleSaveEditMud(){
     if(!editMud) return;
@@ -940,10 +951,20 @@ export default function App(){
     setAgForm({...initForm,status:"confirmado"}); setAgenda(prev=>[nova,...prev]); setFlash("✅ Agendado!"); setTimeout(()=>setFlash(""),1800); setTab("agenda");
   }
   async function handleDelAg(id){
-    setAgenda(prev=>prev.filter(a=>a.id!==id));
-    setSyncStatus("🔄 Salvando...");
-    try { await dbDelete("agenda",id); setSyncStatus("✅ Sincronizado"); }
-    catch(e){ setSyncStatus("⚠️ Erro ao salvar"); }
+    var nome=usuario&&usuario.nome?usuario.nome:"Admin";
+    var prevAg=agenda.slice();
+    setAgenda(function(a){return a.filter(function(x){return x.id!==id;});});
+    setSyncStatus("⌛ Apagando...");
+    try{
+      var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+id,
+        {method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
+        body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:nome})});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      setSyncStatus("🗑️ Agenda apagada (mantida para auditoria).");
+    }catch(e){
+      setAgenda(prevAg);
+      setSyncStatus("⚠️ Erro ao apagar: "+e.message);
+    }
   }
   async function handleSaveEditAg(){
     if(!editAg) return;
