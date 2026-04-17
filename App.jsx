@@ -2183,7 +2183,7 @@ export default function App(){
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={function(){setShowAssinatura(false);setMudAssinatura(null);}} style={{flex:1,padding:10,borderRadius:10,border:"none",background:"#f1f5f9",color:COLORS.muted,fontWeight:700,cursor:"pointer"}}>Cancelar</button>
-              <button onClick={function(){
+              <button onClick={async function(){
                 var cv=document.getElementById('canvasAssin');
                 var ctx=cv.getContext('2d');
                 var px=ctx.getImageData(0,0,cv.width,cv.height).data;
