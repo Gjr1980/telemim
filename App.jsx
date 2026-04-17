@@ -1298,39 +1298,7 @@ export default function App(){
     setShowAssinatura(true);
   }
   // ── Cloud Backup Google Drive (Apps Script) ────────────────────
-  async function handleFinalizeOS(m,pdfB64){
-    if(isUploading) return;
-    if(!APPS_SCRIPT_URL||!APPS_SCRIPT_URL.includes("script.google.com")){
-      setSyncStatus("✅ OS Conluída! (backup Drive não configurado)");
-      return;
-    }
-    setIsUploading(true);
-    setSyncStatus("⏳ A gerar backup seguro na nuvem...");
-    try{
-      var res=await fetch(APPS_SCRIPT_URL,{
-        method:"POST",
-        headers:{"Content-Type":"text/plain"},
-        body:JSON.stringify({
-          osId:m.id,
-          pdfBase64:pdfB64,
-          osData:{nome:m.nome||"",data:m.data||"",destino:m.destino||""}
-        })
-      }).then(function(r){return r.json();}).catch(function(e){return {sucesso:false,erro:e.message};});
-      if(res&&res.sucesso&&res.pdf_url){fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+m.id,{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({pdf_backup_url:res.pdf_url})}).catch(function(e){console.warn("[Drive] Supabase PATCH falhou:",e);});
-        setMudancas(function(prev){return prev.map(function(item){return item.id===m.id?{...item,pdf_backup_url:res.pdf_url}:item;});});
-        setSyncStatus("☁️ Canhoto guardado no Drive!");
-        setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);
-      } else {
-        console.warn("[Drive] Backup falhou:",res);
-        setSyncStatus("✅ OS Conluída (backup Drive com erro)");
-      }
-    }catch(e){
-      console.warn("[Drive] Erro:",e);
-      setSyncStatus("✅ OS Conluída!");
-    } finally {
-      setIsUploading(false);
-    }
-  }
+  async function handleFinalizeOS(m,pdfB64){if(isUploading) return;if(!APPS_SCRIPT_URL||!APPS_SCRIPT_URL.includes("script.google.com")){setSyncStatus("✅ OS Concluída! (backup Drive não configurado)");return;}setIsUploading(true);setSyncStatus("⏳ A enviar canhoto para o Drive...");try{await fetch(APPS_SCRIPT_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({osId:m.id,pdfBase64:pdfB64,osData:{nome:m.nome||"",data:m.data||"",destino:m.destino||""}})});setSyncStatus("☁️ Canhoto enviado! A aguardar Drive...");var tentativas=0;var maxTent=12;var checkUrl=async function(){tentativas++;try{var r=await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+m.id+"&select=pdf_backup_url",{headers:{apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY}});var data=await r.json();if(data&&data[0]&&data[0].pdf_backup_url){setSyncStatus("✅ Canhoto guardado no Drive!");setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);return;}}catch(e){console.warn("[Drive] check err:",e);}if(tentativas<maxTent){setTimeout(checkUrl,2500);}else{setSyncStatus("⚠️ OS Concluída (Drive tempo esgotado)");setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);}};setTimeout(checkUrl,3000);}catch(e){console.warn("[Drive] Erro:",e);setSyncStatus("✅ OS Concluída!");}finally{setIsUploading(false);}}
 
   // ── Optimistic UI — Carimbos de Aprovação ──────────────
   async function handleApprove(osId){
