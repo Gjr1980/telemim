@@ -6,9 +6,9 @@ const _fmtDate=function(d){return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")
 // ── SUPABASE CONFIG ──────────────────────────────────────────────────────────
 const SUPA_URL = "https://netoufukpmmfhzwirogi.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ldG91ZnVrcG1tZmh6d2lyb2dpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTkwOTksImV4cCI6MjA4OTg5NTA5OX0.iapL70SiL_GV4XvmXRNcjlK_Sc-P2-esJzuLQvovdGQ";
-var APPS_SCRIPT_URL="https://script.google.com/macros/s/AKfycbwDlHE9qFO3CLoPikpF5FvgN2yiQaQQFnf_QvMUsGiRVcoPe-Ock84tWYCJ8ziQhG0K/exec"; // Cole aqui o URL do Google Apps Script após o deploy
+var APPS_SCRIPT_URL="https://script.google.com/macros/s/AKfycbzdcWIsm6LcCM6e7Cpx0699PPw7d3NQTVrIELsxTs_hbACSEEjGCPoUrBzESDhxyoGJ/exec";
 // ── Supabase Realtime client ───────────────────────────────
-var _supaRealtime=null;
+var _supaRealtime=null
 function getSupaClient(){
   if(_supaRealtime) return Promise.resolve(_supaRealtime);
   return import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/module/index.js')
