@@ -865,6 +865,7 @@ export default function App(){
     setForm(initForm); setFlash("✅ Salvo!"); setTimeout(()=>setFlash(""),1800); setTab("lista");
   }
   async function handleDelMud(id){
+    if(!usuario||usuario.perfil!=="admin"){setSyncStatus("⛔ Apenas o administrador pode excluir mudânças.");return;}
     var nome=usuario&&usuario.nome?usuario.nome:"Admin";
     var prevMud=mudancas.slice();
     setMudancas(function(m){return m.filter(function(x){return x.id!==id;});});
@@ -951,6 +952,7 @@ export default function App(){
     setAgForm({...initForm,status:"confirmado"}); setAgenda(prev=>[nova,...prev]); setFlash("✅ Agendado!"); setTimeout(()=>setFlash(""),1800); setTab("agenda");
   }
   async function handleDelAg(id){
+    if(!usuario||usuario.perfil!=="admin"){setSyncStatus("⛔ Apenas o administrador pode excluir agendas.");return;}
     var nome=usuario&&usuario.nome?usuario.nome:"Admin";
     var prevAg=agenda.slice();
     setAgenda(function(a){return a.filter(function(x){return x.id!==id;});});
@@ -1772,7 +1774,7 @@ export default function App(){
                     <div style={{marginBottom:2}}><span>Social: {m.approved_by_social?<b style={{color:"#16a34a"}}>✅ {m.approved_by_social}</b>:<span style={{color:"#9ca3af"}}>⏳ Pendente</span>}</span></div>
                     <div><span>Promorar: {m.approved_by_promorar?<b style={{color:"#16a34a"}}>✅ {m.approved_by_promorar}</b>:<span style={{color:"#9ca3af"}}>⏳ Pendente</span>}</span></div>
                   </div>)}                    <button onClick={()=>setEditMud((function(){var _cd=(custosDiarios||[]).find(function(x){return x.data===m.data;});return {...m,_qtdAj:_cd?parseInt(_cd.ajudantes)||1:1};})())} style={btnBlue}>✏️</button>
-                    {(usuario&&(usuario.perfil==="admin"||usuario.perfil==="telemim"))&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud"});}} style={btnRed}>✕</button>}
+                    {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud"});}} style={btnRed}>✕</button>}
                   </div>
                 </div>
               
@@ -1823,14 +1825,14 @@ export default function App(){
                             <button onClick={()=>toggleAgField(a.id,"caminhao")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.caminhao?COLORS.accent:"#e2e8f0"}`,background:a.caminhao?"#fff7ed":"#f8fafc",color:a.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚚 Caminhão {a.caminhao?"✓":"✗"}</button>
                           </div>
                         </div>
-                        {(usuario&&usuario.perfil!=="social")&&<div style={{display:"grid",gridTemplateColumns:(usuario&&(usuario.perfil==="admin"||usuario.perfil==="telemim"))?"1fr 1fr":"1fr",gap:8,marginBottom:10}}>{(usuario&&usuario.perfil!=="social")&&<div>
+                        {(usuario&&usuario.perfil!=="social")&&<div style={{display:"grid",gridTemplateColumns:(usuario&&usuario.perfil==="admin")?"1fr 1fr":"1fr",gap:8,marginBottom:10}}>{(usuario&&usuario.perfil!=="social")&&<div>
                             <label style={{display:"block",color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>📐 Medição (m³)</label>
                             <input type="number" placeholder="Ex: 27" value={a.medicao||""} onChange={e=>updateAgField(a.id,"medicao",e.target.value)}
                               style={{width:"100%",background:"#fff",border:`1.5px solid ${a.medicao?COLORS.green:COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}
                               onFocus={e=>e.target.style.border=`1.5px solid ${COLORS.accent}`}
                               onBlur={e=>e.target.style.border=`1.5px solid ${a.medicao?COLORS.green:COLORS.cardBorder}`}/>
                           </div>}
-                          {(usuario&&(usuario.perfil==="admin"||usuario.perfil==="telemim"))&&<div>
+                          {(usuario&&usuario.perfil==="admin")&&<div>
                             <label style={{display:"block",color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>👷 Ajudantes</label>
                             <input type="number" placeholder="Ex: 3" value={a.ajudantes||""} onChange={e=>updateAgField(a.id,"ajudantes",e.target.value)}
                               style={{width:"100%",background:"#fff",border:`1.5px solid ${a.ajudantes?COLORS.green:COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}
@@ -1850,7 +1852,7 @@ export default function App(){
                       <div style={{display:"flex",flexDirection:"column",gap:5,marginLeft:9}}>
                         <button onClick={()=>converterEmMudanca(a)} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>
                         <button onClick={()=>setEditAg({...a})} style={btnBlue}>✏️</button>
-                        {(usuario&&(usuario.perfil==="admin"||usuario.perfil==="telemim"))&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={btnRed}>✕</button>}
+                        {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={btnRed}>✕</button>}
                       </div>
                     </div>
                   
