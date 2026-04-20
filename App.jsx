@@ -618,17 +618,10 @@ export default function App(){
   // ── FUNÇÃO loadContasSemana ─────────────────────────────────────────
   async function loadContasSemana(){
     try{
-      var hj=new Date();var dw=hj.getDay();var dif=dw===0?6:dw-1;
-      // Usar year/month/date local para evitar bug UTC no fuso BRT (-3h)
-      var s0=new Date(hj.getFullYear(),hj.getMonth(),hj.getDate()-dif);
-      var s1=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+6);
-      var _pad=function(n){return String(n).padStart(2,"0");};
-      var si=s0.getFullYear()+"-"+_pad(s0.getMonth()+1)+"-"+_pad(s0.getDate());
-      var sf=s1.getFullYear()+"-"+_pad(s1.getMonth()+1)+"-"+_pad(s1.getDate());
-      var res=await fetch(SUPA_URL+"/rest/v1/contas_semana",{method:"POST",headers:{"Content-Type":"application/json",apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Prefer":"return=representation"},body:JSON.stringify({semana_inicio:si,semana_fim:sf,tipo:"outro",tipo_conta:"pagar",status:"pendente"})});
+      var res=await fetch(SUPA_URL+"/rest/v1/contas_semana?order=semana_inicio.desc,tipo.asc&limit=200",{headers:{apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY}});
       if(!res.ok)return;
-      var novo=await res.json();
-      if(novo&&novo[0])setContasSemana(function(prev){return novo;});
+      var dados=await res.json();
+      if(dados&&Array.isArray(dados))setContasSemana(dados);
     }catch(e){}
   }
 
