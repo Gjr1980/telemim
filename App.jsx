@@ -1937,7 +1937,7 @@ export default function App(){
           var _cdM=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===_am;});
           var _cpM=(contasPagar||[]).filter(function(cp){return cp.data&&cp.data.slice(0,7)===_am;});
           // Usar função centralizada — MESMA lógica que aba Contas
-          var _r=_calcCustos(_mudM,_cdM,_cpM,RULES);
+          var _r=_calcCustos(_mudM,_cdM,_cpM,RULES);var _csM=(contasSemana||[]).filter(function(x){return x.semana_inicio&&x.semana_inicio.slice(0,7)===_am&&["caminhao","van","ajudante","almoco"].includes(x.tipo)&&x.tipo_conta!=="receber";});if(_csM.length>0){  var _sumCS=function(tp){return _csM.filter(function(x){return x.tipo===tp;}).reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0);}  _r=Object.assign({},_r,{    cCam:_sumCS("caminhao"),    cVan:_sumCS("van"),    cAj:_sumCS("ajudante"),    cAlm:_sumCS("almoco"),    despTotal:_sumCS("caminhao")+_sumCS("van")+_sumCS("ajudante")+_sumCS("almoco")  });}
           return (
             <div style={{padding:"12px 12px 0"}}>
               <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>
