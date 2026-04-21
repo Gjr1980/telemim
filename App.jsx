@@ -2026,7 +2026,7 @@ return(
 var _its2=contasSemana.filter(function(x){return x.semana_inicio===_sem2.si&&["caminhao","van","ajudante","almoco"].includes(x.tipo);});
 return(
 <div key={_sem2.si} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:"12px 14px",marginBottom:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-(()=>{var _tS=_its2.reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0);return(<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><span style={{fontWeight:700,fontSize:12,color:"#64748b"}}>📆 {_fD3(_sem2.si)} a {_fD3(_sem2.sf)}</span><span style={{fontWeight:800,fontSize:13,color:_tS>0?"#dc2626":"#94a3b8"}}>{_fV3(_tS)}</span></div>);})()
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><span style={{fontWeight:700,fontSize:12,color:"#64748b"}}>📆 {_fD3(_sem2.si)} a {_fD3(_sem2.sf)}</span><span style={{fontWeight:800,fontSize:13,color:_tS2>0?"#dc2626":"#94a3b8"}}>{_fV3(_tS2)}</span></div>
 {_tipos2.map(function(_t2){
 var _it2=_its2.find(function(x){return x.tipo===_t2.tp;});
 var _val2=parseFloat((_it2&&(_it2.valor_editado||_it2.valor_calculado))||0);
