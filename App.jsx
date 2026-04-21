@@ -1937,7 +1937,7 @@ export default function App(){
           var _cdM=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===_am;});
           var _cpM=(contasPagar||[]).filter(function(cp){return cp.data&&cp.data.slice(0,7)===_am;});
           // Usar função centralizada — MESMA lógica que aba Contas
-          var _r=_calcCustos(_mudM,_cdM,_cpM,RULES);var _csM=(contasSemana||[]).filter(function(x){return x.semana_inicio&&x.semana_inicio.slice(0,7)===_am&&["caminhao","van","ajudante","almoco"].includes(x.tipo)&&x.tipo_conta!=="receber";});if(_csM.length>0){  var _sumCS=function(tp){return _csM.filter(function(x){return x.tipo===tp;}).reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0);}  _r=Object.assign({},_r,{    cCam:_sumCS("caminhao"),    cVan:_sumCS("van"),    cAj:_sumCS("ajudante"),    cAlm:_sumCS("almoco"),    despTotal:_sumCS("caminhao")+_sumCS("van")+_sumCS("ajudante")+_sumCS("almoco")  });}
+          var _r=_calcCustos(_mudM,_cdM,_cpM,RULES);var _csM=(contasSemana||[]).filter(function(x){return x.semana_inicio&&x.semana_inicio.slice(0,7)===_am&&["caminhao","van","ajudante","almoco"].includes(x.tipo)&&x.tipo_conta!=="receber";});if(_csM.length>0){var _sCS=function(tp){return _csM.filter(function(x){return x.tipo===tp;}).reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0);};_r=Object.assign({},_r,{cCam:_sCS("caminhao"),cVan:_sCS("van"),cAj:_sCS("ajudante"),cAlm:_sCS("almoco"),despTotal:_sCS("caminhao")+_sCS("van")+_sCS("ajudante")+_sCS("almoco")});}
           return (
             <div style={{padding:"12px 12px 0"}}>
               <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>
@@ -2026,7 +2026,7 @@ return(
 var _its2=contasSemana.filter(function(x){return x.semana_inicio===_sem2.si&&["caminhao","van","ajudante","almoco"].includes(x.tipo);});
 return(
 <div key={_sem2.si} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:"12px 14px",marginBottom:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-(()=>{var _totSem2=_its2.reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0);return(<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><span style={{fontWeight:700,fontSize:12,color:"#64748b"}}>📆 {_fD3(_sem2.si)} a {_fD3(_sem2.sf)}</span><span style={{fontWeight:800,fontSize:13,color:_totSem2>0?"#dc2626":"#94a3b8"}}>{_fV3(_totSem2)}</span></div>);})()
+(()=>{var _tS=_its2.reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0);return(<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><span style={{fontWeight:700,fontSize:12,color:"#64748b"}}>📆 {_fD3(_sem2.si)} a {_fD3(_sem2.sf)}</span><span style={{fontWeight:800,fontSize:13,color:_tS>0?"#dc2626":"#94a3b8"}}>{_fV3(_tS)}</span></div>);})()
 {_tipos2.map(function(_t2){
 var _it2=_its2.find(function(x){return x.tipo===_t2.tp;});
 var _val2=parseFloat((_it2&&(_it2.valor_editado||_it2.valor_calculado))||0);
