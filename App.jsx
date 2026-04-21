@@ -226,7 +226,7 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
   var _fb=function(d){return _pc(d.getDate())+"/"+_pc(d.getMonth()+1)+"/"+d.getFullYear();};
   var _sic=_fc(_s0c);var _sfc=_fc(_s1c);
   var _periodo=_fb(_s0c)+" a "+_fb(_s1c);
-  var _ms=mudancas.filter(function(m){return !m.deleted_at&&m.data>=_sic&&m.data<=_sfc;});
+  var _ms=mudancas.filter(function(m){return !m.deleted_at&&m.data>=_sic&&m.data<=_sfc&&(filtroConfirmacao===""||(filtroConfirmacao==="pendente"&&!m.approved_by_social&&!m.promorar_approved&&!m.admin_approved)||(filtroConfirmacao==="social"&&m.approved_by_social)||(filtroConfirmacao==="promorar"&&m.promorar_approved)||(filtroConfirmacao==="admin"&&m.admin_approved));});
   var _cd=(custosDiarios||[]).filter(function(x){return x.data>=_sic&&x.data<=_sfc;});
   var _fv=function(v){return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);};
   var _fvs=function(v){return new Intl.NumberFormat("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);};
