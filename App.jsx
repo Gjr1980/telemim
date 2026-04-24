@@ -1344,7 +1344,7 @@ export default function App(){
     _setAgendaRemovidaIds(function(prev){var s=new Set(prev);s.add(ag.id);return s;});
     setAgenda(function(prev){return prev.filter(function(x){return x.id!==ag.id;});});
     try{
-      var novaOS={nome:ag.nome,data:ag.data,horario:ag.horario,selo:ag.selo,van:ag.van,caminhao:ag.caminhao,comunidade:ag.comunidade,observacao:ag.observacao||"",status:"Registrado",requested_by:ag.requested_by,approved_by_admin:ag.approved_by_admin,approved_by_social:ag.approved_by_social,approved_by_promorar:ag.approved_by_promorar};
+      var novaOS={nome:ag.nome,data:ag.data,horario:ag.horario||null,selo:ag.selo||null,van:ag.van||false,caminhao:ag.caminhao||false,comunidade:ag.comunidade||null,observacao:ag.observacao||null,origem:ag.origem||null,destino:ag.destino||null,contato:ag.contato||null,medicao:parseFloat(ag.medicao)||0,ajudantes:parseInt(ag.ajudantes)||0,status:"Registrado",requested_by:ag.requested_by||null,approved_by_admin:ag.approved_by_admin||null,approved_by_social:ag.approved_by_social||null,approved_by_promorar:ag.approved_by_promorar||null};
       var r1=await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=representation"}),body:JSON.stringify(novaOS)});
       if(!r1.ok) throw new Error("HTTP "+r1.status);
       var _r1Body=await r1.json().catch(function(){return null;});
@@ -1831,7 +1831,7 @@ export default function App(){
                           </div>}
                         </div>}
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
-                          <button onClick={function(){handleRegistarOS(a);}} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>✅ Registar</button>
+                          <button onClick={function(){handleRegistarOS(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✓ Registar"}</button>
                           <div style={{display:"flex",gap:5,alignItems:"center"}}>
                             {a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
                             <button onClick={()=>compartilharWhatsApp(a)} style={{...btnGreen,fontSize:14,padding:"6px 10px"}}>📲</button>
