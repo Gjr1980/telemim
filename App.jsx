@@ -1348,7 +1348,7 @@ export default function App(){
       var r1=await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=representation"}),body:JSON.stringify(novaOS)});
       if(!r1.ok) throw new Error("HTTP "+r1.status);
       var _r1Body=await r1.json().catch(function(){return null;});
-      var r2=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{method:"DELETE",headers:Object.assign({},HEADERS,{"Prefer":"return=minimal"})});
+      var _adminId=usuario&&(usuario.email||usuario.nome)||"Administrador";var r2=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:_adminId})});
       if(!r2.ok) throw new Error("HTTP r2:"+r2.status);
       if(_r1Body&&Array.isArray(_r1Body)&&_r1Body[0]){
         setMudancas(function(prev){return [_r1Body[0]].concat(prev);});
