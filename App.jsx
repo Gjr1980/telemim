@@ -1602,8 +1602,8 @@ export default function App(){
   const _mesAtual=new Date().getMonth();
   const _anoAtual=new Date().getFullYear();
   const _mesesNome=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-  const _realizadasMes=mudancas.filter(m=>{const d=new Date(m.data+"T12:00:00");return d.getMonth()===_mesAtual&&d.getFullYear()===_anoAtual;}).length;
-  const _pendentesMes=agenda.filter(a=>{const d=new Date(a.data+"T12:00:00");const hoje=new Date();hoje.setHours(0,0,0,0);return d>=hoje&&(a.status==="confirmado"||a.status==="pendente");}).length;
+  const _realizadasMes=mudancas.filter(m=>{const d=new Date(m.data+"T12:00:00");return !m.deleted_at&&d.getMonth()===_mesAtual&&d.getFullYear()===_anoAtual;}).length;
+  const _pendentesMes=agenda.filter(a=>{const d=new Date(a.data+"T12:00:00");const hoje=new Date();hoje.setHours(0,0,0,0);return !a.deleted_at&&d>=hoje&&(a.status==="confirmado"||a.status==="pendente");}).length;
   const _mudHoje=agendaOrdenada.filter(a=>a.data===hoje&&a.status!=="realizado");
 
   const statusColor={confirmado:COLORS.green,pendente:COLORS.accent,realizado:COLORS.muted};
