@@ -1321,6 +1321,25 @@ export default function App(){
   // ── Cloud Backup Google Drive (Apps Script) ────────────────────
   async function handleFinalizeOS(m,pdfB64){if(isUploading) return;setIsUploading(true);setSyncStatus("⏳ A guardar canhoto...");try{var r=await fetch(SUPA_URL+"/functions/v1/salvar-canhoto",{method:"POST",headers:{"Content-Type":"application/json",apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},body:JSON.stringify({osId:m.id,pdfBase64:pdfB64,nome:m.nome||""})});var j=await r.json();if(j&&j.sucesso){setSyncStatus("✅ Canhoto guardado!");setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);}else{console.warn("[Canhoto] erro:",j);setSyncStatus("✅ OS Concluída");setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);}}catch(e){console.warn("[Canhoto] Erro:",e);setSyncStatus("✅ OS Concluída!");setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);}finally{setIsUploading(false);}}
 
+  // 🚚 MÁQUINA DE ESTADOS DO MOTORISTA ???????????????????????????????????
+  async function handleStatusMotorista(ag, novoStatus){
+    if(!ag||!ag.id) return;
+    var prevAgenda=agenda.slice();
+    setAgenda(function(prev){return prev.map(function(a){return a.id===ag.id?{...a,status:novoStatus}:a;});});
+    try{
+      var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{
+        method:"PATCH",
+        headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
+        body:JSON.stringify({status:novoStatus})
+      });
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      setSyncStatus("✅ Status actualizado!");
+      setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);
+    }catch(e){
+      setAgenda(prevAgenda);
+      setSyncStatus("⚠️ Erro ao actualizar status");
+    }
+  }
   // ── Optimistic UI — Carimbos de Aprovação ──────────────
   async function handleApprove(osId){
     // Anti-duplo clique: bloquear se já em aprovação
@@ -1735,40 +1754,70 @@ export default function App(){
         {isMotorista&&mudancasHoje.length===0&&mudancasAmanha.length===0&&(<div style={{margin:"12px 0 0",background:"#f0fdf4",border:"2px solid #86efac",borderRadius:14,padding:"20px 16px",textAlign:"center"}}><div style={{fontSize:28,marginBottom:8}}>😊</div><div style={{fontWeight:800,fontSize:15,color:"#15803d",marginBottom:6}}>Nenhuma mudança agendada para hoje ou amanhã!</div><div style={{fontSize:13,color:"#16a34a"}}>Bom descanso! ✅</div></div>)}
         {mudancasHoje.length>0&&(
           <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
-            {mudancasHoje.map(a=>(
-              <div key={a.id} className={a.inicio_em&&!a.termino_em?"em-andamento":""} style={{background:"#dcfce7",border:`2px solid ${COLORS.green}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(22,163,74,0.15)"}}>
-                <div style={{flex:1}}>
-                  <div style={{color:COLORS.green,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>🔔 MUDANÇA HOJE!</div>
-                  <div style={{fontWeight:800,fontSize:13,color:COLORS.text}}>{a.nome}</div>
-                  <div style={{color:COLORS.muted,fontSize:11}}>{a.horario?`⏰ ${a.horario}h · `:""}{a.origem||"—"}</div>
+            {mudancasHoje.map(function(a){
+              var _stMot=a.status||"confirmado";
+              var _isHoje=true;
+              return(
+              <div key={a.id} style={{background:"#dcfce7",border:"2px solid #16a34a",borderRadius:14,padding:"14px 15px",boxShadow:"0 2px 8px rgba(22,163,74,0.15)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                  <div style={{flex:1}}>
+                    <div style={{color:"#15803d",fontWeight:900,fontSize:11,letterSpacing:1,textTransform:"uppercase",marginBottom:3}}>🚚 MUDANÇA HOJE</div>
+                    <div style={{fontWeight:800,fontSize:15,color:"#1e293b",marginBottom:2}}>{a.nome}</div>
+                    {a.horario&&<div style={{fontSize:12,color:"#475569"}}>⏰ {a.horario}h</div>}
+                    <div style={{fontSize:11,color:"#64748b",marginTop:2}}>📦 {a.origem||"?"}</div>
+                    <div style={{fontSize:11,color:"#64748b"}}>🏘️ {a.destino||"?"}</div>
+                  </div>
+                  <div style={{background:_stMot==="Em Deslocamento"?"#dbeafe":_stMot==="Realizando"?"#fef9c3":"#dcfce7",border:"1px solid "+(_stMot==="Em Deslocamento"?"#93c5fd":_stMot==="Realizando"?"#fde047":"#86efac"),borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:_stMot==="Em Deslocamento"?"#1d4ed8":_stMot==="Realizando"?"#854d0e":"#15803d",whiteSpace:"nowrap"}}>
+                    {_stMot==="confirmado"||_stMot==="pendente"?"🟡 Pendente":_stMot==="Em Deslocamento"?"🚚 Em Deslocamento":_stMot==="Realizando"?"⚡ Realizando":_stMot}
+                  </div>
                 </div>
-                {podeEditar&&<div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
-                  {!a.inicio_em
-                    ?<button onClick={()=>marcarTempo('inicio',a,'agenda')} style={{flex:1,background:"#dcfce7",border:"1.5px solid #16a34a",borderRadius:10,padding:"7px 0",fontSize:12,fontWeight:800,color:"#15803d",cursor:"pointer"}}>▶ Iniciar</button>
-                    :<span style={{flex:1,background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:10,padding:"7px 10px",fontSize:12,fontWeight:700,color:"#15803d",textAlign:"center"}}>▶ {fmtTempo(a.inicio_em)}</span>
-                  }
-                  <button onClick={()=>gerarPDFMudanca(a)} style={{width:"100%",background:"#16a34a",border:"none",borderRadius:10,padding:"9px 0",fontSize:13,fontWeight:900,color:"#fff",cursor:"pointer",letterSpacing:0.3}}>✅ Finalizar Mudança</button>
-                  {a.inicio_em&&a.termino_em&&<span style={{fontSize:11,color:"#64748b",fontWeight:700,background:"#f1f5f9",borderRadius:8,padding:"4px 8px"}}>🕒 {Math.round((new Date(a.termino_em)-new Date(a.inicio_em))/60000)}min</span>}
-                </div>}
-                <button onClick={()=>compartilharWhatsApp(a,"hoje")} style={{background:COLORS.green,border:"none",color:"#fff",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontSize:15,flexShrink:0,fontWeight:700}}>📲</button>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {(_stMot==="confirmado"||_stMot==="pendente")&&(
+                    <button onClick={function(){handleStatusMotorista(a,"Em Deslocamento");}} style={{width:"100%",background:"#2563eb",border:"none",borderRadius:10,padding:"12px 0",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                      👥 Ajudantes a Bordo
+                    </button>
+                  )}
+                  {_stMot==="Em Deslocamento"&&(
+                    <button onClick={function(){handleStatusMotorista(a,"Realizando");}} style={{width:"100%",background:"#7c3aed",border:"none",borderRadius:10,padding:"12px 0",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                      🚛 Iniciar Mudança
+                    </button>
+                  )}
+                  {_stMot==="Realizando"&&(
+                    <button onClick={function(){gerarPDFMudanca(a);}} style={{width:"100%",background:"#16a34a",border:"none",borderRadius:10,padding:"12px 0",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                      ✅ Finalizar Serviço
+                    </button>
+                  )}
+                </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
-        <div style={{padding:"0 12px 14px",background:"#fffbeb",borderLeft:"4px solid #f59e0b",marginTop:8,borderRadius:6}}><div style={{fontSize:10,fontWeight:800,color:"#d97706",letterSpacing:1,textTransform:"uppercase",marginBottom:10}}>⚠️ PREPARAÇÃO AMANHÃ — 📅 {_mesesNome[_mesAtual]} {_anoAtual}</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div style={{background:"linear-gradient(135deg,#065f46,#047857)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 12px rgba(6,95,70,0.3)"}}><div style={{fontSize:9,color:"rgba(255,255,255,0.7)",fontWeight:800,letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>{isMotorista?"DIÁRIAS REALIZADAS":"MUDANÇAS NO MÊS"}</div><div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_realizadasMes}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>{isMotorista?"dias com mudanças":("mudanças em "+_mesesNome[_mesAtual])}</div></div><div style={{background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 12px rgba(29,78,216,0.3)"}}><div style={{fontSize:9,color:"rgba(255,255,255,0.7)",fontWeight:800,letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>PENDENTES</div><div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_pendentesMes}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>a realizar 🗓️</div></div></div></div><div style={{padding:"0 12px 2px"}}><div style={{fontSize:10,fontWeight:800,color:COLORS.muted,letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🔔 Notificações</div></div>{_mudHoje.map(a=>(<div key={a.id} style={{margin:"0 12px 8px",background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:12,padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:18}}>🚛</span><div style={{flex:1}}><div style={{fontSize:10,fontWeight:800,color:"#b91c1c",letterSpacing:0.5}}>MUDANÇA HOJE!</div><div style={{fontSize:13,fontWeight:700,color:COLORS.text}}>{a.nome}</div><div style={{fontSize:11,color:COLORS.muted}}>{a.horario?"⏰ "+a.horario+"h":""}{a.comunidade?" · "+a.comunidade:""}</div></div><button onClick={()=>setTab("agenda")} style={{fontSize:10,padding:"5px 10px",borderRadius:8,background:"#ef4444",color:"#fff",border:"none",fontWeight:700,cursor:"pointer"}}>Ver</button></div>))}{mudancasAmanha.length>0&&(
+{mudancasAmanha.length>0&&(
           <div style={{margin:"8px 0 0",display:"flex",flexDirection:"column",gap:7}}>
-            {mudancasAmanha.map(a=>(
-              <div key={a.id} className={a.inicio_em&&!a.termino_em?"em-andamento":""} style={{background:"#fff7ed",border:`2px solid ${COLORS.accent}`,borderRadius:14,padding:"12px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,boxShadow:"0 2px 8px rgba(230,126,34,0.15)"}}>
-                <div style={{flex:1}}>
-                  <div style={{color:COLORS.accent,fontWeight:900,fontSize:12,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>⚠️ MUDANÇA AMANHÃ!</div>
-                  <div style={{fontWeight:800,fontSize:13,color:COLORS.text}}>{a.nome}</div>
-                  <div style={{color:COLORS.muted,fontSize:11}}>{a.horario?`⏰ ${a.horario}h · `:""}{a.origem||"—"}</div>
+            {mudancasAmanha.map(function(a){
+              var _stAmh=a.status||"confirmado";
+              return(
+              <div key={a.id} style={{background:"#fff7ed",border:"2px solid #f97316",borderRadius:14,padding:"14px 15px",boxShadow:"0 2px 8px rgba(249,115,22,0.15)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                  <div style={{flex:1}}>
+                    <div style={{color:"#ea580c",fontWeight:900,fontSize:11,letterSpacing:1,textTransform:"uppercase",marginBottom:3}}>📅 MUDANÇA AMANHÃ</div>
+                    <div style={{fontWeight:800,fontSize:15,color:"#1e293b",marginBottom:2}}>{a.nome}</div>
+                    {a.horario&&<div style={{fontSize:12,color:"#475569"}}>⏰ {a.horario}h</div>}
+                    <div style={{fontSize:11,color:"#64748b",marginTop:2}}>📦 {a.origem||"?"}</div>
+                    <div style={{fontSize:11,color:"#64748b"}}>🏘️ {a.destino||"?"}</div>
+                  </div>
+                  <div style={{background:"#ffedd5",border:"1px solid #fed7aa",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:"#c2410c",whiteSpace:"nowrap"}}>⏳ Amanhã</div>
                 </div>
-                <button onClick={()=>compartilharWhatsApp(a,"amanha")} style={{background:COLORS.accent,border:"none",color:"#fff",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontSize:15,flexShrink:0,fontWeight:700}}>📲</button>
+                <div style={{background:"#fff",border:"1px solid #fed7aa",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#92400e",fontWeight:600,textAlign:"center"}}>
+                  🛠️ Prepare a van para amanhã!
+                </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
+
 {tab==="financeiro"&&<div style={{padding:"8px 12px 12px",background:"#f8fafc"}}><button onClick={function(){window.print();}} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#1e40af,#1e293b)",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📄 Exportar PDF</button></div>}
           {(function(){var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort(function(a,b){return b.localeCompare(a);});var totMes=mudMes.length;return(<div style={{padding:'16px 12px',background:'#f8fafc'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}><div style={{fontWeight:800,fontSize:15,color:'#1e293b'}}>📋 Mudanças do Mês</div><span style={{background:'#e0e7ff',color:'#3730a3',borderRadius:20,padding:'4px 12px',fontSize:13,fontWeight:700}}>{totMes} total</span></div>{diasU.length===0&&<div style={{textAlign:'center',color:'#94a3b8',padding:32,fontSize:13}}>Nenhuma mudança este mês</div>}{diasU.map(function(dia){var mDia=mudMes.filter(function(m){return m.data===dia;});var df=dia.slice(8)+'/'+dia.slice(5,7)+'/'+dia.slice(0,4);var isHoje=dia===hj.toISOString().slice(0,10);return(<div key={dia} style={{background:'#fff',borderRadius:12,padding:'14px 16px',marginBottom:10,boxShadow:'0 1px 6px rgba(0,0,0,0.06)',border:isHoje?'1.5px solid #3b82f6':'1px solid #e2e8f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontWeight:700,fontSize:14,color:isHoje?'#1e40af':'#1e293b'}}>{df}{isHoje&&<span style={{marginLeft:8,background:'#dbeafe',color:'#1e40af',borderRadius:6,padding:'1px 7px',fontSize:10,fontWeight:700}}>HOJE</span>}</div><span style={{background:'#e0e7ff',color:'#3730a3',borderRadius:20,padding:'3px 10px',fontSize:12,fontWeight:700}}>{mDia.length} mud.</span></div>{mDia.map(function(m,i){return(<div key={i} style={{display:'flex',alignItems:'center',padding:'7px 0',borderTop:i>0?'1px solid #f1f5f9':'none'}}><div style={{width:7,height:7,borderRadius:'50%',background:m.status==='concluida'?'#047857':m.status==='cancelada'?'#dc2626':'#f59e0b',marginRight:10,flexShrink:0}}></div><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:'#334155'}}>{m.nome}</div><div style={{fontSize:11,color:'#94a3b8'}}>{m.comunidade||''}{m.medicao>0?' · '+m.medicao+'m³':''}</div></div><div style={{fontSize:11,fontWeight:700,color:m.status==='concluida'?'#047857':m.status==='cancelada'?'#dc2626':'#d97706'}}>{m.status==='concluida'?'✅':m.status==='cancelada'?'❌':'⏳'}</div></div>);})}</div>);})}</div>);})()} 
         </div>
