@@ -1072,8 +1072,21 @@ export default function App(){
   }
   async function handleSaveEditAg(){
     if(!editAg) return;
-    const updated=agenda.map(a=>a.id===editAg.id?{...editAg}:a);
-    await saveAg(updated); setEditAg(null);
+    // Ler valores DOM actuais (captura alterações via picker nativo)
+    var _domInputs=document.querySelectorAll('input[type="date"],input[type="time"],input[type="text"],input[type="tel"]');
+    var _domData={};
+    _domInputs.forEach(function(inp){
+      if(inp.name) _domData[inp.name]=inp.value;
+      // Identificar campos pelo placeholder ou pelo valor relativo ao editAg
+      if(inp.type==="date"&&inp.value) _domData._date=inp.value;
+      if(inp.type==="time"&&inp.value) _domData._time=inp.value;
+    });
+    // Merge: preferir valor DOM se disponível para data e hora
+    var _editMerged={...editAg};
+    if(_domData._date) _editMerged.data=_domData._date;
+    if(_domData._time) _editMerged.horario=_domData._time;
+    const updated=agenda.map(a=>a.id===_editMerged.id?{..._editMerged}:a);
+    await saveAg(updated,_editMerged); setEditAg(null);
   }
   async function pagarConta(cid){
     if(!window.confirm('Marcar como paga?'))return;
