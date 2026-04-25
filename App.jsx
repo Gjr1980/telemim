@@ -392,7 +392,35 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
         if(res&&!res.ok) res.text().then(function(t){console.warn("Supabase save erro:",t);});
       })
       .catch(function(err){console.warn("Supabase save falhou:",err);});
-  }
+    // PROTOCOLO 6: Sync contas_semana para o Financeiro
+    (function(){
+      try{
+        var _dp6=_data.split("-");
+        var _d6=new Date(parseInt(_dp6[0]),parseInt(_dp6[1])-1,parseInt(_dp6[2]));
+        var _dw6=_d6.getDay();var _dif6=_dw6===0?6:_dw6-1;
+        var _s06=new Date(_d6.getFullYear(),_d6.getMonth(),_d6.getDate()-_dif6);
+        var _s16=new Date(_s06.getFullYear(),_s06.getMonth(),_s06.getDate()+6);
+        var _p6=function(n){return String(n).padStart(2,"0");};
+        var _si6=_s06.getFullYear()+"-"+_p6(_s06.getMonth()+1)+"-"+_p6(_s06.getDate());
+        var _sf6=_s16.getFullYear()+"-"+_p6(_s16.getMonth()+1)+"-"+_p6(_s16.getDate());
+        var _tipo6=cargoSnap==="ajudante"?"ajudante":p.cargo;
+        var _tot6=novoDet.reduce(function(s,d){return s+(parseFloat(d.val)||0);},0);
+        var _hd6={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json"};
+        fetch(SUPA_URL+"/rest/v1/contas_semana?semana_inicio=eq."+_si6+"&semana_fim=eq."+_sf6+"&tipo=eq."+_tipo6,{
+          method:"PATCH",
+          headers:{..._hd6,"Prefer":"return=minimal"},
+          body:JSON.stringify({valor_calculado:_tot6})
+        }).catch(function(e){console.warn("[Proto6]",e);});
+        if(typeof setContasSemana==="function"){
+          setContasSemana(function(prev){
+            return prev.map(function(x){
+              return(x.semana_inicio===_si6&&x.tipo===_tipo6)?{...x,valor_calculado:String(_tot6)}:x;
+            });
+          });
+        }
+      }catch(_e6){console.warn("[Proto6]",_e6);}
+    })();
+    }
   function _cancelarEdit(){setEditIdx(null);setEditVals({});}
   var inpS={border:"1px solid #cbd5e1",borderRadius:6,padding:"3px 6px",fontSize:11,width:"100%",background:"#fff"};
   // Custo total semana via função centralizada
