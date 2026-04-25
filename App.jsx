@@ -392,7 +392,7 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
         if(res&&!res.ok) res.text().then(function(t){console.warn("Supabase save erro:",t);});
       })
       .catch(function(err){console.warn("Supabase save falhou:",err);});
-    // PROTOCOLO 6: Sync contas_semana para o Financeiro
+    // PROTOCOLO 6: Sync contas_semana → Financeiro (robusto)
     (function(){
       try{
         var _dp6=_data.split("-");
@@ -403,19 +403,31 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
         var _p6=function(n){return String(n).padStart(2,"0");};
         var _si6=_s06.getFullYear()+"-"+_p6(_s06.getMonth()+1)+"-"+_p6(_s06.getDate());
         var _sf6=_s16.getFullYear()+"-"+_p6(_s16.getMonth()+1)+"-"+_p6(_s16.getDate());
-        var _tipo6=cargoSnap==="ajudante"?"ajudante":p.cargo;
-        var _tot6=novoDet.reduce(function(s,d){return s+(parseFloat(d.val)||0);},0);
-        var _hd6={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json"};
+        var _tipo6=cargoSnap==="ajudante"?"ajudante":cargoSnap;
+        var _tot6=novoDet.reduce(function(s,d){
+          var dData=d.data||"";
+          return dData>=_si6&&dData<=_sf6?s+(parseFloat(d.val)||0):s;
+        },0);
+        var _hd6={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json","Prefer":"return=minimal"};
         fetch(SUPA_URL+"/rest/v1/contas_semana?semana_inicio=eq."+_si6+"&semana_fim=eq."+_sf6+"&tipo=eq."+_tipo6,{
-          method:"PATCH",
-          headers:{..._hd6,"Prefer":"return=minimal"},
+          method:"PATCH",headers:_hd6,
           body:JSON.stringify({valor_calculado:_tot6})
-        }).catch(function(e){console.warn("[Proto6]",e);});
+        }).then(function(rp){
+          if(rp&&rp.status===404){
+            return fetch(SUPA_URL+"/rest/v1/contas_semana",{
+              method:"POST",
+              headers:Object.assign({},_hd6,{"Prefer":"resolution=merge-duplicates"}),
+              body:JSON.stringify({semana_inicio:_si6,semana_fim:_sf6,tipo:_tipo6,valor_calculado:_tot6,status:"pendente"})
+            });
+          }
+        }).catch(function(){});
         if(typeof setContasSemana==="function"){
           setContasSemana(function(prev){
-            return prev.map(function(x){
+            var existe=prev.some(function(x){return x.semana_inicio===_si6&&x.tipo===_tipo6;});
+            if(existe) return prev.map(function(x){
               return(x.semana_inicio===_si6&&x.tipo===_tipo6)?{...x,valor_calculado:String(_tot6)}:x;
             });
+            return [...prev,{semana_inicio:_si6,semana_fim:_sf6,tipo:_tipo6,valor_calculado:String(_tot6),status:"pendente"}];
           });
         }
       }catch(_e6){console.warn("[Proto6]",_e6);}
@@ -1051,6 +1063,15 @@ export default function App(){
     var _pa=usuario&&usuario.perfil||"";var _na=usuario&&(usuario.nome||usuario.email)||"";const nova={...agForm,id:Date.now(),requires_validation:true,social_approved:_pa==="social",social_approved_by:_pa==="social"?_na:null,promorar_approved:_pa==="promorar",promorar_approved_by:_pa==="promorar"?_na:null,adm_approved:_pa==="admin"||_pa==="telemim",adm_approved_by:(_pa==="admin"||_pa==="telemim")?_na:null};
     setAgenda(prev=>[nova,...prev]);
     await saveAg([nova,...agenda],nova);
+    // Notificação por e-mail (admin + promorar)
+    (function(){
+      var _supaBase=SUPA_URL.split('/rest/v1')[0];
+      fetch(_supaBase+'/functions/v1/enviar-email-agendamento',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY},
+        body:JSON.stringify({agenda:nova,agendadoPor:{nome:usuario&&usuario.nome,email:usuario&&usuario.email,perfil:usuario&&usuario.perfil}})
+      }).catch(function(e){console.warn('[email agendamento]',e);});
+    })();
     setAgForm({...initForm,status:"confirmado"}); setAgenda(prev=>[nova,...prev]); setFlash("✅ Agendado!"); setTimeout(()=>setFlash(""),1800); setTab("agenda");
   }
   async function handleDelAg(id){
@@ -1846,7 +1867,7 @@ export default function App(){
         {/* ══ DASHBOARD ══ */}
         {tab==="dashboard"&&(
         <div style={{paddingBottom:16}}>
-        {(()=>{var _p=usuario&&usuario.perfil||"";var _pend=[...agenda,...mudancas].filter(function(x){if(!x.requires_validation)return false;if(!x.data||x.data<"2026-04-20")return false;if(_p==="social")return !x.social_approved;if(_p==="promorar")return !x.promorar_approved;if(_p==="admin"||_p==="telemim")return !x.adm_approved;return false;});if(!_pend.length)return null;return(<div style={{margin:"0 12px 16px",background:"#fffbeb",border:"2.5px solid #f59e0b",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(245,158,11,0.25)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🚨</span><div><div style={{fontWeight:800,fontSize:13,color:"#92400e",letterSpacing:0.5}}>⚠️ AÇÃO REQUERIDA — APROVAÇÕES PENDENTES</div><div style={{fontWeight:600,fontSize:11,color:"#b45309"}}>{_pend.length} mudança{_pend.length>1?"s":""} aguarda{_pend.length===1?"":"m"} a SUA aprovação!</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pend.slice(0,3).map(function(x){var _quem=x.social_approved_by||x.promorar_approved_by||x.adm_approved_by||"Sistema";var _isFut=x.data&&new Date(x.data+"T12:00:00")>=new Date();return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>👤 {x.nome}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} • Solicitado por: <strong>{_quem}</strong></div></div><button onClick={function(e){e.stopPropagation();setTab(_isFut?"agenda":"lista");var _tid=x.id;setTimeout(function(){var el=document.getElementById("move-card-"+_tid);if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.style.outline="3px solid #f59e0b";el.style.borderRadius="16px";el.style.transition="outline 0.3s";setTimeout(function(){el.style.outline="";},3000);}},500);}} style={{padding:"7px 12px",background:"#f59e0b",color:"#fff",border:"none",borderRadius:999,fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,boxShadow:"0 2px 8px rgba(245,158,11,0.4)"}}>👆 Ver e Aprovar</button></div>);})}{_pend.length>3&&<div style={{textAlign:"center",fontSize:11,color:"#b45309",fontWeight:700,marginTop:4}}>...e mais {_pend.length-3} pendente{_pend.length-3>1?"s":""}</div>}</div></div>);})()}
+        {(()=>{var _p=usuario&&usuario.perfil||"";var _pend=[...agenda].filter(function(x){if(!x.data||x.data<"2026-04-20")return false;if(x.deleted_at)return false;if(_p==="social")return !x.social_approved;if(_p==="promorar")return !x.promorar_approved;if(_p==="admin"||_p==="telemim")return !x.adm_approved;return false;});if(!_pend.length)return null;return(<div style={{margin:"0 12px 16px",background:"#fffbeb",border:"2.5px solid #f59e0b",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(245,158,11,0.25)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🚨</span><div><div style={{fontWeight:800,fontSize:13,color:"#92400e",letterSpacing:0.5}}>⚠️ AÇÃO REQUERIDA — APROVAÇÕES PENDENTES</div><div style={{fontWeight:600,fontSize:11,color:"#b45309"}}>{_pend.length} mudança{_pend.length>1?"s":""} aguarda{_pend.length===1?"":"m"} a SUA aprovação!</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pend.slice(0,3).map(function(x){var _quem=x.social_approved_by||x.promorar_approved_by||x.adm_approved_by||"Sistema";var _isFut=x.data&&new Date(x.data+"T12:00:00")>=new Date();return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>👤 {x.nome}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} • Solicitado por: <strong>{_quem}</strong></div></div><button onClick={function(e){e.stopPropagation();setTab(_isFut?"agenda":"lista");var _tid=x.id;setTimeout(function(){var el=document.getElementById("move-card-"+_tid);if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.style.outline="3px solid #f59e0b";el.style.borderRadius="16px";el.style.transition="outline 0.3s";setTimeout(function(){el.style.outline="";},3000);}},500);}} style={{padding:"7px 12px",background:"#f59e0b",color:"#fff",border:"none",borderRadius:999,fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,boxShadow:"0 2px 8px rgba(245,158,11,0.4)"}}>👆 Ver e Aprovar</button></div>);})}{_pend.length>3&&<div style={{textAlign:"center",fontSize:11,color:"#b45309",fontWeight:700,marginTop:4}}>...e mais {_pend.length-3} pendente{_pend.length-3>1?"s":""}</div>}</div></div>);})()}
         {isMotorista&&mudancasHoje.length===0&&mudancasAmanha.length===0&&(<div style={{margin:"12px 0 0",background:"#f0fdf4",border:"2px solid #86efac",borderRadius:14,padding:"20px 16px",textAlign:"center"}}><div style={{fontSize:28,marginBottom:8}}>😊</div><div style={{fontWeight:800,fontSize:15,color:"#15803d",marginBottom:6}}>Nenhuma mudança agendada para hoje ou amanhã!</div><div style={{fontSize:13,color:"#16a34a"}}>Bom descanso! ✅</div></div>)}
         {mudancasHoje.length>0&&(
           <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
