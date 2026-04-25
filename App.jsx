@@ -739,7 +739,7 @@ export default function App(){
     return function(){clearInterval(pollId);document.removeEventListener("visibilitychange",onVisible);if(ws&&ws.readyState===1)ws.close();};
   },[]);
   async function loadMud(){const r=await dbGet("mudancas","deleted_at=is.null");if(r)setMudancas(r);}
-  async function loadAg(){const r=await dbGet("agenda");if(r)setAgenda(r);}
+  async function loadAg(){const r=await dbGet("agenda");if(r)setAgenda(r.map(function(x){return {...x,_dbId:x.id};}));}
   async function loadCfgWA(){
     try{
       var r=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=in.(admin_whatsapp,supervisor_whatsapp,whatsapp_ativo)&select=chave,valor",{headers:HEADERS});
@@ -927,23 +927,32 @@ export default function App(){
       var ts=changed?[changed]:list;
       for(var i=0;i<ts.length;i++){
         var a=ts[i];
-        var row={nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado",observacao:a.observacao||"",social_approved:a.social_approved||false,promorar_approved:a.promorar_approved||false,adm_approved:a.adm_approved||false};
-        var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{
-          method:"PATCH",
-          headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
-          body:JSON.stringify(row)
-        });
-        if(!r.ok){
-          if(r.status===503){
-            // Retry após 1s para 503 transitório
-            await new Promise(function(res){setTimeout(res,1000);});
-            var rRetry=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(row)});
-            if(!rRetry.ok) throw new Error("saveAg retry HTTP "+rRetry.status);
-          } else {
-            // Fallback POST para linhas novas
-            row.id=a.id;
-            var r2=await fetch(SUPA_URL+"/rest/v1/agenda",{method:"POST",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"}),body:JSON.stringify(row)});
-            if(!r2.ok) throw new Error("saveAg HTTP "+r2.status);
+        var row={nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado",observacao:a.observacao||"",social_approved:a.social_approved||false,promorar_approved:a.promorar_approved||false,adm_approved:a.adm_approved||false,requires_validation:a.requires_validation||false};
+        var _isNew=!a._dbId;
+        if(_isNew){
+          var rPost=await fetch(SUPA_URL+"/rest/v1/agenda",{
+            method:"POST",
+            headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=representation"}),
+            body:JSON.stringify(row)
+          });
+          if(!rPost.ok) throw new Error("saveAg POST HTTP "+rPost.status);
+          var rData=await rPost.json();
+          var _newId=rData&&rData[0]&&rData[0].id;
+          if(_newId){
+            setAgenda(function(prev){return prev.map(function(x){return x.id===a.id?{...x,id:_newId,_dbId:_newId}:x;});});
+          }
+        } else {
+          var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{
+            method:"PATCH",
+            headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
+            body:JSON.stringify(row)
+          });
+          if(!r.ok){
+            if(r.status===503){
+              await new Promise(function(res){setTimeout(res,1000);});
+              var rR=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(row)});
+              if(!rR.ok) throw new Error("saveAg retry HTTP "+rR.status);
+            } else throw new Error("saveAg PATCH HTTP "+r.status);
           }
         }
       }
@@ -1061,7 +1070,6 @@ export default function App(){
       return;
     }
     var _pa=usuario&&usuario.perfil||"";var _na=usuario&&(usuario.nome||usuario.email)||"";const nova={...agForm,id:Date.now(),requires_validation:true,social_approved:_pa==="social",social_approved_by:_pa==="social"?_na:null,promorar_approved:_pa==="promorar",promorar_approved_by:_pa==="promorar"?_na:null,adm_approved:_pa==="admin"||_pa==="telemim",adm_approved_by:(_pa==="admin"||_pa==="telemim")?_na:null};
-    setAgenda(prev=>[nova,...prev]);
     await saveAg([nova,...agenda],nova);
     // Notificação por e-mail (admin + promorar)
     (function(){
