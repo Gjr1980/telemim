@@ -928,32 +928,17 @@ export default function App(){
       for(var i=0;i<ts.length;i++){
         var a=ts[i];
         var row={nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado",observacao:a.observacao||"",social_approved:a.social_approved||false,promorar_approved:a.promorar_approved||false,adm_approved:a.adm_approved||false,requires_validation:a.requires_validation||false};
-        var _isNew=!a._dbId;
-        if(_isNew){
-          var rPost=await fetch(SUPA_URL+"/rest/v1/agenda",{
-            method:"POST",
-            headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=representation"}),
-            body:JSON.stringify(row)
-          });
-          if(!rPost.ok) throw new Error("saveAg POST HTTP "+rPost.status);
-          var rData=await rPost.json();
-          var _newId=rData&&rData[0]&&rData[0].id;
-          if(_newId){
-            setAgenda(function(prev){return prev.map(function(x){return x.id===a.id?{...x,id:_newId,_dbId:_newId}:x;});});
-          }
-        } else {
-          var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{
-            method:"PATCH",
-            headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
-            body:JSON.stringify(row)
-          });
-          if(!r.ok){
-            if(r.status===503){
-              await new Promise(function(res){setTimeout(res,1000);});
-              var rR=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(row)});
-              if(!rR.ok) throw new Error("saveAg retry HTTP "+rR.status);
-            } else throw new Error("saveAg PATCH HTTP "+r.status);
-          }
+        var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{
+          method:"PATCH",
+          headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
+          body:JSON.stringify(row)
+        });
+        if(!r.ok){
+          if(r.status===503){
+            await new Promise(function(res){setTimeout(res,1000);});
+            var rR=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(row)});
+            if(!rR.ok) throw new Error("saveAg retry HTTP "+rR.status);
+          } else throw new Error("saveAg PATCH HTTP "+r.status);
         }
       }
       setSyncStatus("✅ Sinc");
@@ -1070,7 +1055,28 @@ export default function App(){
       return;
     }
     var _pa=usuario&&usuario.perfil||"";var _na=usuario&&(usuario.nome||usuario.email)||"";const nova={...agForm,id:Date.now(),requires_validation:true,social_approved:_pa==="social",social_approved_by:_pa==="social"?_na:null,promorar_approved:_pa==="promorar",promorar_approved_by:_pa==="promorar"?_na:null,adm_approved:_pa==="admin"||_pa==="telemim",adm_approved_by:(_pa==="admin"||_pa==="telemim")?_na:null};
-    await saveAg([nova,...agenda],nova);
+    // POST directo para nova agenda
+    (async function(){
+      try{
+        var rowNova={nome:nova.nome,selo:nova.selo||"",comunidade:nova.comunidade||"",data:nova.data,horario:nova.horario||"",origem:nova.origem||"",destino:nova.destino||"",contato:nova.contato||"",van:nova.van||false,caminhao:nova.caminhao||false,medicao:nova.medicao||0,ajudantes:nova.ajudantes||0,status:nova.status||"confirmado",observacao:nova.observacao||"",social_approved:nova.social_approved||false,promorar_approved:nova.promorar_approved||false,adm_approved:nova.adm_approved||false,requires_validation:nova.requires_validation||false};
+        setSyncStatus("⏳ Salvando...");
+        var rNova=await fetch(SUPA_URL+"/rest/v1/agenda",{
+          method:"POST",
+          headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=representation"}),
+          body:JSON.stringify(rowNova)
+        });
+        if(!rNova.ok) throw new Error("POST nova agenda HTTP "+rNova.status);
+        var rData=await rNova.json();
+        var _bdId=rData&&rData[0]&&rData[0].id;
+        setAgenda(function(prev){
+          var sem=prev.filter(function(x){return x.id!==nova.id;});
+          return [{...nova,id:_bdId||nova.id},...sem];
+        });
+        setSyncStatus("✅ Sinc");
+        loadAg();
+      }catch(eN){setSyncStatus("⚠️ Erro ao agendar");console.error("[novaAgenda]",eN);}
+    })();
+    
     // Notificação por e-mail (admin + promorar)
     (function(){
       var _supaBase=SUPA_URL.split('/rest/v1')[0];
@@ -1080,7 +1086,7 @@ export default function App(){
         body:JSON.stringify({agenda:nova,agendadoPor:{nome:usuario&&usuario.nome,email:usuario&&usuario.email,perfil:usuario&&usuario.perfil}})
       }).catch(function(e){console.warn('[email agendamento]',e);});
     })();
-    setAgForm({...initForm,status:"confirmado"}); setAgenda(prev=>[nova,...prev]); setFlash("✅ Agendado!"); setTimeout(()=>setFlash(""),1800); setTab("agenda");
+    setAgForm({...initForm,status:"confirmado"}); setFlash("✅ Agendado!"); setTimeout(()=>setFlash(""),1800); setTab("agenda");
   }
   async function handleDelAg(id){
     if(!usuario||usuario.perfil!=="admin"){setSyncStatus("⛔ Apenas o administrador pode excluir agendas.");return;}
