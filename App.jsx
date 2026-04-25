@@ -136,7 +136,7 @@ function Inp({label,type="text",value,onChange,placeholder,icon}){
   return(
     <div style={{marginBottom:12}}>
       <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:5,textTransform:"uppercase"}}>{icon} {label}</label>
-      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} onInput={e=>onChange(e.target.value)} placeholder={placeholder}
         style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:10,color:COLORS.text,padding:"10px 13px",fontSize:14,outline:"none",boxSizing:"border-box"}}
         onFocus={e=>e.target.style.border=`1.5px solid ${COLORS.accent}`}
         onBlur={e=>e.target.style.border=`1.5px solid ${COLORS.cardBorder}`}/>
@@ -922,14 +922,17 @@ export default function App(){
           body:JSON.stringify(row)
         });
         if(!r.ok){
-          // Fallback: POST se nao existe
-          row.id=a.id;
-          var r2=await fetch(SUPA_URL+"/rest/v1/agenda",{
-            method:"POST",
-            headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"}),
-            body:JSON.stringify(row)
-          });
-          if(!r2.ok) throw new Error("saveAg HTTP "+r2.status);
+          if(r.status===503){
+            // Retry após 1s para 503 transitório
+            await new Promise(function(res){setTimeout(res,1000);});
+            var rRetry=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(row)});
+            if(!rRetry.ok) throw new Error("saveAg retry HTTP "+rRetry.status);
+          } else {
+            // Fallback POST para linhas novas
+            row.id=a.id;
+            var r2=await fetch(SUPA_URL+"/rest/v1/agenda",{method:"POST",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"}),body:JSON.stringify(row)});
+            if(!r2.ok) throw new Error("saveAg HTTP "+r2.status);
+          }
         }
       }
       setSyncStatus("✅ Sinc");
