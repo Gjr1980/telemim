@@ -745,24 +745,85 @@ export default function App(){
 
   // ── SYNC HELPERS ───────────────────────────────────────────────────────────
   function parseImport(txt){
-    const nomeM=txt.match(/\*([^*\n]+?)\s*-\s*N[uú]mero/i)||txt.match(/Sr[a]?\.?\s*\*?([^\n*]+?)\*?\s*[-–]/);
-    const nome=nomeM?nomeM[1].trim():"";
-    const seloM=txt.match(/\b([A-Z]{2,3}-\d{3}-\d{3}-?[A-Z]?)\b/i)||txt.match(/Selo[:\s]*\*?([A-Z]{2,3}-[\d\w-]+)\*?/i);
-    const selo=seloM?seloM[1].trim():"";
-    const comM=txt.match(/\(([^)]+)\)/);
-    const comunidade=comM?comM[1].trim():"";
-    const contatoM=txt.match(/Contato\s*:\s*([^\n*]+)/i);
-    const contato=contatoM?contatoM[1].trim():"";
-    let data="";
-    const dM=txt.match(/(segunda|ter[cç]a|quarta|quinta|sexta|s[áa]bado|domingo)\s*:?\s*(\d{1,2})\/(\d{1,2})/i);
-    if(dM){const d=dM[2].padStart(2,"0"),m=dM[3].padStart(2,"0"),y=new Date().getFullYear();data=y+"-"+m+"-"+d;}
-    const horM=txt.match(/[Hh]or[aá]rio\s*:\s*([^\n*]+)/i);
-    const horario=horM?horM[1].replace(/[*h]/gi,"").trim():"";
-    const origM=txt.match(/[Ee]ndere[cç]o\s+de\s+[Ss]a[íi]da\s*:\s*\*?\s*([^\n]+)/)||txt.match(/[Ss]a[íi]da\s*:\s*\*?\s*([^\n]+)/);
-    const origem=origM?origM[1].replace(/\*+/g,"").trim():"";
-    const destM=txt.match(/[Ee]ndere[cç]o\s+[Ff]inal\s*:\s*\*?\s*([^\n]+)/)||txt.match(/[Dd]estino\s*:\s*([^\n]+)/);
-    const destino=destM?destM[1].replace(/\*+/g,"").replace(/^[Rr]ua\s+para\s+onde\s+vai\s*:\s*/,"").trim():"";
-    return {nome,selo,comunidade,contato,data,horario,origem,destino};
+    // Normalizar: remover asteriscos do WhatsApp, trim por linha
+    var raw=txt.replace(/\*/g,"").replace(/\r/g,"");
+    var lines=raw.split("\n").map(function(l){return l.trim();});
+    var full=lines.join("\n");
+
+    // NOME: "Sr./Sra. Nome - Selo X" ou "O Sr. Nome - Selo X" ou primeiro nome:valor
+    var nome="";
+    var nomeM=full.match(/(?:O\s+)?Sr[a]?\.?\s+([^\n\-]+?)\s*[-\u2013]\s*Selo/i)
+      ||full.match(/(?:O\s+)?Sr[a]?\.?\s+([^\n]+)/i);
+    if(nomeM) nome=nomeM[1].replace(/[-\u2013].*$/,"").trim();
+
+    // SELO: "Selo XXXX" ou nome - Selo X ou padrão alfanumérico próximo de "Selo"
+    var selo="";
+    var seloM=full.match(/[Ss]elo\s*[:\-]?\s*([\w\d][\w\d\-\.]+)/)
+      ||full.match(/[-\u2013]\s*[Ss]elo\s+([\w\d][\w\d\-\.]+)/i)
+      ||full.match(/\b([A-Z]{1,4}[\d][\w\-]*)\b/);
+    if(seloM) selo=seloM[1].trim();
+
+    // CONTATO: aceita "Contato:", "Telefone:", "Celular:", "Tel:", "Fone:"
+    var contato="";
+    var contatoM=full.match(/(?:Contato|Telefone|Celular|Tel|Fone)\s*[:\-]\s*([^\n]+)/i);
+    if(contatoM) contato=contatoM[1].replace(/[*\s]/g," ").trim();
+
+    // COMUNIDADE: aceita "CIS:", "Comunidade:", "(nome da comunidade)"
+    var comunidade="";
+    var comM=full.match(/CIS\s*[:\-]\s*([^\n]+)/i)
+      ||full.match(/[Cc]omunidade\s*[:\-]\s*([^\n]+)/i)
+      ||full.match(/\(([^)\d][^)]+)\)/);
+    if(comM) comunidade=comM[1].trim();
+
+    // DATA: aceita DD/MM/AAAA, DD/MM/AA, DD/MM, com ou sem (dia-da-semana)
+    var data="";
+    var dataM=full.match(/Data\s*(?:[Ss]olicitad[ao]|da\s*[Mm]udan[cç]a)?\s*[:\-]?\s*(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/i)
+      ||full.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if(dataM){
+      var _dd=dataM[1].padStart(2,"0");
+      var _mm=dataM[2].padStart(2,"0");
+      var _aa=dataM[3]?String(dataM[3]):""+new Date().getFullYear();
+      if(_aa.length===2) _aa="20"+_aa;
+      data=_aa+"-"+_mm+"-"+_dd;
+    } else {
+      // Fallback: nome do dia + DD/MM
+      var dM2=full.match(/(segunda|ter[cç]a|quarta|quinta|sexta|s[áa]bado|domingo)[^\d]*(\d{1,2})[\/\-](\d{1,2})/i);
+      if(dM2){var _y=new Date().getFullYear();data=_y+"-"+dM2[3].padStart(2,"0")+"-"+dM2[2].padStart(2,"0");}
+    }
+
+    // HORÁRIO: aceita "Horário:", "Hora:", "H:", "11h", "11:00"
+    var horario="";
+    var horM=full.match(/(?:[Hh]or[aá]rio|[Hh]ora|[Hh]r?)\.?\s*[:\-]\s*([^\n]+)/i)
+      ||full.match(/(\d{1,2})[Hh](\d{0,2})/);
+    if(horM){
+      if(horM[0].match(/[:\-]/)){
+        horario=horM[1].replace(/[*h]/gi,"").trim();
+      } else {
+        horario=horM[1]+(horM[2]?":"+horM[2].padStart(2,"0"):":00");
+      }
+    }
+
+    // ORIGEM: aceita "Endereço de saída:", "Endereço inicial:", "Saída:", "Endereço saída:"
+    var origem="";
+    var origM=full.match(/[Ee]ndere[cç]o\s+(?:de\s+)?[Ss]a[íi]da\s*[:\-]\s*([^\n]+)/)
+      ||full.match(/[Ee]ndere[cç]o\s+[Ii]nicial\s*[:\-]\s*([^\n]+)/)
+      ||full.match(/[Ss]a[íi]da\s*[:\-]\s*([^\n]+)/);
+    if(origM) origem=origM[1].replace(/\*+/g,"").trim();
+
+    // DESTINO: aceita "Endereço Final:", "Destino:", "Endereço de destino:"
+    var destino="";
+    var destM=full.match(/[Ee]ndere[cç]o\s+[Ff]inal\s*[:\-]\s*([^\n]+)/)
+      ||full.match(/[Ee]ndere[cç]o\s+(?:de\s+)?[Dd]estino\s*[:\-]\s*([^\n]+)/)
+      ||full.match(/[Dd]estino\s*[:\-]\s*([^\n]+)/);
+    if(destM) destino=destM[1].replace(/\*+/g,"").trim();
+
+    // VAN: detecta "Van" no texto
+    var van=/\bvan\b/i.test(full);
+
+    // CAMINHÃO: detecta "Caminhão" ou "Caminhao" no texto
+    var caminhao=/caminh[aã]o/i.test(full);
+
+    return {nome,selo,comunidade,contato,data,horario,origem,destino,van,caminhao};
   }
 
     async function saveCustoDia(data, ajudantes, custo_almoco, pago_van=false, pago_caminhao=false, pago_ajudante=false, pago_almoco=false){
