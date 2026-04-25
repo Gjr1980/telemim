@@ -910,13 +910,32 @@ export default function App(){
   }
   async function saveAg(list,changed){
     setAgenda(list);
-    setSyncStatus("🔄 Salvando...");
+    setSyncStatus("⏳ Salvando...");
     try{
       var ts=changed?[changed]:list;
-      for(var i=0;i<ts.length;i++){var a=ts[i];var row={id:a.id,nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado",observacao:a.observacao||"",social_approved:a.social_approved||false,promorar_approved:a.promorar_approved||false,adm_approved:a.adm_approved||false};await fetch(SUPA_URL+"/rest/v1/agenda",{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
+      for(var i=0;i<ts.length;i++){
+        var a=ts[i];
+        var row={nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado",observacao:a.observacao||"",social_approved:a.social_approved||false,promorar_approved:a.promorar_approved||false,adm_approved:a.adm_approved||false};
+        var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{
+          method:"PATCH",
+          headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
+          body:JSON.stringify(row)
+        });
+        if(!r.ok){
+          // Fallback: POST se nao existe
+          row.id=a.id;
+          var r2=await fetch(SUPA_URL+"/rest/v1/agenda",{
+            method:"POST",
+            headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"}),
+            body:JSON.stringify(row)
+          });
+          if(!r2.ok) throw new Error("saveAg HTTP "+r2.status);
+        }
+      }
       setSyncStatus("✅ Sinc");
-    }catch(e){setSyncStatus("⚠️ Erro");loadAg();}
+    }catch(e){setSyncStatus("⚠️ Erro ao guardar");console.error("[saveAg]",e);loadAg();}
   }
+
   async function handleAddMud(){
     if(!form.nome||!form.selo) return;
     // === TRAVA ANTI-DUPLICIDADE: nome OU selo na mesma data ===
