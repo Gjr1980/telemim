@@ -1,6 +1,4 @@
-    setMudancaCanhoto(ag);
-    setModalAssinatura(true);
-    return;
+    if(!window.confirm(`Confirmar como realizada?\nSerá movida para Mudanças Registradas.`))return;
 import { useState, useEffect, useMemo } from "react";
 /* v2 */const _getValidToken=async function(usuario,SUPA_URL,SUPA_KEY){if(!usuario?.token)return null;try{const pl=JSON.parse(atob(usuario.token.split(".")[1]));const ok=pl.exp*1000>Date.now()+30000;if(ok)return usuario.token;if(!usuario.refresh_token)return usuario.token;const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:usuario.refresh_token})});const d=await res.json();if(d.access_token){const saved=JSON.parse(localStorage.getItem("tmim_u")||"{}");saved.token=d.access_token;if(d.refresh_token)saved.refresh_token=d.refresh_token;localStorage.setItem("tmim_u",JSON.stringify(saved));return d.access_token;}}catch(e){}return usuario.token;};
 const _fmtDate=function(d){return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+d.getDate();};
@@ -552,8 +550,6 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
 }
 export default function App(){
   const [usuario,setUsuario]=useState(null);
-  const [modalAssinatura, setModalAssinatura] = useState(false);
-  const [mudancaCanhoto, setMudancaCanhoto] = useState(null);
   const [loginForm,setLoginForm]=useState({email:"",senha:""});
   const [loginErro,setLoginErro]=useState("");
   const [loginLoad,setLoginLoad]=useState(false);
@@ -1148,43 +1144,7 @@ export default function App(){
     setShowNovaConta(false);setFlash('✅ Conta adicionada!');
     loadContasSemana();
   }
-  async function salvarCanhotoNoDrive(agId,pdfB64,nome) {
-    try {
-      const res = await fetch(SUPA_URL+'/functions/v1/canhoto-drive', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({agenda_id:agId,pdf_base64:pdfB64,nome_arquivo:nome})
-      });
-      const d = await res.json();
-      if(d.ok){ setMsgSucesso('✅ Canhoto salvo no Drive!'); setTimeout(()=>setMsgSucesso(''),3000); }
-    } catch(e){ console.warn('[canhoto-drive]',e); }
-  }
-  async function confirmarComAssinatura(assinB64) {
-    const ag = mudancaCanhoto;
-    setModalAssinatura(false); setMudancaCanhoto(null);
-    if(!ag) return;
-    await converterEmMudanca(ag);
-    if(!assinB64) return;
-    try {
-      if(!window.jspdf){ await new Promise((ok,err)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; s.onload=ok; s.onerror=err; document.head.appendChild(s); }); }
-      const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'mm',format:'a4'});
-      doc.setFillColor(230,126,34); doc.rect(0,0,210,22,'F');
-      doc.setTextColor(255,255,255); doc.setFontSize(14); doc.setFont('helvetica','bold');
-      doc.text('TELEMIM - PROMORAR',105,10,{align:'center'}); doc.text('CANHOTO DE MUDANCA',105,18,{align:'center'});
-      doc.setTextColor(0,0,0); doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.text('DADOS DA MUDANCA',15,32);
-      doc.setFont('helvetica','normal'); doc.setFontSize(10);
-      doc.text('Morador: '+(ag.nome||''),15,42);
-      doc.text('Selo: '+(ag.selo||'')+'  |  Comunidade: '+(ag.comunidade||''),15,49);
-      doc.text('Data: '+(ag.data||'')+'  |  Horario: '+(ag.horario||''),15,56);
-      doc.setFont('helvetica','bold'); doc.text('ASSINATURA DO MORADOR',15,78);
-      try{ doc.addImage(assinB64,'PNG',15,82,100,30); }catch(e){}
-      doc.line(15,115,140,115);
-      doc.setFontSize(9); doc.setTextColor(100,100,100); doc.text('Gerado pelo TELEMIM - PROMORAR',105,280,{align:'center'});
-      const pdfFinal=doc.output('datauristring').split(',')[1];
-      const nm='Canhoto_'+(ag.nome||'morador').replace(/\s+/g,'_')+'_'+(ag.data||'sem-data')+'.pdf';
-      await salvarCanhotoNoDrive(ag.id, pdfFinal, nm);
-    } catch(err){ console.warn('[assinatura-pdf]',err); }
-  }
-  async function salvarCanhotoNoDrive(agId,pdfB64,nome){try{const res=await fetch(SUPA_URL+'/functions/v1/canhoto-drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agenda_id:agId,pdf_base64:pdfB64,nome_arquivo:nome})});const d=await res.json();if(d.ok){setMsgSucesso('✅ Canhoto salvo no Drive!');setTimeout(()=>setMsgSucesso(''),3000);}}catch(e){console.warn('[canhoto-drive]',e);}}
+      async function salvarCanhotoNoDrive(agId,pdfB64,nome){try{const res=await fetch(SUPA_URL+'/functions/v1/canhoto-drive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agenda_id:agId,pdf_base64:pdfB64,nome_arquivo:nome})});const d=await res.json();if(d.ok){setMsgSucesso('✅ Canhoto salvo no Drive!');setTimeout(()=>setMsgSucesso(''),3000);}}catch(e){console.warn('[canhoto-drive]',e);}}
   async function confirmarComAssinatura(assinB64){const ag=mudancaCanhoto;setModalAssinatura(false);setMudancaCanhoto(null);if(!ag)return;await converterEmMudanca(ag);if(!assinB64)return;try{if(!window.jspdf){await new Promise((ok,err)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.onload=ok;s.onerror=err;document.head.appendChild(s);});}const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});doc.setFillColor(230,126,34);doc.rect(0,0,210,22,'F');doc.setTextColor(255,255,255);doc.setFontSize(14);doc.setFont('helvetica','bold');doc.text('TELEMIM - PROMORAR',105,10,{align:'center'});doc.text('CANHOTO DE MUDANCA',105,18,{align:'center'});doc.setTextColor(0,0,0);doc.setFontSize(11);doc.setFont('helvetica','bold');doc.text('DADOS DA MUDANCA',15,32);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text('Morador: '+(ag.nome||''),15,42);doc.text('Selo: '+(ag.selo||'')+'  |  Comunidade: '+(ag.comunidade||''),15,49);doc.text('Data: '+(ag.data||'')+'  |  Horario: '+(ag.horario||''),15,56);doc.setFont('helvetica','bold');doc.text('ASSINATURA DO MORADOR',15,78);try{doc.addImage(assinB64,'PNG',15,82,100,30);}catch(e){}doc.line(15,115,140,115);doc.setFontSize(9);doc.setTextColor(100,100,100);doc.text('Gerado pelo TELEMIM - PROMORAR',105,280,{align:'center'});const pdfFinal=doc.output('datauristring').split(',')[1];const nm='Canhoto_'+(ag.nome||'morador').replace(/\s+/g,'_')+'_'+(ag.data||'sem-data')+'.pdf';await salvarCanhotoNoDrive(ag.id,pdfFinal,nm);}catch(err){console.warn('[assinatura-pdf]',err);}}
   async function converterEmMudanca(ag){
     if(!ag.medicao){alert('Informe a medição (m³) antes de finalizar.');return;}
@@ -2548,27 +2508,5 @@ return(
 
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.55)",zIndex:9998,display:confirmDelete?"flex":"none",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setConfirmDelete(null);}}><div style={{background:"#fff",borderRadius:20,padding:"28px 24px",maxWidth:340,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.2)",textAlign:"center"}} onClick={function(e){e.stopPropagation();}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><div style={{fontWeight:800,fontSize:16,color:"#1e293b",marginBottom:8}}>Tem a certeza?</div><div style={{fontSize:13,color:"#64748b",marginBottom:20}}>Apagar <strong>{confirmDelete&&confirmDelete.nome}</strong>?</div><div style={{display:"flex",gap:10}}><button onClick={function(){setConfirmDelete(null);}} style={{flex:1,padding:"11px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancelar</button><button onClick={function(){if(confirmDelete&&confirmDelete.tipo==="mud")handleDelMud(confirmDelete.id);else if(confirmDelete)handleDelAg(confirmDelete.id);setConfirmDelete(null);}} style={{flex:1,padding:"11px 0",borderRadius:12,border:"none",background:"#ef4444",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>🗑️ Sim, Apagar</button></div></div></div>
     </div>
-    {modalAssinatura && mudancaCanhoto && (
-      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.72)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-        <div style={{background:"#fff",borderRadius:16,padding:24,width:"100%",maxWidth:400}}>
-          <p style={{margin:"0 0 2px",fontWeight:700,fontSize:16}}>✍️ Assinatura do Morador</p>
-          <p style={{margin:"0 0 14px",fontSize:12,color:"#666"}}>{mudancaCanhoto.nome} — {mudancaCanhoto.data}</p>
-          <div style={{border:"1.5px solid #e2e8f0",borderRadius:8,overflow:"hidden",marginBottom:12,background:"#f8fafc"}}>
-            <canvas id="cvAssin" width={360} height={150}
-              style={{display:"block",width:"100%",touchAction:"none",cursor:"crosshair"}}
-              onPointerDown={function(e){var cv=e.currentTarget,ctx=cv.getContext("2d");cv._d=true;var b=cv.getBoundingClientRect();ctx.beginPath();ctx.moveTo((e.clientX-b.left)*(cv.width/b.width),(e.clientY-b.top)*(cv.height/b.height));}}
-              onPointerMove={function(e){var cv=e.currentTarget;if(!cv._d)return;var b=cv.getBoundingClientRect(),ctx=cv.getContext("2d");ctx.lineWidth=2.5;ctx.strokeStyle="#1e293b";ctx.lineCap="round";ctx.lineTo((e.clientX-b.left)*(cv.width/b.width),(e.clientY-b.top)*(cv.height/b.height));ctx.stroke();}}
-              onPointerUp={function(e){e.currentTarget._d=false;}}
-              onPointerLeave={function(e){e.currentTarget._d=false;}}
-            />
-          </div>
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={function(){var cv=document.getElementById("cvAssin");if(cv)cv.getContext("2d").clearRect(0,0,cv.width,cv.height);}} style={{flex:1,padding:"10px 0",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:13}}>Limpar</button>
-            <button onClick={function(){setModalAssinatura(false);setMudancaCanhoto(null);}} style={{flex:1,padding:"10px 0",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:13}}>Cancelar</button>
-            <button onClick={function(){var cv=document.getElementById("cvAssin");confirmarComAssinatura(cv?cv.toDataURL("image/png"):null);}} style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:"#16a34a",color:"#fff",cursor:"pointer",fontWeight:700,fontSize:14}}>✅ Confirmar</button>
-          </div>
-        </div>
-      </div>
-    )}
   );
 }
