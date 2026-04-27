@@ -2252,11 +2252,34 @@ export default function App(){
   return(
   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
     <div style={{background:"linear-gradient(135deg,#fff7ed,#ffedd5)",border:"2px solid #fb923c",borderRadius:14,padding:"12px 12px 10px"}}>
-      <div style={{fontSize:10,color:"#ea580c",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>⚡ Fat. Diário Méd.</div>
-      <div style={{fontSize:18,fontWeight:900,color:"#c2410c",marginBottom:4}}>{"R$ "+_fvs(_fatDiaMed)}</div>
-      <div style={{fontSize:10,color:"#9a3412",background:"rgba(234,88,12,0.1)",borderRadius:6,padding:"2px 6px",display:"inline-block"}}>{"por dia • "+[...new Set(_mudM.map(function(m){return m.data;}))].length+" dias trabalhados"}</div>
+      {(function(){
+        var _hj3=new Date();
+        var _p3=function(n){return String(n).padStart(2,"0");};
+        var _hoje3=_hj3.getFullYear()+"-"+_p3(_hj3.getMonth()+1)+"-"+_p3(_hj3.getDate());
+        var _mudHj=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data===_hoje3;});
+        var _m3Hj=_mudHj.reduce(function(s,m){return s+(parseFloat(m.medicao)||0);},0);
+        var _valMud=_m3Hj*(parseFloat(RULES.medicaoPorM3)||150);
+        var _valVan=parseFloat(RULES.vanGanho)||1000;
+        var _totalDia=_valMud+_valVan;
+        return(
+          <div>
+            <div style={{fontSize:10,color:"#ea580c",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>⚡ Faturamento Diário</div>
+            <div style={{fontSize:18,fontWeight:900,color:"#c2410c",marginBottom:8}}>{"R$ "+_fvs(_totalDia)}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:3}}>
+              <div style={{display:"flex",justifyContent:"space-between",background:"rgba(234,88,12,0.08)",borderRadius:6,padding:"3px 6px"}}>
+                <span style={{fontSize:10,color:"#9a3412"}}>💼 Mudanças ({_m3Hj}m³ × R${parseFloat(RULES.medicaoPorM3)||150})</span>
+                <span style={{fontSize:10,fontWeight:700,color:"#c2410c"}}>{"R$ "+_fvs(_valMud)}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",background:"rgba(234,88,12,0.08)",borderRadius:6,padding:"3px 6px"}}>
+                <span style={{fontSize:10,color:"#9a3412"}}>🚐 Van (diária)</span>
+                <span style={{fontSize:10,fontWeight:700,color:"#c2410c"}}>{"R$ "+_fvs(_valVan)}</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
-    <div style={{background:"linear-gradient(135deg,#faf5ff,#ede9fe)",border:"2px solid #a78bfa",borderRadius:14,padding:"12px 12px 10px"}}>
+   <div style={{background:"linear-gradient(135deg,#faf5ff,#ede9fe)",border:"2px solid #a78bfa",borderRadius:14,padding:"12px 12px 10px"}}>
       <div style={{fontSize:10,color:"#7c3aed",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>📅 Fat. Semana Atual</div>
       <div style={{fontSize:18,fontWeight:900,color:"#5b21b6",marginBottom:4}}>{"R$ "+_fvs(_fatSem)}</div>
       <div style={{fontSize:10,color:"#4c1d95",background:"rgba(124,58,237,0.1)",borderRadius:6,padding:"2px 6px",display:"inline-block"}}>{"mudancas: "+_mudSem.length+" • "+_diasSem+" "+((_diasSem===1)?"dia":"dias")}</div>
