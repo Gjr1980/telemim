@@ -2002,7 +2002,7 @@ export default function App(){
             })}
           </div>
         )}
-        {(function(){isMotorista ? (abaMotorista==='registros' && {
+        {(function(){isMotorista ? (abaMotorista==='registros' ? ({
           var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();
           var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
           var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort();
@@ -2025,7 +2025,7 @@ export default function App(){
               </div>
             </div>
           );
-        }) : {
+        })) : null) : ({
           var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();
           var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
           var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort();
@@ -2048,7 +2048,8 @@ export default function App(){
               </div>
             </div>
           );
-        }})()}
+        }))}
+)()}
 
 
 {tab==="financeiro"&&<div style={{padding:"8px 12px 12px",background:"#f8fafc"}}><button onClick={function(){window.print();}} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#1e40af,#1e293b)",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📄 Exportar PDF</button></div>}
