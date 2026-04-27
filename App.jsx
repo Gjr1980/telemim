@@ -2233,6 +2233,16 @@ export default function App(){
                 📊 Gerencial — {_nm}
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                <div style={{background:"linear-gradient(135deg,#1e3a8a,#2563eb)",border:"1.5px solid #93c5fd",borderRadius:14,padding:"12px 12px 10px"}}>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.7)",fontWeight:700,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.5px"}}>📅 Faturamento Dia</div>
+                  <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:2}}>{_r?"R$ "+_fvs(parseFloat(_r.fat_bruto||0)):"R$ 0,00"}</div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>{_r?(_r.qtd_mud||0)+" mudança(s)":"Sem dados hoje"}</div>
+                </div>
+                <div style={{background:"linear-gradient(135deg,#064e3b,#059669)",border:"1.5px solid #6ee7b7",borderRadius:14,padding:"12px 12px 10px"}}>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.7)",fontWeight:700,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.5px"}}>📆 Faturamento Semana</div>
+                  {(()=>{var _fS=_csM.filter(function(x){return x.tipo==="receita";}).reduce(function(s,x){return s+parseFloat(x.valor||0);},0);return(<div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:2}}>{"R$ "+_fvs(_fS)}</div>);})()}
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>{_csM.filter(function(x){return x.tipo==="receita";}).length+" lance(s)"}</div>
+                </div>
                 <div style={{background:"#fff5f5",border:"2px solid #fca5a5",borderRadius:14,padding:"12px 12px 10px"}}>
                   <div style={{fontSize:10,color:"#ef4444",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>
                     💸 Despesa Total
@@ -2278,6 +2288,7 @@ export default function App(){
                   <div>
                     <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>Receita Líquida (após impostos)</div>
                     <div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,0.85)",marginTop:2}}>{"R$ "+_fvs(_r.fatLiq)}</div>
+                  {_r&&parseFloat(_r.fat_bruto||0)>0&&<div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.92)",marginTop:5,background:"rgba(255,255,255,0.2)",borderRadius:20,padding:"2px 10px",display:"inline-block"}}>{"📈 "+(parseFloat(_r.lucro||0)/parseFloat(_r.fat_bruto||1)*100).toFixed(1)+"% lucro"}</div>}
                   </div>
                   <div style={{textAlign:"right"}}>
                     <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>Impostos ({((RULES.imposto||0)*100).toFixed(0)}%)</div>
