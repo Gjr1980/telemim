@@ -2232,17 +2232,39 @@ export default function App(){
               <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>
                 📊 Gerencial — {_nm}
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                <div style={{background:"linear-gradient(135deg,#1e3a8a,#2563eb)",border:"1.5px solid #93c5fd",borderRadius:14,padding:"12px 12px 10px"}}>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.7)",fontWeight:700,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.5px"}}>📅 Faturamento Dia</div>
-                  <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:2}}>{_r?"R$ "+_fvs(parseFloat(_r.fat_bruto||0)):"R$ 0,00"}</div>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>{_r?(_r.qtd_mud||0)+" mudança(s)":"Sem dados hoje"}</div>
-                </div>
-                <div style={{background:"linear-gradient(135deg,#064e3b,#059669)",border:"1.5px solid #6ee7b7",borderRadius:14,padding:"12px 12px 10px"}}>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.7)",fontWeight:700,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.5px"}}>📆 Faturamento Semana</div>
-                  {(()=>{var _fS=_csM.filter(function(x){return x.tipo==="receita";}).reduce(function(s,x){return s+parseFloat(x.valor||0);},0);return(<div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:2}}>{"R$ "+_fvs(_fS)}</div>);})()}
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>{_csM.filter(function(x){return x.tipo==="receita";}).length+" lance(s)"}</div>
-                </div>
+              {(function(){
+  // Faturamento médio diário (mês)
+  var _fatDiaMed=_r.fatBruto>0&&_mudM.length>0
+    ?_r.fatBruto/[...new Set(_mudM.map(function(m){return m.data;}))].length
+    :0;
+  // Faturamento semanal (semana actual)
+  var _hj2=new Date();
+  var _dw2=_hj2.getDay();var _dif2=_dw2===0?6:_dw2-1;
+  var _s0w=new Date(_hj2.getFullYear(),_hj2.getMonth(),_hj2.getDate()-_dif2);
+  var _s1w=new Date(_s0w.getFullYear(),_s0w.getMonth(),_s0w.getDate()+6);
+  var _p2=function(n){return String(n).padStart(2,"0");};
+  var _si2=_s0w.getFullYear()+"-"+_p2(_s0w.getMonth()+1)+"-"+_p2(_s0w.getDate());
+  var _sf2=_s1w.getFullYear()+"-"+_p2(_s1w.getMonth()+1)+"-"+_p2(_s1w.getDate());
+  var _mudSem=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data>=_si2&&m.data<=_sf2;});
+  var _rSem=_calcCustos(_mudSem,(custosDiarios||[]).filter(function(cd){return cd.data>=_si2&&cd.data<=_sf2;}),(contasPagar||[]).filter(function(cp){return cp.data&&cp.data>=_si2&&cp.data<=_sf2;}),RULES);
+  var _fatSem=_rSem.fatBruto;
+  var _diasSem=[...new Set(_mudSem.map(function(m){return m.data;}))].length;
+  return(
+  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+    <div style={{background:"linear-gradient(135deg,#fff7ed,#ffedd5)",border:"2px solid #fb923c",borderRadius:14,padding:"12px 12px 10px"}}>
+      <div style={{fontSize:10,color:"#ea580c",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>⚡ Fat. Diário Méd.</div>
+      <div style={{fontSize:18,fontWeight:900,color:"#c2410c",marginBottom:4}}>{"R$ "+_fvs(_fatDiaMed)}</div>
+      <div style={{fontSize:10,color:"#9a3412",background:"rgba(234,88,12,0.1)",borderRadius:6,padding:"2px 6px",display:"inline-block"}}>{"por dia • "+[...new Set(_mudM.map(function(m){return m.data;}))].length+" dias trabalhados"}</div>
+    </div>
+    <div style={{background:"linear-gradient(135deg,#faf5ff,#ede9fe)",border:"2px solid #a78bfa",borderRadius:14,padding:"12px 12px 10px"}}>
+      <div style={{fontSize:10,color:"#7c3aed",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>📅 Fat. Semana Atual</div>
+      <div style={{fontSize:18,fontWeight:900,color:"#5b21b6",marginBottom:4}}>{"R$ "+_fvs(_fatSem)}</div>
+      <div style={{fontSize:10,color:"#4c1d95",background:"rgba(124,58,237,0.1)",borderRadius:6,padding:"2px 6px",display:"inline-block"}}>{"mudancas: "+_mudSem.length+" • "+_diasSem+" "+((_diasSem===1)?"dia":"dias")}</div>
+    </div>
+  </div>
+  );
+})()}
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                 <div style={{background:"#fff5f5",border:"2px solid #fca5a5",borderRadius:14,padding:"12px 12px 10px"}}>
                   <div style={{fontSize:10,color:"#ef4444",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>
                     💸 Despesa Total
@@ -2288,7 +2310,11 @@ export default function App(){
                   <div>
                     <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>Receita Líquida (após impostos)</div>
                     <div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,0.85)",marginTop:2}}>{"R$ "+_fvs(_r.fatLiq)}</div>
-                  {_r&&parseFloat(_r.fat_bruto||0)>0&&<div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.92)",marginTop:5,background:"rgba(255,255,255,0.2)",borderRadius:20,padding:"2px 10px",display:"inline-block"}}>{"📈 "+(parseFloat(_r.lucro||0)/parseFloat(_r.fat_bruto||1)*100).toFixed(1)+"% lucro"}</div>}
+                    <div style={{marginTop:4,display:"flex",alignItems:"center",gap:4}}>
+                      <span style={{background:"rgba(34,197,94,0.25)",border:"1px solid rgba(34,197,94,0.5)",borderRadius:20,padding:"1px 8px",fontSize:11,fontWeight:700,color:"#86efac"}}>
+                        {_r.fatBruto>0?((_r.fatLiq/_r.fatBruto)*100).toFixed(1)+"%":"0%"} lucro líquido
+                      </span>
+                    </div>
                   </div>
                   <div style={{textAlign:"right"}}>
                     <div style={{fontSize:10,color:"rgba(255,255,255,0.65)",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>Impostos ({((RULES.imposto||0)*100).toFixed(0)}%)</div>
