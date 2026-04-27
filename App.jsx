@@ -551,6 +551,7 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
 export default function App(){
   const [usuario,setUsuario]=useState(null);
   const [modalAssinatura, setModalAssinatura] = useState(false);
+  const [abaMotorista, setAbaMotorista] = useState('hoje');
   const [mudancaCanhoto, setMudancaCanhoto] = useState(null);
   const [loginForm,setLoginForm]=useState({email:"",senha:""});
   const [loginErro,setLoginErro]=useState("");
@@ -1770,6 +1771,24 @@ export default function App(){
 
   function compartilharWhatsApp(a,tipo="agendamento"){
     const veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
+    {isMotorista && (
+      <div style={{display:'flex',gap:0,marginBottom:16,background:'#f1f5f9',borderRadius:10,padding:3}}>
+        <button
+          onClick={()=>setAbaMotorista('hoje')}
+          style={{flex:1,padding:'8px 0',borderRadius:8,border:'none',fontWeight:700,fontSize:13,cursor:'pointer',transition:'all .2s',
+            background:abaMotorista==='hoje'?'#fff':'transparent',
+            color:abaMotorista==='hoje'?'#E87E22':'#64748b',
+            boxShadow:abaMotorista==='hoje'?'0 1px 4px rgba(0,0,0,0.10)':'none'
+          }}>🚛 Hoje</button>
+        <button
+          onClick={()=>setAbaMotorista('registros')}
+          style={{flex:1,padding:'8px 0',borderRadius:8,border:'none',fontWeight:700,fontSize:13,cursor:'pointer',transition:'all .2s',
+            background:abaMotorista==='registros'?'#fff':'transparent',
+            color:abaMotorista==='registros'?'#E87E22':'#64748b',
+            boxShadow:abaMotorista==='registros'?'0 1px 4px rgba(0,0,0,0.10)':'none'
+          }}>📋 Registros</button>
+      </div>
+    )}
     const texto=`🚛 *TELEMIM — ${tipo==="hoje"?"MUDANÇA HOJE":"MUDANÇA AGENDADA"}*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* ${a.nome}\n🏷️ *Selo:* ${a.selo||"—"}\n📅 *Data:* ${fmtDate(a.data)}${a.horario?` ⏰ ${a.horario}`:""}\n📍 *Comunidade:* ${a.comunidade||"—"}\n📦 *Saída:* ${a.origem||"—"}\n🏠 *Chegada:* ${a.destino||"—"}\n🚗 *Veículos:* ${veiculos}${a.contato?`\n📞 *Contato:* ${a.contato}`:""}\n━━━━━━━━━━━━━━━━━\n✅ *Status:* ${a.status==="confirmado"?"Confirmado":a.status==="pendente"?"Pendente":"Realizado"}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`,"_blank");
   }
@@ -1997,7 +2016,7 @@ export default function App(){
             })}
           </div>
         )}
-        {(function(){
+        {(function(){isMotorista ? (abaMotorista==='registros' && {
           var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();
           var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
           var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort();
@@ -2020,7 +2039,30 @@ export default function App(){
               </div>
             </div>
           );
-        })()}
+        }) : {
+          var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();
+          var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
+          var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort();
+          return (
+            <div style={{margin:"0 12px 16px",background:"linear-gradient(135deg,#1e293b,#1e3a8a)",borderRadius:18,padding:"20px 18px 18px",boxShadow:"0 8px 32px rgba(30,41,59,0.25)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                <span style={{fontSize:14,fontWeight:900,color:"rgba(255,255,255,0.5)",letterSpacing:1,textTransform:"uppercase"}}>⚠️ PREPARAÇÃO AMANHÃ — 🗓️ {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][hj.getMonth()].toUpperCase()} {hj.getFullYear()}</span>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:12}}>
+                <div style={{background:"linear-gradient(135deg,#15803d,#166534)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 16px rgba(21,128,61,0.4)"}}>
+                  <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>{isMotorista?"DIÁRIAS REALIZADAS":"MUDANÇAS NO MÊS"}</div>
+                  <div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_realizadasMes}</div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>{isMotorista?"dias com mudanças":("mudanças em "+_mesesNome[_mesAtual])}</div>
+                </div>
+                <div style={{background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 16px rgba(30,58,138,0.4)"}}>
+                  <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>PENDENTES</div>
+                  <div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_pendentesMes}</div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>a realizar 📝</div>
+                </div>
+              </div>
+            </div>
+          );
+        }})()}
 
 
 {tab==="financeiro"&&<div style={{padding:"8px 12px 12px",background:"#f8fafc"}}><button onClick={function(){window.print();}} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#1e40af,#1e293b)",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📄 Exportar PDF</button></div>}
@@ -2040,7 +2082,7 @@ export default function App(){
                     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><TagSelo v={m.selo}/><TagData v={m.data}/></div>
                   </div>
                   <div style={{display:"flex",gap:5,alignItems:"center",marginLeft:8}}>
-                    {verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
+                    {!isMotorista && verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
                     {m.contato&&<button onClick={()=>{var tel=(m.contato||"").replace(/\D/g,"");var txt="\uD83D\uDE9A *TELEMIM — Sua Mudan\u00E7a*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nOl\u00E1 *"+m.nome+"*! \uD83D\uDC4B\nConfirmamos sua mudan\u00E7a:\n\uD83D\uDCC5 *Data:* "+_fmtDate(m.data)+"\n\uD83D\uDCCD *Sa\u00EDda:* "+(m.comunidade||m.origem||"-")+"\n\uD83D\uDCCD *Destino:* "+(m.destino||"-")+"\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nEm caso de d\u00FAvidas, entre em contacto. \uD83D\uDE0A\n_TELEMIM_";window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent(txt),"_blank");}} style={{background:"#25d366",border:"none",color:"#fff",borderRadius:6,padding:"5px 8px",cursor:"pointer",fontSize:14}} title="WhatsApp Morador">📱</button>}
                     <button onClick={()=>compartilharMudanca(m)} style={btnGreen}>📲</button>
                     {m.signature_data
