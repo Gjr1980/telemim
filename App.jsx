@@ -1769,11 +1769,12 @@ export default function App(){
   // ── PDF MUDANÇA INDIVIDUAL ─────────────────────────────────────────────────
   function gerarPDFAgendamento(a,btn){gerarPDFCardIndividual(a,btn);}
 
-  function compartilharWhatsApp(a,tipo="agendamento"){
-    {isMotorista && (
+{isMotorista && (
       <div style={{display:'flex',gap:0,marginBottom:16,background:'#f1f5f9',borderRadius:10,padding:3}}><button onClick={()=>setAbaMotorista('hoje')} style={{flex:1,padding:'8px 0',borderRadius:8,border:'none',fontWeight:700,fontSize:13,cursor:'pointer',background:abaMotorista==='hoje'?'#fff':'transparent',color:abaMotorista==='hoje'?'#E87E22':'#64748b',boxShadow:abaMotorista==='hoje'?'0 1px 4px rgba(0,0,0,.1)':'none'}}>🚛 Hoje</button><button onClick={()=>setAbaMotorista('registros')} style={{flex:1,padding:'8px 0',borderRadius:8,border:'none',fontWeight:700,fontSize:13,cursor:'pointer',background:abaMotorista==='registros'?'#fff':'transparent',color:abaMotorista==='registros'?'#E87E22':'#64748b',boxShadow:abaMotorista==='registros'?'0 1px 4px rgba(0,0,0,.1)':'none'}}>📋 Registros</button></div>
     )}
-    const veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
+
+  function compartilharWhatsApp(a,tipo="agendamento"){
+        const veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
         const texto=`🚛 *TELEMIM — ${tipo==="hoje"?"MUDANÇA HOJE":"MUDANÇA AGENDADA"}*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* ${a.nome}\n🏷️ *Selo:* ${a.selo||"—"}\n📅 *Data:* ${fmtDate(a.data)}${a.horario?` ⏰ ${a.horario}`:""}\n📍 *Comunidade:* ${a.comunidade||"—"}\n📦 *Saída:* ${a.origem||"—"}\n🏠 *Chegada:* ${a.destino||"—"}\n🚗 *Veículos:* ${veiculos}${a.contato?`\n📞 *Contato:* ${a.contato}`:""}\n━━━━━━━━━━━━━━━━━\n✅ *Status:* ${a.status==="confirmado"?"Confirmado":a.status==="pendente"?"Pendente":"Realizado"}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`,"_blank");
   }
