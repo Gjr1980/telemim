@@ -550,8 +550,8 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
 }
 export default function App(){
   const [usuario,setUsuario]=useState(null);
+  const [abaMotorista,setAbaMotorista]=useState('hoje');
   const [modalAssinatura, setModalAssinatura] = useState(false);
-  const [abaMotorista, setAbaMotorista] = useState('hoje');
   const [mudancaCanhoto, setMudancaCanhoto] = useState(null);
   const [loginForm,setLoginForm]=useState({email:"",senha:""});
   const [loginErro,setLoginErro]=useState("");
@@ -1769,13 +1769,10 @@ export default function App(){
   // ── PDF MUDANÇA INDIVIDUAL ─────────────────────────────────────────────────
   function gerarPDFAgendamento(a,btn){gerarPDFCardIndividual(a,btn);}
 
-{isMotorista && (
-      <div style={{display:'flex',gap:0,marginBottom:16,background:'#f1f5f9',borderRadius:10,padding:3}}><button onClick={()=>setAbaMotorista('hoje')} style={{flex:1,padding:'8px 0',borderRadius:8,border:'none',fontWeight:700,fontSize:13,cursor:'pointer',background:abaMotorista==='hoje'?'#fff':'transparent',color:abaMotorista==='hoje'?'#E87E22':'#64748b',boxShadow:abaMotorista==='hoje'?'0 1px 4px rgba(0,0,0,.1)':'none'}}>🚛 Hoje</button><button onClick={()=>setAbaMotorista('registros')} style={{flex:1,padding:'8px 0',borderRadius:8,border:'none',fontWeight:700,fontSize:13,cursor:'pointer',background:abaMotorista==='registros'?'#fff':'transparent',color:abaMotorista==='registros'?'#E87E22':'#64748b',boxShadow:abaMotorista==='registros'?'0 1px 4px rgba(0,0,0,.1)':'none'}}>📋 Registros</button></div>
-    )}
-
   function compartilharWhatsApp(a,tipo="agendamento"){
-        const veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
-        const texto=`🚛 *TELEMIM — ${tipo==="hoje"?"MUDANÇA HOJE":"MUDANÇA AGENDADA"}*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* ${a.nome}\n🏷️ *Selo:* ${a.selo||"—"}\n📅 *Data:* ${fmtDate(a.data)}${a.horario?` ⏰ ${a.horario}`:""}\n📍 *Comunidade:* ${a.comunidade||"—"}\n📦 *Saída:* ${a.origem||"—"}\n🏠 *Chegada:* ${a.destino||"—"}\n🚗 *Veículos:* ${veiculos}${a.contato?`\n📞 *Contato:* ${a.contato}`:""}\n━━━━━━━━━━━━━━━━━\n✅ *Status:* ${a.status==="confirmado"?"Confirmado":a.status==="pendente"?"Pendente":"Realizado"}`;
+    {isMotorista&&<div style={{display:'flex',gap:0,marginBottom:16,background:'#f1f5f9',borderRadius:10,padding:3}}><button onClick={()=>setAbaMotorista('hoje')} style={{flex:1,padding:'8px 0',borderRadius:8,border:'none',fontWeight:700,fontSize:13,cursor:'pointer',background:abaMotorista==='hoje'?'#fff':'transparent',color:abaMotorista==='hoje'?'#E87E22':'#64748b',boxShadow:abaMotorista==='hoje'?'0 1px 4px rgba(0,0,0,.1)':'none'}}>{String.fromCodePoint(0x1F69B)} Hoje</button><button onClick={()=>setAbaMotorista('registros')} style={{flex:1,padding:'8px 0',borderRadius:8,border:'none',fontWeight:700,fontSize:13,cursor:'pointer',background:abaMotorista==='registros'?'#fff':'transparent',color:abaMotorista==='registros'?'#E87E22':'#64748b',boxShadow:abaMotorista==='registros'?'0 1px 4px rgba(0,0,0,.1)':'none'}}>{String.fromCodePoint(0x1F4CB)} Registros</button></div>}
+    const veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
+    const texto=`🚛 *TELEMIM — ${tipo==="hoje"?"MUDANÇA HOJE":"MUDANÇA AGENDADA"}*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* ${a.nome}\n🏷️ *Selo:* ${a.selo||"—"}\n📅 *Data:* ${fmtDate(a.data)}${a.horario?` ⏰ ${a.horario}`:""}\n📍 *Comunidade:* ${a.comunidade||"—"}\n📦 *Saída:* ${a.origem||"—"}\n🏠 *Chegada:* ${a.destino||"—"}\n🚗 *Veículos:* ${veiculos}${a.contato?`\n📞 *Contato:* ${a.contato}`:""}\n━━━━━━━━━━━━━━━━━\n✅ *Status:* ${a.status==="confirmado"?"Confirmado":a.status==="pendente"?"Pendente":"Realizado"}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`,"_blank");
   }
   function compartilharMudanca(m){
@@ -2002,7 +1999,7 @@ export default function App(){
             })}
           </div>
         )}
-        {(function()<div style={{display:isMotorista&&abaMotorista!=='registros'?'none':undefined}}>{
+        <div style={{display:isMotorista&&abaMotorista!=='registros'?'none':undefined}}>{(function(){
           var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();
           var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
           var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort();
@@ -2025,8 +2022,7 @@ export default function App(){
               </div>
             </div>
           );
-        }</div>
-)()}
+        })()}</div>
 
 
 {tab==="financeiro"&&<div style={{padding:"8px 12px 12px",background:"#f8fafc"}}><button onClick={function(){window.print();}} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#1e40af,#1e293b)",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📄 Exportar PDF</button></div>}
@@ -2046,7 +2042,7 @@ export default function App(){
                     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><TagSelo v={m.selo}/><TagData v={m.data}/></div>
                   </div>
                   <div style={{display:"flex",gap:5,alignItems:"center",marginLeft:8}}>
-                    {!isMotorista && verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
+                    {!isMotorista&&verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
                     {m.contato&&<button onClick={()=>{var tel=(m.contato||"").replace(/\D/g,"");var txt="\uD83D\uDE9A *TELEMIM — Sua Mudan\u00E7a*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nOl\u00E1 *"+m.nome+"*! \uD83D\uDC4B\nConfirmamos sua mudan\u00E7a:\n\uD83D\uDCC5 *Data:* "+_fmtDate(m.data)+"\n\uD83D\uDCCD *Sa\u00EDda:* "+(m.comunidade||m.origem||"-")+"\n\uD83D\uDCCD *Destino:* "+(m.destino||"-")+"\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nEm caso de d\u00FAvidas, entre em contacto. \uD83D\uDE0A\n_TELEMIM_";window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent(txt),"_blank");}} style={{background:"#25d366",border:"none",color:"#fff",borderRadius:6,padding:"5px 8px",cursor:"pointer",fontSize:14}} title="WhatsApp Morador">📱</button>}
                     <button onClick={()=>compartilharMudanca(m)} style={btnGreen}>📲</button>
                     {m.signature_data
