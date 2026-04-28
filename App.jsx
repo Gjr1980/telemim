@@ -1993,7 +1993,7 @@ export default function App(){
             })}
           </div>
         )}
-        <div style={{display:isMotorista&&abaMotorista!=='registros'?'none':undefined}}>{tab==="registros_mot"&&isMotorista&&(function(){
+        <div style={{display:isMotorista&&abaMotorista!=='registros'&&tab!=='registros_mot'?'none':undefined}}>{tab==="registros_mot"&&isMotorista&&(function(){
           var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();
           var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
           var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort();
