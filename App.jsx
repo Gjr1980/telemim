@@ -2017,30 +2017,7 @@ export default function App(){
             </div>
           );
         })()}
-        tab==="registros_mot"&&isMotorista&&(function(){
-          var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();
-          var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
-          var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort();
-          return (
-            <div style={{margin:"0 12px 16px",background:"linear-gradient(135deg,#1e293b,#1e3a8a)",borderRadius:18,padding:"20px 18px 18px",boxShadow:"0 8px 32px rgba(30,41,59,0.25)"}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                <span style={{fontSize:14,fontWeight:900,color:"rgba(255,255,255,0.5)",letterSpacing:1,textTransform:"uppercase"}}>⚠️ PREPARAÇÃO AMANHÃ — 🗓️ {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][hj.getMonth()].toUpperCase()} {hj.getFullYear()}</span>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:12}}>
-                <div style={{background:"linear-gradient(135deg,#15803d,#166534)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 16px rgba(21,128,61,0.4)"}}>
-                  <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>{isMotorista?"DIÁRIAS REALIZADAS":"MUDANÇAS NO MÊS"}</div>
-                  <div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_realizadasMes}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>{isMotorista?"dias com mudanças":("mudanças em "+_mesesNome[_mesAtual])}</div>
-                </div>
-                <div style={{background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 16px rgba(30,58,138,0.4)"}}>
-                  <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>PENDENTES</div>
-                  <div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_pendentesMes}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>a realizar 📝</div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+        {tab==="registros_mot"&&isMotorista&&(function(){var hj2=new Date();var anoMes2=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj2.toISOString().slice(0,7);})();var mudMes2=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes2;});var diasU2=[...new Set(mudMes2.map(function(m){return m.data;}))].sort(function(a,b){return b.localeCompare(a);});var totMes2=mudMes2.length;return (<div style={{padding:'16px 12px',background:'#f8fafc'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}><div style={{fontWeight:800,fontSize:15,color:'#1e293b'}}>📋 Mudanças do Mês</div><span style={{background:'#e0e7ff',color:'#3730a3',borderRadius:20,padding:'4px 12px',fontSize:12,fontWeight:700}}>{totMes2} total</span></div>{diasU2.length===0&&<div style={{textAlign:'center',color:'#94a3b8',padding:'20px 0'}}>Nenhuma mudança este mês</div>}{diasU2.map(function(dia){var mDia2=mudMes2.filter(function(m){return m.data===dia;});var df2=dia.slice(8)+'/'+dia.slice(5,7)+'/'+dia.slice(0,4);var isHj2=dia===hj2.toISOString().slice(0,10);return(<div key={dia} style={{background:'#fff',borderRadius:12,padding:'14px 16px',marginBottom:10,boxShadow:'0 1px 6px rgba(0,0,0,0.06)',border:isHj2?'1.5px solid #3b82f6':'1px solid #e2e8f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontWeight:700,fontSize:14,color:isHj2?'#1e40af':'#1e293b'}}>{df2}{isHj2&&<span style={{marginLeft:8,background:'#dbeafe',color:'#1e40af',borderRadius:6,padding:'1px 7px',fontSize:10,fontWeight:700}}>HOJE</span>}</div><span style={{background:'#e0e7ff',color:'#3730a3',borderRadius:20,padding:'3px 10px',fontSize:12,fontWeight:700}}>{mDia2.length} mud.</span></div>{mDia2.map(function(m,i2){return(<div key={i2} style={{display:'flex',alignItems:'center',padding:'7px 0',borderTop:i2>0?'1px solid #f1f5f9':'none'}}><div style={{width:7,height:7,borderRadius:'50%',background:m.status==='concluida'?'#047857':m.status==='cancelada'?'#dc2626':'#f59e0b',marginRight:10,flexShrink:0}}></div><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:'#334155'}}>{m.nome}</div><div style={{fontSize:11,color:'#94a3b8'}}>{m.comunidade||''}</div></div></div>);})}</div>);})}</div>);})()}
 {!isMotorista&&tab==="dashboard"&&(function(){
           var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();
           var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
