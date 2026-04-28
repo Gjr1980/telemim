@@ -409,17 +409,10 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
           return dData>=_si6&&dData<=_sf6?s+(parseFloat(d.val)||0):s;
         },0);
         var _hd6={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json","Prefer":"return=minimal"};
-        fetch(SUPA_URL+"/rest/v1/contas_semana?semana_inicio=eq."+_si6+"&semana_fim=eq."+_sf6+"&tipo=eq."+_tipo6,{
-          method:"PATCH",headers:_hd6,
-          body:JSON.stringify({valor_calculado:_tot6})
-        }).then(function(rp){
-          if(rp&&rp.status===404){
-            return fetch(SUPA_URL+"/rest/v1/contas_semana",{
-              method:"POST",
-              headers:Object.assign({},_hd6,{"Prefer":"resolution=merge-duplicates"}),
-              body:JSON.stringify({semana_inicio:_si6,semana_fim:_sf6,tipo:_tipo6,valor_calculado:_tot6,status:"pendente"})
-            });
-          }
+        fetch(SUPA_URL+"/rest/v1/contas_semana",{
+          method:"POST",
+          headers:Object.assign({},_hd6,{"Prefer":"resolution=merge-duplicates","Content-Type":"application/json"}),
+          body:JSON.stringify({semana_inicio:_si6,semana_fim:_sf6,tipo:_tipo6,valor_calculado:_tot6,status:"pendente"})
         }).catch(function(){});
         if(typeof setContasSemana==="function"){
           setContasSemana(function(prev){
