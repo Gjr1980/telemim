@@ -1504,7 +1504,7 @@ export default function App(){
       var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{
         method:"PATCH",
         headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
-        body:JSON.stringify({status:novoStatus})
+        body:JSON.stringify({status:novoStatus,...(novoStatus==="Em Deslocamento"?{inicio_em:new Date().toISOString()}:{}),...(novoStatus==="Realizando"?{inicio_mudanca_em:new Date().toISOString()}:{}),...(novoStatus==="Concluido"||novoStatus==="realizado"?{termino_em:new Date().toISOString()}:{})})
       });
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Status actualizado!");
@@ -1945,7 +1945,8 @@ export default function App(){
                   </div>
                   <div style={{background:_stMot==="Em Deslocamento"?"#dbeafe":_stMot==="Realizando"?"#fef9c3":"#dcfce7",border:"1px solid "+(_stMot==="Em Deslocamento"?"#93c5fd":_stMot==="Realizando"?"#fde047":"#86efac"),borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:_stMot==="Em Deslocamento"?"#1d4ed8":_stMot==="Realizando"?"#854d0e":"#15803d",whiteSpace:"nowrap"}}>
                     {_stMot==="confirmado"||_stMot==="pendente"?"🟡 Pendente":_stMot==="Em Deslocamento"?"🚚 Em Deslocamento":_stMot==="Realizando"?"⚡ Realizando":_stMot}
-                  </div>
+                  </div>{_stMot==="Em Deslocamento"||_stMot==="Realizando"?
+                    <div style={{marginTop:4,fontSize:10,color:_stMot==="Em Deslocamento"?"#1d4ed8":"#854d0e",fontWeight:700,letterSpacing:0.5}}>{(function(){var _ts=_stMot==="Em Deslocamento"?a.inicio_em:a.inicio_mudanca_em;if(!_ts)return _stMot==="Em Deslocamento"?"🕒 Em deslocamento":"🕒 Realizando";var _ini=new Date(_ts);var _now=new Date();var _diff=Math.floor((_now-_ini)/1000);var _h=Math.floor(_diff/3600);var _m=Math.floor((_diff%3600)/60);var _s=_diff%60;var _pad=function(n){return String(n).padStart(2,"0");};var _label=_stMot==="Em Deslocamento"?"🕒 Deslocamento: ":"🕒 Realizando: ";return _label+_pad(_h)+":"+_pad(_m)+":"+_pad(_s);})()}</div>:null}
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
                   {(_stMot==="confirmado"||_stMot==="pendente")&&(
