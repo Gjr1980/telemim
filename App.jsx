@@ -1069,7 +1069,7 @@ export default function App(){
           return [{...nova,id:_bdId||nova.id},...sem];
         });
         setSyncStatus("✅ Sinc");
-        loadAg();
+        // Não chamar loadAg() aqui - evita race condition que apaga a nova agenda
       }catch(eN){setSyncStatus("⚠️ Erro ao agendar");console.error("[novaAgenda]",eN);}
     })();
     
