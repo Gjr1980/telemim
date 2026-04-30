@@ -2003,37 +2003,37 @@ export default function App(){
         {isMotorista&&mudancasHoje.length===0&&mudancasAmanha.length===0&&mudancasFuturas.length===0&&(<div style={{margin:"12px 0 0",background:"#f0fdf4",border:"2px solid #86efac",borderRadius:14,padding:"20px 16px",textAlign:"center"}}><div style={{fontSize:28,marginBottom:8}}>😊</div><div style={{fontWeight:800,fontSize:15,color:"#15803d",marginBottom:6}}>Nenhuma mudança agendada!</div><div style={{fontSize:13,color:"#16a34a"}}>Bom descanso! ✅</div></div>)}
         {mudancasHoje.length>0&&(
           <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
-            {mudancasHoje.map(function(a){
+            {mudancasHoje.map(function(a,_idx){
               var _stMot=a.status||"confirmado";
-              var _isHoje=true;
+              var _dest=_idx===0;
               return(
-              <div key={a.id} style={{background:"#dcfce7",border:"2px solid #16a34a",borderRadius:14,padding:"14px 15px",boxShadow:"0 2px 8px rgba(22,163,74,0.15)"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+              <div key={a.id} style={{background:"#dcfce7",border:(_dest?"3px":"2px")+" solid #16a34a",borderRadius:_dest?18:14,padding:_dest?"20px 18px":"14px 15px",boxShadow:_dest?"0 4px 16px rgba(22,163,74,0.25)":"0 2px 8px rgba(22,163,74,0.15)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:_dest?14:10}}>
                   <div style={{flex:1}}>
-                    <div style={{color:"#15803d",fontWeight:900,fontSize:11,letterSpacing:1,textTransform:"uppercase",marginBottom:3}}>🚚 MUDANÇA HOJE</div>
-                    <div style={{fontWeight:800,fontSize:15,color:"#1e293b",marginBottom:2}}>{a.nome}</div>
-                    {a.horario&&<div style={{fontSize:12,color:"#475569"}}>⏰ {a.horario}h</div>}
-                    <div style={{fontSize:11,marginTop:2}}>📦 {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
-                    <div style={{fontSize:11}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
+                    <div style={{color:"#15803d",fontWeight:900,fontSize:_dest?13:11,letterSpacing:1,textTransform:"uppercase",marginBottom:_dest?5:3}}>{_dest?"🚚 PRÓXIMA MUDANÇA":"🚚 MUDANÇA HOJE"}</div>
+                    <div style={{fontWeight:800,fontSize:_dest?20:15,color:"#1e293b",marginBottom:_dest?4:2}}>{a.nome}</div>
+                    {a.horario&&<div style={{fontSize:_dest?14:12,color:"#475569"}}>⏰ {a.horario}h</div>}
+                    <div style={{fontSize:_dest?13:11,marginTop:2}}>📦 {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
+                    <div style={{fontSize:_dest?13:11}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                   </div>
-                  <div style={{background:_stMot==="Em Deslocamento"?"#dbeafe":_stMot==="Realizando"?"#fef9c3":"#dcfce7",border:"1px solid "+(_stMot==="Em Deslocamento"?"#93c5fd":_stMot==="Realizando"?"#fde047":"#86efac"),borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:_stMot==="Em Deslocamento"?"#1d4ed8":_stMot==="Realizando"?"#854d0e":"#15803d",whiteSpace:"nowrap"}}>
+                  <div style={{background:_stMot==="Em Deslocamento"?"#dbeafe":_stMot==="Realizando"?"#fef9c3":"#dcfce7",border:"1px solid "+(_stMot==="Em Deslocamento"?"#93c5fd":_stMot==="Realizando"?"#fde047":"#86efac"),borderRadius:20,padding:"3px 10px",fontSize:_dest?11:10,fontWeight:700,color:_stMot==="Em Deslocamento"?"#1d4ed8":_stMot==="Realizando"?"#854d0e":"#15803d",whiteSpace:"nowrap"}}>
                     {_stMot==="confirmado"||_stMot==="pendente"?"🟡 Pendente":_stMot==="Em Deslocamento"?"🚚 Em Deslocamento":_stMot==="Realizando"?"⚡ Realizando":_stMot}
                   </div>{_stMot==="Em Deslocamento"||_stMot==="Realizando"?
-                    <div style={{marginTop:4,fontSize:10,color:_stMot==="Em Deslocamento"?"#1d4ed8":"#854d0e",fontWeight:700,letterSpacing:0.5}}>{(function(){var _ts=_stMot==="Em Deslocamento"?a.inicio_em:a.inicio_mudanca_em;if(!_ts)return null;var _ini=new Date(_ts);var _pad=function(n){return String(n).padStart(2,"0");};var _hora=_pad(_ini.getHours())+":"+_pad(_ini.getMinutes());var _label=_stMot==="Em Deslocamento"?"🚐 Saída: ":"🚛 Início: ";return _label+_hora;})()}</div>:null}
+                    <div style={{marginTop:4,fontSize:_dest?11:10,color:_stMot==="Em Deslocamento"?"#1d4ed8":"#854d0e",fontWeight:700,letterSpacing:0.5}}>{(function(){var _ts=_stMot==="Em Deslocamento"?a.inicio_em:a.inicio_mudanca_em;if(!_ts)return null;var _ini=new Date(_ts);var _pad=function(n){return String(n).padStart(2,"0");};var _hora=_pad(_ini.getHours())+":"+_pad(_ini.getMinutes());var _label=_stMot==="Em Deslocamento"?"🚐 Saída: ":"🚛 Início: ";return _label+_hora;})()}</div>:null}
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
                   {(_stMot==="confirmado"||_stMot==="pendente")&&(
-                    <button onClick={function(){handleStatusMotorista(a,"Em Deslocamento");}} style={{width:"100%",background:"#2563eb",border:"none",borderRadius:10,padding:"12px 0",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                    <button onClick={function(){handleStatusMotorista(a,"Em Deslocamento");}} style={{width:"100%",background:"#2563eb",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                       👥 Ajudantes a Bordo
                     </button>
                   )}
                   {_stMot==="Em Deslocamento"&&(
-                    <button onClick={function(){handleStatusMotorista(a,"Realizando");}} style={{width:"100%",background:"#7c3aed",border:"none",borderRadius:10,padding:"12px 0",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                    <button onClick={function(){handleStatusMotorista(a,"Realizando");}} style={{width:"100%",background:"#7c3aed",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                       🚛 Iniciar Mudança
                     </button>
                   )}
                   {_stMot==="Realizando"&&(
-                    <button onClick={function(){gerarPDFMudanca(a);}} style={{width:"100%",background:"#16a34a",border:"none",borderRadius:10,padding:"12px 0",fontSize:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                    <button onClick={function(){gerarPDFMudanca(a);}} style={{width:"100%",background:"#16a34a",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                       ✅ Finalizar Serviço
                     </button>
                   )}
