@@ -582,6 +582,10 @@ export default function App(){
   const [userMsg,setUserMsg]=useState("");
   const [tab,setTab]=useState("dashboard");
   const [periodoFin,setPeriodoFin]=useState("semana");
+  const [calMes,setCalMes]=useState(new Date().getMonth());
+  const [calAno,setCalAno]=useState(new Date().getFullYear());
+  const [calDiaSel,setCalDiaSel]=useState(null);
+  const [calMoveId,setCalMoveId]=useState(null);
   const [cfgEdit,setCfgEdit]=useState({van1a:1000,vanAdd:0,aj1a:80,ajAdd:20,dataInicioRegra:'',imposto:16});
   const [cfgSaved,setCfgSaved]=useState(false);
   const [bioLock,setBioLock]=useState(localStorage.getItem('tmim_bio_enabled')==='true'&&!!localStorage.getItem('tmim_u'));
@@ -1040,6 +1044,17 @@ export default function App(){
       }
       setSyncStatus("✅ Sinc");
     }catch(e){setSyncStatus("⚠️ Erro ao guardar");console.error("[saveAg]",e);loadAg();}
+  }
+
+  async function handleReagendarCal(agId,novaData){
+    await _ensureAuth();
+    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,{data:novaData}):a;});});
+    setSyncStatus("⏳ Reagendando...");
+    try{
+      var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({data:novaData})});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      setSyncStatus("✅ Reagendado!");
+    }catch(e){loadAg();setSyncStatus("⚠️ Erro ao reagendar");}
   }
 
   async function handleAddMud(){
@@ -2234,8 +2249,82 @@ export default function App(){
         })()}</div>
 
 
-{tab==="financeiro"&&<div style={{padding:"8px 12px 12px",background:"#f8fafc"}}><button onClick={function(){window.print();}} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#1e40af,#1e293b)",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📄 Exportar PDF</button></div>}
-          {(function(){var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort(function(a,b){return b.localeCompare(a);});var totMes=mudMes.length;return(<div style={{padding:'16px 12px',background:'#f8fafc'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}><div style={{fontWeight:800,fontSize:15,color:'#1e293b'}}>📋 Mudanças do Mês</div><span style={{background:'#e0e7ff',color:'#3730a3',borderRadius:20,padding:'4px 12px',fontSize:13,fontWeight:700}}>{totMes} total</span></div>{diasU.length===0&&<div style={{textAlign:'center',color:'#94a3b8',padding:32,fontSize:13}}>Nenhuma mudança este mês</div>}{diasU.map(function(dia){var mDia=mudMes.filter(function(m){return m.data===dia;});var df=dia.slice(8)+'/'+dia.slice(5,7)+'/'+dia.slice(0,4);var isHoje=dia===hj.toISOString().slice(0,10);return(<div key={dia} style={{background:'#fff',borderRadius:12,padding:'14px 16px',marginBottom:10,boxShadow:'0 1px 6px rgba(0,0,0,0.06)',border:isHoje?'1.5px solid #3b82f6':'1px solid #e2e8f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontWeight:700,fontSize:14,color:isHoje?'#1e40af':'#1e293b'}}>{df}{isHoje&&<span style={{marginLeft:8,background:'#dbeafe',color:'#1e40af',borderRadius:6,padding:'1px 7px',fontSize:10,fontWeight:700}}>HOJE</span>}</div><span style={{background:'#e0e7ff',color:'#3730a3',borderRadius:20,padding:'3px 10px',fontSize:12,fontWeight:700}}>{mDia.length} mud.</span></div>{mDia.map(function(m,i){return(<div key={i} style={{display:'flex',alignItems:'center',padding:'7px 0',borderTop:i>0?'1px solid #f1f5f9':'none'}}><div style={{width:7,height:7,borderRadius:'50%',background:m.status==='concluida'?'#047857':m.status==='cancelada'?'#dc2626':'#f59e0b',marginRight:10,flexShrink:0}}></div><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:'#334155'}}>{m.nome}</div><div style={{fontSize:11,color:'#94a3b8'}}>{m.comunidade||''}</div></div><div style={{fontSize:11,fontWeight:700,color:m.status==='concluida'?'#047857':m.status==='cancelada'?'#dc2626':'#d97706'}}>{m.status==='concluida'?'✅':m.status==='cancelada'?'❌':'⏳'}</div></div>);})}</div>);})}</div>);})()} 
+{!isMotorista&&tab==="dashboard"&&(function(){
+  var _mN=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  var _dN=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+  var _primDia=new Date(calAno,calMes,1);
+  var _inicDow=_primDia.getDay();
+  var _diasMes=new Date(calAno,calMes+1,0).getDate();
+  var _cells=[];
+  for(var _ci=0;_ci<_inicDow;_ci++)_cells.push(null);
+  for(var _cd=1;_cd<=_diasMes;_cd++)_cells.push(_cd);
+  var _prefix=calAno+"-"+(calMes+1<10?"0":"")+(calMes+1);
+  var _agMes=(agenda||[]).filter(function(a){return a.data&&a.data.slice(0,7)===_prefix&&!a.deleted_at;});
+  var _porDia={};
+  _agMes.forEach(function(a){var d=parseInt(a.data.slice(8,10));if(!_porDia[d])_porDia[d]={total:0,items:[]};_porDia[d].total++;_porDia[d].items.push(a);});
+  var _hjStr=new Date().toISOString().slice(0,10);
+  function _navM(dir){var nm=calMes+dir;var na=calAno;if(nm<0){nm=11;na--;}if(nm>11){nm=0;na++;}setCalMes(nm);setCalAno(na);setCalDiaSel(null);setCalMoveId(null);}
+  function _dStr(d){return _prefix+"-"+(d<10?"0":"")+d;}
+  var _selD=calDiaSel?parseInt(calDiaSel.slice(8,10)):null;
+  var _selItems=_selD&&_porDia[_selD]?_porDia[_selD].items:[];
+  return(
+    <div style={{padding:"0 12px 16px"}}>
+      <div style={{background:"#fff",borderRadius:16,border:"1.5px solid #e2e8f0",padding:"16px 14px",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <button onClick={function(){_navM(-1);}} style={{background:"#e2e8f0",border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:16,fontWeight:700,color:"#334155"}}>◀</button>
+          <div style={{fontWeight:800,fontSize:16,color:"#1e293b"}}>🗓️ {_mN[calMes]} {calAno}</div>
+          <button onClick={function(){_navM(1);}} style={{background:"#e2e8f0",border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:16,fontWeight:700,color:"#334155"}}>▶</button>
+        </div>
+        {calMoveId&&<div style={{background:"#fef3c7",border:"1.5px solid #f59e0b",borderRadius:10,padding:"8px 12px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:12,fontWeight:700,color:"#92400e"}}>📦 Toque no dia destino para mover</span>
+          <button onClick={function(){setCalMoveId(null);}} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Cancelar</button>
+        </div>}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+          {_dN.map(function(dn){return <div key={dn} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#94a3b8",padding:"4px 0"}}>{dn}</div>;})}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+          {_cells.map(function(dia,idx){
+            if(dia===null)return <div key={"e"+idx} style={{minHeight:42}}></div>;
+            var _ds=_dStr(dia);var _info=_porDia[dia];var _isH=_ds===_hjStr;var _isS=calDiaSel===_ds;var _hasM=_info&&_info.total>0;
+            return(
+              <div key={dia} onClick={function(){if(calMoveId){handleReagendarCal(calMoveId,_ds);setCalMoveId(null);setCalDiaSel(_ds);}else{setCalDiaSel(_isS?null:_ds);}}}
+                style={{minHeight:42,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:10,cursor:"pointer",
+                  border:_isS?"2px solid #1e40af":_isH?"2px solid #3b82f6":"1.5px solid transparent",
+                  background:calMoveId&&!_isS?"#f0fdf4":(_isS?"#dbeafe":(_isH?"#eff6ff":"transparent")),transition:"all 0.15s"}}>
+                <div style={{fontSize:13,fontWeight:_isH||_isS?800:500,color:_isS?"#1e40af":(_isH?"#1e40af":"#334155")}}>{dia}</div>
+                {_hasM&&<div style={{minWidth:16,height:16,borderRadius:8,padding:"0 3px",
+                  background:_info.items.some(function(x){return x.status==="cancelada";})?"#dc2626":_info.items.every(function(x){return x.status==="concluida";})?"#047857":"#f59e0b",
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#fff",marginTop:1}}>{_info.total}</div>}
+              </div>);
+          })}
+        </div>
+        {calDiaSel&&_selItems.length>0&&(
+          <div style={{marginTop:14,borderTop:"1.5px solid #e2e8f0",paddingTop:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>📋 {calDiaSel.slice(8)+"/"+calDiaSel.slice(5,7)}</div>
+              <span style={{background:"#e0e7ff",color:"#3730a3",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700}}>{_selItems.length} mud.</span>
+            </div>
+            {_selItems.map(function(a){var _isMv=calMoveId===a.id;return(
+              <div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 10px",marginBottom:4,background:_isMv?"#fef3c7":"#f8fafc",borderRadius:10,border:_isMv?"1.5px solid #f59e0b":"1px solid #e2e8f0"}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:a.status==="concluida"?"#047857":a.status==="cancelada"?"#dc2626":"#f59e0b",marginRight:10,flexShrink:0}}></div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:600,color:"#334155",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nome}</div>
+                  <div style={{fontSize:11,color:"#94a3b8"}}>{a.comunidade||a.origem||""}</div>
+                </div>
+                <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                  <span style={{fontSize:11,fontWeight:700,color:a.status==="concluida"?"#047857":a.status==="cancelada"?"#dc2626":"#d97706"}}>{a.status==="concluida"?"✅":a.status==="cancelada"?"❌":"⏳"}</span>
+                  {a.status!=="concluida"&&a.status!=="cancelada"&&<button onClick={function(e){e.stopPropagation();setCalMoveId(_isMv?null:a.id);}} style={{background:_isMv?"#dc2626":"#1e40af",color:"#fff",border:"none",borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>{_isMv?"✕":"📅 Mover"}</button>}
+                </div>
+              </div>);})}
+          </div>
+        )}
+        {calDiaSel&&_selItems.length===0&&(
+          <div style={{marginTop:14,borderTop:"1.5px solid #e2e8f0",paddingTop:12,textAlign:"center",color:"#94a3b8",fontSize:13,padding:"16px 0"}}>Nenhuma mudança neste dia</div>
+        )}
+      </div>
+    </div>
+  );
+})()}
         </div>
       )}
         {tab==="dashboard"&&activityLogs.length>0&&<div style={{padding:"0 12px 16px"}}><div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:14,padding:"12px 14px"}}><div style={{fontWeight:800,fontSize:12,color:"#64748b",letterSpacing:0.5,marginBottom:8,display:"flex",alignItems:"center",gap:5}}>🔔 ÚNTIMAS ATUALIZAÇÕES</div>{activityLogs.slice(0,5).map(function(log){return(<div key={log.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #f8fafc"}}><span style={{fontSize:13,flexShrink:0}}>✅</span><div style={{flex:1,fontSize:11,color:"#334155",lineHeight:1.5}}>{log.msg}<span style={{color:"#94a3b8",marginLeft:6,fontSize:10}}>{log.hora}h</span></div></div>);})}</div></div>}
