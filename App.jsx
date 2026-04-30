@@ -964,7 +964,8 @@ export default function App(){
       for(var i=0;i<ts.length;i++){
         var a=ts[i];
         var row={nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado",observacao:a.observacao||"",social_approved:a.social_approved||false,promorar_approved:a.promorar_approved||false,adm_approved:a.adm_approved||false,requires_validation:a.requires_validation||false};
-        if(a.motorista_id!==undefined)row.motorista_id=a.motorista_id||null;
+        if(a.motorista_van_id!==undefined)row.motorista_van_id=a.motorista_van_id||null;
+        if(a.motorista_caminhao_id!==undefined)row.motorista_caminhao_id=a.motorista_caminhao_id||null;
         var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{
           method:"PATCH",
           headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),
@@ -1609,7 +1610,7 @@ export default function App(){
     _setAgendaRemovidaIds(function(prev){var s=new Set(prev);s.add(ag.id);return s;});
     setAgenda(function(prev){return prev.filter(function(x){return x.id!==ag.id;});});
     try{
-      var novaOS={nome:ag.nome,data:ag.data,horario:ag.horario||null,selo:ag.selo||null,van:ag.van||false,caminhao:ag.caminhao||false,comunidade:ag.comunidade||null,observacao:ag.observacao||null,origem:ag.origem||null,destino:ag.destino||null,contato:ag.contato||null,medicao:parseFloat(ag.medicao)||0,ajudantes:parseInt(ag.ajudantes)||0,status:"Registrado",requested_by:ag.requested_by||null,approved_by_admin:ag.approved_by_admin||null,approved_by_social:ag.approved_by_social||null,approved_by_promorar:ag.approved_by_promorar||null,motorista_id:ag.motorista_id||null};
+      var novaOS={nome:ag.nome,data:ag.data,horario:ag.horario||null,selo:ag.selo||null,van:ag.van||false,caminhao:ag.caminhao||false,comunidade:ag.comunidade||null,observacao:ag.observacao||null,origem:ag.origem||null,destino:ag.destino||null,contato:ag.contato||null,medicao:parseFloat(ag.medicao)||0,ajudantes:parseInt(ag.ajudantes)||0,status:"Registrado",requested_by:ag.requested_by||null,approved_by_admin:ag.approved_by_admin||null,approved_by_social:ag.approved_by_social||null,approved_by_promorar:ag.approved_by_promorar||null,motorista_van_id:ag.motorista_van_id||null,motorista_caminhao_id:ag.motorista_caminhao_id||null};
       var r1=await fetch(SUPA_URL+"/rest/v1/mudancas?on_conflict=nome,data",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation,resolution=merge-duplicates"}),body:JSON.stringify(novaOS)});
       if(!r1.ok) throw new Error("HTTP "+r1.status);
       var _r1Body=await r1.json().catch(function(){return null;});
@@ -1660,12 +1661,14 @@ export default function App(){
       setIsApproving(function(prev){var n={};Object.assign(n,prev);delete n[agId];return n;});
     }
   }
-  async function handleDespachar(agId,motoristaId){
+  async function handleDespachar(agId,motoristaId,tipo){
     await _ensureAuth();
     var mid=motoristaId||null;
-    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,{motorista_id:mid}):a;});});
+    var field=tipo==="VAN"?"motorista_van_id":"motorista_caminhao_id";
+    setAgenda(function(prev){return prev.map(function(a){if(a.id!==agId)return a;var u={};u[field]=mid;return Object.assign({},a,u);});});
     try{
-      var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({motorista_id:mid})});
+      var body={};body[field]=mid;
+      var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)});
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Motorista despachado!");
     }catch(e){
@@ -1673,12 +1676,14 @@ export default function App(){
       setSyncStatus("⚠️ Erro ao despachar");
     }
   }
-  async function handleDespacharMud(mudId,motoristaId){
+  async function handleDespacharMud(mudId,motoristaId,tipo){
     await _ensureAuth();
     var mid=motoristaId||null;
-    setMudancas(function(prev){return prev.map(function(m){return m.id===mudId?Object.assign({},m,{motorista_id:mid}):m;});});
+    var field=tipo==="VAN"?"motorista_van_id":"motorista_caminhao_id";
+    setMudancas(function(prev){return prev.map(function(m){if(m.id!==mudId)return m;var u={};u[field]=mid;return Object.assign({},m,u);});});
     try{
-      var r=await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+mudId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({motorista_id:mid})});
+      var body={};body[field]=mid;
+      var r=await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+mudId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)});
       if(!r.ok) throw new Error("HTTP "+r.status);
     }catch(e){loadMud();}
   }
@@ -2178,8 +2183,8 @@ export default function App(){
                     <div style={{marginBottom:2}}><span>Admin: {m.approved_by_admin?<b style={{color:"#16a34a"}}>✅ {m.approved_by_admin}</b>:<span style={{color:"#9ca3af"}}>⏳ Pendente</span>}</span></div>
                     <div style={{marginBottom:2}}><span>Social: {m.approved_by_social?<b style={{color:"#16a34a"}}>✅ {m.approved_by_social}</b>:<span style={{color:"#9ca3af"}}>⏳ Pendente</span>}</span></div>
                     <div><span>Promorar: {m.approved_by_promorar?<b style={{color:"#16a34a"}}>✅ {m.approved_by_promorar}</b>:<span style={{color:"#9ca3af"}}>⏳ Pendente</span>}</span></div>
-                    {(function(){var _motNome2=null;if(m.motorista_id){var _f2=listaUsuarios.find(function(u){return u.id===m.motorista_id;});if(_f2)_motNome2=_f2.nome+" ("+(_f2.tipo_veiculo==="VAN"?"Van":_f2.tipo_veiculo==="CAMINHAO"?"Caminhão":_f2.tipo_veiculo||"?")+(_f2.placa_veiculo?" · "+_f2.placa_veiculo:"")+")";}return m.motorista_id?<div style={{marginTop:3}}><span>🚚 Motorista: <b style={{color:"#7c3aed"}}>{_motNome2||m.motorista_id.slice(0,8)}</b></span></div>:null;})()}
-                    {isAdmin&&(function(){var _mots2=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo;});if(_mots2.length===0)return null;return(<div style={{marginTop:4}}><select value={m.motorista_id||""} onChange={function(e){handleDespacharMud(m.id,e.target.value||null);}} style={{padding:"4px 8px",borderRadius:6,border:"1px solid #c4b5fd",background:"#f5f3ff",color:"#7c3aed",fontSize:11,fontWeight:600,cursor:"pointer"}}><option value="">Despachar...</option>{_mots2.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}{mt.tipo_veiculo?" ("+(mt.tipo_veiculo==="VAN"?"Van":mt.tipo_veiculo==="CAMINHAO"?"Caminhão":mt.tipo_veiculo)+(mt.placa_veiculo?" · "+mt.placa_veiculo:"")+")":""}</option>);})}</select></div>);})()}
+                    {(function(){var _vanMot=null,_camMot=null;if(m.motorista_van_id){var _fv=listaUsuarios.find(function(u){return u.id===m.motorista_van_id;});if(_fv)_vanMot=_fv.nome+(_fv.placa_veiculo?" · "+_fv.placa_veiculo:"");}if(m.motorista_caminhao_id){var _fc=listaUsuarios.find(function(u){return u.id===m.motorista_caminhao_id;});if(_fc)_camMot=_fc.nome+(_fc.placa_veiculo?" · "+_fc.placa_veiculo:"");}return <>{m.motorista_van_id&&<div style={{marginTop:3}}><span>🚐 Van: <b style={{color:"#2563eb"}}>{_vanMot||m.motorista_van_id.slice(0,8)}</b></span></div>}{m.motorista_caminhao_id&&<div style={{marginTop:3}}><span>🚚 Caminhão: <b style={{color:"#7c3aed"}}>{_camMot||m.motorista_caminhao_id.slice(0,8)}</b></span></div>}</>;})()}
+                    {isAdmin&&(function(){var _motsV=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="VAN";});var _motsC=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="CAMINHAO";});var _ds={padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",width:"100%"};return <>{m.van&&_motsV.length>0&&<div style={{marginTop:4}}><label style={{fontSize:9,color:"#2563eb",fontWeight:700}}>🚐 Motorista Van</label><select value={m.motorista_van_id||""} onChange={function(e){handleDespacharMud(m.id,e.target.value||null,"VAN");}} style={Object.assign({},_ds,{border:"1px solid #93c5fd",background:"#eff6ff",color:"#2563eb"})}><option value="">— Sem motorista Van —</option>{_motsV.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}{mt.placa_veiculo?" · "+mt.placa_veiculo:""}</option>);})}</select></div>}{m.caminhao&&_motsC.length>0&&<div style={{marginTop:4}}><label style={{fontSize:9,color:"#7c3aed",fontWeight:700}}>🚚 Motorista Caminhão</label><select value={m.motorista_caminhao_id||""} onChange={function(e){handleDespacharMud(m.id,e.target.value||null,"CAMINHAO");}} style={Object.assign({},_ds,{border:"1px solid #c4b5fd",background:"#f5f3ff",color:"#7c3aed"})}><option value="">— Sem motorista Caminhão —</option>{_motsC.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}{mt.placa_veiculo?" · "+mt.placa_veiculo:""}</option>);})}</select></div>}</>;})()}
                   </div>                    <button onClick={()=>setEditMud((function(){var _cd=(custosDiarios||[]).find(function(x){return x.data===m.data;});return {...m,_qtdAj:_cd?parseInt(_cd.ajudantes)||1:1};})())} style={btnBlue}>✏️</button>
                     {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud"});}} style={btnRed}>✕</button>}
                   </div>
@@ -2232,7 +2237,7 @@ export default function App(){
                             <button onClick={()=>toggleAgField(a.id,"caminhao")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.caminhao?COLORS.accent:"#e2e8f0"}`,background:a.caminhao?"#fff7ed":"#f8fafc",color:a.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚚 Caminhão {a.caminhao?"✓":"✗"}</button>
                           </div>
                         </div>
-                        {isAdmin&&(function(){var _mots=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo;});if(_mots.length===0)return null;var _motNome=function(id){var f=_mots.find(function(u){return u.id===id;});return f?f.nome:null;};return(<div style={{marginBottom:10}}><div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🚚 Despachar Motorista</div><select value={a.motorista_id||""} onChange={function(e){handleDespachar(a.id,e.target.value||null);}} style={{width:"100%",padding:"8px 10px",borderRadius:9,border:"1.5px solid "+(a.motorista_id?"#7c3aed":"#e2e8f0"),background:a.motorista_id?"#f5f3ff":"#f8fafc",color:a.motorista_id?"#7c3aed":"#64748b",fontSize:13,fontWeight:700,cursor:"pointer"}}><option value="">— Sem motorista —</option>{_mots.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}{mt.tipo_veiculo?" ("+(mt.tipo_veiculo==="VAN"?"Van":mt.tipo_veiculo==="CAMINHAO"?"Caminhão":mt.tipo_veiculo)+(mt.placa_veiculo?" · "+mt.placa_veiculo:"")+")":""}</option>);})}</select>{a.motorista_id&&_motNome(a.motorista_id)&&<div style={{fontSize:10,color:"#7c3aed",marginTop:3,fontWeight:600}}>✅ Despachado: {_motNome(a.motorista_id)}</div>}</div>);})()}
+                        {isAdmin&&(function(){var _motsV=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="VAN";});var _motsC=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="CAMINHAO";});var _selStyle={width:"100%",padding:"8px 10px",borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer"};var _motNomeV=function(id){if(!id)return null;var f=_motsV.find(function(u){return u.id===id;});return f?f.nome+(f.placa_veiculo?" · "+f.placa_veiculo:""):null;};var _motNomeC=function(id){if(!id)return null;var f=_motsC.find(function(u){return u.id===id;});return f?f.nome+(f.placa_veiculo?" · "+f.placa_veiculo:""):null;};return(<div style={{marginBottom:10}}><div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🚚 Despachar Motoristas</div>{a.van&&_motsV.length>0&&<><select value={a.motorista_van_id||""} onChange={function(e){handleDespachar(a.id,e.target.value||null,"VAN");}} style={Object.assign({},_selStyle,{border:"1.5px solid "+(a.motorista_van_id?"#2563eb":"#e2e8f0"),background:a.motorista_van_id?"#eff6ff":"#f8fafc",color:a.motorista_van_id?"#2563eb":"#64748b",marginBottom:6})}><option value="">🚐 Sem motorista Van</option>{_motsV.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}{mt.placa_veiculo?" · "+mt.placa_veiculo:""}</option>);})}</select>{a.motorista_van_id&&_motNomeV(a.motorista_van_id)&&<div style={{fontSize:10,color:"#2563eb",marginTop:-3,marginBottom:4,fontWeight:600}}>✅ Van: {_motNomeV(a.motorista_van_id)}</div>}</>}{a.caminhao&&_motsC.length>0&&<><select value={a.motorista_caminhao_id||""} onChange={function(e){handleDespachar(a.id,e.target.value||null,"CAMINHAO");}} style={Object.assign({},_selStyle,{border:"1.5px solid "+(a.motorista_caminhao_id?"#7c3aed":"#e2e8f0"),background:a.motorista_caminhao_id?"#f5f3ff":"#f8fafc",color:a.motorista_caminhao_id?"#7c3aed":"#64748b"})}><option value="">🚚 Sem motorista Caminhão</option>{_motsC.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}{mt.placa_veiculo?" · "+mt.placa_veiculo:""}</option>);})}</select>{a.motorista_caminhao_id&&_motNomeC(a.motorista_caminhao_id)&&<div style={{fontSize:10,color:"#7c3aed",marginTop:3,fontWeight:600}}>✅ Caminhão: {_motNomeC(a.motorista_caminhao_id)}</div>}</>}</div>);})()}
                         {(usuario&&usuario.perfil!=="social")&&<div style={{display:"grid",gridTemplateColumns:(usuario&&usuario.perfil==="admin")?"1fr 1fr":"1fr",gap:8,marginBottom:10}}>{(usuario&&usuario.perfil!=="social")&&<div>
                             <label style={{display:"block",color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>📐 Medição (m³)</label>
                             <input type="number" placeholder="Ex: 27" value={a.medicao||""} onChange={e=>updateAgField(a.id,"medicao",e.target.value)}
