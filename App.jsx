@@ -31,6 +31,13 @@ function getH(){
   }catch(e){}
   return {"Content-Type":"application/json","apikey":SUPA_KEY,"Authorization":"Bearer "+_t};
 }
+async function _ensureAuth(){
+  var _su=JSON.parse(localStorage.getItem('tmim_u')||'{}');
+  if(_su&&_su.refresh_token){
+    var _tk=await _getValidToken(_su,SUPA_URL,SUPA_KEY);
+    if(_tk&&_tk!==_su.token){_su.token=_tk;localStorage.setItem('tmim_u',JSON.stringify(_su));}
+  }
+}
 
 async function dbGet(table,extraParams) {
   var params="?select=*&order=id"+(extraParams?"&"+extraParams:"");
@@ -868,6 +875,7 @@ export default function App(){
   }
 
   async function saveMud(list,changed){
+    await _ensureAuth();
     var _prevMud=mudancas.slice(); // Backup para rollback
     setMudancas(list); // Optimistic: UI antes da API
     setSyncStatus("🔄 Salvando...");
@@ -941,6 +949,7 @@ export default function App(){
     }
   }
   async function saveAg(list,changed){
+    await _ensureAuth();
     setAgenda(list);
     setSyncStatus("⏳ Salvando...");
     try{
@@ -1040,6 +1049,7 @@ export default function App(){
 
   // ── AGENDA CRUD ────────────────────────────────────────────────────────────
   async function handleValidarAg(id,tipo){
+    await _ensureAuth();
     var campo=tipo==="social"?"social_approved":tipo==="promorar"?"promorar_approved":"adm_approved";
     var campoPor=tipo+"_approved_by";
     var nome=usuario&&(usuario.nome||usuario.email)||"";
@@ -1078,6 +1088,7 @@ export default function App(){
     // POST directo para nova agenda
     (async function(){
       try{
+        await _ensureAuth();
         var rowNova={nome:nova.nome,selo:nova.selo||"",comunidade:nova.comunidade||"",data:nova.data,horario:nova.horario||"",origem:nova.origem||"",destino:nova.destino||"",contato:nova.contato||"",van:nova.van||false,caminhao:nova.caminhao||false,medicao:nova.medicao||0,ajudantes:nova.ajudantes||0,status:nova.status||"confirmado",observacao:nova.observacao||"",social_approved:nova.social_approved||false,promorar_approved:nova.promorar_approved||false,adm_approved:nova.adm_approved||false,requires_validation:nova.requires_validation||false};
         setSyncStatus("⏳ Salvando...");
         var rNova=await fetch(SUPA_URL+"/rest/v1/agenda",{
