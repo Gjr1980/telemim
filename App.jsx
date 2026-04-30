@@ -19,48 +19,59 @@ function getSupaClient(){
     return Promise.resolve(null);
   }
 }
-const HEADERS = { "Content-Type": "application/json", "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}` };
+// Headers dinâmicos: usa JWT do usuário logado (não expirado) se houver; senão anon key.
+function getH(){
+  var _t=SUPA_KEY;
+  try{
+    var _u=JSON.parse(localStorage.getItem('tmim_u')||'{}');
+    if(_u&&_u.token){
+      var _pl=JSON.parse(atob(_u.token.split('.')[1]));
+      if(_pl.exp*1000>Date.now()+5000)_t=_u.token;
+    }
+  }catch(e){}
+  return {"Content-Type":"application/json","apikey":SUPA_KEY,"Authorization":"Bearer "+_t};
+}
 
 async function dbGet(table,extraParams) {
   var params="?select=*&order=id"+(extraParams?"&"+extraParams:"");
-  const r = await fetch(SUPA_URL+"/rest/v1/"+table+params, { headers: HEADERS });
+  const r = await fetch(SUPA_URL+"/rest/v1/"+table+params, { headers: getH() });
   if (!r.ok) return [];
   return r.json();
 }
 async function dbUpsert(table, rows) {
   await fetch(`${SUPA_URL}/rest/v1/${table}`, {
     method: "POST",
-    headers: { ...HEADERS, "Prefer": "resolution=merge-duplicates" },
+    headers: { ...getH(), "Prefer": "resolution=merge-duplicates" },
     body: JSON.stringify(rows),
   });
 }
 async function dbDelete(table, id) {
-  await fetch(`${SUPA_URL}/rest/v1/${table}?id=eq.${id}`, { method: "DELETE", headers: HEADERS });
+  await fetch(`${SUPA_URL}/rest/v1/${table}?id=eq.${id}`, { method: "DELETE", headers: getH() });
 }
 
 async function dbGetContas(status){
-  const r=await fetch(`${SUPA_URL}/rest/v1/contas_pagar?status=eq.${status}&order=criado_em.desc`,{headers:{...HEADERS,"Range":"0-29"}});
+  const r=await fetch(`${SUPA_URL}/rest/v1/contas_pagar?status=eq.${status}&order=criado_em.desc`,{headers:{...getH(),"Range":"0-29"}});
   if(!r.ok)return [];
   return r.json();
 }
 async function dbInsertConta(row){
-  const r=await fetch(`${SUPA_URL}/rest/v1/contas_pagar`,{method:"POST",headers:{...HEADERS,"Prefer":"return=representation"},body:JSON.stringify([row])});
+  const r=await fetch(`${SUPA_URL}/rest/v1/contas_pagar`,{method:"POST",headers:{...getH(),"Prefer":"return=representation"},body:JSON.stringify([row])});
   if(!r.ok)return null;
   const d=await r.json();return d[0]||null;
 }
 async function dbPagarConta(id,agora){
-  await fetch(`${SUPA_URL}/rest/v1/contas_pagar?id=eq.${id}`,{method:"PATCH",headers:{...HEADERS,"Prefer":"return=minimal"},body:JSON.stringify({status:"pago",pago_em:agora})});
+  await fetch(`${SUPA_URL}/rest/v1/contas_pagar?id=eq.${id}`,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({status:"pago",pago_em:agora})});
 }
 // ── CUSTOS DIÁRIOS ───────────────────────────────────────────────────────────
 async function dbGetCustos() {
-  const r = await fetch(`${SUPA_URL}/rest/v1/custos_diarios?select=*&order=data`, { headers: HEADERS });
+  const r = await fetch(`${SUPA_URL}/rest/v1/custos_diarios?select=*&order=data`, { headers: getH() });
   if (!r.ok) return [];
   return r.json();
 }
 async function dbUpsertCusto(row) {
   await fetch(`${SUPA_URL}/rest/v1/custos_diarios`, {
     method: "POST",
-    headers: { ...HEADERS, "Prefer": "resolution=merge-duplicates" },
+    headers: { ...getH(), "Prefer": "resolution=merge-duplicates" },
     body: JSON.stringify([row]),
   });
 }
@@ -372,8 +383,8 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
       }
     });
     // PROTOCOLO 5: Persistir no Supabase (PATCH se existe, POST se nao existe)
-    var _hd={...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"};
-    fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+_data+"&select=id",{headers:HEADERS})
+    var _hd={...getH(),"Content-Type":"application/json","Prefer":"return=minimal"};
+    fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+_data+"&select=id",{headers:getH()})
       .then(function(r){return r.json();})
       .then(function(rows){
         if(rows&&rows.length>0){
@@ -740,7 +751,7 @@ export default function App(){
   async function loadAg(){const r=await dbGet("agenda");if(r)setAgenda(r.map(function(x){return {...x,_dbId:x.id};}));}
   async function loadCfgWA(){
     try{
-      var r=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=in.(admin_whatsapp,supervisor_whatsapp,whatsapp_ativo)&select=chave,valor",{headers:HEADERS});
+      var r=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=in.(admin_whatsapp,supervisor_whatsapp,whatsapp_ativo)&select=chave,valor",{headers:getH()});
       if(!r.ok) return;
       var rows=await r.json();
       if(!Array.isArray(rows)) return;
@@ -851,7 +862,7 @@ export default function App(){
     setSyncStatus("🔄 Salvando...");
     try{
       var ts=changed?[changed]:list;
-      for(var i=0;i<ts.length;i++){var m=ts[i];var row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,contato:m.contato||"",observacao:m.observacao||"",confirmed_promorar:m.confirmed_promorar||false,confirmed_telemim:m.confirmed_telemim||false,adm_approved:m.adm_approved||false,promorar_approved:m.promorar_approved||false,social_approved:m.social_approved||false,status:m.status||"Registrado",signature_data:(m.signature_data!=null&&m.signature_data!="")?m.signature_data:null};await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...HEADERS,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
+      for(var i=0;i<ts.length;i++){var m=ts[i];var row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,contato:m.contato||"",observacao:m.observacao||"",confirmed_promorar:m.confirmed_promorar||false,confirmed_telemim:m.confirmed_telemim||false,adm_approved:m.adm_approved||false,promorar_approved:m.promorar_approved||false,social_approved:m.social_approved||false,status:m.status||"Registrado",signature_data:(m.signature_data!=null&&m.signature_data!="")?m.signature_data:null};await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...getH(),"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
       setSyncStatus("✅ Sinc");window.__mudancas=list;
     }catch(e){
       setMudancas(_prevMud); // Rollback optimista
@@ -867,7 +878,7 @@ export default function App(){
   const [prestadores,setPrestadores]=useState([]);
   async function loadPrestadores(){
     try{
-      var res=await fetch(SUPA_URL+"/rest/v1/prestadores?select=*&ativo=eq.true&order=cargo,nome",{headers:HEADERS});
+      var res=await fetch(SUPA_URL+"/rest/v1/prestadores?select=*&ativo=eq.true&order=cargo,nome",{headers:getH()});
       var data=await res.json();
       if(Array.isArray(data)&&data.length>0) setPrestadores(data);
     }catch(e){}
@@ -912,7 +923,7 @@ export default function App(){
     setMudancas(prev=>prev.map(m=>m.id===id?{...m,[campo]:true,[campoPor]:nome}:m));
     window.__mudancas=(window.__mudancas||[]).map(m=>m.id===id?{...m,[campo]:true,[campoPor]:nome}:m);
     try{
-      await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+id,{method:"PATCH",headers:{...HEADERS,"Prefer":"return=representation"},body:JSON.stringify({[campo]:true,[campoPor]:nome})});
+      await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+id,{method:"PATCH",headers:{...getH(),"Prefer":"return=representation"},body:JSON.stringify({[campo]:true,[campoPor]:nome})});
     }catch(e){
       if(anterior)setMudancas(prev=>prev.map(m=>m.id===id?{...anterior}:m));
       setSyncStatus("⚠️ Erro ao validar");
@@ -928,13 +939,13 @@ export default function App(){
         var row={nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado",observacao:a.observacao||"",social_approved:a.social_approved||false,promorar_approved:a.promorar_approved||false,adm_approved:a.adm_approved||false,requires_validation:a.requires_validation||false};
         var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{
           method:"PATCH",
-          headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
+          headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),
           body:JSON.stringify(row)
         });
         if(!r.ok){
           if(r.status===503){
             await new Promise(function(res){setTimeout(res,1000);});
-            var rR=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(row)});
+            var rR=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(row)});
             if(!rR.ok) throw new Error("saveAg retry HTTP "+rR.status);
           } else throw new Error("saveAg PATCH HTTP "+r.status);
         }
@@ -978,7 +989,7 @@ export default function App(){
     setSyncStatus("⌛ Apagando...");
     try{
       var r=await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+id,
-        {method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
+        {method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),
         body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:nome})});
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("🗑️ OS apagada (mantida para auditoria).");
@@ -1003,8 +1014,8 @@ export default function App(){
         return [...prev,{data:_data,ajudantes:_aj,custo_almoco:0}];
       });
       // Persistir no Supabase (PATCH se existe, POST se nao existe)
-      var _hd={...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"};
-      fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+_data+"&select=id",{headers:HEADERS})
+      var _hd={...getH(),"Content-Type":"application/json","Prefer":"return=minimal"};
+      fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+_data+"&select=id",{headers:getH()})
         .then(function(r){return r.json();})
         .then(function(rows){
           if(rows&&rows.length>0){
@@ -1024,7 +1035,7 @@ export default function App(){
     var anterior=agenda.find(function(a){return a.id===id;});
     setAgenda(prev=>prev.map(a=>a.id===id?{...a,[campo]:true,[campoPor]:nome}:a));
     try{
-      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+id,{method:"PATCH",headers:{...HEADERS,"Prefer":"return=representation"},body:JSON.stringify({[campo]:true,[campoPor]:nome})});
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+id,{method:"PATCH",headers:{...getH(),"Prefer":"return=representation"},body:JSON.stringify({[campo]:true,[campoPor]:nome})});
     }catch(e){
       if(anterior)setAgenda(prev=>prev.map(a=>a.id===id?{...anterior}:a));
       setSyncStatus("⚠️ Erro ao validar");
@@ -1060,7 +1071,7 @@ export default function App(){
         setSyncStatus("⏳ Salvando...");
         var rNova=await fetch(SUPA_URL+"/rest/v1/agenda",{
           method:"POST",
-          headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=representation"}),
+          headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"}),
           body:JSON.stringify(rowNova)
         });
         if(!rNova.ok) throw new Error("POST nova agenda HTTP "+rNova.status);
@@ -1094,7 +1105,7 @@ export default function App(){
     setSyncStatus("⌛ Apagando...");
     try{
       var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+id,
-        {method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
+        {method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),
         body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:nome})});
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("🗑️ Agenda apagada (mantida para auditoria).");
@@ -1505,7 +1516,7 @@ export default function App(){
     try{
       var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{
         method:"PATCH",
-        headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),
+        headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),
         body:JSON.stringify({status:novoStatus,...(novoStatus==="Em Deslocamento"?{inicio_em:new Date().toISOString()}:{}),...(novoStatus==="Realizando"?{inicio_mudanca_em:new Date().toISOString()}:{}),...(novoStatus==="Concluido"||novoStatus==="realizado"?{termino_em:new Date().toISOString()}:{})})
       });
       if(!r.ok) throw new Error("HTTP "+r.status);
@@ -1547,7 +1558,7 @@ export default function App(){
     try{
       var patchRes=await fetch(
         SUPA_URL+'/rest/v1/mudancas?id=eq.'+osId,
-        {method:'PATCH',headers:{...HEADERS,'Content-Type':'application/json','Prefer':'return=minimal'},
+        {method:'PATCH',headers:{...getH(),'Content-Type':'application/json','Prefer':'return=minimal'},
         body:JSON.stringify(updatePayload)}
       );
       if(!patchRes.ok) throw new Error('HTTP '+patchRes.status);
@@ -1568,10 +1579,10 @@ export default function App(){
     setAgenda(function(prev){return prev.filter(function(x){return x.id!==ag.id;});});
     try{
       var novaOS={nome:ag.nome,data:ag.data,horario:ag.horario||null,selo:ag.selo||null,van:ag.van||false,caminhao:ag.caminhao||false,comunidade:ag.comunidade||null,observacao:ag.observacao||null,origem:ag.origem||null,destino:ag.destino||null,contato:ag.contato||null,medicao:parseFloat(ag.medicao)||0,ajudantes:parseInt(ag.ajudantes)||0,status:"Registrado",requested_by:ag.requested_by||null,approved_by_admin:ag.approved_by_admin||null,approved_by_social:ag.approved_by_social||null,approved_by_promorar:ag.approved_by_promorar||null};
-      var r1=await fetch(SUPA_URL+"/rest/v1/mudancas?on_conflict=nome,data",{method:"POST",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=representation,resolution=merge-duplicates"}),body:JSON.stringify(novaOS)});
+      var r1=await fetch(SUPA_URL+"/rest/v1/mudancas?on_conflict=nome,data",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation,resolution=merge-duplicates"}),body:JSON.stringify(novaOS)});
       if(!r1.ok) throw new Error("HTTP "+r1.status);
       var _r1Body=await r1.json().catch(function(){return null;});
-      var _adminId=usuario&&(usuario.email||usuario.nome)||"Administrador";var r2=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{method:"PATCH",headers:Object.assign({},HEADERS,{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:_adminId})});
+      var _adminId=usuario&&(usuario.email||usuario.nome)||"Administrador";var r2=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:_adminId})});
       if(!r2.ok) throw new Error("HTTP r2:"+r2.status);
       if(_r1Body&&Array.isArray(_r1Body)&&_r1Body[0]){
         setMudancas(function(prev){return [_r1Body[0]].concat(prev);});
@@ -1605,7 +1616,7 @@ export default function App(){
     try{
       var patchRes=await fetch(
         SUPA_URL+'/rest/v1/agenda?id=eq.'+agId,
-        {method:'PATCH',headers:Object.assign({},HEADERS,{'Content-Type':'application/json','Prefer':'return=minimal'}),
+        {method:'PATCH',headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=minimal'}),
         body:JSON.stringify(updatePayload)}
       );
       if(!patchRes.ok) throw new Error('HTTP '+patchRes.status);
@@ -1734,7 +1745,7 @@ export default function App(){
         var _wp={osId:m.id,clienteNome:m.nome||"",clienteTelefone:_clienteTel,adminWhatsapp:_adminTel,supervisorWhatsapp:_supTel,pdfBase64:_pdfB64,data:m.data||""};
         fetch(SUPA_URL+"/functions/v1/enviar-whatsapp",{
           method:"POST",
-          headers:{...HEADERS,"Content-Type":"application/json"},
+          headers:{...getH(),"Content-Type":"application/json"},
           body:JSON.stringify(_wp)
         }).then(function(r){return r.json();}).then(function(res){
           if(res&&res.enviados>0){
@@ -2465,7 +2476,7 @@ return(
             <div style={{marginTop:20,background:"#f0fdf4",borderRadius:12,padding:16,border:"1px solid #bbf7d0"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                 <div style={{fontSize:13,fontWeight:800,color:"#15803d"}}>📲 Automação WhatsApp</div>
-                <button onClick={function(){var v=cfgWA.whatsapp_ativo==="true"?"false":"true";setCfgWA(function(p){return {...p,whatsapp_ativo:v};});fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.whatsapp_ativo",{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:v})}).catch(function(e){console.warn(e);});}} style={{padding:"4px 12px",borderRadius:20,border:"none",background:cfgWA.whatsapp_ativo==="true"?"#16a34a":"#e2e8f0",color:cfgWA.whatsapp_ativo==="true"?"#fff":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                <button onClick={function(){var v=cfgWA.whatsapp_ativo==="true"?"false":"true";setCfgWA(function(p){return {...p,whatsapp_ativo:v};});fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.whatsapp_ativo",{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:v})}).catch(function(e){console.warn(e);});}} style={{padding:"4px 12px",borderRadius:20,border:"none",background:cfgWA.whatsapp_ativo==="true"?"#16a34a":"#e2e8f0",color:cfgWA.whatsapp_ativo==="true"?"#fff":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>
                   {cfgWA.whatsapp_ativo==="true"?"✅ Activo":"⭕ Inactivo"}
                 </button>
               </div>
@@ -2481,9 +2492,9 @@ return(
               <button onClick={async function(){
                 setWaLoading(true);
                 try{
-                  await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.admin_whatsapp",{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.admin_whatsapp||""})}).catch(function(e){console.warn("WA admin save:",e);});
-                  await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.supervisor_whatsapp",{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.supervisor_whatsapp||""})}).catch(function(e){console.warn("WA sup save:",e);});
-                  await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.whatsapp_ativo",{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.whatsapp_ativo||"false"})}).catch(function(e){console.warn("WA ativo save:",e);});
+                  await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.admin_whatsapp",{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.admin_whatsapp||""})}).catch(function(e){console.warn("WA admin save:",e);});
+                  await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.supervisor_whatsapp",{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.supervisor_whatsapp||""})}).catch(function(e){console.warn("WA sup save:",e);});
+                  await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.whatsapp_ativo",{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.whatsapp_ativo||"false"})}).catch(function(e){console.warn("WA ativo save:",e);});
                   setSyncStatus("📲 Contactos WhatsApp guardados com sucesso!");
                   setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);
                 }catch(e){setSyncStatus("⚠️ Erro: "+e.message);}
@@ -2547,7 +2558,7 @@ return(
                 var _mId=mudAssinatura.id;
                 var _sigB64=assinB64;
                 setMudancas(function(prev){return prev.map(function(m){return m.id===_mId?{...m,status:"Concluído",requested_by:usuario?usuario.nome:null,signature_data:_sigB64}:m;});});
-                fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+_mId,{method:"PATCH",headers:{...HEADERS,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"Concluído",signature_data:_sigB64})}).catch(function(e){console.warn("sig patch:",e);});
+                fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+_mId,{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"Concluído",signature_data:_sigB64})}).catch(function(e){console.warn("sig patch:",e);});
                 await _gerarPDFComAssinatura(mudAssinatura,assinB64,ressalvas);
                 setMudAssinatura(null);
               }} style={{flex:2,padding:10,borderRadius:10,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,cursor:"pointer"}}>📄 Gerar Recibo PDF</button>
