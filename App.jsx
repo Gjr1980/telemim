@@ -2639,54 +2639,64 @@ export default function App(){
             </div>
           );
         })()}
-        {tab==="financeiro"&&isAdmin&&(
-        <div style={{paddingBottom:80}}>
-          <div style={{display:'flex',gap:6,padding:'12px 12px 0',background:'#f8fafc'}}>{[{v:'semana',l:'Semana'},{v:'mes_atual',l:'Mês Atual'},{v:'mes_ant',l:'Mês Anterior'}].map(function(p){return(<button key={p.v} onClick={()=>setPeriodoFin(p.v)} style={{flex:1,padding:'8px 2px',borderRadius:10,border:'none',background:periodoFin===p.v?'#1e40af':'#e2e8f0',color:periodoFin===p.v?'#fff':'#475569',fontSize:11,fontWeight:periodoFin===p.v?700:500,cursor:'pointer'}}>{p.l}</button>);})}</div><div style={{background:'linear-gradient(135deg,#1e293b,#1e40af)',padding:'20px 16px 24px',marginBottom:-12}}><div style={{fontSize:12,color:'rgba(255,255,255,0.65)',marginBottom:2}}>Painel Financeiro</div><div style={{fontSize:21,fontWeight:800,color:'#fff'}}>{(function(){if(periodoFin==='semana'){var d=new Date();var ds=d.getDay();var s0=new Date(d);s0.setDate(d.getDate()-ds+(ds===0?-6:1));var s1=new Date(s0);s1.setDate(s0.getDate()+6);var fmt=function(dt){return dt.getDate()+'/'+(dt.getMonth()+1);};return 'Semana: '+fmt(s0)+' a '+fmt(s1)+'/'+s1.getFullYear();}if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^\w/,function(s){return s.toUpperCase();});}return new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^\w/,function(s){return s.toUpperCase();});})()}</div></div>
-        </div>
-      )}
-        </div>
-
-           {tab==="financeiro"&&isAdmin&&(()=>{
+        {tab==="financeiro"&&isAdmin&&(()=>{
 var _tipos2=[{tp:"caminhao",ico:"🚚",lbl:"Caminhão"},{tp:"van",ico:"🚐",lbl:"Van"},{tp:"ajudante",ico:"👷",lbl:"Ajudante"},{tp:"almoco",ico:"🍽️",lbl:"Almoço"}];
 var _semFin=[];
 var _hjFin=new Date();
-var _diaM=new Date(_hjFin.getFullYear(),_hjFin.getMonth(),1);
-while(_diaM.getMonth()===_hjFin.getMonth()){var _dwFin=_diaM.getDay();var _diffFin=_dwFin===0?6:_dwFin-1;var _s0Fin=new Date(_diaM);_s0Fin.setDate(_diaM.getDate()-_diffFin);var _s1Fin=new Date(_s0Fin);_s1Fin.setDate(_s0Fin.getDate()+6);var _siF=_fmtDate(_s0Fin);if(!_semFin.find(function(x){return x.si===_siF;}))_semFin.push({si:_siF,sf:_fmtDate(_s1Fin)});_diaM.setDate(_diaM.getDate()+7);}
+var _p2f=function(n){return String(n).padStart(2,"0");};
+var _fmtD2=function(dt){return dt.getFullYear()+"-"+_p2f(dt.getMonth()+1)+"-"+_p2f(dt.getDate());};
+if(periodoFin==='semana'){
+  var _dwF=_hjFin.getDay();var _difF=_dwF===0?6:_dwF-1;
+  var _s0F=new Date(_hjFin.getFullYear(),_hjFin.getMonth(),_hjFin.getDate()-_difF);
+  var _s1F=new Date(_s0F.getFullYear(),_s0F.getMonth(),_s0F.getDate()+6);
+  _semFin.push({si:_fmtD2(_s0F),sf:_fmtD2(_s1F)});
+}else{
+  var _tgM=_hjFin.getMonth();var _tgY=_hjFin.getFullYear();
+  if(periodoFin==='mes_ant'){_tgM--;if(_tgM<0){_tgM=11;_tgY--;}}
+  var _diaM=new Date(_tgY,_tgM,1);
+  while(_diaM.getMonth()===_tgM){var _dwFin=_diaM.getDay();var _diffFin=_dwFin===0?6:_dwFin-1;var _s0Fin=new Date(_diaM);_s0Fin.setDate(_diaM.getDate()-_diffFin);var _s1Fin=new Date(_s0Fin);_s1Fin.setDate(_s0Fin.getDate()+6);var _siF=_fmtD2(_s0Fin);if(!_semFin.find(function(x){return x.si===_siF;}))_semFin.push({si:_siF,sf:_fmtD2(_s1Fin)});_diaM.setDate(_diaM.getDate()+7);}
+}
 var _fV3=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2});};
 var _fD3=function(d){if(!d)return "";var p=d.split("-");return p[2]+"/"+p[1];};
 return(
-<div style={{padding:"12px",marginTop:4}}>
-<div style={{fontWeight:800,fontSize:14,color:"#1e293b",marginBottom:10,display:"flex",alignItems:"center",gap:6}}><span>📅</span> Custos da Semana — Mês Atual</div>
-{_semFin.map(function(_sem2){
-var _its2=contasSemana.filter(function(x){return x.semana_inicio===_sem2.si&&["caminhao","van","ajudante","almoco"].includes(x.tipo);});
-return(
-<div key={_sem2.si} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:"12px 14px",marginBottom:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><span style={{fontWeight:700,fontSize:12,color:"#64748b"}}>📆 {_fD3(_sem2.si)} a {_fD3(_sem2.sf)}</span><span style={{fontWeight:800,fontSize:13,color:_its2.reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0)>0?"#dc2626":"#94a3b8"}}>{_fV3(_its2.reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0))}</span></div>
-{_tipos2.map(function(_t2){
-var _it2=_its2.find(function(x){return x.tipo===_t2.tp;});
-var _val2=parseFloat((_it2&&(_it2.valor_editado||_it2.valor_calculado))||0);
-var _ek2=_sem2.si+"_"+_t2.tp;
-return(
-<div key={_t2.tp} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #f1f5f9"}}>
-<span style={{fontSize:16,minWidth:24}}>{_t2.ico}</span>
-<span style={{flex:1,fontSize:12,color:"#334155",fontWeight:600}}>{_t2.lbl}</span>
-{contaEditId===_ek2
-?<div style={{display:"flex",gap:4,alignItems:"center"}}>
-<input autoFocus type="number" step="0.01" defaultValue={_val2.toFixed(2)} onChange={function(e){setContaEditVal(e.target.value);}} style={{width:100,padding:"3px 8px",borderRadius:6,border:"1.5px solid #1e40af",fontSize:12}} />
-<button onClick={function(){var _nv2=parseFloat(contaEditVal);if(isNaN(_nv2)){setContaEditId(null);return;}if(_it2){fetch(SUPA_URL+"/rest/v1/contas_semana?id=eq."+_it2.id,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor_editado:_nv2,valor_calculado:_nv2})}).then(function(){setContasSemana(function(p){return p.map(function(x){return x.id===_it2.id?Object.assign({},x,{valor_editado:_nv2,valor_calculado:String(_nv2)}):x;});});});}else{fetch(SUPA_URL+"/rest/v1/contas_semana",{method:"POST",headers:{...getH(),"Prefer":"return=representation"},body:JSON.stringify({semana_inicio:_sem2.si,semana_fim:_sem2.sf,tipo:_t2.tp,tipo_conta:"pagar",valor_calculado:_nv2,valor_editado:_nv2,qtd_mudancas:0,status:"pendente"})}).then(function(r){return r.json();}).then(function(_j2){if(_j2&&_j2[0])setContasSemana(function(p){return p.concat([_j2[0]]);});});}setContaEditId(null);setContaEditVal("");}} style={{padding:"3px 8px",background:"#1e40af",color:"#fff",border:"none",borderRadius:6,fontSize:12,cursor:"pointer",fontWeight:700}}>✓</button>
-<button onClick={function(){setContaEditId(null);setContaEditVal("");}} style={{padding:"3px 8px",background:"#e2e8f0",color:"#475569",border:"none",borderRadius:6,fontSize:12,cursor:"pointer"}}>✕</button>
-</div>
-:<div style={{display:"flex",alignItems:"center",gap:6}}>
-<span style={{fontSize:13,fontWeight:700,color:_val2>0?"#1e293b":"#94a3b8"}}>{_fV3(_val2)}</span>
-<button onClick={function(){setContaEditId(_ek2);setContaEditVal(_val2.toFixed(2));}} style={{background:"#f1f5f9",border:"none",borderRadius:6,padding:"2px 6px",cursor:"pointer",fontSize:11,color:"#64748b"}}>✏️</button>
-</div>
-}
-</div>);
-})}
-</div>);
-})}
+<div style={{paddingBottom:80}}>
+  <div style={{display:'flex',gap:6,padding:'12px 12px 0',background:'#f8fafc'}}>{[{v:'semana',l:'Semana'},{v:'mes_atual',l:'Mês Atual'},{v:'mes_ant',l:'Mês Anterior'}].map(function(p){return(<button key={p.v} onClick={()=>setPeriodoFin(p.v)} style={{flex:1,padding:'8px 2px',borderRadius:10,border:'none',background:periodoFin===p.v?'#1e40af':'#e2e8f0',color:periodoFin===p.v?'#fff':'#475569',fontSize:11,fontWeight:periodoFin===p.v?700:500,cursor:'pointer'}}>{p.l}</button>);})}</div>
+  <div style={{background:'linear-gradient(135deg,#1e293b,#1e40af)',padding:'20px 16px 24px'}}><div style={{fontSize:12,color:'rgba(255,255,255,0.65)',marginBottom:2}}>Painel Financeiro</div><div style={{fontSize:21,fontWeight:800,color:'#fff'}}>{(function(){if(periodoFin==='semana'){var d=new Date();var ds=d.getDay();var s0=new Date(d);s0.setDate(d.getDate()-ds+(ds===0?-6:1));var s1=new Date(s0);s1.setDate(s0.getDate()+6);var fmt=function(dt){return dt.getDate()+'/'+(dt.getMonth()+1);};return 'Semana: '+fmt(s0)+' a '+fmt(s1)+'/'+s1.getFullYear();}if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^\w/,function(s){return s.toUpperCase();});}return new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^\w/,function(s){return s.toUpperCase();});})()}</div></div>
+  <div style={{padding:"12px 12px 0"}}>
+    <div style={{fontWeight:800,fontSize:14,color:"#1e293b",marginBottom:10,display:"flex",alignItems:"center",gap:6}}><span>📅</span> Custos do Período</div>
+    {_semFin.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:24,fontSize:13}}>Nenhuma semana neste período</div>}
+    {_semFin.map(function(_sem2){
+      var _its2=contasSemana.filter(function(x){return x.semana_inicio===_sem2.si&&["caminhao","van","ajudante","almoco"].includes(x.tipo);});
+      return(
+        <div key={_sem2.si} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:"12px 14px",marginBottom:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><span style={{fontWeight:700,fontSize:12,color:"#64748b"}}>📆 {_fD3(_sem2.si)} a {_fD3(_sem2.sf)}</span><span style={{fontWeight:800,fontSize:13,color:_its2.reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0)>0?"#dc2626":"#94a3b8"}}>{_fV3(_its2.reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0))}</span></div>
+          {_tipos2.map(function(_t2){
+            var _it2=_its2.find(function(x){return x.tipo===_t2.tp;});
+            var _val2=parseFloat((_it2&&(_it2.valor_editado||_it2.valor_calculado))||0);
+            var _ek2=_sem2.si+"_"+_t2.tp;
+            return(
+              <div key={_t2.tp} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #f1f5f9"}}>
+                <span style={{fontSize:16,minWidth:24}}>{_t2.ico}</span>
+                <span style={{flex:1,fontSize:12,color:"#334155",fontWeight:600}}>{_t2.lbl}</span>
+                {contaEditId===_ek2
+                  ?<div style={{display:"flex",gap:4,alignItems:"center"}}>
+                    <input autoFocus type="number" step="0.01" defaultValue={_val2.toFixed(2)} onChange={function(e){setContaEditVal(e.target.value);}} style={{width:100,padding:"3px 8px",borderRadius:6,border:"1.5px solid #1e40af",fontSize:12}} />
+                    <button onClick={function(){var _nv2=parseFloat(contaEditVal);if(isNaN(_nv2)){setContaEditId(null);return;}if(_it2){fetch(SUPA_URL+"/rest/v1/contas_semana?id=eq."+_it2.id,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor_editado:_nv2,valor_calculado:_nv2})}).then(function(){setContasSemana(function(p){return p.map(function(x){return x.id===_it2.id?Object.assign({},x,{valor_editado:_nv2,valor_calculado:String(_nv2)}):x;});});});}else{fetch(SUPA_URL+"/rest/v1/contas_semana",{method:"POST",headers:{...getH(),"Prefer":"return=representation"},body:JSON.stringify({semana_inicio:_sem2.si,semana_fim:_sem2.sf,tipo:_t2.tp,tipo_conta:"pagar",valor_calculado:_nv2,valor_editado:_nv2,qtd_mudancas:0,status:"pendente"})}).then(function(r){return r.json();}).then(function(_j2){if(_j2&&_j2[0])setContasSemana(function(p){return p.concat([_j2[0]]);});});}setContaEditId(null);setContaEditVal("");}} style={{padding:"3px 8px",background:"#1e40af",color:"#fff",border:"none",borderRadius:6,fontSize:12,cursor:"pointer",fontWeight:700}}>✓</button>
+                    <button onClick={function(){setContaEditId(null);setContaEditVal("");}} style={{padding:"3px 8px",background:"#e2e8f0",color:"#475569",border:"none",borderRadius:6,fontSize:12,cursor:"pointer"}}>✕</button>
+                  </div>
+                  :<div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:13,fontWeight:700,color:_val2>0?"#1e293b":"#94a3b8"}}>{_fV3(_val2)}</span>
+                    <button onClick={function(){setContaEditId(_ek2);setContaEditVal(_val2.toFixed(2));}} style={{background:"#f1f5f9",border:"none",borderRadius:6,padding:"2px 6px",cursor:"pointer",fontSize:11,color:"#64748b"}}>✏️</button>
+                  </div>
+                }
+              </div>);
+          })}
+        </div>);
+    })}
+  </div>
 </div>);
 })()}
+        </div>
 {tab==="financeiro"&&isAdmin&&(function(){
   var _pc=function(n){return String(n).padStart(2,"0");};
   var _hj=new Date();
