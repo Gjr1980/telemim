@@ -1,26 +1,50 @@
 # 🚛 TELEMIM — App Web
 
-## Deploy na Vercel via GitHub
+App PWA para gestão de mudanças. React + Vite + Supabase.
 
-### Passo 1 — Upload no GitHub
-1. Crie conta em github.com
-2. New repository → Nome: `telemim` → Public → Create
-3. Clique **"uploading an existing file"**
-4. Extraia o ZIP e arraste **TODOS os arquivos e pastas** para o GitHub:
-   - `index.html`, `package.json`, `vite.config.js`, `vercel.json`, `.gitignore`
-   - pasta `src/` (com `App.jsx` e `main.jsx`)
-   - pasta `public/` (com `manifest.json`)
-   - pasta `.github/` (com `workflows/deploy.yml`)
-5. Commit changes
+## Stack
 
-### Passo 2 — Deploy na Vercel
-1. Acesse vercel.com → Sign up with GitHub
-2. New Project → Selecione `telemim`
-3. **Framework Preset → Vite**
-4. Build Command: `npm run build`
-5. Output Directory: `dist`
-6. Clique **Deploy** ✅
+- **Frontend:** React 18 + Vite
+- **Backend:** Supabase (PostgreSQL + Realtime)
+- **Hosting:** Cloudflare Pages (deploy automático via GitHub)
 
-### Passo 3 — Instalar no celular
-- Android: Chrome → ⋮ → "Adicionar à tela inicial"
-- iPhone: Safari → □↑ → "Adicionar à Tela de Início"
+## Estrutura
+
+```
+telemim/
+├── App.jsx           # Componente principal (toda a aplicação)
+├── main.jsx          # Entry point (monta React no DOM)
+├── index.html        # HTML raiz
+├── manifest.json     # PWA manifest
+├── public/           # Assets estáticos
+├── vite.config.js    # Config Vite
+└── package.json
+```
+
+## Desenvolvimento local
+
+```bash
+# Instalar dependências
+npm install
+
+# Rodar dev server (http://localhost:5173)
+npm run dev
+
+# Build de produção
+npm run build
+
+# Preview do build
+npm run preview
+```
+
+## Deploy
+
+Push para a branch `main` → Cloudflare Pages faz deploy automático em `https://telemim.pages.dev`.
+
+- **Build command:** `npm run build`
+- **Output directory:** `dist`
+
+## Instalação como PWA no celular
+
+- **Android:** Chrome → ⋮ → "Adicionar à tela inicial"
+- **iPhone:** Safari → □↑ → "Adicionar à Tela de Início"
