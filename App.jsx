@@ -653,7 +653,7 @@ export default function App(){
   const [flash,setFlash]=useState("");
   const [expand,setExpand]=useState(null);
   const [search,setSearch]=useState("");
-  const [filtroMes,setFiltroMes]=useState("");
+  const [filtroMes,setFiltroMes]=useState("semana");
   const [filtroDataIni,setFiltroDataIni]=useState("");
   const [filtroDataFim,setFiltroDataFim]=useState("");
   const [editMud,setEditMud]=useState(null);
