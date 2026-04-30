@@ -702,6 +702,17 @@ export default function App(){
   useEffect(()=>{
     async function load(){
       try{
+        // Refresh token if expired before loading data
+        try{
+          var _su=JSON.parse(localStorage.getItem('tmim_u')||'{}');
+          if(_su&&_su.token){
+            var _refreshed=await _getValidToken(_su,SUPA_URL,SUPA_KEY);
+            if(_refreshed&&_refreshed!==_su.token){
+              _su.token=_refreshed;
+              localStorage.setItem('tmim_u',JSON.stringify(_su));
+            }
+          }
+        }catch(_re){}
         // Carregar mudancas e agenda em paralelo
         try{
           var p=await Promise.all([dbGet("mudancas"),dbGet("agenda","deleted_at=is.null"),loadCfgWA()]);
@@ -870,7 +881,7 @@ export default function App(){
       console.error("[saveMud]",e);
     }
   }
-  async function handleLogin(){if(!loginForm.email||!loginForm.senha){setLoginErro("Preencha email e senha");return;}setLoginLoad(true);setLoginErro("");try{const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:loginForm.email,password:loginForm.senha})});const d=await res.json();if(!res.ok||!d.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+d.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+d.access_token}});const pd=await pr.json();if(!pd||!pd[0]||pd[0].ativo===false){setLoginErro("Sem acesso. Contate o administrador.");setLoginLoad(false);return;}const u={id:d.user.id,email:d.user.email,nome:pd[0].nome,perfil:pd[0].perfil,token:d.access_token};setUsuario(u);setTab("dashboard");localStorage.setItem('tmim_u',JSON.stringify(u));}catch(e){setLoginErro("Erro.");}setLoginLoad(false);}
+  async function handleLogin(){if(!loginForm.email||!loginForm.senha){setLoginErro("Preencha email e senha");return;}setLoginLoad(true);setLoginErro("");try{const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:loginForm.email,password:loginForm.senha})});const d=await res.json();if(!res.ok||!d.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+d.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+d.access_token}});const pd=await pr.json();if(!pd||!pd[0]||pd[0].ativo===false){setLoginErro("Sem acesso. Contate o administrador.");setLoginLoad(false);return;}const u={id:d.user.id,email:d.user.email,nome:pd[0].nome,perfil:pd[0].perfil,token:d.access_token,refresh_token:d.refresh_token||null};setUsuario(u);setTab("dashboard");localStorage.setItem('tmim_u',JSON.stringify(u));/* Reload data with fresh JWT */try{var _mr=await dbGet("mudancas");if(_mr&&_mr.length>0)setMudancas(_mr);var _ar=await dbGet("agenda","deleted_at=is.null");if(_ar&&_ar.length>0)setAgenda(_ar);var _cr=await dbGetCustos();if(_cr)setCustosDiarios(_cr);loadContasSemana();loadPrestadores();}catch(_le){}}catch(e){setLoginErro("Erro.");}setLoginLoad(false);}
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
   const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social";const isMotorista=perfil==="motorista";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar;const verMed=isAdmin||isPromorar;
   async function carregarUsuarios(){if(!isAdmin||!usuario?.token)return;const _tk3=await _getValidToken(usuario,SUPA_URL,SUPA_KEY);const r=await fetch(SUPA_URL+"/functions/v1/listar-usuarios",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(_tk3||"")}});const d=await r.json();if(d.ok&&Array.isArray(d.usuarios))setListaUsuarios(d.usuarios);}
