@@ -634,7 +634,7 @@ export default function App(){
           });
         })
         .on('postgres_changes',{event:'UPDATE',schema:'public',table:'agenda'},function(p){
-          setAgenda(function(prev){return prev.map(function(a){return a.id===p.new.id?Object.assign({},a,p.new):a;});});
+          setAgenda(function(prev){if(prev.some(function(a){return a.id===p.new.id;})){return prev.map(function(a){return a.id===p.new.id?Object.assign({},a,p.new):a;});}return [p.new].concat(prev);});
         })
         .on('postgres_changes',{event:'DELETE',schema:'public',table:'agenda'},function(p){
           setAgenda(function(prev){return prev.filter(function(a){return a.id!==p.old.id;});});
@@ -1897,6 +1897,7 @@ export default function App(){
   const _jaEmMudancas=function(a){return mudancas.some(function(m){return m.data===a.data&&(m.nome||"").toLowerCase().trim()===(a.nome||"").toLowerCase().trim();});};
   const mudancasHoje=agendaOrdenada.filter(a=>a.data===hoje&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a));
   const mudancasAmanha=agendaOrdenada.filter(a=>a.data===amanha&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a));
+  const mudancasFuturas=isMotorista?agendaOrdenada.filter(a=>a.data>amanha&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a)):[];
   const _mesAtual=new Date().getMonth();
   const _anoAtual=new Date().getFullYear();
   const _mesesNome=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -1999,7 +2000,7 @@ export default function App(){
         {tab==="dashboard"&&(
         <div style={{paddingBottom:16}}>
         {(()=>{var _p=usuario&&usuario.perfil||"";var _campoMeu=_p==="admin"?"approved_by_admin":_p==="social"?"approved_by_social":_p==="promorar"?"approved_by_promorar":null;if(!_campoMeu)return null;var _pend=[...agenda].filter(function(x){if(!x.data||x.deleted_at)return false;if(x[_campoMeu])return false;return true;});if(!_pend.length)return null;return(<div style={{margin:"0 12px 16px",background:"#fffbeb",border:"2.5px solid #f59e0b",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(245,158,11,0.25)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🔔</span><div><div style={{fontWeight:800,fontSize:14,color:"#92400e"}}>Notificações ({_pend.length})</div><div style={{fontWeight:600,fontSize:11,color:"#b45309"}}>Confirme o recebimento das mudanças agendadas</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pend.map(function(x){var _quem=x.created_by||x.approved_by_admin||x.approved_by_social||x.approved_by_promorar||"Sistema";var _perfQuem=x.creator_role||"";return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"10px 12px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>👤 {x.nome}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · 🏷️ {x.selo||"—"}</div><div style={{fontSize:10,color:"#64748b",marginTop:1}}>Agendado por: <strong>{_quem}</strong>{_perfQuem?" ("+_perfQuem+")":""}</div></div><button onClick={function(e){e.stopPropagation();handleApproveAgenda(x.id);}} disabled={!!isApproving[x.id]} style={{padding:"7px 14px",background:isApproving[x.id]?"#94a3b8":"#16a34a",color:"#fff",border:"none",borderRadius:999,fontWeight:800,fontSize:11,cursor:isApproving[x.id]?"not-allowed":"pointer",whiteSpace:"nowrap",flexShrink:0,boxShadow:"0 2px 8px rgba(22,163,74,0.3)"}}>{isApproving[x.id]?"⏳":"✅ Confirmar"}</button></div></div>);})}</div></div>);})()}
-        {isMotorista&&mudancasHoje.length===0&&mudancasAmanha.length===0&&(<div style={{margin:"12px 0 0",background:"#f0fdf4",border:"2px solid #86efac",borderRadius:14,padding:"20px 16px",textAlign:"center"}}><div style={{fontSize:28,marginBottom:8}}>😊</div><div style={{fontWeight:800,fontSize:15,color:"#15803d",marginBottom:6}}>Nenhuma mudança agendada para hoje ou amanhã!</div><div style={{fontSize:13,color:"#16a34a"}}>Bom descanso! ✅</div></div>)}
+        {isMotorista&&mudancasHoje.length===0&&mudancasAmanha.length===0&&mudancasFuturas.length===0&&(<div style={{margin:"12px 0 0",background:"#f0fdf4",border:"2px solid #86efac",borderRadius:14,padding:"20px 16px",textAlign:"center"}}><div style={{fontSize:28,marginBottom:8}}>😊</div><div style={{fontWeight:800,fontSize:15,color:"#15803d",marginBottom:6}}>Nenhuma mudança agendada!</div><div style={{fontSize:13,color:"#16a34a"}}>Bom descanso! ✅</div></div>)}
         {mudancasHoje.length>0&&(
           <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
             {mudancasHoje.map(function(a){
@@ -2060,6 +2061,27 @@ export default function App(){
                 </div>
                 <div style={{background:"#fff",border:"1px solid #fed7aa",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#92400e",fontWeight:600,textAlign:"center"}}>
                   🛠️ Prepare a van para amanhã!
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        )}
+{isMotorista&&mudancasFuturas.length>0&&(
+          <div style={{margin:"8px 0 0",display:"flex",flexDirection:"column",gap:7}}>
+            <div style={{color:"#1d4ed8",fontWeight:900,fontSize:11,letterSpacing:1,textTransform:"uppercase",marginTop:6,marginBottom:2,paddingLeft:2}}>📋 PRÓXIMAS MUDANÇAS</div>
+            {mudancasFuturas.map(function(a){
+              return(
+              <div key={a.id} style={{background:"#dbeafe",border:"2px solid #3b82f6",borderRadius:14,padding:"14px 15px",boxShadow:"0 2px 8px rgba(59,130,246,0.15)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div style={{flex:1}}>
+                    <div style={{color:"#1d4ed8",fontWeight:900,fontSize:11,letterSpacing:1,textTransform:"uppercase",marginBottom:3}}>📋 MUDANÇA {a.data?new Date(a.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):""}</div>
+                    <div style={{fontWeight:800,fontSize:15,color:"#1e293b",marginBottom:2}}>{a.nome}</div>
+                    {a.horario&&<div style={{fontSize:12,color:"#475569"}}>⏰ {a.horario}h</div>}
+                    <div style={{fontSize:11,color:"#64748b",marginTop:2}}>📦 {a.origem||"?"}</div>
+                    <div style={{fontSize:11,color:"#64748b"}}>🏘️ {a.destino||"?"}</div>
+                  </div>
+                  <div style={{background:"#bfdbfe",border:"1px solid #93c5fd",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:"#1e40af",whiteSpace:"nowrap"}}>{a.data?new Date(a.data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"?"}</div>
                 </div>
               </div>
               );
