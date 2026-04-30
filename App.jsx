@@ -585,7 +585,6 @@ export default function App(){
   const [calMes,setCalMes]=useState(new Date().getMonth());
   const [calAno,setCalAno]=useState(new Date().getFullYear());
   const [calDiaSel,setCalDiaSel]=useState(null);
-  const [calMoveId,setCalMoveId]=useState(null);
   const [cfgEdit,setCfgEdit]=useState({van1a:1000,vanAdd:0,aj1a:80,ajAdd:20,dataInicioRegra:'',imposto:16});
   const [cfgSaved,setCfgSaved]=useState(false);
   const [bioLock,setBioLock]=useState(localStorage.getItem('tmim_bio_enabled')==='true'&&!!localStorage.getItem('tmim_u'));
@@ -1044,17 +1043,6 @@ export default function App(){
       }
       setSyncStatus("✅ Sinc");
     }catch(e){setSyncStatus("⚠️ Erro ao guardar");console.error("[saveAg]",e);loadAg();}
-  }
-
-  async function handleReagendarCal(agId,novaData){
-    await _ensureAuth();
-    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,{data:novaData}):a;});});
-    setSyncStatus("⏳ Reagendando...");
-    try{
-      var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({data:novaData})});
-      if(!r.ok) throw new Error("HTTP "+r.status);
-      setSyncStatus("✅ Reagendado!");
-    }catch(e){loadAg();setSyncStatus("⚠️ Erro ao reagendar");}
   }
 
   async function handleAddMud(){
@@ -2263,7 +2251,7 @@ export default function App(){
   var _porDia={};
   _agMes.forEach(function(a){var d=parseInt(a.data.slice(8,10));if(!_porDia[d])_porDia[d]={total:0,items:[]};_porDia[d].total++;_porDia[d].items.push(a);});
   var _hjStr=new Date().toISOString().slice(0,10);
-  function _navM(dir){var nm=calMes+dir;var na=calAno;if(nm<0){nm=11;na--;}if(nm>11){nm=0;na++;}setCalMes(nm);setCalAno(na);setCalDiaSel(null);setCalMoveId(null);}
+  function _navM(dir){var nm=calMes+dir;var na=calAno;if(nm<0){nm=11;na--;}if(nm>11){nm=0;na++;}setCalMes(nm);setCalAno(na);setCalDiaSel(null);}
   function _dStr(d){return _prefix+"-"+(d<10?"0":"")+d;}
   var _selD=calDiaSel?parseInt(calDiaSel.slice(8,10)):null;
   var _selItems=_selD&&_porDia[_selD]?_porDia[_selD].items:[];
@@ -2275,10 +2263,6 @@ export default function App(){
           <div style={{fontWeight:800,fontSize:16,color:"#1e293b"}}>🗓️ {_mN[calMes]} {calAno}</div>
           <button onClick={function(){_navM(1);}} style={{background:"#e2e8f0",border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:16,fontWeight:700,color:"#334155"}}>▶</button>
         </div>
-        {calMoveId&&<div style={{background:"#fef3c7",border:"1.5px solid #f59e0b",borderRadius:10,padding:"8px 12px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:12,fontWeight:700,color:"#92400e"}}>📦 Toque no dia destino para mover</span>
-          <button onClick={function(){setCalMoveId(null);}} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Cancelar</button>
-        </div>}
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
           {_dN.map(function(dn){return <div key={dn} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"#94a3b8",padding:"4px 0"}}>{dn}</div>;})}
         </div>
@@ -2287,10 +2271,10 @@ export default function App(){
             if(dia===null)return <div key={"e"+idx} style={{minHeight:42}}></div>;
             var _ds=_dStr(dia);var _info=_porDia[dia];var _isH=_ds===_hjStr;var _isS=calDiaSel===_ds;var _hasM=_info&&_info.total>0;
             return(
-              <div key={dia} onClick={function(){if(calMoveId){handleReagendarCal(calMoveId,_ds);setCalMoveId(null);setCalDiaSel(_ds);}else{setCalDiaSel(_isS?null:_ds);}}}
+              <div key={dia} onClick={function(){setCalDiaSel(_isS?null:_ds);}}
                 style={{minHeight:42,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:10,cursor:"pointer",
                   border:_isS?"2px solid #1e40af":_isH?"2px solid #3b82f6":"1.5px solid transparent",
-                  background:calMoveId&&!_isS?"#f0fdf4":(_isS?"#dbeafe":(_isH?"#eff6ff":"transparent")),transition:"all 0.15s"}}>
+                  background:_isS?"#dbeafe":(_isH?"#eff6ff":"transparent"),transition:"all 0.15s"}}>
                 <div style={{fontSize:13,fontWeight:_isH||_isS?800:500,color:_isS?"#1e40af":(_isH?"#1e40af":"#334155")}}>{dia}</div>
                 {_hasM&&<div style={{minWidth:16,height:16,borderRadius:8,padding:"0 3px",
                   background:_info.items.some(function(x){return x.status==="cancelada";})?"#dc2626":_info.items.every(function(x){return x.status==="concluida";})?"#047857":"#f59e0b",
@@ -2304,8 +2288,8 @@ export default function App(){
               <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>📋 {calDiaSel.slice(8)+"/"+calDiaSel.slice(5,7)}</div>
               <span style={{background:"#e0e7ff",color:"#3730a3",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700}}>{_selItems.length} mud.</span>
             </div>
-            {_selItems.map(function(a){var _isMv=calMoveId===a.id;return(
-              <div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 10px",marginBottom:4,background:_isMv?"#fef3c7":"#f8fafc",borderRadius:10,border:_isMv?"1.5px solid #f59e0b":"1px solid #e2e8f0"}}>
+            {_selItems.map(function(a){return(
+              <div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 10px",marginBottom:4,background:"#f8fafc",borderRadius:10,border:"1px solid #e2e8f0"}}>
                 <div style={{width:8,height:8,borderRadius:"50%",background:a.status==="concluida"?"#047857":a.status==="cancelada"?"#dc2626":"#f59e0b",marginRight:10,flexShrink:0}}></div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:600,color:"#334155",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nome}</div>
@@ -2313,7 +2297,7 @@ export default function App(){
                 </div>
                 <div style={{display:"flex",gap:4,alignItems:"center"}}>
                   <span style={{fontSize:11,fontWeight:700,color:a.status==="concluida"?"#047857":a.status==="cancelada"?"#dc2626":"#d97706"}}>{a.status==="concluida"?"✅":a.status==="cancelada"?"❌":"⏳"}</span>
-                  {a.status!=="concluida"&&a.status!=="cancelada"&&<button onClick={function(e){e.stopPropagation();setCalMoveId(_isMv?null:a.id);}} style={{background:_isMv?"#dc2626":"#1e40af",color:"#fff",border:"none",borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>{_isMv?"✕":"📅 Mover"}</button>}
+                  <button onClick={function(e){e.stopPropagation();setViewMud(a);}} style={{background:"#f0f9ff",border:"1.5px solid #0ea5e9",color:"#0ea5e9",borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>👁️ Ver</button>
                 </div>
               </div>);})}
           </div>
