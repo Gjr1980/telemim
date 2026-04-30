@@ -2351,7 +2351,7 @@ export default function App(){
         var _mudHj=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data===_hoje3;});
         var _m3Hj=_mudHj.reduce(function(s,m){return s+(parseFloat(m.medicao)||0);},0);
         var _valMud=_m3Hj*(parseFloat(RULES.medicaoPorM3)||150);
-        var _valVan=_mudHj.length>0?(parseFloat(RULES.vanGanho)||1000):0;
+        var _valVan=_mudHj.some(function(m){return m.van;})?( parseFloat(RULES.vanGanho)||1000):0;
         var _totalDia=_valMud+_valVan;
         return(
           <div>
