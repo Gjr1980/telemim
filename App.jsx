@@ -654,6 +654,7 @@ export default function App(){
   const [filtroDataIni,setFiltroDataIni]=useState("");
   const [filtroDataFim,setFiltroDataFim]=useState("");
   const [editMud,setEditMud]=useState(null);
+  const [viewMud,setViewMud]=useState(null);
   const [convertModal,setConvertModal]=useState(null);
   const [editAg,setEditAg]=useState(null);
   const [syncStatus,setSyncStatus]=useState("✅ Sincronizado");
@@ -2136,6 +2137,7 @@ export default function App(){
                   <div style={{display:"flex",gap:5,alignItems:"center",marginLeft:8}}>
                     {!isMotorista&&verMed&&<Badge color={COLORS.green}>{m.medicao} m³</Badge>}
                     {m.contato&&<button onClick={()=>{var tel=(m.contato||"").replace(/\D/g,"");var txt="\uD83D\uDE9A *TELEMIM — Sua Mudan\u00E7a*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nOl\u00E1 *"+m.nome+"*! \uD83D\uDC4B\nConfirmamos sua mudan\u00E7a:\n\uD83D\uDCC5 *Data:* "+_fmtDate(m.data)+"\n\uD83D\uDCCD *Sa\u00EDda:* "+(m.comunidade||m.origem||"-")+"\n\uD83D\uDCCD *Destino:* "+(m.destino||"-")+"\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nEm caso de d\u00FAvidas, entre em contacto. \uD83D\uDE0A\n_TELEMIM_";window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent(txt),"_blank");}} style={{background:"#25d366",border:"none",color:"#fff",borderRadius:6,padding:"5px 8px",cursor:"pointer",fontSize:14}} title="WhatsApp Morador">📱</button>}
+                    <button onClick={()=>setViewMud(m)} style={{background:"#f0f9ff",border:"1.5px solid #0ea5e9",color:"#0ea5e9",borderRadius:6,padding:"5px 8px",cursor:"pointer",fontSize:14,fontWeight:700}} title="Ver detalhes">👁️</button>
                     <button onClick={()=>compartilharMudanca(m)} style={btnGreen}>📲</button>
                     {m.signature_data
                     ? <button onClick={function(){setMudViewPDF(m);setShowViewPDF(true);}} style={{...btnRed,background:"#e0f2fe",border:"1.5px solid #0284c7",color:"#0284c7"}} title="Ver PDF Assinado">📄 Assinado</button>
@@ -2586,6 +2588,43 @@ return(
                 setMudAssinatura(null);
               }} style={{flex:2,padding:10,borderRadius:10,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,cursor:"pointer"}}>📄 Gerar Recibo PDF</button>
             </div>
+          </div>
+        </div>
+      )}
+         {/* ══ MODAL DETALHES DA MUDANÇA (READ-ONLY) ══ */}
+      {viewMud&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setViewMud(null)}>
+          <div style={{background:"#fff",borderRadius:16,padding:"20px 18px",width:"94%",maxWidth:440,maxHeight:"85vh",overflow:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div style={{fontSize:17,fontWeight:900,color:COLORS.text}}>📋 Detalhes da Mudança</div>
+              <button onClick={()=>setViewMud(null)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94a3b8"}}>✕</button>
+            </div>
+            {(function(){var v=viewMud;var _row=function(label,val,icon){return val?<div style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f1f5f9"}}><span style={{fontSize:12,color:"#64748b"}}>{icon} {label}</span><span style={{fontSize:12,fontWeight:600,color:COLORS.text,textAlign:"right",maxWidth:"60%"}}>{val}</span></div>:null;};
+            return(<div>
+              {_row("Nome",v.nome,"👤")}
+              {_row("Selo",v.selo,"🏷️")}
+              {_row("Comunidade",v.comunidade,"🏘️")}
+              {_row("Data",v.data,"📅")}
+              {_row("Horário",v.horario,"⏰")}
+              {_row("Origem",v.origem,"📦")}
+              {_row("Destino",v.destino,"🏠")}
+              {_row("Contato",v.contato,"📞")}
+              {_row("Medição",v.medicao?v.medicao+" m³":"","📐")}
+              {_row("Van",v.van?"Sim":"Não","🚐")}
+              {_row("Caminhão",v.caminhao?"Sim":"Não","🚚")}
+              {_row("Status",v.status,"📌")}
+              {_row("Observação",v.observacao,"📝")}
+              {_row("Criado por",v.created_by,"✍️")}
+              {_row("Perfil criador",v.creator_role,"🔑")}
+              {_row("Criado em",v.criado_em?new Date(v.criado_em).toLocaleString("pt-BR"):null,"🕐")}
+              <div style={{borderTop:"1px solid #e2e8f0",marginTop:10,paddingTop:8,fontSize:11,color:"#475569"}}>
+                <div style={{fontWeight:700,marginBottom:4}}>Aprovações:</div>
+                <div style={{marginBottom:2}}>Admin: {v.approved_by_admin?<b style={{color:"#16a34a"}}>✅ {v.approved_by_admin}</b>:<span style={{color:"#9ca3af"}}>⏳ Pendente</span>}</div>
+                <div style={{marginBottom:2}}>Social: {v.approved_by_social?<b style={{color:"#16a34a"}}>✅ {v.approved_by_social}</b>:<span style={{color:"#9ca3af"}}>⏳ Pendente</span>}</div>
+                <div>Promorar: {v.approved_by_promorar?<b style={{color:"#16a34a"}}>✅ {v.approved_by_promorar}</b>:<span style={{color:"#9ca3af"}}>⏳ Pendente</span>}</div>
+              </div>
+            </div>);})()}
+            <button onClick={()=>setViewMud(null)} style={{marginTop:14,padding:"10px 0",width:"100%",background:COLORS.accent,color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer"}}>Fechar</button>
           </div>
         </div>
       )}
