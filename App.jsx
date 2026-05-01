@@ -644,6 +644,81 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
     </div>
   );
 }
+function RotaTerceirizada({token}){
+  var [dados,setDados]=useState(null);
+  var [erro,setErro]=useState(null);
+  var [loading,setLoading]=useState(true);
+  var [updating,setUpdating]=useState({});
+  useEffect(function(){
+    fetch(SUPA_URL+"/functions/v1/consumir-magic-link?token="+encodeURIComponent(token),{headers:{"apikey":SUPA_KEY}})
+      .then(function(r){return r.json();})
+      .then(function(d){if(d.ok){setDados(d);}else{setErro(d.error||"Link inválido.");}setLoading(false);})
+      .catch(function(){setErro("Erro de conexão.");setLoading(false);});
+  },[token]);
+  function atualizarStatus(item,novoStatus,campoTempo){
+    if(updating[item.id]) return;
+    setUpdating(function(p){var n={...p};n[item.id]=true;return n;});
+    var tabela=item._tabela||"agenda";
+    fetch(SUPA_URL+"/functions/v1/atualizar-status-terceirizado",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({token:token,item_id:item.id,tabela:tabela,novo_status:novoStatus,campo_tempo:campoTempo||null})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.ok){setDados(function(prev){if(!prev)return prev;var nRotas=prev.rotas.map(function(r){if(r.id===item.id){var u={...r,status:novoStatus};if(campoTempo)u[campoTempo]=new Date().toISOString();return u;}return r;});return {...prev,rotas:nRotas};});}
+        else{alert(d.error||"Erro ao atualizar");}
+        setUpdating(function(p){var n={...p};delete n[item.id];return n;});
+      })
+      .catch(function(){alert("Erro de conexão");setUpdating(function(p){var n={...p};delete n[item.id];return n;});});
+  }
+  if(loading) return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f8fafc"}}><div style={{textAlign:"center"}}><div style={{fontSize:36,marginBottom:8}}>🚛</div><div style={{fontWeight:700,fontSize:14,color:"#64748b"}}>Carregando rota...</div></div></div>);
+  if(erro) return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#fef2f2",padding:20}}><div style={{textAlign:"center",maxWidth:360}}><div style={{fontSize:48,marginBottom:12}}>⚠️</div><div style={{fontWeight:800,fontSize:16,color:"#dc2626",marginBottom:8}}>Link Inválido ou Expirado</div><div style={{fontSize:13,color:"#991b1b"}}>{erro}</div></div></div>);
+  var _dfmt=dados.data_servico?dados.data_servico.slice(8)+"/"+dados.data_servico.slice(5,7)+"/"+dados.data_servico.slice(0,4):"";
+  var _statusFlow={"confirmado":"em_deslocamento","em_deslocamento":"em_andamento","em_andamento":"realizada"};
+  var _statusLabel={"confirmado":"🚗 Em Deslocamento","em_deslocamento":"🔧 Iniciar Serviço","em_andamento":"✅ Finalizar"};
+  var _statusCor={"confirmado":"#f97316","em_deslocamento":"#2563eb","em_andamento":"#16a34a"};
+  var _statusBg={"confirmado":"#fff7ed","em_deslocamento":"#eff6ff","em_andamento":"#f0fdf4"};
+  var _statusBadge={"confirmado":"⏳ Aguardando","em_deslocamento":"🚗 Em Deslocamento","em_andamento":"🔧 Em Andamento","realizada":"✅ Finalizada"};
+  return(
+    <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
+      <div style={{background:"linear-gradient(135deg,#1e293b,#1e3a8a)",padding:"20px 16px 16px",color:"#fff"}}>
+        <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600,letterSpacing:1,textTransform:"uppercase"}}>TELEMIM — Rota Terceirizada</div>
+        <div style={{fontSize:18,fontWeight:900,marginTop:4}}>🚛 {dados.motorista_nome||"Motorista"}</div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.8)",marginTop:2}}>📅 {_dfmt}</div>
+      </div>
+      <div style={{padding:"12px 12px 80px"}}>
+        {(!dados.rotas||dados.rotas.length===0)?(
+          <div style={{textAlign:"center",padding:"30px 0",color:"#94a3b8"}}><div style={{fontSize:36,marginBottom:8}}>📭</div><div style={{fontWeight:700,fontSize:14}}>Nenhuma OS para hoje.</div></div>
+        ):(
+          dados.rotas.map(function(r){
+            var st=r.status||"confirmado";
+            var prox=_statusFlow[st];
+            var isFinal=st==="realizada";
+            return(
+              <div key={r.id} style={{background:"#fff",borderRadius:14,border:"2px solid "+(isFinal?"#86efac":"#e2e8f0"),padding:"14px 16px",marginBottom:10,boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                  <div style={{fontWeight:800,fontSize:16,color:"#1e293b"}}>{r.nome||"Sem nome"}</div>
+                  <div style={{background:_statusBg[st]||"#f8fafc",border:"1px solid "+(_statusCor[st]||"#e2e8f0"),borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:_statusCor[st]||"#64748b",whiteSpace:"nowrap"}}>{_statusBadge[st]||st}</div>
+                </div>
+                {r.horario&&<div style={{fontSize:12,color:"#475569",marginBottom:6}}>⏰ {r.horario}h</div>}
+                {r.contato&&<div style={{fontSize:11,color:"#64748b",marginBottom:6}}>📱 <a href={"tel:"+r.contato} style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{r.contato}</a></div>}
+                <div style={{fontSize:12,marginTop:8}}>📦 {r.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(r.origem)} target="_blank" rel="noopener" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{r.origem} 🗺️</a>:<span style={{color:"#94a3b8"}}>Origem não informada</span>}</div>
+                <div style={{fontSize:12,marginTop:16}}>🏘️ {r.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(r.destino)} target="_blank" rel="noopener" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{r.destino} 🗺️</a>:<span style={{color:"#94a3b8"}}>Destino não informado</span>}</div>
+                {r.observacoes&&<div style={{fontSize:11,color:"#64748b",marginTop:8,fontStyle:"italic"}}>📝 {r.observacoes}</div>}
+                {r.inicio_em&&<div style={{fontSize:10,color:"#16a34a",marginTop:6}}>▶️ Início: {new Date(r.inicio_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
+                {r.termino_em&&<div style={{fontSize:10,color:"#16a34a",marginTop:2}}>🏁 Término: {new Date(r.termino_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
+                {!isFinal&&prox&&(
+                  <button onClick={function(){var ct=null;if(st==="confirmado")ct="inicio_em";if(st==="em_andamento")ct="termino_em";atualizarStatus({id:r.id,_tabela:"agenda"},prox,ct);}} disabled={!!updating[r.id]} style={{marginTop:12,width:"100%",padding:12,background:updating[r.id]?"#94a3b8":(_statusCor[st]||"#3b82f6"),color:"#fff",border:"none",borderRadius:10,fontWeight:800,fontSize:13,cursor:updating[r.id]?"not-allowed":"pointer",boxShadow:"0 4px 12px rgba(0,0,0,0.15)"}}>{updating[r.id]?"⏳ Atualizando...":_statusLabel[st]}</button>
+                )}
+                {isFinal&&<div style={{marginTop:10,textAlign:"center",fontWeight:700,fontSize:12,color:"#16a34a"}}>✅ Mudança finalizada!</div>}
+              </div>
+            );
+          })
+        )}
+        <div style={{marginTop:16,textAlign:"center",padding:"10px",background:"#fffbeb",borderRadius:10,border:"1px solid #fcd34d"}}>
+          <div style={{fontSize:11,color:"#92400e",fontWeight:600}}>⚠️ Este link expira à meia-noite de {_dfmt}.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
 export default function App(){
   const [usuario,setUsuario]=useState(null);
   const [abaMotorista,setAbaMotorista]=useState('hoje');
@@ -668,6 +743,8 @@ export default function App(){
   const [calMes,setCalMes]=useState(new Date().getMonth());
   const [calAno,setCalAno]=useState(new Date().getFullYear());
   const [calDiaSel,setCalDiaSel]=useState(null);
+  const [magicToken,setMagicToken]=useState(null);
+  const [magicLoading,setMagicLoading]=useState(false);
   const [cfgEdit,setCfgEdit]=useState({van1a:1000,vanAdd:0,aj1a:80,ajAdd:20,dataInicioRegra:'',imposto:16});
   const [cfgSaved,setCfgSaved]=useState(false);
   const [bioLock,setBioLock]=useState(localStorage.getItem('tmim_bio_enabled')==='true'&&!!localStorage.getItem('tmim_u'));
@@ -1065,6 +1142,17 @@ export default function App(){
       setUserMsg("✅ Usuário criado!");setNovoUser({nome:"",email:"",senha:"",perfil:"promorar",tipo_veiculo:"",placa_veiculo:""});carregarUsuarios();
     }catch(e){setUserMsg("⚠️ Erro de conexão.");}
     setSavingUser(false);
+  }
+  async function gerarMagicLink(){
+    if(!usuario||!isMotorista) return;
+    setMagicLoading(true);
+    try{
+      var hoje=new Date().toISOString().slice(0,10);
+      var res=await fetch(SUPA_URL+"/functions/v1/gerar-magic-link",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({motorista_id:usuario.id,motorista_nome:usuario.nome||"",data_servico:hoje})});
+      var d=await res.json();
+      if(d.ok&&d.token){setMagicToken(d.token);}else{alert("Erro: "+(d.error||"falha"));}
+    }catch(e){alert("Erro de conexão");}
+    setMagicLoading(false);
   }
   function abrirWha(ag){const tel=(ag.contato||"").replace(/\D/g,"");if(!tel)return;window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent("Olá "+ag.nome+"! Mudança dia "+(ag.data||"")+" às "+(ag.horario||"?")+"\nDe: "+(ag.origem||"?")+"\nPara: "+(ag.destino||"?")+"\n🚛 PROMORAR"),"_blank");}
   async function registrarPush(){try{if(!('serviceWorker' in navigator)||!('PushManager' in window)){alert('Push nao suportado');return;}const perm=await Notification.requestPermission();if(perm!=='granted'){alert('Permissao negada');return;}const reg=await navigator.serviceWorker.ready;const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjZEuEguqec8LTygq7UQTqp8-XWo4'});const jj=sub.toJSON();await fetch(SUPA_URL+'/rest/v1/push_subscriptions',{method:'POST',headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+(usuario?.token||''),'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},body:JSON.stringify({usuario_id:usuario?.id,endpoint:jj.endpoint,p256dh:jj.keys?.p256dh||'',auth:jj.keys?.auth||''})});alert('\u2705 Ativado!');}catch(pushErr){alert('Erro: '+pushErr.message);}}
@@ -2075,6 +2163,9 @@ export default function App(){
   const TagHora=({v})=>v?<span style={{background:"#f0fdf4",borderRadius:8,padding:"3px 9px",fontSize:11,color:COLORS.green,fontWeight:700}}>⏰ {v}h</span>:null;
   const TagCom=({v})=>v?<span style={{background:"#fff7ed",borderRadius:8,padding:"3px 9px",fontSize:11,color:COLORS.accent,fontWeight:600}}>📍 {v}</span>:null;
 
+    var _mlParam=(function(){try{var u=new URL(window.location.href);return u.searchParams.get("ml")||null;}catch(e){return null;}})();
+    if(_mlParam) return <RotaTerceirizada token={_mlParam}/>;
+
     if(bioLock) return(
     <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:0,padding:32}}>
       <div style={{width:90,height:90,borderRadius:'50%',background:'rgba(255,255,255,0.08)',backdropFilter:'blur(10px)',border:'1.5px solid rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:24,boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
@@ -2231,6 +2322,24 @@ export default function App(){
               </div>
               );
             })}
+          </div>
+        )}
+        {isMotorista&&tab==="dashboard"&&(mudancasHoje.length>0||mudancasAmanha.length>0)&&(
+          <div style={{margin:"14px 0 0",background:"#fff7ed",border:"2px solid #f97316",borderRadius:14,padding:"14px 16px"}}>
+            <div style={{fontWeight:800,fontSize:13,color:"#c2410c",marginBottom:8}}>🔗 Terceirizar Rota de Hoje</div>
+            <div style={{fontSize:11,color:"#78350f",marginBottom:10}}>Gere um link temporário para um motorista terceirizado visualizar e executar a sua rota de hoje. O link expira à meia-noite.</div>
+            {!magicToken?(
+              <button onClick={gerarMagicLink} disabled={magicLoading} style={{width:"100%",padding:12,background:magicLoading?"#94a3b8":"#f97316",color:"#fff",border:"none",borderRadius:10,fontWeight:800,fontSize:13,cursor:magicLoading?"not-allowed":"pointer"}}>{magicLoading?"⏳ Gerando...":"🔗 Gerar Link Terceirizado"}</button>
+            ):(
+              <div>
+                <div style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:8,padding:"8px 10px",marginBottom:8,fontSize:11,color:"#15803d",fontWeight:600,wordBreak:"break-all"}}>✅ {location.origin+"/?ml="+magicToken}</div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={function(){navigator.clipboard.writeText(location.origin+"/?ml="+magicToken);alert("📋 Link copiado!");}} style={{flex:1,padding:10,background:"#1e40af",color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:12,cursor:"pointer"}}>📋 Copiar Link</button>
+                  <button onClick={function(){var url=location.origin+"/?ml="+magicToken;window.open("https://wa.me/?text="+encodeURIComponent("🚛 Rota terceirizada TELEMIM\nAcesse o link para ver as mudanças de hoje:\n"+url),"_blank");}} style={{flex:1,padding:10,background:"#16a34a",color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:12,cursor:"pointer"}}>📲 Enviar Zap</button>
+                </div>
+                <button onClick={function(){setMagicToken(null);}} style={{marginTop:6,width:"100%",padding:8,background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:8,fontWeight:600,fontSize:11,cursor:"pointer"}}>Gerar novo link</button>
+              </div>
+            )}
           </div>
         )}
         <div style={{display:isMotorista&&abaMotorista!=='registros'&&tab!=='registros_mot'?'none':undefined}}>{tab==="registros_mot"&&isMotorista&&(function(){
