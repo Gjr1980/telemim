@@ -745,6 +745,7 @@ export default function App(){
   const [calDiaSel,setCalDiaSel]=useState(null);
   const [magicToken,setMagicToken]=useState(null);
   const [magicLoading,setMagicLoading]=useState(false);
+  const [magicData,setMagicData]=useState(null);
   const [cfgEdit,setCfgEdit]=useState({van1a:1000,vanAdd:0,aj1a:80,ajAdd:20,dataInicioRegra:'',imposto:16});
   const [cfgSaved,setCfgSaved]=useState(false);
   const [bioLock,setBioLock]=useState(localStorage.getItem('tmim_bio_enabled')==='true'&&!!localStorage.getItem('tmim_u'));
@@ -1143,14 +1144,14 @@ export default function App(){
     }catch(e){setUserMsg("⚠️ Erro de conexão.");}
     setSavingUser(false);
   }
-  async function gerarMagicLink(){
+  async function gerarMagicLink(dataAlvo){
     if(!usuario||!isMotorista) return;
     setMagicLoading(true);
     try{
-      var hoje=new Date().toISOString().slice(0,10);
-      var res=await fetch(SUPA_URL+"/functions/v1/gerar-magic-link",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({motorista_id:usuario.id,motorista_nome:usuario.nome||"",data_servico:hoje})});
+      var dt=dataAlvo||new Date().toISOString().slice(0,10);
+      var res=await fetch(SUPA_URL+"/functions/v1/gerar-magic-link",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({motorista_id:usuario.id,motorista_nome:usuario.nome||"",data_servico:dt})});
       var d=await res.json();
-      if(d.ok&&d.token){setMagicToken(d.token);}else{alert("Erro: "+(d.error||"falha"));}
+      if(d.ok&&d.token){setMagicToken(d.token);setMagicData(dt);}else{alert("Erro: "+(d.error||"falha"));}
     }catch(e){alert("Erro de conexão");}
     setMagicLoading(false);
   }
@@ -2324,24 +2325,33 @@ export default function App(){
             })}
           </div>
         )}
-        {isMotorista&&tab==="dashboard"&&(mudancasHoje.length>0||mudancasAmanha.length>0)&&(
+        {isMotorista&&tab==="dashboard"&&(mudancasHoje.length>0||mudancasAmanha.length>0)&&(function(){
+          var _hj=new Date();var _am=new Date(_hj);_am.setDate(_am.getDate()+1);
+          var _hjStr=_hj.toISOString().slice(0,10);var _amStr=_am.toISOString().slice(0,10);
+          var _temHoje=mudancasHoje.length>0;var _temAmanha=mudancasAmanha.length>0;
+          var _magicDfmt=magicData?magicData.slice(8)+"/"+magicData.slice(5,7):"";
+          var _magicLabel=magicData===_hjStr?"hoje ("+_magicDfmt+")":"amanhã ("+_magicDfmt+")";
+          return(
           <div style={{margin:"14px 0 0",background:"#fff7ed",border:"2px solid #f97316",borderRadius:14,padding:"14px 16px"}}>
-            <div style={{fontWeight:800,fontSize:13,color:"#c2410c",marginBottom:8}}>🔗 Terceirizar Rota de Hoje</div>
-            <div style={{fontSize:11,color:"#78350f",marginBottom:10}}>Gere um link temporário para um motorista terceirizado visualizar e executar a sua rota de hoje. O link expira à meia-noite.</div>
+            <div style={{fontWeight:800,fontSize:13,color:"#c2410c",marginBottom:8}}>🔗 Terceirizar Rota</div>
+            <div style={{fontSize:11,color:"#78350f",marginBottom:10}}>Gere um link temporário para um motorista terceirizado. Envie na véspera ou no dia. O link expira à meia-noite do dia da rota.</div>
             {!magicToken?(
-              <button onClick={gerarMagicLink} disabled={magicLoading} style={{width:"100%",padding:12,background:magicLoading?"#94a3b8":"#f97316",color:"#fff",border:"none",borderRadius:10,fontWeight:800,fontSize:13,cursor:magicLoading?"not-allowed":"pointer"}}>{magicLoading?"⏳ Gerando...":"🔗 Gerar Link Terceirizado"}</button>
+              <div style={{display:"flex",gap:8}}>
+                {_temHoje&&<button onClick={function(){gerarMagicLink(_hjStr);}} disabled={magicLoading} style={{flex:1,padding:12,background:magicLoading?"#94a3b8":"#f97316",color:"#fff",border:"none",borderRadius:10,fontWeight:800,fontSize:12,cursor:magicLoading?"not-allowed":"pointer"}}>{magicLoading?"⏳...":"🔗 Hoje"}</button>}
+                {_temAmanha&&<button onClick={function(){gerarMagicLink(_amStr);}} disabled={magicLoading} style={{flex:1,padding:12,background:magicLoading?"#94a3b8":"#1e40af",color:"#fff",border:"none",borderRadius:10,fontWeight:800,fontSize:12,cursor:magicLoading?"not-allowed":"pointer"}}>{magicLoading?"⏳...":"🔗 Amanhã"}</button>}
+              </div>
             ):(
               <div>
-                <div style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:8,padding:"8px 10px",marginBottom:8,fontSize:11,color:"#15803d",fontWeight:600,wordBreak:"break-all"}}>✅ {location.origin+"/?ml="+magicToken}</div>
+                <div style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:8,padding:"8px 10px",marginBottom:8,fontSize:11,color:"#15803d",fontWeight:600,wordBreak:"break-all"}}>✅ Link gerado para {_magicLabel}<br/>{location.origin+"/?ml="+magicToken}</div>
                 <div style={{display:"flex",gap:8}}>
-                  <button onClick={function(){navigator.clipboard.writeText(location.origin+"/?ml="+magicToken);alert("📋 Link copiado!");}} style={{flex:1,padding:10,background:"#1e40af",color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:12,cursor:"pointer"}}>📋 Copiar Link</button>
-                  <button onClick={function(){var url=location.origin+"/?ml="+magicToken;window.open("https://wa.me/?text="+encodeURIComponent("🚛 Rota terceirizada TELEMIM\nAcesse o link para ver as mudanças de hoje:\n"+url),"_blank");}} style={{flex:1,padding:10,background:"#16a34a",color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:12,cursor:"pointer"}}>📲 Enviar Zap</button>
+                  <button onClick={function(){navigator.clipboard.writeText(location.origin+"/?ml="+magicToken);alert("📋 Link copiado!");}} style={{flex:1,padding:10,background:"#1e40af",color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:12,cursor:"pointer"}}>📋 Copiar</button>
+                  <button onClick={function(){var url=location.origin+"/?ml="+magicToken;window.open("https://wa.me/?text="+encodeURIComponent("🚛 Rota terceirizada TELEMIM ("+_magicLabel+")\nAcesse o link para ver as mudanças:\n"+url),"_blank");}} style={{flex:1,padding:10,background:"#16a34a",color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:12,cursor:"pointer"}}>📲 Zap</button>
                 </div>
-                <button onClick={function(){setMagicToken(null);}} style={{marginTop:6,width:"100%",padding:8,background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:8,fontWeight:600,fontSize:11,cursor:"pointer"}}>Gerar novo link</button>
+                <button onClick={function(){setMagicToken(null);setMagicData(null);}} style={{marginTop:6,width:"100%",padding:8,background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:8,fontWeight:600,fontSize:11,cursor:"pointer"}}>Gerar novo link</button>
               </div>
             )}
           </div>
-        )}
+          );})()}
         <div style={{display:isMotorista&&abaMotorista!=='registros'&&tab!=='registros_mot'?'none':undefined}}>{tab==="registros_mot"&&isMotorista&&(function(){
           var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();
           var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
