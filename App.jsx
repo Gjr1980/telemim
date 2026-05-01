@@ -217,22 +217,23 @@ function _calcCustos(mudP, cdP, cpP, RULES){
   var imposto=fatBruto*_fv(RULES.imposto);
   var fatLiq=fatBruto-imposto;
   // --- CUSTOS VIA AGENTE DE PRECIFICAÇÃO ---
-  var cCam=0; var cVan=0; var cAj=0; var cAlm=0;
+  var cCam=0; var cVan=0; var cAj=0; var cAlm=0; var cDesp=0;
   diasU.forEach(function(data){
     var numMud=mudP.filter(function(m){return m.data===data;}).length;
     if(numMud===0) return;
-    var cdDia=(cdP||[]).find(function(cd){return cd.data===data;})||{ajudantes:0,custo_almoco:0};
+    var cdDia=(cdP||[]).find(function(cd){return cd.data===data;})||{ajudantes:0,custo_almoco:0,despesa_extra:0};
     var numAj=parseInt(cdDia.ajudantes)||0;
     cCam+=_calcDiario(numMud,0,"caminhao",RULES);
     cVan+=_calcDiario(numMud,0,"van",RULES);
     cAj+=_calcDiario(numMud,numAj,"ajudante",RULES);
     cAlm+=_fv(cdDia.custo_almoco);
+    cDesp+=_fv(cdDia.despesa_extra);
   });
   var cExtra=(cpP||[]).reduce(function(s,cp){return s+_fv(cp.valor);},0);
-  var despTotal=cCam+cVan+cAj+cAlm+cExtra;
+  var despTotal=cCam+cVan+cAj+cAlm+cDesp+cExtra;
   var lucroLiq=fatLiq-despTotal;
   return {
-    cCam,cVan,cAj,cAlm,cExtra,despTotal,
+    cCam,cVan,cAj,cAlm,cDesp,cExtra,despTotal,
     fatBruto,fatLiq,imposto,lucroLiq,
     numMud:mudP.length,m3Total,diasU,numVan
   };
@@ -557,6 +558,83 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
           })}
         </div>
       )}
+      {(function(){
+        var _diasMud=[...new Set(_ms.map(function(m){return m.data;}))].sort();
+        if(_diasMud.length===0) return null;
+        var _diasNome=["dom","seg","ter","qua","qui","sex","sáb"];
+        var _totalAlm=0;var _totalDesp=0;
+        _diasMud.forEach(function(dt){var cd=_cd.find(function(x){return x.data===dt;})||{};_totalAlm+=parseFloat(cd.custo_almoco)||0;_totalDesp+=parseFloat(cd.despesa_extra)||0;});
+        function _saveField(dt,field,val){
+          var numVal=parseFloat(val)||0;
+          var _hd2={...getH(),"Content-Type":"application/json","Prefer":"return=minimal"};
+          setCustosDiarios(function(prev){
+            var found=false;
+            var nxt=prev.map(function(c){if(c.data===dt){found=true;var u={...c};u[field]=numVal;return u;}return c;});
+            if(!found){var nw={data:dt,ajudantes:0,custo_almoco:0,despesa_extra:0,descricao_extra:""};nw[field]=numVal;nxt.push(nw);}
+            return nxt;
+          });
+          fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+dt+"&select=id",{headers:getH()})
+            .then(function(r){return r.json();})
+            .then(function(rows){
+              var body={};body[field]=numVal;
+              if(rows&&rows.length>0){return fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+dt,{method:"PATCH",headers:_hd2,body:JSON.stringify(body)});}
+              else{body.data=dt;return fetch(SUPA_URL+"/rest/v1/custos_diarios",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(body)});}
+            }).catch(function(e){console.warn(e);});
+        }
+        function _saveDesc(dt,val){
+          var _hd2={...getH(),"Content-Type":"application/json","Prefer":"return=minimal"};
+          setCustosDiarios(function(prev){
+            var found=false;
+            var nxt=prev.map(function(c){if(c.data===dt){found=true;return {...c,descricao_extra:val};}return c;});
+            if(!found) nxt.push({data:dt,ajudantes:0,custo_almoco:0,despesa_extra:0,descricao_extra:val});
+            return nxt;
+          });
+          fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+dt+"&select=id",{headers:getH()})
+            .then(function(r){return r.json();})
+            .then(function(rows){
+              if(rows&&rows.length>0){return fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+dt,{method:"PATCH",headers:_hd2,body:JSON.stringify({descricao_extra:val})});}
+              else{return fetch(SUPA_URL+"/rest/v1/custos_diarios",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({data:dt,descricao_extra:val})});}
+            }).catch(function(e){console.warn(e);});
+        }
+        return(
+          <div style={{marginTop:10,paddingTop:10,borderTop:"2px solid #f1f5f9"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div style={{fontWeight:800,fontSize:12,color:"#1e293b"}}>🍽️ Despesas Diárias</div>
+              <div style={{fontSize:10,color:"#64748b"}}>{_periodo}</div>
+            </div>
+            {_diasMud.map(function(dt){
+              var pts=dt.split("-");
+              var dObj=new Date(parseInt(pts[0]),parseInt(pts[1])-1,parseInt(pts[2]));
+              var dNome=_diasNome[dObj.getDay()];
+              var numMud=_ms.filter(function(m){return m.data===dt;}).length;
+              var cd=_cd.find(function(x){return x.data===dt;})||{custo_almoco:0,despesa_extra:0,descricao_extra:""};
+              return(
+                <div key={dt} style={{background:"#f8fafc",borderRadius:8,padding:"8px 10px",marginBottom:6,border:"1px solid #e2e8f0"}}>
+                  <div style={{fontWeight:700,fontSize:11,color:"#334155",marginBottom:6}}>📆 {pts[2]+"/"+pts[1]} ({dNome}) — {numMud} {numMud===1?"mudança":"mudanças"}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                    <div>
+                      <div style={{fontSize:10,color:"#64748b",fontWeight:600,marginBottom:2}}>🍽️ Almoço (R$)</div>
+                      <input type="number" step="0.01" min="0" value={parseFloat(cd.custo_almoco)||""} onChange={function(e){_saveField(dt,"custo_almoco",e.target.value);}} placeholder="0,00" style={{width:"100%",padding:"6px 8px",border:"1.5px solid #e2e8f0",borderRadius:6,fontSize:12,boxSizing:"border-box"}}/>
+                    </div>
+                    <div>
+                      <div style={{fontSize:10,color:"#64748b",fontWeight:600,marginBottom:2}}>📋 Despesa (R$)</div>
+                      <input type="number" step="0.01" min="0" value={parseFloat(cd.despesa_extra)||""} onChange={function(e){_saveField(dt,"despesa_extra",e.target.value);}} placeholder="0,00" style={{width:"100%",padding:"6px 8px",border:"1.5px solid #e2e8f0",borderRadius:6,fontSize:12,boxSizing:"border-box"}}/>
+                    </div>
+                  </div>
+                  <div style={{marginTop:4}}>
+                    <div style={{fontSize:10,color:"#64748b",fontWeight:600,marginBottom:2}}>📝 Descrição da despesa</div>
+                    <input type="text" value={cd.descricao_extra||""} onChange={function(e){_saveDesc(dt,e.target.value);}} placeholder="Ex: combustível, pedágio..." style={{width:"100%",padding:"6px 8px",border:"1.5px solid #e2e8f0",borderRadius:6,fontSize:11,boxSizing:"border-box"}}/>
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:6,padding:"6px 8px",background:"#fef2f2",borderRadius:8,fontSize:11,fontWeight:700}}>
+              <div><span style={{color:"#7c3aed"}}>🍽️ Almoços: {_fv(_totalAlm)}</span> <span style={{margin:"0 6px",color:"#cbd5e1"}}>|</span> <span style={{color:"#475569"}}>📋 Despesas: {_fv(_totalDesp)}</span></div>
+              <div style={{color:"#c2410c"}}>Total: {_fv(_totalAlm+_totalDesp)}</div>
+            </div>
+          </div>
+        );
+      })()}
       <div style={{marginTop:10,paddingTop:10,borderTop:"2px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
           <div style={{fontSize:10,color:"#64748b",fontWeight:600}}>CUSTO TOTAL SEMANA</div>
