@@ -302,17 +302,19 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
     var tot=_getTotais(det);
     var NL="\n";
     var txtDiario="";
+    var _isAj=p.id==="__equipa_aj__"||p.cargo==="ajudante";
+    var _somaAj=0;var _qtdAj=0;
     det.forEach(function(d){
       var parts=String(d.data).split("-");
       var df=parts[2]+"/"+parts[1]+"/"+parts[0];
-      if(p.id==="__equipa_aj__"||p.cargo==="ajudante"){
+      if(_isAj){
         var aj=parseInt(d.numAj)||1;
-        txtDiario+="Data "+df+" - "+d.numMud+" mudanças x "+aj+" "+(aj===1?"ajudante":"ajudantes")+" = R$ "+_fvs(d.val)+NL;
+        var porAj=aj>0?(parseFloat(d.val)||0)/aj:0;
+        txtDiario+="Data "+df+" - "+d.numMud+" mudanças x "+aj+" "+(aj===1?"ajudante":"ajudantes")+" = R$ "+_fvs(d.val)+" (R$ "+_fvs(porAj)+"/ajudante)"+NL;
+        _somaAj+=parseFloat(d.val)||0;_qtdAj+=aj;
       }else if(p.cargo==="van"){
-        // Van: diária fixa — não mencionar mudanças
         txtDiario+="Data "+df+" - Diária - R$ "+_fvs(d.val)+NL;
       }else{
-        // Caminhão: base + acréscimo
         txtDiario+="Data "+df+" - "+d.numMud+" mudanças - R$ "+_fvs(d.val)+NL;
       }
     });
@@ -320,6 +322,8 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
     var lbl=_lbl[p.cargo]||p.cargo;
     var mL=tot.totalMud===1?"mudança":"mudanças";
     var dL=tot.diasT===1?"dia":"dias";
+    var _ajTotalLinha="";
+    if(_isAj&&_qtdAj>0){var _mediaAj=det.length>0?_somaAj/det.length:0;_ajTotalLinha="💰 *Valor por ajudante na semana: R$ "+_fvs(_mediaAj)+"*"+NL;}
     var tx=
       "Olá *"+p.nome+"*, segue o fechamento da semana! 🤝"+NL+
       "📅 Período: "+_periodo+NL+NL+
@@ -327,7 +331,8 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
       ico+" Categoria: "+lbl+NL+
       "✅ Dias trabalhados: "+tot.diasT+" "+dL+NL+
       "📦 Total de mudanças: "+tot.totalMud+" "+mL+NL+
-      "💰 *Valor a receber: R$ "+_fvs(tot.totalVal)+"*"+NL+NL+
+      "💰 *Valor total: R$ "+_fvs(tot.totalVal)+"*"+NL+
+      _ajTotalLinha+NL+
       "(TELEMIM)";
     var num=(p.telefone||"").replace(/[^0-9]/g,"");
     window.open(num?"https://wa.me/"+num+"?text="+encodeURIComponent(tx):"https://wa.me/?text="+encodeURIComponent(tx),"_blank");
