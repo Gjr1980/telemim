@@ -1904,6 +1904,8 @@ export default function App(){
         body:JSON.stringify(updatePayload)}
       );
       if(!patchRes.ok) throw new Error('HTTP '+patchRes.status);
+      var _agNome="";var _agItem=agenda.find(function(x){return x.id===agId;});if(_agItem)_agNome=_agItem.nome||"";
+      try{_addNotif("aprovacao",(usuario&&usuario.nome||"Usuário")+" confirmou a mudança",_agNome);}catch(e){}
     }catch(e){
       setAgenda(previousAgenda);
       setSyncStatus('⚠️ Aprovação (Agenda) não guardada. Verifique a ligação.');
