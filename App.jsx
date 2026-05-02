@@ -756,7 +756,7 @@ export default function App(){
   const [_agendaRemovidaIds,_setAgendaRemovidaIds]=useState(new Set());
   const [custosDiarios,setCustosDiarios]=useState([]);
   const [showImport,setShowImport]=useState(false);
-  const [cfgWA,setCfgWA]=useState({admin_whatsapp:"",supervisor_whatsapp:"",whatsapp_ativo:"false"});
+  const [cfgWA,setCfgWA]=useState({admin_whatsapp:"",supervisor_whatsapp:"",whatsapp_ativo:"false",evolution_api_url:"",evolution_api_key:"",evolution_instance:""});
   const [isUploading,setIsUploading]=useState(false);
   const [isApproving,setIsApproving]=useState({});
   const [waLoading,setWaLoading]=useState(false);
@@ -940,7 +940,7 @@ export default function App(){
   async function loadAg(){const r=await dbGet("agenda");if(r)setAgenda(r.map(function(x){return {...x,_dbId:x.id};}));}
   async function loadCfgWA(){
     try{
-      var r=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=in.(admin_whatsapp,supervisor_whatsapp,whatsapp_ativo)&select=chave,valor",{headers:getH()});
+      var r=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=in.(admin_whatsapp,supervisor_whatsapp,whatsapp_ativo,evolution_api_url,evolution_api_key,evolution_instance)&select=chave,valor",{headers:getH()});
       if(!r.ok) return;
       var rows=await r.json();
       if(!Array.isArray(rows)) return;
@@ -3215,17 +3215,31 @@ return(
                 <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:3}}>👥 Telefone Supervisor</div>
                 <input type="tel" value={cfgWA.supervisor_whatsapp} onChange={function(e){setCfgWA(function(p){return {...p,supervisor_whatsapp:e.target.value};});}} placeholder="Ex: 81988880000" style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid #d1fae5",fontSize:12,boxSizing:"border-box"}}/>
               </div>
+              <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid #d1fae5"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:8}}>🤖 Evolution API (envio automático)</div>
+                <div style={{marginBottom:6}}>
+                  <div style={{fontSize:10,color:"#64748b",marginBottom:2}}>URL da API</div>
+                  <input type="text" value={cfgWA.evolution_api_url} onChange={function(e){setCfgWA(function(p){return {...p,evolution_api_url:e.target.value};});}} placeholder="https://seu-servidor.com" style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid #d1fae5",fontSize:12,boxSizing:"border-box"}}/>
+                </div>
+                <div style={{marginBottom:6}}>
+                  <div style={{fontSize:10,color:"#64748b",marginBottom:2}}>API Key</div>
+                  <input type="password" value={cfgWA.evolution_api_key} onChange={function(e){setCfgWA(function(p){return {...p,evolution_api_key:e.target.value};});}} placeholder="Chave da Evolution API" style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid #d1fae5",fontSize:12,boxSizing:"border-box"}}/>
+                </div>
+                <div style={{marginBottom:6}}>
+                  <div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Nome da Instância</div>
+                  <input type="text" value={cfgWA.evolution_instance} onChange={function(e){setCfgWA(function(p){return {...p,evolution_instance:e.target.value};});}} placeholder="Ex: telemim" style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid #d1fae5",fontSize:12,boxSizing:"border-box"}}/>
+                </div>
+              </div>
               <button onClick={async function(){
                 setWaLoading(true);
                 try{
-                  await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.admin_whatsapp",{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.admin_whatsapp||""})}).catch(function(e){console.warn("WA admin save:",e);});
-                  await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.supervisor_whatsapp",{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.supervisor_whatsapp||""})}).catch(function(e){console.warn("WA sup save:",e);});
-                  await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.whatsapp_ativo",{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:cfgWA.whatsapp_ativo||"false"})}).catch(function(e){console.warn("WA ativo save:",e);});
-                  setSyncStatus("📲 Contactos WhatsApp guardados com sucesso!");
+                  var pairs=[["admin_whatsapp",cfgWA.admin_whatsapp||""],["supervisor_whatsapp",cfgWA.supervisor_whatsapp||""],["whatsapp_ativo",cfgWA.whatsapp_ativo||"false"],["evolution_api_url",cfgWA.evolution_api_url||""],["evolution_api_key",cfgWA.evolution_api_key||""],["evolution_instance",cfgWA.evolution_instance||""]];
+                  for(var i=0;i<pairs.length;i++){await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq."+pairs[i][0],{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:pairs[i][1]})}).catch(function(e){console.warn("WA save:",e);});}
+                  setSyncStatus("📲 Configurações WhatsApp salvas!");
                   setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);
                 }catch(e){setSyncStatus("⚠️ Erro: "+e.message);}
                 setWaLoading(false);
-              }} disabled={waLoading} style={{width:"100%",padding:10,borderRadius:10,border:"none",background:waLoading?"#86efac":"#16a34a",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>{waLoading?"⏳ A guardar...":"💾 Guardar Contactos WhatsApp"}</button>
+              }} disabled={waLoading} style={{width:"100%",padding:10,borderRadius:10,border:"none",background:waLoading?"#86efac":"#16a34a",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",marginTop:12}}>{waLoading?"⏳ Salvando...":"💾 Salvar Configurações WhatsApp"}</button>
             </div>
           )}
             {/* ══ MODAL CONFIRMAR FINALIZAÇÃO ══ */}
