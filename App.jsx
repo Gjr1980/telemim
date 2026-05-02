@@ -2355,19 +2355,19 @@ export default function App(){
           var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
           var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort();
           return (
-            <div style={{margin:"0 12px 16px",background:"linear-gradient(135deg,#1e293b,#1e3a8a)",borderRadius:18,padding:"20px 18px 18px",boxShadow:"0 8px 32px rgba(30,41,59,0.25)"}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                <span style={{fontSize:14,fontWeight:900,color:"rgba(255,255,255,0.5)",letterSpacing:1,textTransform:"uppercase"}}>⚠️ PREPARAÇÃO AMANHÃ — 🗓️ {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][hj.getMonth()].toUpperCase()} {hj.getFullYear()}</span>
+            <div style={{margin:"0 12px 10px",background:"linear-gradient(135deg,#1e293b,#1e3a8a)",borderRadius:14,padding:"12px 14px 10px",boxShadow:"0 4px 16px rgba(30,41,59,0.18)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                <span style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.45)",letterSpacing:1,textTransform:"uppercase"}}>MUDANÇAS - 🗓️ {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][hj.getMonth()].toUpperCase()} {hj.getFullYear()}</span>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:12}}>
-                <div style={{background:"linear-gradient(135deg,#15803d,#166534)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 16px rgba(21,128,61,0.4)"}}>
-                  <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>{isMotorista?"DIÁRIAS REALIZADAS":"MUDANÇAS NO MÊS"}</div>
-                  <div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_realizadasMes}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8}}>
+                <div style={{background:"linear-gradient(135deg,#15803d,#166534)",borderRadius:10,padding:"10px 10px",boxShadow:"0 2px 8px rgba(21,128,61,0.3)"}}>
+                  <div style={{fontSize:9,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>{isMotorista?"DIÁRIAS REALIZADAS":"MUDANÇAS NO MÊS"}</div>
+                  <div style={{fontSize:24,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:3}}>{_realizadasMes}</div>
                   <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>{isMotorista?"dias com mudanças":("mudanças em "+_mesesNome[_mesAtual])}</div>
                 </div>
-                <div style={{background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 16px rgba(30,58,138,0.4)"}}>
-                  <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>PENDENTES</div>
-                  <div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_pendentesMes}</div>
+                <div style={{background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",borderRadius:10,padding:"10px 10px",boxShadow:"0 2px 8px rgba(30,58,138,0.3)"}}>
+                  <div style={{fontSize:9,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>PENDENTES</div>
+                  <div style={{fontSize:24,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:3}}>{_pendentesMes}</div>
                   <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>a realizar 📝</div>
                 </div>
               </div>
@@ -2416,19 +2416,19 @@ export default function App(){
           var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
           var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort();
           return (
-            <div style={{margin:"0 12px 16px",background:"linear-gradient(135deg,#1e293b,#1e3a8a)",borderRadius:18,padding:"20px 18px 18px",boxShadow:"0 8px 32px rgba(30,41,59,0.25)"}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                <span style={{fontSize:14,fontWeight:900,color:"rgba(255,255,255,0.5)",letterSpacing:1,textTransform:"uppercase"}}>⚠️ PREPARAÇÃO AMANHÃ — 🗓️ {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][hj.getMonth()].toUpperCase()} {hj.getFullYear()}</span>
+            <div style={{margin:"0 12px 10px",background:"linear-gradient(135deg,#1e293b,#1e3a8a)",borderRadius:14,padding:"12px 14px 10px",boxShadow:"0 4px 16px rgba(30,41,59,0.18)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                <span style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.45)",letterSpacing:1,textTransform:"uppercase"}}>MUDANÇAS - 🗓️ {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][hj.getMonth()].toUpperCase()} {hj.getFullYear()}</span>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:12}}>
-                <div style={{background:"linear-gradient(135deg,#15803d,#166534)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 16px rgba(21,128,61,0.4)"}}>
-                  <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>{isMotorista?"DIÁRIAS REALIZADAS":"MUDANÇAS NO MÊS"}</div>
-                  <div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_realizadasMes}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8}}>
+                <div style={{background:"linear-gradient(135deg,#15803d,#166534)",borderRadius:10,padding:"10px 10px",boxShadow:"0 2px 8px rgba(21,128,61,0.3)"}}>
+                  <div style={{fontSize:9,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>{isMotorista?"DIÁRIAS REALIZADAS":"MUDANÇAS NO MÊS"}</div>
+                  <div style={{fontSize:24,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:3}}>{_realizadasMes}</div>
                   <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>{isMotorista?"dias com mudanças":("mudanças em "+_mesesNome[_mesAtual])}</div>
                 </div>
-                <div style={{background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",borderRadius:14,padding:"16px 14px",boxShadow:"0 4px 16px rgba(30,58,138,0.4)"}}>
-                  <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>PENDENTES</div>
-                  <div style={{fontSize:32,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:4}}>{_pendentesMes}</div>
+                <div style={{background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",borderRadius:10,padding:"10px 10px",boxShadow:"0 2px 8px rgba(30,58,138,0.3)"}}>
+                  <div style={{fontSize:9,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>PENDENTES</div>
+                  <div style={{fontSize:24,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:3}}>{_pendentesMes}</div>
                   <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>a realizar 📝</div>
                 </div>
               </div>
