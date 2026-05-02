@@ -762,6 +762,7 @@ export default function App(){
   const [waLoading,setWaLoading]=useState(false);
   const [showViewPDF,setShowViewPDF]=useState(false);
   const [mudViewPDF,setMudViewPDF]=useState(null);
+  const [confirmFinAg,setConfirmFinAg]=useState(null);
   const [showAssinatura,setShowAssinatura]=useState(false);
   const [mudAssinatura,setMudAssinatura]=useState(null);
   const [ressalvas,setRessalvas]=useState("");
@@ -1848,9 +1849,10 @@ export default function App(){
     }
   }
 
+  function pedirFinalizacao(ag){if(!ag||!ag.id)return;setConfirmFinAg(ag);}
   async function handleRegistarOS(ag){
     if(!ag||!ag.id) return;
-    if(!confirm("Mudança finalizada?\nDeseja coletar a assinatura do cliente?")) return;
+    setConfirmFinAg(null);
     var prevAgenda=agenda.slice();
     _setAgendaRemovidaIds(function(prev){var s=new Set(prev);s.add(ag.id);return s;});
     setAgenda(function(prev){return prev.filter(function(x){return x.id!==ag.id;});});
@@ -2635,7 +2637,7 @@ export default function App(){
                           </div>}
                         </div>}
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
-                          <button onClick={function(){handleRegistarOS(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>
+                          <button onClick={function(){pedirFinalizacao(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>
                           <div style={{display:"flex",gap:5,alignItems:"center"}}>
                             {a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
                             <button onClick={()=>compartilharWhatsApp(a)} style={{...btnGreen,fontSize:14,padding:"6px 10px"}}>📲</button>
@@ -3224,6 +3226,21 @@ return(
               }} disabled={waLoading} style={{width:"100%",padding:10,borderRadius:10,border:"none",background:waLoading?"#86efac":"#16a34a",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>{waLoading?"⏳ A guardar...":"💾 Guardar Contactos WhatsApp"}</button>
             </div>
           )}
+            {/* ══ MODAL CONFIRMAR FINALIZAÇÃO ══ */}
+      {confirmFinAg&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(30,64,175,0.75)",backdropFilter:"blur(4px)",zIndex:1500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setConfirmFinAg(null);}}>
+          <div style={{background:"rgba(255,255,255,0.12)",borderRadius:20,padding:"32px 24px 24px",width:"100%",maxWidth:340,textAlign:"center",border:"1px solid rgba(255,255,255,0.25)"}} onClick={function(e){e.stopPropagation();}}>
+            <div style={{fontSize:48,marginBottom:12}}>🏁</div>
+            <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:6}}>Mudança concluída?</div>
+            <div style={{fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.95)",marginBottom:16}}>{confirmFinAg.nome}</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.7)",marginBottom:24}}>Ao confirmar, a tela de assinatura do cliente será aberta.</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={function(){setConfirmFinAg(null);}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"2px solid rgba(255,255,255,0.4)",background:"transparent",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>Voltar</button>
+              <button onClick={function(){handleRegistarOS(confirmFinAg);}} style={{flex:1.5,padding:"12px 0",borderRadius:12,border:"none",background:"#fff",color:"#1e40af",fontWeight:900,fontSize:14,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,0,0,0.2)"}}>🏁 Concluir</button>
+            </div>
+          </div>
+        </div>
+      )}
             {/* ══ MODAL ASSINATURA DIGITAL ══ */}
       {showAssinatura&&mudAssinatura&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
