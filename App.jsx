@@ -873,7 +873,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial)&&listaUsuarios.length===0&&(tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();},[tab]);
   useEffect(()=>{
     async function load(){
       try{
@@ -2368,30 +2368,7 @@ export default function App(){
             )}
           </div>
           );})()}
-        <div style={{display:isMotorista&&abaMotorista!=='registros'&&tab!=='registros_mot'?'none':undefined}}>{tab==="registros_mot"&&isMotorista&&(function(){
-          var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();
-          var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
-          var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort();
-          return (
-            <div style={{margin:"0 12px 10px",background:"linear-gradient(135deg,#1e293b,#1e3a8a)",borderRadius:14,padding:"12px 14px 10px",boxShadow:"0 4px 16px rgba(30,41,59,0.18)"}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
-                <span style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.45)",letterSpacing:1,textTransform:"uppercase"}}>MUDANÇAS - 🗓️ {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][hj.getMonth()].toUpperCase()} {hj.getFullYear()}</span>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8}}>
-                <div style={{background:"linear-gradient(135deg,#15803d,#166534)",borderRadius:10,padding:"10px 10px",boxShadow:"0 2px 8px rgba(21,128,61,0.3)"}}>
-                  <div style={{fontSize:9,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>{isMotorista?"DIÁRIAS REALIZADAS":"MUDANÇAS NO MÊS"}</div>
-                  <div style={{fontSize:24,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:3}}>{_realizadasMes}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>{isMotorista?"dias com mudanças":("mudanças em "+_mesesNome[_mesAtual])}</div>
-                </div>
-                <div style={{background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",borderRadius:10,padding:"10px 10px",boxShadow:"0 2px 8px rgba(30,58,138,0.3)"}}>
-                  <div style={{fontSize:9,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>PENDENTES</div>
-                  <div style={{fontSize:24,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:3}}>{_pendentesMes}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>a realizar 📝</div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+        <div style={{display:isMotorista&&abaMotorista!=='registros'&&tab!=='registros_mot'?'none':undefined}}>
 {tab==="registros_mot"&&isMotorista&&(function(){
           var _hj3=new Date();
           var _am3=_hj3.toISOString().slice(0,7);
@@ -2429,30 +2406,7 @@ export default function App(){
             </div>
           );
         })()}
-{!isMotorista&&tab==="dashboard"&&(function(){
-          var hj=new Date();var anoMes=(function(){if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toISOString().slice(0,7);}return hj.toISOString().slice(0,7);})();
-          var mudMes=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===anoMes;});
-          var diasU=[...new Set(mudMes.map(function(m){return m.data;}))].sort();
-          return (
-            <div style={{margin:"0 12px 10px",background:"linear-gradient(135deg,#1e293b,#1e3a8a)",borderRadius:14,padding:"12px 14px 10px",boxShadow:"0 4px 16px rgba(30,41,59,0.18)"}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
-                <span style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.45)",letterSpacing:1,textTransform:"uppercase"}}>MUDANÇAS - 🗓️ {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][hj.getMonth()].toUpperCase()} {hj.getFullYear()}</span>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8}}>
-                <div style={{background:"linear-gradient(135deg,#15803d,#166534)",borderRadius:10,padding:"10px 10px",boxShadow:"0 2px 8px rgba(21,128,61,0.3)"}}>
-                  <div style={{fontSize:9,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>{isMotorista?"DIÁRIAS REALIZADAS":"MUDANÇAS NO MÊS"}</div>
-                  <div style={{fontSize:24,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:3}}>{_realizadasMes}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>{isMotorista?"dias com mudanças":("mudanças em "+_mesesNome[_mesAtual])}</div>
-                </div>
-                <div style={{background:"linear-gradient(135deg,#1e3a8a,#1d4ed8)",borderRadius:10,padding:"10px 10px",boxShadow:"0 2px 8px rgba(30,58,138,0.3)"}}>
-                  <div style={{fontSize:9,fontWeight:800,color:"rgba(255,255,255,0.7)",letterSpacing:1,marginBottom:4,textTransform:"uppercase"}}>PENDENTES</div>
-                  <div style={{fontSize:24,fontWeight:900,color:"#fff",lineHeight:1,marginBottom:3}}>{_pendentesMes}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>a realizar 📝</div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}</div>
+</div>
 
 
 {!isMotorista&&tab==="dashboard"&&(function(){
