@@ -1049,7 +1049,7 @@ export default function App(){
     setSyncStatus("🔄 Salvando...");
     try{
       var ts=changed?[changed]:list;
-      for(var i=0;i<ts.length;i++){var m=ts[i];var row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,contato:m.contato||"",observacao:m.observacao||"",confirmed_promorar:m.confirmed_promorar||false,confirmed_telemim:m.confirmed_telemim||false,adm_approved:m.adm_approved||false,promorar_approved:m.promorar_approved||false,social_approved:m.social_approved||false,status:m.status||"Registrado",signature_data:(m.signature_data!=null&&m.signature_data!="")?m.signature_data:null};if(m.created_by){row.created_by=m.created_by;row.creator_role=m.creator_role||"";}await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...getH(),"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
+      for(var i=0;i<ts.length;i++){var m=ts[i];var row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,contato:m.contato||"",observacao:m.observacao||"",confirmed_promorar:m.confirmed_promorar||false,confirmed_telemim:m.confirmed_telemim||false,adm_approved:m.adm_approved||false,promorar_approved:m.promorar_approved||false,social_approved:m.social_approved||false,status:m.status||"Registrado",signature_data:(m.signature_data!=null&&m.signature_data!="")?m.signature_data:null};row.created_by=m.created_by||(usuario&&(usuario.nome||usuario.email))||null;row.creator_role=m.creator_role||(usuario&&usuario.perfil)||null;await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...getH(),"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
       setSyncStatus("✅ Sinc");window.__mudancas=list;
     }catch(e){
       setMudancas(_prevMud); // Rollback optimista
@@ -1198,6 +1198,7 @@ export default function App(){
       for(var i=0;i<ts.length;i++){
         var a=ts[i];
         var row={nome:a.nome,selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,horario:a.horario||"",origem:a.origem||"",destino:a.destino||"",contato:a.contato||"",van:a.van||false,caminhao:a.caminhao||false,medicao:a.medicao||0,ajudantes:a.ajudantes||0,status:a.status||"confirmado",observacao:a.observacao||"",social_approved:a.social_approved||false,promorar_approved:a.promorar_approved||false,adm_approved:a.adm_approved||false,requires_validation:a.requires_validation||false};
+        if(!a.created_by){row.created_by=(usuario&&(usuario.nome||usuario.email))||null;row.creator_role=(usuario&&usuario.perfil)||null;}
         if(a.motorista_van_id!==undefined)row.motorista_van_id=a.motorista_van_id||null;
         if(a.motorista_caminhao_id!==undefined)row.motorista_caminhao_id=a.motorista_caminhao_id||null;
         var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{
