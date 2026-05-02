@@ -2550,7 +2550,7 @@ export default function App(){
                 </div>
                 {/* ── Body ── */}
                 <div style={{padding:"10px 16px 8px",fontSize:12,color:"#475569"}}>
-                  <div style={{marginBottom:4}}>📝 <b>Solicitado por:</b> {m.created_by||m.requested_by||"Sistema"}{m.criado_em?" · "+new Date(m.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
+                  <div style={{marginBottom:4}}>🕐 <b>Concluída em:</b> {m.termino_em?new Date(m.termino_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):m.criado_em?new Date(m.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—"}</div>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
                     <span>{m.approved_by_admin?<b style={{color:"#16a34a"}}>✅ {m.approved_by_admin}</b>:<span style={{color:"#9ca3af"}}>⏳ Admin</span>}</span>
                     <span>{m.approved_by_social?<b style={{color:"#16a34a"}}>✅ {m.approved_by_social}</b>:<span style={{color:"#9ca3af"}}>⏳ Social</span>}</span>
