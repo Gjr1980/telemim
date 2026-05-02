@@ -1850,6 +1850,7 @@ export default function App(){
 
   async function handleRegistarOS(ag){
     if(!ag||!ag.id) return;
+    if(!confirm("Mudança finalizada?\nDeseja coletar a assinatura do cliente?")) return;
     var prevAgenda=agenda.slice();
     _setAgendaRemovidaIds(function(prev){var s=new Set(prev);s.add(ag.id);return s;});
     setAgenda(function(prev){return prev.filter(function(x){return x.id!==ag.id;});});
@@ -1860,8 +1861,12 @@ export default function App(){
       var _r1Body=await r1.json().catch(function(){return null;});
       var _adminId=usuario&&(usuario.email||usuario.nome)||"Administrador";var r2=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:_adminId})});
       if(!r2.ok) throw new Error("HTTP r2:"+r2.status);
-      if(_r1Body&&Array.isArray(_r1Body)&&_r1Body[0]){
-        setMudancas(function(prev){return [_r1Body[0]].concat(prev);});
+      var _novaMud=(_r1Body&&Array.isArray(_r1Body)&&_r1Body[0])?_r1Body[0]:null;
+      if(_novaMud){
+        setMudancas(function(prev){return [_novaMud].concat(prev);});
+        setMudAssinatura(_novaMud);
+        setRessalvas("");
+        setShowAssinatura(true);
       }
       setAgenda(function(prev){return prev.filter(function(x){return x.id!==ag.id;});});
       setSyncStatus("✅ OS registada com sucesso!");
@@ -2630,7 +2635,7 @@ export default function App(){
                           </div>}
                         </div>}
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
-                          <button onClick={function(){handleRegistarOS(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✓ Registar"}</button>
+                          <button onClick={function(){handleRegistarOS(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>
                           <div style={{display:"flex",gap:5,alignItems:"center"}}>
                             {a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
                             <button onClick={()=>compartilharWhatsApp(a)} style={{...btnGreen,fontSize:14,padding:"6px 10px"}}>📲</button>
