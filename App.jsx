@@ -2535,7 +2535,7 @@ export default function App(){
                 </div>
                 {/* ── Body ── */}
                 <div style={{padding:"10px 16px 8px",fontSize:12,color:"#475569"}}>
-                  <div style={{marginBottom:4}}>📝 <b>Solicitado por:</b> {m.requested_by||"Sistema"}</div>
+                  <div style={{marginBottom:4}}>📝 <b>Solicitado por:</b> {m.created_by||m.requested_by||"Sistema"}{m.creator_role?" ("+({admin:"Admin",social:"Social",promorar:"Promorar",motorista:"Motorista"}[m.creator_role]||m.creator_role)+")":""}{m.criado_em?" · "+new Date(m.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
                     <span>{m.approved_by_admin?<b style={{color:"#16a34a"}}>✅ Admin</b>:<span style={{color:"#9ca3af"}}>⏳ Admin</span>}</span>
                     <span>{m.approved_by_social?<b style={{color:"#16a34a"}}>✅ Social</b>:<span style={{color:"#9ca3af"}}>⏳ Social</span>}</span>
@@ -2641,7 +2641,7 @@ export default function App(){
                     {(a.approved_by_admin||a.approved_by_social||a.approved_by_promorar||a.requested_by||
                     (usuario&&['admin','social','promorar'].includes(usuario.perfil)))&&(
                     <div style={{borderTop:"1px solid #e2e8f0",marginTop:6,paddingTop:5,fontSize:11,color:"#475569"}}>
-                      <div style={{marginBottom:3}}>📝 <b>Solicitado por:</b> {a.requested_by||"Sistema"}</div>
+                      <div style={{marginBottom:3}}>📝 <b>Solicitado por:</b> {a.created_by||a.requested_by||"Sistema"}{a.creator_role?" ("+({admin:"Admin",social:"Social",promorar:"Promorar",motorista:"Motorista"}[a.creator_role]||a.creator_role)+")":""}{a.criado_em?" · "+new Date(a.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
                         <span>Admin: {a.approved_by_admin?<b style={{color:"#16a34a"}}>✅ {a.approved_by_admin}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>
                         {usuario&&usuario.perfil==="admin"&&!a.approved_by_admin&&(<button onClick={function(){handleApproveAgenda(a.id);}} disabled={!!isApproving[a.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[a.id]?"#94a3b8":"#1e40af",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[a.id]?"not-allowed":"pointer"}}>{isApproving[a.id]?"⏳":"Confirmar"}</button>)}
