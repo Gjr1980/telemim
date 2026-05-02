@@ -2401,7 +2401,7 @@ export default function App(){
                       <div style={{width:7,height:7,borderRadius:"50%",background:"#f59e0b",marginRight:10,flexShrink:0}}></div>
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,fontWeight:600,color:"#334155"}}>{m.nome}</div>
-                        <div style={{fontSize:11,color:"#94a3b8"}}>{m.comunidade||""}</div>
+                        <div style={{fontSize:11,color:"#94a3b8"}}>{m.comunidade||""}{m.horario?<span> - <b style={{color:"#334155"}}>{m.horario.replace(":00","")+"h"}</b></span>:""}</div>
                       </div>
                     </div>
                   );})}
@@ -2493,7 +2493,7 @@ export default function App(){
                 <div style={{width:8,height:8,borderRadius:"50%",background:a.status==="concluida"?"#047857":a.status==="cancelada"?"#dc2626":"#f59e0b",marginRight:10,flexShrink:0}}></div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:600,color:"#334155",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nome}</div>
-                  <div style={{fontSize:11,color:"#94a3b8"}}>{a.comunidade||a.origem||""}</div>
+                  <div style={{fontSize:11,color:"#94a3b8"}}>{a.comunidade||a.origem||""}{a.horario?<span> - <b style={{color:"#334155"}}>{a.horario.replace(":00","")+"h"}</b></span>:""}</div>
                 </div>
                 <div style={{display:"flex",gap:4,alignItems:"center"}}>
                   <span style={{fontSize:11,fontWeight:700,color:a.status==="concluida"?"#047857":a.status==="cancelada"?"#dc2626":"#d97706"}}>{a.status==="concluida"?"✅":a.status==="cancelada"?"❌":"⏳"}</span>
