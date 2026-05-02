@@ -873,7 +873,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if(isAdmin&&listaUsuarios.length===0&&(tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();if(isAdmin&&tab==="dashboard")loadNotificacoes();},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if(isAdmin&&listaUsuarios.length===0&&(tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();if(isAdmin&&tab==="dashboard")loadNotificacoes();},[tab,isAdmin]);
   useEffect(()=>{
     async function load(){
       try{
@@ -916,6 +916,12 @@ export default function App(){
         }catch(e3){setContasHist([]);}
       }finally{
         loadPrestadores();
+        // Carregar notificacoes para admin
+        var _prf=(JSON.parse(localStorage.getItem('tmim_u')||'{}')).perfil||"";
+        if(_prf==="admin"){try{
+          var _nr=await fetch(SUPA_URL+"/rest/v1/notificacoes?select=*&order=criado_em.desc&limit=50",{headers:getH()});
+          if(_nr.ok){var _nd=await _nr.json();setNotificacoes(_nd||[]);}
+        }catch(_ne){}}
         // SEMPRE executado — garante que o app abre
                 setAuthChecked(true);
         setLoading(false);
