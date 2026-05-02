@@ -2956,7 +2956,7 @@ return(
   var _hj=new Date();
   // Gerar últimos 6 meses
   var _meses=[];
-  for(var i=5;i>=0;i--){
+  for(var i=0;i<=5;i++){
     var d=new Date(_hj.getFullYear(),_hj.getMonth()-i,1);
     var ym=d.getFullYear()+"-"+_pc(d.getMonth()+1);
     var lbl=d.toLocaleDateString("pt-BR",{month:"short",year:"numeric"}).replace(/^\w/,function(s){return s.toUpperCase();});
@@ -3054,7 +3054,7 @@ return(
   var _fvR=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
   var _hj=new Date();
   var _meses=[];
-  for(var i=5;i>=0;i--){
+  for(var i=0;i<=5;i++){
     var d=new Date(_hj.getFullYear(),_hj.getMonth()-i,1);
     var ym=d.getFullYear()+"-"+_pc(d.getMonth()+1);
     var lbl=d.toLocaleDateString("pt-BR",{month:"long",year:"numeric"}).replace(/^\w/,function(s){return s.toUpperCase();});
