@@ -2387,7 +2387,7 @@ export default function App(){
                 <span style={{background:"#e0e7ff",color:"#3730a3",borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700}}>{_mm3.length} total</span>
               </div>
               {_dd3.map(function(dia){
-                var _md3=_mm3.filter(function(m){return m.data===dia;});
+                var _md3=_mm3.filter(function(m){return m.data===dia;}).sort(function(a,b){return(a.horario||"99:99").localeCompare(b.horario||"99:99");});
                 var _df3=dia.slice(8)+"/"+dia.slice(5,7)+"/"+dia.slice(0,4);
                 var _ih3=dia===_hj3.toISOString().slice(0,10);
                 return(
@@ -2454,7 +2454,7 @@ export default function App(){
   function _navM(dir){var nm=calMes+dir;var na=calAno;if(nm<0){nm=11;na--;}if(nm>11){nm=0;na++;}setCalMes(nm);setCalAno(na);setCalDiaSel(null);}
   function _dStr(d){return _prefix+"-"+(d<10?"0":"")+d;}
   var _selD=calDiaSel?parseInt(calDiaSel.slice(8,10)):null;
-  var _selItems=_selD&&_porDia[_selD]?_porDia[_selD].items:[];
+  var _selItems=(_selD&&_porDia[_selD]?_porDia[_selD].items:[]).slice().sort(function(a,b){return(a.horario||"99:99").localeCompare(b.horario||"99:99");});
   return(
     <div style={{padding:"0 12px 16px"}}>
       <div style={{background:"#fff",borderRadius:16,border:"1.5px solid #e2e8f0",padding:"16px 14px",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
