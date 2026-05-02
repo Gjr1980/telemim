@@ -2148,8 +2148,8 @@ export default function App(){
     {id:"registros_mot",label:"📋 Meus Registros"},
   ]:[
     {id:"dashboard",label:"📊 Dashboard"},
-    {id:"lista",label:"📋 Registros"},
     {id:"agenda",label:"📅 Agenda"},
+    {id:"lista",label:"📋 Registros"},
     {id:"importar_mud",label:"+ Mudanças"},
     ...(isAdmin?[{id:"contas",label:"💸 Contas"},{id:"financeiro",label:"💰 Financeiro"},{id:"config",label:"⚙️ Config"}]:[]),
   ];
