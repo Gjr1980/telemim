@@ -2715,7 +2715,7 @@ export default function App(){
         )}
 
         {/* ══ RELATÓRIO ══ */}
-        {tab==="financeiro"&&isAdmin&&(function(){
+        {tab==="financeiro"&&isAdmin&&periodoFin!=="simples"&&periodoFin!=="completo"&&(function(){
           var _now=new Date();
           var _am=_now.getFullYear()+"-"+(String(_now.getMonth()+1).padStart(2,"0"));
           var _fv=function(v){return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);};
@@ -2854,6 +2854,9 @@ export default function App(){
           );
         })()}
         {tab==="financeiro"&&isAdmin&&(()=>{
+return(<div style={{display:'flex',gap:4,padding:'12px 12px 0',background:'#f8fafc',flexWrap:'wrap'}}>{[{v:'semana',l:'Semana'},{v:'mes_atual',l:'Mês Atual'},{v:'mes_ant',l:'Mês Ant.'},{v:'simples',l:'📊 Simples'},{v:'completo',l:'📋 Completo'}].map(function(p){return(<button key={p.v} onClick={()=>setPeriodoFin(p.v)} style={{flex:1,padding:'8px 2px',borderRadius:10,border:'none',background:periodoFin===p.v?'#1e40af':'#e2e8f0',color:periodoFin===p.v?'#fff':'#475569',fontSize:10,fontWeight:periodoFin===p.v?700:500,cursor:'pointer',minWidth:p.v==='simples'||p.v==='completo'?'auto':'0'}}>{p.l}</button>);})}</div>);
+})()}
+        {tab==="financeiro"&&isAdmin&&periodoFin!=="simples"&&periodoFin!=="completo"&&(()=>{
 var _tipos2=[{tp:"caminhao",ico:"🚚",lbl:"Caminhão"},{tp:"van",ico:"🚐",lbl:"Van"},{tp:"ajudante",ico:"👷",lbl:"Ajudante"},{tp:"almoco",ico:"🍽️",lbl:"Almoço"}];
 var _semFin=[];
 var _hjFin=new Date();
@@ -2874,7 +2877,6 @@ var _fV3=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minim
 var _fD3=function(d){if(!d)return "";var p=d.split("-");return p[2]+"/"+p[1];};
 return(
 <div style={{paddingBottom:80}}>
-  <div style={{display:'flex',gap:6,padding:'12px 12px 0',background:'#f8fafc'}}>{[{v:'semana',l:'Semana'},{v:'mes_atual',l:'Mês Atual'},{v:'mes_ant',l:'Mês Anterior'}].map(function(p){return(<button key={p.v} onClick={()=>setPeriodoFin(p.v)} style={{flex:1,padding:'8px 2px',borderRadius:10,border:'none',background:periodoFin===p.v?'#1e40af':'#e2e8f0',color:periodoFin===p.v?'#fff':'#475569',fontSize:11,fontWeight:periodoFin===p.v?700:500,cursor:'pointer'}}>{p.l}</button>);})}</div>
   <div style={{background:'linear-gradient(135deg,#1e293b,#1e40af)',padding:'20px 16px 24px'}}><div style={{fontSize:12,color:'rgba(255,255,255,0.65)',marginBottom:2}}>Painel Financeiro</div><div style={{fontSize:21,fontWeight:800,color:'#fff'}}>{(function(){if(periodoFin==='semana'){var d=new Date();var ds=d.getDay();var s0=new Date(d);s0.setDate(d.getDate()-ds+(ds===0?-6:1));var s1=new Date(s0);s1.setDate(s0.getDate()+6);var fmt=function(dt){return dt.getDate()+'/'+(dt.getMonth()+1);};return 'Semana: '+fmt(s0)+' a '+fmt(s1)+'/'+s1.getFullYear();}if(periodoFin==='mes_ant'){var dm=new Date();dm.setDate(1);dm.setMonth(dm.getMonth()-1);return dm.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^\w/,function(s){return s.toUpperCase();});}return new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^\w/,function(s){return s.toUpperCase();});})()}</div></div>
   <div style={{padding:"12px 12px 0"}}>
     <div style={{fontWeight:800,fontSize:14,color:"#1e293b",marginBottom:10,display:"flex",alignItems:"center",gap:6}}><span>📅</span> Custos do Período</div>
@@ -2911,7 +2913,7 @@ return(
 </div>);
 })()}
         </div>
-{tab==="financeiro"&&isAdmin&&(function(){
+{tab==="financeiro"&&isAdmin&&periodoFin!=="simples"&&periodoFin!=="completo"&&(function(){
   var _pc=function(n){return String(n).padStart(2,"0");};
   var _hj=new Date();
   var _si,_sf,_periodoLbl;
@@ -2943,6 +2945,216 @@ return(
           <div style={{fontSize:10,color:"#64748b"}}>{_periodoLbl}</div>
         </div>
         {_renderRelatorioMotoristas(_ms,_periodoLbl)}
+      </div>
+    </div>
+  );
+})()}
+{/* ══ RELATÓRIO SIMPLES ══ */}
+{tab==="financeiro"&&isAdmin&&periodoFin==="simples"&&(function(){
+  var _pc=function(n){return String(n).padStart(2,"0");};
+  var _fvR=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var _hj=new Date();
+  // Gerar últimos 6 meses
+  var _meses=[];
+  for(var i=5;i>=0;i--){
+    var d=new Date(_hj.getFullYear(),_hj.getMonth()-i,1);
+    var ym=d.getFullYear()+"-"+_pc(d.getMonth()+1);
+    var lbl=d.toLocaleDateString("pt-BR",{month:"short",year:"numeric"}).replace(/^\w/,function(s){return s.toUpperCase();});
+    _meses.push({ym:ym,lbl:lbl});
+  }
+  var _rows=_meses.map(function(mes){
+    var _mudM=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===mes.ym;});
+    var _cdM=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===mes.ym;});
+    var _cpM=(contasPagar||[]).filter(function(cp){return cp.data&&cp.data.slice(0,7)===mes.ym;});
+    var r=_calcCustos(_mudM,_cdM,_cpM,RULES);
+    return {lbl:mes.lbl,ym:mes.ym,receita:r.fatBruto,despesa:r.despTotal,lucro:r.fatBruto-r.despTotal,numMud:_mudM.length};
+  });
+  var _totRec=_rows.reduce(function(s,r){return s+r.receita;},0);
+  var _totDesp=_rows.reduce(function(s,r){return s+r.despesa;},0);
+  var _totLuc=_totRec-_totDesp;
+
+  function _gerarPdfSimples(){
+    _loadJsPDF().then(function(JsPDF){
+      var doc=new JsPDF({unit:"mm",format:"a4"});
+      doc.setFontSize(16);doc.setFont(undefined,"bold");
+      doc.text("Relatório Financeiro - Simples",14,20);
+      doc.setFontSize(10);doc.setFont(undefined,"normal");
+      doc.text("Gerado em: "+new Date().toLocaleDateString("pt-BR"),14,28);
+      var head=[["Mês","Mudanças","Receita","Despesa","Lucro"]];
+      var body=_rows.map(function(r){return [r.lbl,String(r.numMud),_fvR(r.receita),_fvR(r.despesa),_fvR(r.lucro)];});
+      body.push(["TOTAL",String(_rows.reduce(function(s,r){return s+r.numMud;},0)),_fvR(_totRec),_fvR(_totDesp),_fvR(_totLuc)]);
+      doc.autoTable({head:head,body:body,startY:34,styles:{fontSize:10,cellPadding:3},headStyles:{fillColor:[30,64,175]},footStyles:{fillColor:[241,245,249]},alternateRowStyles:{fillColor:[248,250,252]}});
+      doc.save("relatorio-simples.pdf");
+    });
+  }
+  function _zapSimples(){
+    var NL="%0A";var t="📊 *Relatório Financeiro Simples*"+NL+NL;
+    _rows.forEach(function(r){
+      t+="📅 *"+r.lbl+"*"+NL;
+      t+="  Mudanças: "+r.numMud+NL;
+      t+="  Receita: "+_fvR(r.receita)+NL;
+      t+="  Despesa: "+_fvR(r.despesa)+NL;
+      t+="  Lucro: "+_fvR(r.lucro)+NL+NL;
+    });
+    t+="━━━━━━━━━━━━━━━━"+NL;
+    t+="💰 *TOTAL*"+NL;
+    t+="  Receita: "+_fvR(_totRec)+NL;
+    t+="  Despesa: "+_fvR(_totDesp)+NL;
+    t+="  Lucro: "+_fvR(_totLuc)+NL;
+    window.open("https://wa.me/?text="+t,"_blank");
+  }
+
+  return(
+    <div style={{padding:"12px",paddingBottom:80}}>
+      <div style={{background:"linear-gradient(135deg,#1e293b,#1e40af)",padding:"16px",borderRadius:14,marginBottom:12}}>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.65)"}}>📊 Relatório Simples</div>
+        <div style={{fontSize:18,fontWeight:800,color:"#fff"}}>Últimos 6 meses</div>
+      </div>
+      <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:12,overflow:"hidden",marginBottom:12}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <thead>
+            <tr style={{background:"#1e40af",color:"#fff"}}>
+              <th style={{padding:"8px 6px",textAlign:"left",fontWeight:700}}>Mês</th>
+              <th style={{padding:"8px 6px",textAlign:"right",fontWeight:700}}>Mud.</th>
+              <th style={{padding:"8px 6px",textAlign:"right",fontWeight:700}}>Receita</th>
+              <th style={{padding:"8px 6px",textAlign:"right",fontWeight:700}}>Despesa</th>
+              <th style={{padding:"8px 6px",textAlign:"right",fontWeight:700}}>Lucro</th>
+            </tr>
+          </thead>
+          <tbody>
+            {_rows.map(function(r,i){return(
+              <tr key={r.ym} style={{background:i%2===0?"#fff":"#f8fafc",borderBottom:"1px solid #f1f5f9"}}>
+                <td style={{padding:"8px 6px",fontWeight:600,color:"#334155"}}>{r.lbl}</td>
+                <td style={{padding:"8px 6px",textAlign:"right",color:"#64748b"}}>{r.numMud}</td>
+                <td style={{padding:"8px 6px",textAlign:"right",color:"#16a34a",fontWeight:600}}>{_fvR(r.receita)}</td>
+                <td style={{padding:"8px 6px",textAlign:"right",color:"#dc2626",fontWeight:600}}>{_fvR(r.despesa)}</td>
+                <td style={{padding:"8px 6px",textAlign:"right",color:r.lucro>=0?"#15803d":"#dc2626",fontWeight:700}}>{_fvR(r.lucro)}</td>
+              </tr>
+            );})}
+            <tr style={{background:"#1e293b",color:"#fff",fontWeight:800}}>
+              <td style={{padding:"10px 6px"}}>TOTAL</td>
+              <td style={{padding:"10px 6px",textAlign:"right"}}>{_rows.reduce(function(s,r){return s+r.numMud;},0)}</td>
+              <td style={{padding:"10px 6px",textAlign:"right",color:"#4ade80"}}>{_fvR(_totRec)}</td>
+              <td style={{padding:"10px 6px",textAlign:"right",color:"#fca5a5"}}>{_fvR(_totDesp)}</td>
+              <td style={{padding:"10px 6px",textAlign:"right",color:_totLuc>=0?"#4ade80":"#fca5a5"}}>{_fvR(_totLuc)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={_gerarPdfSimples} style={{flex:1,padding:"12px",background:"#dc2626",color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>📄 Exportar PDF</button>
+        <button onClick={_zapSimples} style={{flex:1,padding:"12px",background:"#16a34a",color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>📲 WhatsApp</button>
+      </div>
+    </div>
+  );
+})()}
+{/* ══ RELATÓRIO COMPLETO ══ */}
+{tab==="financeiro"&&isAdmin&&periodoFin==="completo"&&(function(){
+  var _pc=function(n){return String(n).padStart(2,"0");};
+  var _fvR=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var _hj=new Date();
+  var _meses=[];
+  for(var i=5;i>=0;i--){
+    var d=new Date(_hj.getFullYear(),_hj.getMonth()-i,1);
+    var ym=d.getFullYear()+"-"+_pc(d.getMonth()+1);
+    var lbl=d.toLocaleDateString("pt-BR",{month:"long",year:"numeric"}).replace(/^\w/,function(s){return s.toUpperCase();});
+    _meses.push({ym:ym,lbl:lbl});
+  }
+  var _dados=_meses.map(function(mes){
+    var _mudM=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===mes.ym;});
+    var _cdM=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===mes.ym;});
+    var _cpM=(contasPagar||[]).filter(function(cp){return cp.data&&cp.data.slice(0,7)===mes.ym;});
+    var r=_calcCustos(_mudM,_cdM,_cpM,RULES);
+    var diasTrab=[...new Set(_mudM.map(function(m){return m.data;}))].length;
+    return {lbl:mes.lbl,ym:mes.ym,numMud:_mudM.length,m3:r.m3Total,diasTrab:diasTrab,fatBruto:r.fatBruto,imposto:r.imposto,fatLiq:r.fatLiq,cCam:r.cCam,cVan:r.cVan,cAj:r.cAj,cAlm:r.cAlm,cDesp:r.cDesp,cExtra:r.cExtra,despTotal:r.despTotal,lucro:r.lucroLiq};
+  });
+  var _tot={numMud:0,m3:0,diasTrab:0,fatBruto:0,imposto:0,fatLiq:0,cCam:0,cVan:0,cAj:0,cAlm:0,cDesp:0,cExtra:0,despTotal:0,lucro:0};
+  _dados.forEach(function(d){_tot.numMud+=d.numMud;_tot.m3+=d.m3;_tot.diasTrab+=d.diasTrab;_tot.fatBruto+=d.fatBruto;_tot.imposto+=d.imposto;_tot.fatLiq+=d.fatLiq;_tot.cCam+=d.cCam;_tot.cVan+=d.cVan;_tot.cAj+=d.cAj;_tot.cAlm+=d.cAlm;_tot.cDesp+=d.cDesp;_tot.cExtra+=d.cExtra;_tot.despTotal+=d.despTotal;_tot.lucro+=d.lucro;});
+
+  function _renderCard(d,isTot){
+    var bg=isTot?"linear-gradient(135deg,#1e293b,#1e40af)":"#fff";
+    var tc=isTot?"#fff":"#1e293b";var tc2=isTot?"rgba(255,255,255,0.7)":"#64748b";
+    var bdr=isTot?"none":"1.5px solid #e2e8f0";
+    return(
+      <div key={d.ym||"total"} style={{background:bg,border:bdr,borderRadius:14,padding:"14px 14px 12px",marginBottom:10}}>
+        <div style={{fontSize:14,fontWeight:800,color:tc,marginBottom:10}}>{isTot?"📊 TOTAL GERAL":("📅 "+d.lbl)}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:10}}>
+          <div style={{background:isTot?"rgba(255,255,255,0.1)":"#f0fdf4",borderRadius:8,padding:"6px 8px",textAlign:"center"}}><div style={{fontSize:9,color:tc2,fontWeight:600}}>Viagens</div><div style={{fontSize:16,fontWeight:800,color:tc}}>{d.numMud}</div></div>
+          <div style={{background:isTot?"rgba(255,255,255,0.1)":"#eff6ff",borderRadius:8,padding:"6px 8px",textAlign:"center"}}><div style={{fontSize:9,color:tc2,fontWeight:600}}>Cubagem</div><div style={{fontSize:16,fontWeight:800,color:tc}}>{d.m3.toFixed(0)} m³</div></div>
+          <div style={{background:isTot?"rgba(255,255,255,0.1)":"#faf5ff",borderRadius:8,padding:"6px 8px",textAlign:"center"}}><div style={{fontSize:9,color:tc2,fontWeight:600}}>Dias Trab.</div><div style={{fontSize:16,fontWeight:800,color:tc}}>{d.diasTrab}</div></div>
+        </div>
+        <div style={{borderTop:isTot?"1px solid rgba(255,255,255,0.2)":"1px solid #e2e8f0",paddingTop:8,marginBottom:6}}>
+          <div style={{fontSize:10,fontWeight:700,color:isTot?"#86efac":"#16a34a",marginBottom:4,textTransform:"uppercase"}}>Receita</div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"3px 0"}}><span style={{fontSize:11,color:tc2}}>Receita Bruta</span><span style={{fontSize:11,fontWeight:700,color:tc}}>{_fvR(d.fatBruto)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"3px 0"}}><span style={{fontSize:11,color:tc2}}>Impostos ({((RULES.imposto||0)*100).toFixed(0)}%)</span><span style={{fontSize:11,fontWeight:700,color:isTot?"#fbbf24":"#ea580c"}}>{_fvR(d.imposto)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderTop:isTot?"1px dashed rgba(255,255,255,0.2)":"1px dashed #e2e8f0"}}><span style={{fontSize:11,fontWeight:700,color:tc}}>Receita Líquida</span><span style={{fontSize:12,fontWeight:800,color:isTot?"#4ade80":"#15803d"}}>{_fvR(d.fatLiq)}</span></div>
+        </div>
+        <div style={{borderTop:isTot?"1px solid rgba(255,255,255,0.2)":"1px solid #e2e8f0",paddingTop:8,marginBottom:6}}>
+          <div style={{fontSize:10,fontWeight:700,color:isTot?"#fca5a5":"#dc2626",marginBottom:4,textTransform:"uppercase"}}>Despesas</div>
+          {[{ic:"🚚",lbl:"Caminhão",v:d.cCam},{ic:"🚐",lbl:"Van",v:d.cVan},{ic:"👷",lbl:"Ajudantes",v:d.cAj},{ic:"🍛",lbl:"Almoço",v:d.cAlm},{ic:"📋",lbl:"Desp. Extras",v:d.cDesp},{ic:"💼",lbl:"Outros",v:d.cExtra}].map(function(k,i){return(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"2px 0"}}><span style={{fontSize:11,color:tc2}}>{k.ic} {k.lbl}</span><span style={{fontSize:11,fontWeight:600,color:tc}}>{_fvR(k.v)}</span></div>
+          );})}
+          <div style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderTop:isTot?"1px dashed rgba(255,255,255,0.2)":"1px dashed #e2e8f0",marginTop:4}}><span style={{fontSize:11,fontWeight:700,color:tc}}>Despesa Total</span><span style={{fontSize:12,fontWeight:800,color:isTot?"#fca5a5":"#dc2626"}}>{_fvR(d.despTotal)}</span></div>
+        </div>
+        <div style={{background:isTot?"rgba(255,255,255,0.15)":"linear-gradient(135deg,#f0fdf4,#dcfce7)",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
+          <div style={{fontSize:9,color:tc2,fontWeight:600,textTransform:"uppercase"}}>Lucro Líquido</div>
+          <div style={{fontSize:22,fontWeight:900,color:d.lucro>=0?(isTot?"#4ade80":"#16a34a"):(isTot?"#f87171":"#dc2626")}}>{_fvR(d.lucro)}</div>
+        </div>
+      </div>
+    );
+  }
+
+  function _gerarPdfCompleto(){
+    _loadJsPDF().then(function(JsPDF){
+      var doc=new JsPDF({unit:"mm",format:"a4"});
+      doc.setFontSize(16);doc.setFont(undefined,"bold");
+      doc.text("Relatório Financeiro - Completo",14,20);
+      doc.setFontSize(10);doc.setFont(undefined,"normal");
+      doc.text("Gerado em: "+new Date().toLocaleDateString("pt-BR"),14,28);
+      var head=[["Mês","Viag.","m³","Dias","Rec.Bruta","Impostos","Rec.Líq.","Caminhão","Van","Ajud.","Almoço","Extras","Desp.Total","Lucro"]];
+      var body=_dados.map(function(d){return [d.lbl,String(d.numMud),d.m3.toFixed(0),String(d.diasTrab),_fvR(d.fatBruto),_fvR(d.imposto),_fvR(d.fatLiq),_fvR(d.cCam),_fvR(d.cVan),_fvR(d.cAj),_fvR(d.cAlm),_fvR(d.cDesp+d.cExtra),_fvR(d.despTotal),_fvR(d.lucro)];});
+      body.push(["TOTAL",String(_tot.numMud),_tot.m3.toFixed(0),String(_tot.diasTrab),_fvR(_tot.fatBruto),_fvR(_tot.imposto),_fvR(_tot.fatLiq),_fvR(_tot.cCam),_fvR(_tot.cVan),_fvR(_tot.cAj),_fvR(_tot.cAlm),_fvR(_tot.cDesp+_tot.cExtra),_fvR(_tot.despTotal),_fvR(_tot.lucro)]);
+      doc.autoTable({head:head,body:body,startY:34,styles:{fontSize:7,cellPadding:2},headStyles:{fillColor:[30,64,175]},alternateRowStyles:{fillColor:[248,250,252]},margin:{left:6,right:6}});
+      doc.save("relatorio-completo.pdf");
+    });
+  }
+  function _zapCompleto(){
+    var NL="%0A";var t="📋 *Relatório Financeiro Completo*"+NL+NL;
+    _dados.forEach(function(d){
+      t+="━━━━━━━━━━━━━━━━"+NL;
+      t+="📅 *"+d.lbl+"*"+NL;
+      t+="📦 Viagens: "+d.numMud+" | 📏 "+d.m3.toFixed(0)+"m³ | 🗓️ "+d.diasTrab+" dias"+NL;
+      t+="💚 Receita Bruta: "+_fvR(d.fatBruto)+NL;
+      t+="🏦 Impostos: "+_fvR(d.imposto)+NL;
+      t+="✅ Receita Líquida: "+_fvR(d.fatLiq)+NL;
+      t+="🚚 Caminhão: "+_fvR(d.cCam)+NL;
+      t+="🚐 Van: "+_fvR(d.cVan)+NL;
+      t+="👷 Ajudantes: "+_fvR(d.cAj)+NL;
+      t+="🍛 Almoço: "+_fvR(d.cAlm)+NL;
+      t+="📋 Extras: "+_fvR(d.cDesp+d.cExtra)+NL;
+      t+="❌ Despesa Total: "+_fvR(d.despTotal)+NL;
+      t+="💰 *Lucro: "+_fvR(d.lucro)+"*"+NL+NL;
+    });
+    t+="━━━━━━━━━━━━━━━━"+NL;
+    t+="📊 *TOTAL GERAL*"+NL;
+    t+="📦 Viagens: "+_tot.numMud+" | 📏 "+_tot.m3.toFixed(0)+"m³ | 🗓️ "+_tot.diasTrab+" dias"+NL;
+    t+="💚 Receita: "+_fvR(_tot.fatBruto)+NL;
+    t+="❌ Despesa: "+_fvR(_tot.despTotal)+NL;
+    t+="💰 *Lucro: "+_fvR(_tot.lucro)+"*"+NL;
+    window.open("https://wa.me/?text="+t,"_blank");
+  }
+
+  return(
+    <div style={{padding:"12px",paddingBottom:80}}>
+      <div style={{background:"linear-gradient(135deg,#1e293b,#1e40af)",padding:"16px",borderRadius:14,marginBottom:12}}>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.65)"}}>📋 Relatório Completo</div>
+        <div style={{fontSize:18,fontWeight:800,color:"#fff"}}>Últimos 6 meses — Detalhado</div>
+      </div>
+      {_dados.map(function(d){return _renderCard(d,false);})}
+      {_renderCard(_tot,true)}
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={_gerarPdfCompleto} style={{flex:1,padding:"12px",background:"#dc2626",color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>📄 Exportar PDF</button>
+        <button onClick={_zapCompleto} style={{flex:1,padding:"12px",background:"#16a34a",color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>📲 WhatsApp</button>
       </div>
     </div>
   );
