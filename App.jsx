@@ -732,6 +732,8 @@ export default function App(){
   const [confirmDelete,setConfirmDelete]=useState(null);
   const [activityLogs,setActivityLogs]=useState([]);
   const [toast,setToast]=useState(null);;
+  const [notificacoes,setNotificacoes]=useState([]);
+  const [notifLimit,setNotifLimit]=useState(10);
   const [novoUser,setNovoUser]=useState({nome:"",email:"",senha:"",perfil:"promorar",tipo_veiculo:"",placa_veiculo:""});
   const [savingUser,setSavingUser]=useState(false);
   const [editUser,setEditUser]=useState(null);
@@ -1060,6 +1062,7 @@ export default function App(){
   async function handleLogin(){if(!loginForm.email||!loginForm.senha){setLoginErro("Preencha email e senha");return;}setLoginLoad(true);setLoginErro("");try{const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:loginForm.email,password:loginForm.senha})});const d=await res.json();if(!res.ok||!d.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+d.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+d.access_token}});const pd=await pr.json();if(!pd||!pd[0]||pd[0].ativo===false){setLoginErro("Sem acesso. Contate o administrador.");setLoginLoad(false);return;}const u={id:d.user.id,email:d.user.email,nome:pd[0].nome,perfil:pd[0].perfil,tipo_veiculo:pd[0].tipo_veiculo||null,token:d.access_token,refresh_token:d.refresh_token||null};setUsuario(u);setTab("dashboard");localStorage.setItem('tmim_u',JSON.stringify(u));/* Reload data with fresh JWT */try{var _mr=await dbGet("mudancas");setMudancas(_mr||[]);var _ar=await dbGet("agenda","deleted_at=is.null");setAgenda(_ar||[]);var _cr=await dbGetCustos();if(_cr)setCustosDiarios(_cr);loadContasSemana();loadPrestadores();}catch(_le){}}catch(e){setLoginErro("Erro.");}setLoginLoad(false);}
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
   const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social";const isMotorista=perfil==="motorista";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar;const verMed=isAdmin||isPromorar;
+  useEffect(function(){if(isAdmin)loadNotificacoes();},[usuario]);
   function _renderRelatorioMotoristas(_ms,_periodoLabel){
     var _fvR=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
     var _fvN=function(v){return parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
@@ -1175,6 +1178,8 @@ export default function App(){
   }
   function fmtTempo(iso){if(!iso)return null;const d=new Date(iso);return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
     function addLog(msg){var ts=new Date();var hora=String(ts.getHours()).padStart(2,"0")+":"+String(ts.getMinutes()).padStart(2,"0");setActivityLogs(function(prev){return [{id:ts.getTime(),hora:hora,msg:msg},...prev].slice(0,10);});setToast({id:ts.getTime(),msg:msg});setTimeout(function(){setToast(null);},4000);}
+  function loadNotificacoes(){fetch(SUPA_URL+"/rest/v1/notificacoes?select=*&order=criado_em.desc&limit=50",{headers:getH()}).then(function(r){return r.json();}).then(function(d){if(Array.isArray(d))setNotificacoes(d);}).catch(function(){});}
+  function _addNotif(tipo,descricao,mudanca_nome){var nome=(usuario&&(usuario.nome||usuario.email))||"Sistema";fetch(SUPA_URL+"/rest/v1/notificacoes",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({tipo:tipo,descricao:descricao,usuario_nome:nome,mudanca_nome:mudanca_nome||""})}).then(function(){loadNotificacoes();}).catch(function(){});}
   async function handleValidar3vias(id,tipo){
     var campo=tipo==="social"?"social_approved":tipo==="promorar"?"promorar_approved":"adm_approved";
     var campoPor=tipo+"_approved_by";
@@ -1264,9 +1269,11 @@ export default function App(){
   }
   async function handleSaveEditMud(){
     if(!editMud) return;
+    var _anterior=mudancas.find(function(m){return m.id===editMud.id;});
     const updated=mudancas.map(m=>m.id===editMud.id?{...editMud,medicao:parseFloat(editMud.medicao)||0}:m);
     setMudancas(()=>updated);
     await saveMud(updated,editMud);
+    try{if(_anterior){var _nMed=parseFloat(editMud.medicao)||0;var _oMed=parseFloat(_anterior.medicao)||0;if(_nMed!==_oMed){_addNotif("cubagem",(_oMed===0?"Cubagem inserida: ":"Cubagem alterada: ")+_oMed+" > "+_nMed+" m3",editMud.nome);}var _c=[];if((editMud.nome||"")!==(_anterior.nome||""))_c.push("nome");if((editMud.destino||"")!==(_anterior.destino||""))_c.push("destino");if((editMud.origem||"")!==(_anterior.origem||""))_c.push("origem");if((editMud.data||"")!==(_anterior.data||""))_c.push("data");if((editMud.selo||"")!==(_anterior.selo||""))_c.push("selo");if((editMud.comunidade||"")!==(_anterior.comunidade||""))_c.push("comunidade");if((editMud.observacao||"")!==(_anterior.observacao||""))_c.push("obs");if(Boolean(editMud.van)!==Boolean(_anterior.van))_c.push("van");if(_c.length>0)_addNotif("edicao",_c.join(", ")+" alterado(s)",editMud.nome);}}catch(e){}
     // RBAC: campo _qtdAj apenas Admin; nao-admin preserva valor anterior no BD
     if(isAdmin&&editMud._qtdAj!==undefined&&editMud._qtdAj!==""){
       var _aj=parseInt(editMud._qtdAj)||1;
@@ -1490,6 +1497,7 @@ export default function App(){
     setConvertModal(null);
     setTab("lista");
     setFlash("✅ Mudança registrada!"); setTimeout(()=>setFlash(""),2000);
+    try{_addNotif("concluida","Mudanca concluida",ag.nome);}catch(e){}
   }
 
   async function toggleStatus(id){
@@ -2511,6 +2519,7 @@ export default function App(){
 })()}
         </div>
       )}
+        {tab==="dashboard"&&isAdmin&&notificacoes.length>0&&(<div style={{padding:"0 12px 16px"}}><div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:14,padding:"14px 14px 10px"}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",letterSpacing:0.3,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>{"🔔 CENTRAL DE NOTIFICACOES"}</div>{notificacoes.slice(0,notifLimit).map(function(n){var ico=n.tipo==="concluida"?"🟢":n.tipo==="cubagem"?"📐":"✏️";var tit=n.tipo==="concluida"?"Mudanca concluida":n.tipo==="cubagem"?"Cubagem alterada":"Mudanca editada";var dt=n.criado_em?new Date(n.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";return(<div key={n.id} style={{padding:"8px 0",borderBottom:"1px solid #f1f5f9"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}><span style={{fontSize:14}}>{ico}</span><span style={{fontSize:12,fontWeight:700,color:"#334155"}}>{tit}</span></div><div style={{fontSize:11,color:"#475569",marginLeft:22}}>{n.mudanca_nome||""}{n.descricao&&n.descricao!==tit?(" - "+n.descricao):""}</div><div style={{fontSize:10,color:"#94a3b8",marginLeft:22,marginTop:2}}>{"por "}<b>{n.usuario_nome||"Sistema"}</b>{" · "+dt}</div></div>);})}{notificacoes.length>notifLimit&&(<div style={{textAlign:"center",paddingTop:8}}><button onClick={function(){setNotifLimit(function(p){return p+10;});}} style={{background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:8,padding:"6px 16px",fontSize:11,fontWeight:700,color:"#64748b",cursor:"pointer"}}>{"Ver mais ("+(notificacoes.length-notifLimit)+" anteriores)"}</button></div>)}</div></div>)}
         {tab==="dashboard"&&activityLogs.length>0&&<div style={{padding:"0 12px 16px"}}><div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:14,padding:"12px 14px"}}><div style={{fontWeight:800,fontSize:12,color:"#64748b",letterSpacing:0.5,marginBottom:8,display:"flex",alignItems:"center",gap:5}}>🔔 ÚNTIMAS ATUALIZAÇÕES</div>{activityLogs.slice(0,5).map(function(log){return(<div key={log.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #f8fafc"}}><span style={{fontSize:13,flexShrink:0}}>✅</span><div style={{flex:1,fontSize:11,color:"#334155",lineHeight:1.5}}>{log.msg}<span style={{color:"#94a3b8",marginLeft:6,fontSize:10}}>{log.hora}h</span></div></div>);})}</div></div>}
       {tab==="lista"&&(
           <div>
@@ -3265,6 +3274,7 @@ return(
                 var _sigB64=assinB64;
                 setMudancas(function(prev){return prev.map(function(m){return m.id===_mId?{...m,status:"Concluído",requested_by:usuario?usuario.nome:null,signature_data:_sigB64}:m;});});
                 fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+_mId,{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"Concluído",signature_data:_sigB64})}).catch(function(e){console.warn("sig patch:",e);});
+                try{_addNotif("concluida","Mudanca concluida e assinada",mudAssinatura.nome);}catch(e){}
                 await _gerarPDFComAssinatura(mudAssinatura,assinB64,ressalvas);
                 setMudAssinatura(null);
               }} style={{flex:2,padding:10,borderRadius:10,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,cursor:"pointer"}}>📄 Gerar Recibo PDF</button>
