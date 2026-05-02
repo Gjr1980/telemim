@@ -3106,10 +3106,10 @@ return(
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
               <div style={{fontSize:15,fontWeight:900,color:"#0284c7"}}>📄 PDF Assinado</div>
               <button onClick={function(){setShowViewPDF(false);setMudViewPDF(null);}} style={{background:"transparent",border:"none",fontSize:20,cursor:"pointer",color:"#94a3b8"}}>✕</button>
-            <button onClick={function(){if(mudViewPDF){var _m=mudViewPDF;setShowViewPDF(false);setMudViewPDF(null);setTimeout(function(){gerarPDFMudanca(_m);},200);}}} style={{marginTop:8,padding:"8px 18px",background:"#1e40af",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",width:"100%"}}>🔄 Baixar PDF actualizado</button>
             </div>
             <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:11,color:"#0369a1",fontWeight:600}}>🔒 Documento já assinado — apenas leitura. Não é possível reasinar.</div>
-            <div style={{fontSize:12,color:"#64748b",marginBottom:12}}>Cliente: <b>{mudViewPDF.nome}</b> | Selo: <b>{mudViewPDF.selo||"-"}</b></div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>Cliente: <b>{mudViewPDF.nome}</b> | Selo: <b>{mudViewPDF.selo||"-"}</b></div>
+            <div style={{fontSize:11,color:"#475569",marginBottom:12}}>📅 Assinado em: <b>{mudViewPDF.assinado_em?new Date(mudViewPDF.assinado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):mudViewPDF.termino_em?new Date(mudViewPDF.termino_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—"}</b></div>
             {mudViewPDF.signature_data&&(
               <div style={{marginBottom:12}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:6}}>Assinatura registada:</div>
