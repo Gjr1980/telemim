@@ -916,12 +916,9 @@ export default function App(){
         }catch(e3){setContasHist([]);}
       }finally{
         loadPrestadores();
-        // Carregar notificacoes para admin
+        // Carregar notificacoes para admin (non-blocking)
         var _prf=(JSON.parse(localStorage.getItem('tmim_u')||'{}')).perfil||"";
-        if(_prf==="admin"){try{
-          var _nr=await fetch(SUPA_URL+"/rest/v1/notificacoes?select=*&order=criado_em.desc&limit=50",{headers:getH()});
-          if(_nr.ok){var _nd=await _nr.json();setNotificacoes(_nd||[]);}
-        }catch(_ne){}}
+        if(_prf==="admin"){fetch(SUPA_URL+"/rest/v1/notificacoes?select=*&order=criado_em.desc&limit=50",{headers:getH()}).then(function(r){return r.json();}).then(function(d){setNotificacoes(d||[]);}).catch(function(){});}
         // SEMPRE executado — garante que o app abre
                 setAuthChecked(true);
         setLoading(false);
