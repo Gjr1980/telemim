@@ -1,0 +1,6 @@
+[
+  {"id":"0ddad8c3-5d31-4c6b-a06b-3a855f82f511","nome":"Carlos Silva","cargo":"caixa","telefone":"+55 81 99999-0001","ativo":true,"created_at":"2026-03-31 10:36:05.311231+00"},
+  {"id":"86050b8a-ef42-4cb8-8584-d6741d21f4b7","nome":"NHIBUIHJ","cargo":"gerente","telefone":"8199777546545465","ativo":true,"created_at":"2026-03-31 23:14:25.062715+00"},
+  {"id":"e3ec55f8-f690-426c-a464-6565e482bbd2","nome":"Maria Santos","cargo":"estoquista","telefone":"+55 81 99999-0002","ativo":true,"created_at":"2026-03-31 10:36:05.311231+00"},
+  {"id":"f62f3128-4049-4ec4-9ab1-ac449326732f","nome":"João Ferreira","cargo":"gerente","telefone":"+55 81 99999-0003","ativo":true,"created_at":"2026-03-31 10:36:05.311231+00"}
+]

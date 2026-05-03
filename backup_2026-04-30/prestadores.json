@@ -1,0 +1,6 @@
+[
+  {"id":1,"nome":"Motorista Caminhão","cargo":"caminhao","valor_diaria":350,"ativo":true},
+  {"id":2,"nome":"Motorista Van","cargo":"van","valor_diaria":400,"ativo":true},
+  {"id":3,"nome":"Ajudante 1","cargo":"ajudante","valor_diaria":80,"ativo":true},
+  {"id":4,"nome":"Ajudante 2","cargo":"ajudante","valor_diaria":80,"ativo":true}
+]

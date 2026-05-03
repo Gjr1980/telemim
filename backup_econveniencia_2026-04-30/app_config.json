@@ -1,0 +1,14 @@
+[
+  {"id":"1534593a-6748-445a-a951-9ac1a50a7ba2","chave":"limite_alerta_avaria","valor":"50","descricao":"Valor mínimo (R$) para disparar alerta de avaria"},
+  {"id":"1e4a4a35-5c86-49dd-b67f-118fb44f0a2c","chave":"email_relatorio","valor":"","descricao":"E-mail para envio do relatório mensal"},
+  {"id":"21937649-8b01-4ef5-bdf8-552a2807cd69","chave":"resumo_diario_hora","valor":"22:00","descricao":"Hora do resumo diário automático"},
+  {"id":"247bf445-906c-4dab-89ce-e92b9bdc1a8d","chave":"prazo_alerta_nf","valor":"48","descricao":"Horas para alertar nota não recebida"},
+  {"id":"70760f8f-b3f2-4b61-84aa-682da278932e","chave":"email_alertas","valor":"","descricao":"E-mail para receber alertas automáticos"},
+  {"id":"8e898e96-e74b-4530-9e66-162302f02a14","chave":"dias_cobertura_reposicao","valor":"3","descricao":"Dias de cobertura para cálculo de reposição"},
+  {"id":"9d697665-7964-4f1b-abff-e9383bb0f70e","chave":"margem_seguranca_reposicao","valor":"20","descricao":"Percentual de margem de segurança no pedido"},
+  {"id":"abbba8f4-6c6c-4d11-ad66-e23f4a7d46bb","chave":"temperatura_calor","valor":"30","descricao":"Temperatura (°C) para ativar margem extra de bebidas"},
+  {"id":"b2dd0242-0816-4a3b-8cd9-1e09ca9aa608","chave":"margem_bebidas_calor","valor":"15","descricao":"Percentual extra de reposição em dias de calor"},
+  {"id":"c65e9cb0-4a4a-41fe-9f5b-52ea90981a28","chave":"cidade","valor":"Recife","descricao":"Cidade da loja"},
+  {"id":"d1b77c8c-c99e-480e-8239-41b4ed99f88f","chave":"nome_loja","valor":"E-Conveniência","descricao":"Nome da loja exibido nos relatórios"},
+  {"id":"e6b6f648-f95d-4232-a8e3-2e7a57565c84","chave":"whatsapp_dono","valor":"","descricao":"WhatsApp do dono para notificações"}
+]

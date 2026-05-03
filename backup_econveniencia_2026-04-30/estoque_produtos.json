@@ -1,0 +1,22 @@
+[
+  {"id":"165f3515","codigo":"7896007540631","descricao":"ABSORVENTE INTIMUS GEL SECA CABAS 8UNID","categoria":"CEREAIS","quantidade":2,"valor_unitario":"8.49"},
+  {"id":"1ebc2c7b","codigo":"50196364","descricao":"WHISKY BUCHANANS DELUXE 1L","categoria":"WHISKY","quantidade":0,"valor_unitario":"249.99"},
+  {"id":"328e80c9","codigo":"102033","descricao":"4 CAFE NECAFE COM LEITE","categoria":"CAFE COM LEITE","quantidade":-23,"valor_unitario":"3.99"},
+  {"id":"3a030407","codigo":"7896010002133","descricao":"CONHAQUE DREHER 900ML","categoria":"BEBIDAS PRONTA","quantidade":0,"valor_unitario":"25.00"},
+  {"id":"52a3d54a","codigo":"7896007939039","descricao":"ACENDEDOR DE ALCOOL EM GEL FIAT LUX 420G","categoria":"PILHAS/BATERIAS","quantidade":2,"valor_unitario":"15.00"},
+  {"id":"6843a65e","codigo":"7896007540617","descricao":"ABSORVENTE COM ABAS INTIMUS GEL NORMAL","categoria":"GERAL","quantidade":9,"valor_unitario":"8.50"},
+  {"id":"6f9ecfe2","codigo":"00134","descricao":"FOLHADO DE FRANGO","categoria":"OUTROS","quantidade":82,"valor_unitario":"8.50"},
+  {"id":"82b9cf4e","codigo":"102034","descricao":"5 CAFE NESCAFE KIT KAT NESCAU","categoria":"CHOCOLATE QUENTE","quantidade":-8,"valor_unitario":"5.99"},
+  {"id":"a3af8092","codigo":"7896007541850","descricao":"ABSORVENTE INTERNO INTIMUS MINI 8UN","categoria":"GERAL","quantidade":0,"valor_unitario":"12.00"},
+  {"id":"b31e2976","codigo":"102032","descricao":"3 CAFE NESCAFE CAPPUCCINO ALPINO","categoria":"CAPPUCCINO","quantidade":-47,"valor_unitario":"5.99"},
+  {"id":"b87ca4cb","codigo":"070330717565","descricao":"PRESTOBARBA BIC UND","categoria":"GERAL","quantidade":3,"valor_unitario":"7.99"},
+  {"id":"bd26f026","codigo":"7891010503031","descricao":"ABSORVENTE SEMPRE LIVRE ESPECIAL","categoria":"GERAL","quantidade":3,"valor_unitario":"5.99"},
+  {"id":"c31dca94","codigo":"7891010503024","descricao":"ABSORVENTE SEMPRE LIVRE ADAPT SUAVE","categoria":"GERAL","quantidade":0,"valor_unitario":"7.50"},
+  {"id":"d8ccd539","codigo":"102035","descricao":"6 CAFE NESCAFE EXPRESSO MAQUINA","categoria":"CAFE COM LEITE","quantidade":-353,"valor_unitario":"3.99"},
+  {"id":"da9671a7","codigo":"7896007540662","descricao":"ABSORVENTE NOTURNO SUAVE C ABAS","categoria":"GERAL","quantidade":0,"valor_unitario":"9.99"},
+  {"id":"e08dea8b","codigo":"00021","descricao":"ENROLADINHO RECHEADO C/SALSICHA","categoria":"OUTROS","quantidade":168,"valor_unitario":"5.99"},
+  {"id":"e77ffed9","codigo":"102031","descricao":"2 CAFE ACHOCOLATADO ALPINO CREMOSO","categoria":"CHOCOLATE QUENTE","quantidade":-61,"valor_unitario":"5.99"},
+  {"id":"ed182d51","codigo":"8437005285545","descricao":"VINHO BRANCO CHARDONNAY ESTEBAN MARTIN 750ML","categoria":"GARRAFA","quantidade":0,"valor_unitario":"46.50"},
+  {"id":"f07de0be","codigo":"00135","descricao":"FOLHADO MISTO","categoria":"OUTROS","quantidade":54,"valor_unitario":"8.50"},
+  {"id":"fc042c3a","codigo":"7896007542437","descricao":"ABSORVENTE INTIMUS NOTURNO SECO 8UN","categoria":"GERAL","quantidade":1,"valor_unitario":"11.50"}
+]
