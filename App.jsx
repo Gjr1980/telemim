@@ -919,6 +919,7 @@ export default function App(){
       }finally{
         loadPrestadores();
         loadAjudantes();
+        loadEquipeDia();
         // SEMPRE executado — garante que o app abre
                 setAuthChecked(true);
         setLoading(false);
@@ -1139,10 +1140,14 @@ export default function App(){
 
   // ── BANCO DE AJUDANTES ──
   const [ajudantesList,setAjudantesList]=useState([]);
-  const [teamModalAg,setTeamModalAg]=useState(null);
-  const [teamSel,setTeamSel]=useState([]);
   const [showAddAjudante,setShowAddAjudante]=useState(false);
   const [novoAjudante,setNovoAjudante]=useState({nome:"",telefone:""});
+  const [subEquipe,setSubEquipe]=useState("cadastro");
+  const [equipeDiaList,setEquipeDiaList]=useState([]);
+  const [equipeDiaSel,setEquipeDiaSel]=useState(()=>{var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");});
+  const [equipeDiaCheck,setEquipeDiaCheck]=useState([]);
+  const [equipeFinMes,setEquipeFinMes]=useState(()=>new Date().toISOString().slice(0,7));
+  const [editAjudante,setEditAjudante]=useState(null);
 
   async function loadAjudantes(){
     try{var r=await fetch(SUPA_URL+"/rest/v1/ajudantes?select=*&ativo=eq.true&order=nome",{headers:getH()});var d=await r.json();if(Array.isArray(d))setAjudantesList(d);}catch(e){}
@@ -1151,27 +1156,25 @@ export default function App(){
     if(!novoAjudante.nome.trim())return;
     try{var _body={nome:novoAjudante.nome.trim()};if(novoAjudante.telefone.trim())_body.telefone=novoAjudante.telefone.trim();var r=await fetch(SUPA_URL+"/rest/v1/ajudantes",{method:"POST",headers:Object.assign({},getH(),{"Prefer":"return=representation"}),body:JSON.stringify(_body)});if(r.ok){await loadAjudantes();setNovoAjudante({nome:"",telefone:""});setShowAddAjudante(false);}}catch(e){}
   }
-  function getAjudantesOcupados(dataAlvo,agIdExcluir){
-    var ocupados={};
-    agenda.forEach(function(a){if(a.deleted_at||a.id===agIdExcluir||a.data!==dataAlvo)return;var eq=a.equipa_confirmada;if(eq&&Array.isArray(eq)){eq.forEach(function(aj){ocupados[aj.id]={osNome:a.nome,osData:a.data};});}});
-    mudancas.forEach(function(m){if(m.data!==dataAlvo)return;var eq=m.equipa_confirmada;if(eq&&Array.isArray(eq)){eq.forEach(function(aj){ocupados[aj.id]={osNome:m.nome,osData:m.data};});}});
-    return ocupados;
+  async function editarAjudanteFn(){
+    if(!editAjudante)return;
+    try{var _body={nome:editAjudante.nome.trim()};if(editAjudante.telefone)_body.telefone=editAjudante.telefone.trim();await fetch(SUPA_URL+"/rest/v1/ajudantes?id=eq."+editAjudante.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_body)});await loadAjudantes();setEditAjudante(null);setSyncStatus("✅ Ajudante atualizado!");}catch(e){setSyncStatus("⚠️ Erro ao editar");}
   }
-  async function salvarEquipa(agId,equipaArr){
-    try{var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({equipa_confirmada:equipaArr,ajudantes:equipaArr.length})});if(r.ok){setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,{equipa_confirmada:equipaArr,ajudantes:equipaArr.length}):a;});});setTeamModalAg(null);setSyncStatus("✅ Equipa salva!");}}catch(e){setSyncStatus("⚠️ Erro ao salvar equipa");}
+  async function desativarAjudante(ajId){
+    try{await fetch(SUPA_URL+"/rest/v1/ajudantes?id=eq."+ajId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({ativo:false})});await loadAjudantes();setSyncStatus("✅ Ajudante removido!");}catch(e){setSyncStatus("⚠️ Erro ao remover");}
   }
-  async function salvarEquipaPadrao(){
-    if(!usuario)return;
-    try{await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+usuario.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({equipa_padrao:teamSel})});setSyncStatus("✅ Equipe padrão salva!");}catch(e){}
+  async function loadEquipeDia(){
+    try{var r=await fetch(SUPA_URL+"/rest/v1/equipe_dia?select=*&order=data.desc",{headers:getH()});var d=await r.json();if(Array.isArray(d))setEquipeDiaList(d);}catch(e){}
   }
-  function carregarEquipaPadrao(){
-    if(!usuario||!usuario.equipa_padrao)return;
-    var padrao=usuario.equipa_padrao;
-    if(!Array.isArray(padrao)||padrao.length===0){setSyncStatus("⚠️ Nenhuma equipe padrão salva");return;}
-    var ocp=teamModalAg?getAjudantesOcupados(teamModalAg.data,teamModalAg.id):{};
-    var novaSel=[];
-    padrao.forEach(function(aj){if(!ocp[aj.id]&&novaSel.length<5){var found=ajudantesList.find(function(a){return a.id===aj.id&&a.ativo!==false;});if(found)novaSel.push({id:found.id,nome:found.nome});}});
-    setTeamSel(novaSel);
+  async function salvarEquipeDia(data,ajudantesArr){
+    var existing=equipeDiaList.find(function(e){return e.data===data;});
+    var _hd=Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"});
+    try{
+      var r;
+      if(existing){r=await fetch(SUPA_URL+"/rest/v1/equipe_dia?data=eq."+data,{method:"PATCH",headers:_hd,body:JSON.stringify({ajudantes:ajudantesArr})});}
+      else{r=await fetch(SUPA_URL+"/rest/v1/equipe_dia",{method:"POST",headers:_hd,body:JSON.stringify({data:data,ajudantes:ajudantesArr})});}
+      if(r.ok){var d=await r.json();if(Array.isArray(d)&&d[0]){setEquipeDiaList(function(prev){var nxt=prev.filter(function(e){return e.data!==data;});nxt.push(d[0]);return nxt;});}setSyncStatus("✅ Equipe do dia salva!");}
+    }catch(e){setSyncStatus("⚠️ Erro ao salvar equipe do dia");}
   }
 
     async function criarUsuario(){
@@ -2247,13 +2250,14 @@ export default function App(){
     {id:"dashboard",label:"📊 Dashboard"},
     {id:"agenda",label:"📅 Agenda"},
     {id:"lista",label:"📋 Registros"},
+    {id:"equipe",label:"👷 Equipe"},
     {id:"config",label:"⚙️ Config"},
   ]:[
     {id:"dashboard",label:"📊 Dashboard"},
     {id:"agenda",label:"📅 Agenda"},
     {id:"lista",label:"📋 Registros"},
     {id:"importar_mud",label:"+ Mudanças"},
-    ...(isAdmin?[{id:"contas",label:"💸 Contas"},{id:"financeiro",label:"💰 Financeiro"},{id:"config",label:"⚙️ Config"}]:[]),
+    ...(isAdmin?[{id:"equipe",label:"👷 Equipe"},{id:"contas",label:"💸 Contas"},{id:"financeiro",label:"💰 Financeiro"},{id:"config",label:"⚙️ Config"}]:[]),
   ];
 
   // ── BTN STYLES ─────────────────────────────────────────────────────────────
@@ -2808,10 +2812,7 @@ export default function App(){
                               onBlur={e=>e.target.style.border=`1.5px solid ${a.ajudantes?COLORS.green:COLORS.cardBorder}`}/>
                           </div>}
                         </div>}
-                        {(isAdmin||isSupervisor)&&<div style={{marginBottom:8}}>
-                          <button onClick={function(){var _eq=a.equipa_confirmada&&Array.isArray(a.equipa_confirmada)?a.equipa_confirmada:[];setTeamSel(_eq);setTeamModalAg(a);loadAjudantes();}} style={{padding:"7px 14px",borderRadius:10,border:"1.5px solid #b45309",background:a.equipa_confirmada&&a.equipa_confirmada.length>0?"#fef3c7":"#f8fafc",color:"#92400e",fontWeight:800,fontSize:12,cursor:"pointer"}}>👷 {a.equipa_confirmada&&a.equipa_confirmada.length>0?"Equipa ("+a.equipa_confirmada.length+")":"Definir Equipa"}</button>
-                          {a.equipa_confirmada&&a.equipa_confirmada.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{a.equipa_confirmada.map(function(aj){return <span key={aj.id} style={{background:"#dcfce7",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#15803d"}}>{aj.nome}</span>;})}</div>}
-                        </div>}
+                        {(isAdmin||isSupervisor)&&(function(){var _eqD=equipeDiaList.find(function(e){return e.data===a.data;});var _eqAj=_eqD&&Array.isArray(_eqD.ajudantes)?_eqD.ajudantes:[];return _eqAj.length>0?<div style={{marginBottom:8}}><div style={{display:"flex",flexWrap:"wrap",gap:4}}><span style={{fontSize:11,fontWeight:700,color:"#92400e"}}>👷 Equipe ({_eqAj.length}):</span>{_eqAj.map(function(aj){return <span key={aj.id} style={{background:"#dcfce7",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#15803d"}}>{aj.nome}</span>;})}</div></div>:null;})()}
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
                           <button onClick={function(){pedirFinalizacao(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>
                           <div style={{display:"flex",gap:5,alignItems:"center"}}>
@@ -3376,6 +3377,152 @@ return(
     </div>
   );
 })()}
+        {/* ══ ABA EQUIPE ══ */}
+        {tab==="equipe"&&(isAdmin||isSupervisor)&&(function(){
+          var _fv=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
+          var _fd=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]:d;};
+          var _fdFull=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:d;};
+          // Escalar: mudancas do dia selecionado
+          var _mudDia=[...agenda.filter(function(a){return !a.deleted_at&&a.data===equipeDiaSel&&a.status!=="concluida";}), ...mudancas.filter(function(m){return !m.deleted_at&&m.data===equipeDiaSel;})];
+          var _numMudDia=_mudDia.length;
+          var _eqDia=equipeDiaList.find(function(e){return e.data===equipeDiaSel;});
+          var _eqAjArr=_eqDia&&Array.isArray(_eqDia.ajudantes)?_eqDia.ajudantes:[];
+          // Custo preview
+          var _aj1a=parseFloat(RULES.aj1a)||80;
+          var _ajAdd=parseFloat(RULES.ajAdd)||20;
+          var _custoPorAj=_numMudDia>0?_aj1a+Math.max(0,_numMudDia-1)*_ajAdd:0;
+          var _custoTotalDia=_custoPorAj*equipeDiaCheck.length;
+          // Financeiro
+          var _mesFin=equipeFinMes;
+          var _eqMes=equipeDiaList.filter(function(e){return e.data&&e.data.slice(0,7)===_mesFin&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
+          var _ajMap={};
+          _eqMes.forEach(function(ed){
+            var numMud=[...agenda.filter(function(a){return !a.deleted_at&&a.data===ed.data&&a.status!=="concluida";}), ...mudancas.filter(function(m){return !m.deleted_at&&m.data===ed.data;})].length;
+            var valPorAj=numMud>0?_aj1a+Math.max(0,numMud-1)*_ajAdd:0;
+            ed.ajudantes.forEach(function(aj){
+              if(!_ajMap[aj.id])_ajMap[aj.id]={nome:aj.nome,telefone:aj.telefone||"",dias:[]};
+              _ajMap[aj.id].dias.push({data:ed.data,numMud:numMud,valor:valPorAj});
+            });
+          });
+          var _ajFinArr=Object.values(_ajMap).sort(function(a,b){return a.nome.localeCompare(b.nome);});
+          var _totalGeralDias=0;var _totalGeralValor=0;
+          _ajFinArr.forEach(function(a){_totalGeralDias+=a.dias.length;a.dias.forEach(function(d){_totalGeralValor+=d.valor;});});
+          // Mes navigation
+          var _mesD=new Date(_mesFin+"-15");
+          var _nomesMes=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+          var _mesLabel=_nomesMes[_mesD.getMonth()]+" "+_mesD.getFullYear();
+          var _mesAnterior=function(){var d=new Date(_mesFin+"-15");d.setMonth(d.getMonth()-1);setEquipeFinMes(d.toISOString().slice(0,7));};
+          var _mesProximo=function(){var d=new Date(_mesFin+"-15");d.setMonth(d.getMonth()+1);setEquipeFinMes(d.toISOString().slice(0,7));};
+          return <div style={{paddingBottom:80}}>
+            <div style={{background:"#1e293b",padding:"20px 16px 14px"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginBottom:2}}>Gerenciamento</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>👷 Equipe</div></div>
+            <div style={{display:"flex",background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
+              {[{id:"cadastro",l:"📋 Cadastro"},{id:"escalar",l:"📅 Escalar"},{id:"financeiro",l:"💰 Financeiro"}].map(function(t){return <button key={t.id} onClick={function(){setSubEquipe(t.id);loadAjudantes();if(t.id!=="cadastro")loadEquipeDia();if(t.id==="escalar"){var _f=equipeDiaList.find(ed=>ed.data===equipeDiaSel);setEquipeDiaCheck(_f&&Array.isArray(_f.ajudantes)?_f.ajudantes:[]);}}} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subEquipe===t.id?700:500,background:"transparent",borderBottom:subEquipe===t.id?"3px solid #065f46":"3px solid transparent",color:subEquipe===t.id?"#065f46":"#64748b"}}>{t.l}</button>;})}
+            </div>
+            {/* SUB: CADASTRO */}
+            {subEquipe==="cadastro"&&<div style={{padding:16}}>
+              <Card style={{marginBottom:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <div style={{fontSize:13,fontWeight:800,color:"#1e293b"}}>👷 Ajudantes Cadastrados ({ajudantesList.length})</div>
+                  <button onClick={function(){setShowAddAjudante(!showAddAjudante);}} style={{padding:"7px 14px",borderRadius:10,border:"1.5px solid #16a34a",background:"#f0fdf4",color:"#16a34a",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Novo</button>
+                </div>
+                {showAddAjudante&&<div style={{background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"12px",marginBottom:14}}>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <input placeholder="Nome" value={novoAjudante.nome} onChange={function(e){setNovoAjudante(function(p){return{...p,nome:e.target.value};});}} style={{flex:2,padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+                    <input type="tel" placeholder="Telefone" value={novoAjudante.telefone} onChange={function(e){setNovoAjudante(function(p){return{...p,telefone:e.target.value};});}} style={{flex:1.5,padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+                    <button onClick={criarAjudante} style={{padding:"9px 14px",borderRadius:8,border:"none",background:"#16a34a",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer"}}>✓</button>
+                  </div>
+                </div>}
+                {ajudantesList.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:20}}>Nenhum ajudante cadastrado</div>:ajudantesList.map(function(aj){
+                  return <div key={aj.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid #f1f5f9"}}>
+                    <div><div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>{aj.nome}</div>{aj.telefone&&<div style={{fontSize:11,color:"#64748b"}}>📞 {aj.telefone}</div>}</div>
+                    <div style={{display:"flex",gap:6}}>
+                      <button onClick={function(){setEditAjudante({id:aj.id,nome:aj.nome,telefone:aj.telefone||""});}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #3b82f6",background:"#eff6ff",color:"#1e40af",fontSize:11,fontWeight:700,cursor:"pointer"}}>✏️</button>
+                      <button onClick={function(){if(confirm("Remover "+aj.nome+"?"))desativarAjudante(aj.id);}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #ef4444",background:"#fef2f2",color:"#ef4444",fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑️</button>
+                    </div>
+                  </div>;
+                })}
+              </Card>
+              {editAjudante&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setEditAjudante(null);}}>
+                <div style={{background:"#fff",borderRadius:16,padding:"20px 16px",width:"100%",maxWidth:360}} onClick={function(e){e.stopPropagation();}}>
+                  <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>✏️ Editar Ajudante</div>
+                  <div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Nome</div><input value={editAjudante.nome} onChange={function(e){setEditAjudante(function(p){return{...p,nome:e.target.value};});}} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}}/></div>
+                  <div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Telefone</div><input type="tel" value={editAjudante.telefone} onChange={function(e){setEditAjudante(function(p){return{...p,telefone:e.target.value};});}} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}}/></div>
+                  <div style={{display:"flex",gap:8}}><button onClick={function(){setEditAjudante(null);}} style={{flex:1,padding:11,borderRadius:10,background:"#f1f5f9",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>Cancelar</button><button onClick={editarAjudanteFn} style={{flex:2,padding:11,borderRadius:10,background:"#16a34a",color:"#fff",fontWeight:900,fontSize:13,border:"none",cursor:"pointer"}}>✅ Salvar</button></div>
+                </div>
+              </div>}
+            </div>}
+            {/* SUB: ESCALAR */}
+            {subEquipe==="escalar"&&<div style={{padding:16}}>
+              <Card style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>📅 DATA</div>
+                <input type="date" value={equipeDiaSel} onChange={function(e){
+                  setEquipeDiaSel(e.target.value);
+                  var _found=equipeDiaList.find(function(ed){return ed.data===e.target.value;});
+                  setEquipeDiaCheck(_found&&Array.isArray(_found.ajudantes)?_found.ajudantes:[]);
+                }} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:14,fontWeight:700,color:"#1e293b",boxSizing:"border-box"}}/>
+              </Card>
+              {_numMudDia>0?<Card style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,marginBottom:8}}>MUDANÇAS DO DIA ({_numMudDia})</div>
+                {_mudDia.map(function(m,i){return <div key={i} style={{padding:"8px 0",borderBottom:"1px solid #f1f5f9",fontSize:12}}><span style={{fontWeight:700}}>{m.nome}</span><span style={{color:"#64748b"}}> — {m.origem||"?"} → {m.destino||"?"}</span>{m.van&&<span style={{marginLeft:4,fontSize:10,background:"#eff6ff",borderRadius:4,padding:"1px 5px",color:"#1e40af"}}>🚐</span>}{m.caminhao&&<span style={{marginLeft:4,fontSize:10,background:"#fff7ed",borderRadius:4,padding:"1px 5px",color:"#92400e"}}>🚚</span>}</div>;})}
+              </Card>:<Card style={{marginBottom:16}}><div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:12}}>Nenhuma mudança neste dia</div></Card>}
+              <Card>
+                <div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,marginBottom:10}}>SELECIONE A EQUIPE DO DIA</div>
+                {ajudantesList.map(function(aj){
+                  var _sel=equipeDiaCheck.find(function(s){return s.id===aj.id;});
+                  return <div key={aj.id} onClick={function(){
+                    if(_sel){setEquipeDiaCheck(function(prev){return prev.filter(function(s){return s.id!==aj.id;});});}
+                    else{setEquipeDiaCheck(function(prev){return prev.concat([{id:aj.id,nome:aj.nome,telefone:aj.telefone||""}]);});}
+                  }} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",marginBottom:4,borderRadius:10,border:"1.5px solid "+(_sel?"#16a34a":"#e2e8f0"),background:_sel?"#f0fdf4":"#fff",cursor:"pointer"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:16}}>{_sel?"☑":"☐"}</span>
+                      <div><div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>{aj.nome}</div>{aj.telefone&&<div style={{fontSize:10,color:"#64748b"}}>📞 {aj.telefone}</div>}</div>
+                    </div>
+                  </div>;
+                })}
+                {equipeDiaCheck.length>0&&_numMudDia>0&&<div style={{marginTop:12,background:"#f0fdf4",borderRadius:10,padding:"10px 14px",border:"1px solid #bbf7d0"}}>
+                  <div style={{fontSize:12,color:"#065f46"}}>👷 {equipeDiaCheck.length} ajudante{equipeDiaCheck.length>1?"s":""} × {_numMudDia} mudança{_numMudDia>1?"s":""} = <strong>{_fv(_custoPorAj)}</strong>/ajudante</div>
+                  <div style={{fontSize:13,fontWeight:800,color:"#065f46",marginTop:4}}>💰 Custo total do dia: {_fv(_custoTotalDia)}</div>
+                </div>}
+                <button onClick={function(){salvarEquipeDia(equipeDiaSel,equipeDiaCheck);}} style={{width:"100%",padding:13,borderRadius:12,background:"#065f46",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:"pointer",marginTop:14}}>💾 Salvar Equipe do Dia</button>
+              </Card>
+            </div>}
+            {/* SUB: FINANCEIRO */}
+            {subEquipe==="financeiro"&&<div style={{padding:16}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:16}}>
+                <button onClick={_mesAnterior} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:14,fontWeight:700}}>◀</button>
+                <div style={{fontSize:15,fontWeight:800,color:"#1e293b"}}>📅 {_mesLabel}</div>
+                <button onClick={_mesProximo} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:14,fontWeight:700}}>▶</button>
+              </div>
+              {_ajFinArr.length===0?<Card><div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:20}}>Nenhuma equipe escalada neste mês</div></Card>:_ajFinArr.map(function(aj){
+                var _totalAj=aj.dias.reduce(function(s,d){return s+d.valor;},0);
+                return <Card key={aj.nome} style={{marginBottom:14}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <div><div style={{fontWeight:800,fontSize:14,color:"#1e293b"}}>👷 {aj.nome}</div>{aj.telefone&&<div style={{fontSize:11,color:"#64748b"}}>📞 {aj.telefone}</div>}</div>
+                  </div>
+                  <div style={{borderTop:"1px solid #e2e8f0",paddingTop:8}}>
+                    {aj.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).map(function(d,i){
+                      return <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #f8fafc",fontSize:12}}>
+                        <span style={{color:"#475569"}}>{_fd(d.data)}  ·  {d.numMud} mudança{d.numMud!==1?"s":""}</span>
+                        <span style={{fontWeight:700,color:"#065f46"}}>{_fv(d.valor)}</span>
+                      </div>;
+                    })}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10,paddingTop:8,borderTop:"2px solid #e2e8f0"}}>
+                    <span style={{fontSize:12,color:"#64748b"}}>{aj.dias.length} dia{aj.dias.length!==1?"s":""} trabalhado{aj.dias.length!==1?"s":""}</span>
+                    <span style={{fontSize:14,fontWeight:900,color:"#065f46"}}>TOTAL: {_fv(_totalAj)} 💰</span>
+                  </div>
+                </Card>;
+              })}
+              {_ajFinArr.length>0&&<div style={{background:"#065f46",borderRadius:14,padding:"16px 18px",marginTop:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{color:"rgba(255,255,255,0.8)",fontSize:12}}>👷 {_ajFinArr.length} ajudante{_ajFinArr.length!==1?"s":""} · {_totalGeralDias} dia{_totalGeralDias!==1?"s":""}</div>
+                  <div style={{color:"#fff",fontSize:16,fontWeight:900}}>TOTAL MÊS: {_fv(_totalGeralValor)}</div>
+                </div>
+                <div style={{color:"rgba(255,255,255,0.6)",fontSize:10,marginTop:6}}>Regra: 1ª mud R${_aj1a} + R${_ajAdd} por mud adicional (Config → Regras)</div>
+              </div>}
+            </div>}
+          </div>;
+        })()}
         {tab==="config"&&<div style={{paddingBottom:80}}><div style={{background:"#1e293b",padding:"20px 16px 14px"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginBottom:2}}>Sistema</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>⚙️ Configuração</div></div><div style={{display:"flex",background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}><button onClick={()=>setSubConfig("usuarios")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="usuarios"?700:500,background:"transparent",borderBottom:subConfig==="usuarios"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="usuarios"?"#1e40af":"#64748b"}}>👥 Usuários</button>{isAdmin&&<button onClick={()=>setSubConfig("regras")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="regras"?700:500,background:"transparent",borderBottom:subConfig==="regras"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="regras"?"#1e40af":"#64748b"}}>📊 Regras</button>}</div>{isAdmin&&<button onClick={()=>setSubConfig("backup")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="backup"?700:500,background:"transparent",borderBottom:subConfig==="backup"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="backup"?"#1e40af":"#64748b"}}>💾 Backup</button>}{subConfig==="usuarios"&&(isAdmin||isSupervisor)&&(<div style={{paddingBottom:80}} onMouseEnter={()=>listaUsuarios.length===0&&carregarUsuarios()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:900}}>👥 Gerenciar Usuários</div><button onClick={carregarUsuarios} style={{background:"#eff6ff",border:"1px solid #3b82f6",color:"#3b82f6",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔄 Atualizar</button></div><Card style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>USUÁRIOS ({listaUsuarios.length})</div>{listaUsuarios.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Clique em Atualizar</div>:listaUsuarios.map(u=>(<div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}><div><div style={{fontWeight:700,fontSize:13}}>{u.nome}</div><div style={{fontSize:11,color:"#94a3b8"}}>{u.email}{u.contato?" · 📞 "+u.contato:""}</div><span style={{display:"inline-block",marginTop:3,background:u.perfil==="admin"?"#dbeafe":u.perfil==="promorar"?"#dcfce7":u.perfil==="motorista"?"#ede9fe":"#fef9c3",borderRadius:12,padding:"2px 8px",fontSize:10,fontWeight:800,color:u.perfil==="admin"?"#1d4ed8":u.perfil==="promorar"?"#15803d":u.perfil==="motorista"?"#7c3aed":"#a16207"}}>{u.perfil==="admin"?"👑 Admin":u.perfil==="promorar"?"🏢 Promorar":u.perfil==="supervisor"?"👷 Supervisor":u.perfil==="motorista"?"🚚 Motorista":"🤝 Social"}</span>{u.perfil==="motorista"&&(u.tipo_veiculo||u.placa_veiculo)&&<span style={{display:"inline-block",marginTop:3,marginLeft:4,background:"#f5f3ff",border:"1px solid #c4b5fd",borderRadius:12,padding:"2px 8px",fontSize:10,fontWeight:600,color:"#6d28d9"}}>{u.tipo_veiculo==="VAN"?"🚐 Van":u.tipo_veiculo==="CAMINHAO"?"🚛 Caminhão":u.tipo_veiculo||""}{u.placa_veiculo?" · "+u.placa_veiculo:""}</span>}</div><button onClick={function(){setEditUser({id:u.id,nome:u.nome,email:u.email,senha:"",perfil:u.perfil,ativo:u.ativo,tipo_veiculo:u.tipo_veiculo||"",placa_veiculo:u.placa_veiculo||"",contato:u.contato||""});setEditMsg("");}} style={{padding:"6px 12px",borderRadius:8,border:"1.5px solid #3b82f6",background:"#eff6ff",color:"#1e40af",fontSize:11,fontWeight:700,cursor:"pointer",marginRight:6}}>✏️ Editar</button>{isAdmin&&<button onClick={()=>toggleAtivoUser(u)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid "+(u.ativo?"#ef4444":"#22c55e"),background:u.ativo?"#fef2f2":"#f0fdf4",color:u.ativo?"#ef4444":"#22c55e",fontSize:11,fontWeight:700,cursor:"pointer"}}>{u.ativo?"🚫 Desativar":"✅ Ativar"}</button>}</div>))}</Card><Card><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>+ NOVO USUÁRIO</div><Inp label="Nome" icon="👤" value={novoUser.nome} onChange={v=>setNovoUser(f=>({...f,nome:v}))}/><Inp label="Email" icon="📧" value={novoUser.email} onChange={v=>setNovoUser(f=>({...f,email:v}))}/><Inp label="Senha" icon="🔒" value={novoUser.senha} onChange={v=>setNovoUser(f=>({...f,senha:v}))}/><Inp label="Contato (telefone)" icon="📞" value={novoUser.contato} onChange={v=>setNovoUser(f=>({...f,contato:v}))}/><div style={{marginBottom:12}}><label style={{display:"block",color:"#94a3b8",fontSize:11,fontWeight:700,marginBottom:5}}>PERFIL</label><div style={{display:"flex",gap:8}}>{(isAdmin?[["admin","👑 Admin"],["promorar","🏢 Promorar"],["social","🤝 Social"],["motorista","🚚 Motorista"],["supervisor","👷 Supervisor"]]:[["motorista","🚚 Motorista"],["supervisor","👷 Supervisor"],["social","🤝 Social"]]).map(([val,lab])=>(<button key={val} onClick={()=>setNovoUser(f=>({...f,perfil:val,tipo_veiculo:val!=="motorista"?"":f.tipo_veiculo,placa_veiculo:val!=="motorista"?"":f.placa_veiculo}))} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"1.5px solid "+(novoUser.perfil===val?"#f97316":"#e2e8f0"),background:novoUser.perfil===val?"#fff7ed":"#f8fafc",color:novoUser.perfil===val?"#f97316":"#94a3b8",fontWeight:800,fontSize:11,cursor:"pointer"}}>{lab}</button>))}</div></div>{novoUser.perfil==="motorista"&&<div style={{marginBottom:12,padding:"12px 14px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12}}><div style={{fontSize:11,fontWeight:800,color:"#64748b",letterSpacing:0.5,marginBottom:10}}>🚗 DADOS DO VEÍCULO</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Tipo de Veículo *</label><select value={novoUser.tipo_veiculo} onChange={function(e){setNovoUser(function(f){return Object.assign({},f,{tipo_veiculo:e.target.value});});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid "+(novoUser.tipo_veiculo?"#7c3aed":"#e2e8f0"),borderRadius:9,fontSize:13,fontWeight:700,color:novoUser.tipo_veiculo?"#7c3aed":"#94a3b8",background:novoUser.tipo_veiculo?"#f5f3ff":"#fff",cursor:"pointer",boxSizing:"border-box"}}><option value="">Selecione...</option><option value="VAN">Van</option><option value="CAMINHAO">Caminhão</option></select></div><div><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Placa (Opcional)</label><input type="text" placeholder="Ex: ABC-1D23" value={novoUser.placa_veiculo} onChange={function(e){setNovoUser(function(f){return Object.assign({},f,{placa_veiculo:e.target.value});});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:9,fontSize:13,fontWeight:600,color:"#1e293b",textTransform:"uppercase",boxSizing:"border-box"}}/></div></div></div>}{userMsg&&<div style={{background:userMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:userMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{userMsg}</div>}<button onClick={criarUsuario} disabled={savingUser} style={{width:"100%",padding:13,borderRadius:12,background:savingUser?"#94a3b8":"#f97316",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:savingUser?"not-allowed":"pointer"}}>{savingUser?"⏳ Criando...":"➕ Criar Usuário"}</button></Card></div>)}{editUser&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setEditUser(null);}}><div style={{background:"#fff",borderRadius:16,padding:"20px 16px 24px",width:"100%",maxWidth:420}} onClick={function(e){e.stopPropagation();}}><div style={{fontSize:15,fontWeight:800,color:"#1e293b",marginBottom:14}}>✏️ Editar Usuário</div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>👤 NOME</div><input value={editUser.nome} onChange={function(e){setEditUser(function(p){return {...p,nome:e.target.value};});}} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Nome"/></div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>📧 EMAIL</div><input value={editUser.email} onChange={function(e){setEditUser(function(p){return {...p,email:e.target.value};});}} type="email" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Email"/></div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>📞 CONTATO</div><input value={editUser.contato||""} onChange={function(e){setEditUser(function(p){return {...p,contato:e.target.value};});}} type="tel" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Ex: 81999990000"/></div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>🔒 NOVA SENHA <span style={{fontSize:10,color:"#94a3b8"}}>(vazio = manter)</span></div><input value={editUser.senha||""} onChange={function(e){setEditUser(function(p){return {...p,senha:e.target.value};});}} type="password" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Nova senha (opcional)"/></div><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6}}>PERFIL</div><div style={{display:"flex",gap:8}}>{[{v:"admin",l:"👑 Admin"},{v:"promorar",l:"🏢 Promorar"},{v:"social",l:"🤝 Social"},{v:"motorista",l:"🚚 Motorista"},{v:"supervisor",l:"👷 Sup."}].map(function(p){return <button key={p.v} onClick={function(){setEditUser(function(u){return {...u,perfil:p.v,tipo_veiculo:p.v!=="motorista"?"":u.tipo_veiculo,placa_veiculo:p.v!=="motorista"?"":u.placa_veiculo};});}} style={{flex:1,padding:"8px 4px",borderRadius:10,border:"2px solid "+(editUser.perfil===p.v?"#1e40af":"#e2e8f0"),background:editUser.perfil===p.v?"#eff6ff":"#f8fafc",color:editUser.perfil===p.v?"#1e40af":"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>{p.l}</button>;})}</div></div>{editUser.perfil==="motorista"&&<div style={{marginBottom:14,padding:"12px 14px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12}}><div style={{fontSize:11,fontWeight:800,color:"#64748b",letterSpacing:0.5,marginBottom:10}}>🚗 DADOS DO VEÍCULO</div><div style={{marginBottom:8}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Tipo de Veículo *</div><select value={editUser.tipo_veiculo||""} onChange={function(e){setEditUser(function(u){return {...u,tipo_veiculo:e.target.value};});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid "+(editUser.tipo_veiculo?"#7c3aed":"#e2e8f0"),borderRadius:9,fontSize:13,fontWeight:700,color:editUser.tipo_veiculo?"#7c3aed":"#94a3b8",background:editUser.tipo_veiculo?"#f5f3ff":"#fff",cursor:"pointer",boxSizing:"border-box"}}><option value="">Selecione...</option><option value="VAN">Van</option><option value="CAMINHAO">Caminhão</option></select></div><div><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Placa (Opcional)</div><input type="text" placeholder="Ex: ABC-1D23" value={editUser.placa_veiculo||""} onChange={function(e){setEditUser(function(u){return {...u,placa_veiculo:e.target.value};});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:9,fontSize:13,fontWeight:600,color:"#1e293b",textTransform:"uppercase",boxSizing:"border-box"}}/></div></div>}{editMsg&&<div style={{background:editMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:editMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{editMsg}</div>}<div style={{display:"flex",gap:8}}><button onClick={function(){setEditUser(null);setEditMsg("");}} style={{flex:1,padding:11,borderRadius:10,background:"#f1f5f9",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>Cancelar</button><button onClick={editarUsuario} disabled={savingEdit} style={{flex:2,padding:11,borderRadius:10,background:savingEdit?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:13,border:"none",cursor:savingEdit?"not-allowed":"pointer"}}>{savingEdit?"⏳ Salvando...":"✅ Salvar"}</button></div></div></div>}{subConfig==="backup"&&<div style={{padding:16,paddingBottom:16}}><div style={{fontSize:13,fontWeight:800,color:"#1e293b",marginBottom:12}}>💾 Backup Automático → Google Drive</div><div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:12,fontWeight:600,color:"#1e293b"}}>Backup Ativado</div><div style={{fontSize:10,color:"#64748b"}}>Semanal (seg) + Mensal (dia 1)</div></div><button onClick={async function(){const nv=!backupCfg.ativo;await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.backup_ativo",{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor:nv?"true":"false"})});setBackupCfg(function(p){return{...p,ativo:nv};});}} style={{padding:"6px 16px",borderRadius:20,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:backupCfg.ativo?"#16a34a":"#e2e8f0",color:backupCfg.ativo?"#fff":"#64748b"}}>{backupCfg.ativo?"✅ Ativo":"❌ Inativo"}</button></div><div style={{background:"#eff6ff",borderRadius:10,padding:"12px 14px",marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#1e40af",marginBottom:8}}>🔗 Google OAuth2</div><div style={{marginBottom:6}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Client ID</div><input type="text" value={backupCfg.clientId} onChange={function(e){setBackupCfg(function(p){return{...p,clientId:e.target.value};});}} placeholder="xxxxxx.apps.googleusercontent.com" style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #bfdbfe",fontSize:11,boxSizing:"border-box"}} /></div><div style={{marginBottom:6}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Client Secret</div><input type="password" value={backupCfg.clientSecret} onChange={function(e){setBackupCfg(function(p){return{...p,clientSecret:e.target.value};});}} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #bfdbfe",fontSize:11,boxSizing:"border-box"}} /></div><div style={{marginBottom:8}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Refresh Token</div><input type="password" value={backupCfg.refreshToken} onChange={function(e){setBackupCfg(function(p){return{...p,refreshToken:e.target.value};});}} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #bfdbfe",fontSize:11,boxSizing:"border-box"}} /></div><button onClick={async function(){const pairs=[["backup_gdrive_client_id",backupCfg.clientId],["backup_gdrive_client_secret",backupCfg.clientSecret],["backup_gdrive_refresh_token",backupCfg.refreshToken]];for(const [k,v] of pairs){await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq."+k,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor:v})});}alert("✅ Credenciais salvas!");}} style={{width:"100%",padding:"8px",background:"#1e40af",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Salvar Credenciais</button></div><div style={{background:"#f0fdf4",borderRadius:10,padding:"10px 14px",marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#16a34a",marginBottom:4}}>📅 Agendamento Automático</div><div style={{fontSize:11,color:"#475569",marginBottom:2}}>🔁 Semanal: toda segunda-feira às 06:00h</div><div style={{fontSize:11,color:"#475569",marginBottom:2}}>📆 Mensal: dia 1º de cada mês às 06:00h</div><div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>Pasta: APP Telemim → [Ano] → Semanal / Mensal</div></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}><button onClick={async function(){setBackupLoading(true);try{const res=await fetch("https://netoufukpmmfhzwirogi.supabase.co/functions/v1/backup-gdrive?tipo=semanal&force=1",{method:"POST",headers:{"Content-Type":"application/json"}});const j=await res.json();alert(j.ok?"✅ Backup semanal!\n"+j.arquivo:"❌ "+(j.erro||j.msg));}catch(e){alert("❌ "+e.message);}setBackupLoading(false);}} disabled={backupLoading} style={{padding:"10px",background:backupLoading?"#94a3b8":"#059669",color:"#fff",border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>{backupLoading?"⏳...":"🚀 Rodar Semanal"}</button><button onClick={async function(){setBackupLoading(true);try{const res=await fetch("https://netoufukpmmfhzwirogi.supabase.co/functions/v1/backup-gdrive?tipo=mensal&force=1",{method:"POST",headers:{"Content-Type":"application/json"}});const j=await res.json();alert(j.ok?"✅ Backup mensal!\n"+j.arquivo:"❌ "+(j.erro||j.msg));}catch(e){alert("❌ "+e.message);}setBackupLoading(false);}} disabled={backupLoading} style={{padding:"10px",background:backupLoading?"#94a3b8":"#1e40af",color:"#fff",border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>{backupLoading?"⏳...":"🚀 Rodar Mensal"}</button></div><div style={{fontSize:12,fontWeight:700,color:"#1e293b",marginBottom:6}}>Histórico de Backups</div>{backupHist.length===0?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:16}}>Nenhum backup realizado ainda</div>:backupHist.map(function(h){return <div key={h.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",marginBottom:8,background:h.status==="ok"?"#f0fdf4":"#fef2f2",borderRadius:8,border:"1px solid "+(h.status==="ok"?"#bbf7d0":"#fecaca")}}><div><div style={{fontSize:11,fontWeight:600,color:"#1e293b"}}>{h.tipo==="semanal"?"🔁":"📆"} {h.periodo_ref}</div><div style={{fontSize:10,color:"#64748b"}}>{h.arquivo_nome||h.erro_msg}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:9,color:"#94a3b8"}}>{h.executado_em?new Date(h.executado_em).toLocaleString("pt-BR"):""}</div>{h.gdrive_link&&<a href={h.gdrive_link} target="_blank" style={{fontSize:10,color:"#1e40af"}}>🔗 Ver</a>}</div></div>;})}</div>}{subConfig==="regras"&&<div style={{padding:"12px 12px 80px"}}><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🚛 Caminhão</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>1ª Mudança (R$)</label><input type="number" value={cfgEdit.cam1a||350} onChange={e=>setCfgEdit(p=>({...p,cam1a:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>+ Acréscimo (R$)</label><input type="number" value={cfgEdit.camAdd||130} onChange={e=>setCfgEdit(p=>({...p,camAdd:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div></div></div></div><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>👷 Ajudante</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>1º Ajudante (R$)</label><input type="number" value={cfgEdit.aj1a||80} onChange={e=>setCfgEdit(p=>({...p,aj1a:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>+ Acréscimo (R$)</label><input type="number" value={cfgEdit.ajAdd||20} onChange={e=>setCfgEdit(p=>({...p,ajAdd:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div></div></div></div><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🚐 Van</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Custo Operacional (R$)</label><input type="number" value={cfgEdit.vanCusto||400} onChange={e=>setCfgEdit(p=>({...p,vanCusto:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Valor Cobrado (R$)</label><input type="number" value={cfgEdit.van1a||1000} onChange={e=>setCfgEdit(p=>({...p,van1a:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div></div></div></div><div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🮾 Imposto e Vigência</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Imposto (%)</label><input type="number" value={Math.round((cfgEdit.imposto||0.16)*100)} onChange={e=>setCfgEdit(p=>({...p,imposto:Number(e.target.value)/100}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>📅 Data Início</label><input type="date" value={cfgEdit.dataInicioRegra||""} onChange={e=>setCfgEdit(p=>({...p,dataInicioRegra:e.target.value}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box",color:"#334155"}}/></div></div></div></div>{(()=>{const _c1=cfgEdit.cam1a||350;const _cA=cfgEdit.camAdd||130;const _a1=cfgEdit.aj1a||80;const _aA=cfgEdit.ajAdd||20;const _v1=cfgEdit.van1a||1000;const _vC=cfgEdit.vanCusto||400;return <div style={{background:"#f1f5f9",borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:12,color:"#475569"}}><div style={{fontWeight:700,marginBottom:6}}>Simulação:</div><div>🚛 1 mud: R${_c1} | 2 mud: R${_c1+_cA} | 3 mud: R${_c1+2*_cA}</div><div>👷 1 aj/1 mud: R${_a1} | 1 aj/2 mud: R${_a1+_aA}</div><div>🚐 Van cobra R${_v1} | custa R${_vC}</div></div>;})()}<button onClick={async()=>{try{const rows=[{chave:"cam_1a_mudanca",valor:String(cfgEdit.cam1a||350)},{chave:"cam_adicional",valor:String(cfgEdit.camAdd||130)},{chave:"ajudante_1a_mudanca",valor:String(cfgEdit.aj1a||80)},{chave:"ajudante_adicional",valor:String(cfgEdit.ajAdd||20)},{chave:"custo_van_dia",valor:String(cfgEdit.vanCusto||400)},{chave:"ganho_van_dia",valor:String(cfgEdit.van1a||1000)},{chave:"van_1a_mudanca",valor:String(cfgEdit.van1a||1000)},{chave:"imposto_pct",valor:String(Math.round((cfgEdit.imposto||0.16)*100))},{chave:"data_inicio_regra",valor:cfgEdit.dataInicioRegra||""}];let ok2=true;for(const row of rows){const res=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq."+row.chave,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor:row.valor})});if(!res.ok){ok2=false;}}if(ok2){alert("Regras salvas!");}else{alert("Erro ao salvar.");}}catch(e){alert("Erro: "+e.message);}}} style={{width:"100%",padding:"14px",background:"#1e40af",color:"#fff",border:"none",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer"}}>💾 Salvar Regras</button></div>}</div>}
           {isAdmin&&subConfig==="regras"&&(
             <div style={{marginTop:20,background:"#f0fdf4",borderRadius:12,padding:16,border:"1px solid #bbf7d0"}}>
@@ -3676,61 +3823,7 @@ return(
         </div>
       </div>
     )}
-    {/* ── MODAL MONTAR EQUIPA ── */}
-    {teamModalAg&&(function(){
-      var _ag=teamModalAg;
-      var _ocp=getAjudantesOcupados(_ag.data,_ag.id);
-      return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setTeamModalAg(null);}}>
-        <div style={{background:"#fff",borderRadius:20,padding:"20px 16px",width:"100%",maxWidth:420,maxHeight:"85vh",overflowY:"auto"}} onClick={function(e){e.stopPropagation();}}>
-          <div style={{fontSize:15,fontWeight:900,color:"#1e293b",marginBottom:4}}>👷 MONTAR EQUIPA</div>
-          <div style={{fontSize:12,color:"#64748b",marginBottom:14}}>{_ag.nome} — {_ag.data?new Date(_ag.data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"?"}</div>
-          <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
-            <button onClick={carregarEquipaPadrao} style={{padding:"7px 12px",borderRadius:10,border:"1.5px solid #2563eb",background:"#eff6ff",color:"#2563eb",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔄 Carregar Equipe Padrão</button>
-            <button onClick={function(){if(teamSel.length>0)salvarEquipaPadrao();}} disabled={teamSel.length===0} style={{padding:"7px 12px",borderRadius:10,border:"1.5px solid #b45309",background:teamSel.length>0?"#fef3c7":"#f1f5f9",color:teamSel.length>0?"#92400e":"#94a3b8",fontSize:11,fontWeight:700,cursor:teamSel.length>0?"pointer":"not-allowed"}}>💾 Salvar como Padrão</button>
-            <button onClick={function(){setShowAddAjudante(!showAddAjudante);}} style={{padding:"7px 12px",borderRadius:10,border:"1.5px solid #16a34a",background:"#f0fdf4",color:"#16a34a",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Novo Ajudante</button>
-          </div>
-          {showAddAjudante&&<div style={{background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"10px 12px",marginBottom:12}}>
-            <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <input placeholder="Nome" value={novoAjudante.nome} onChange={function(e){setNovoAjudante(function(p){return Object.assign({},p,{nome:e.target.value});});}} style={{flex:2,padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
-              <input type="tel" placeholder="📞 Fone" value={novoAjudante.telefone} onChange={function(e){setNovoAjudante(function(p){return Object.assign({},p,{telefone:e.target.value});});}} style={{flex:1,padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
-              <button onClick={criarAjudante} style={{padding:"8px 12px",borderRadius:8,border:"none",background:"#16a34a",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>✓</button>
-            </div>
-          </div>}
-          <div style={{borderTop:"1px solid #e2e8f0",paddingTop:10}}>
-            {ajudantesList.map(function(aj){
-              var _ocupado=_ocp[aj.id];
-              var _sel=teamSel.find(function(s){return s.id===aj.id;});
-              var _disabled=!!_ocupado||(teamSel.length>=5&&!_sel);
-              return(<div key={aj.id} onClick={function(){
-                if(_disabled)return;
-                if(_sel){setTeamSel(function(prev){return prev.filter(function(s){return s.id!==aj.id;});});}
-                else{setTeamSel(function(prev){return prev.concat([{id:aj.id,nome:aj.nome}]); });}
-              }} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",marginBottom:4,borderRadius:10,border:"1.5px solid "+(_sel?"#16a34a":_ocupado?"#fca5a5":"#e2e8f0"),background:_sel?"#f0fdf4":_ocupado?"#fef2f2":"#fff",cursor:_disabled?"not-allowed":"pointer",opacity:_ocupado?0.6:1}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:16}}>{_sel?"☑":_ocupado?"🚫":"☐"}</span>
-                  <div>
-                    <div style={{fontWeight:700,fontSize:13,color:_ocupado?"#dc2626":"#1e293b"}}>{aj.nome}{_ocupado?" (Ocupado)":""}</div>
-                    {_ocupado&&<div style={{fontSize:10,color:"#dc2626"}}>→ {_ocupado.osNome}</div>}
-                    {aj.telefone&&!_ocupado&&<div style={{fontSize:10,color:"#64748b"}}>📞 {aj.telefone}</div>}
-                  </div>
-                </div>
-                <span style={{fontSize:11,color:"#64748b"}}>{_sel?"✅":""}</span>
-              </div>);
-            })}
-          </div>
-          <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12,marginTop:8}}>
-            <div style={{marginBottom:10}}>
-              <span style={{fontSize:12,fontWeight:700,color:"#64748b"}}>Selecionados: <b style={{color:"#1e293b"}}>{teamSel.length}/5</b></span>
-            </div>
-            {teamSel.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>{teamSel.map(function(s){return <span key={s.id} style={{background:"#dcfce7",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,color:"#15803d"}}>{s.nome}</span>;})}</div>}
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={function(){setTeamModalAg(null);}} style={{flex:1,padding:11,borderRadius:10,background:"#f1f5f9",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>Cancelar</button>
-              <button onClick={function(){salvarEquipa(_ag.id,teamSel);}} style={{flex:2,padding:11,borderRadius:10,background:"#16a34a",color:"#fff",fontWeight:900,fontSize:13,border:"none",cursor:"pointer"}}>✅ Confirmar Equipa</button>
-            </div>
-          </div>
-        </div>
-      </div>);
-    })()}
+    {/* TeamSelector modal removed — equipe is now per-day via Equipe tab */}
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.55)",zIndex:9998,display:confirmDelete?"flex":"none",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setConfirmDelete(null);}}><div style={{background:"#fff",borderRadius:20,padding:"28px 24px",maxWidth:340,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.2)",textAlign:"center"}} onClick={function(e){e.stopPropagation();}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><div style={{fontWeight:800,fontSize:16,color:"#1e293b",marginBottom:8}}>Tem a certeza?</div><div style={{fontSize:13,color:"#64748b",marginBottom:20}}>Apagar <strong>{confirmDelete&&confirmDelete.nome}</strong>?</div><div style={{display:"flex",gap:10}}><button onClick={function(){setConfirmDelete(null);}} style={{flex:1,padding:"11px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancelar</button><button onClick={function(){if(confirmDelete&&confirmDelete.tipo==="mud")handleDelMud(confirmDelete.id);else if(confirmDelete)handleDelAg(confirmDelete.id);setConfirmDelete(null);}} style={{flex:1,padding:"11px 0",borderRadius:12,border:"none",background:"#ef4444",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>🗑️ Sim, Apagar</button></div></div></div>
     </div>
   );
