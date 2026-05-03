@@ -2413,6 +2413,7 @@ export default function App(){
 {/* DEBUG SEMPRE VISÍVEL */}
 <div style={{background:"red",color:"white",padding:20,margin:10,borderRadius:8,fontSize:14,fontWeight:900}}>🔴 DEBUG: tab={tab} | perfil={perfil} | isMotorista={String(isMotorista)} | nome={usuario?.nome}</div>
 {tab==="fin_mot"&&isMotorista&&(function(){
+  try{
   var _hj=new Date();
   var _pad=function(n){return String(n).padStart(2,"0");};
   var _dSem=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
@@ -2531,6 +2532,7 @@ export default function App(){
       )}
     </div>
   );
+  }catch(_err){return <div style={{background:"#fef2f2",border:"2px solid red",borderRadius:8,padding:20,margin:10,fontSize:13,color:"red",fontWeight:700}}>❌ ERRO FIN_MOT: {String(_err?.message||_err)}</div>;}
 })()}
 
 {!isMotorista&&tab==="dashboard"&&(function(){
