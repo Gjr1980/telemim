@@ -874,7 +874,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();if(isMotorista&&tab==="fin_mot"){_ensureAuth().then(function(){loadMud();loadAg();});}},[tab]);
   useEffect(()=>{
     async function load(){
       try{
@@ -2453,6 +2453,7 @@ export default function App(){
     if(a.deleted_at||!a.data||a.data<_di||a.data>_df) return false;
     return a.motorista_van_id===_meuId||a.motorista_caminhao_id===_meuId;
   });
+  /* DEBUG TEMP */ console.log("FIN_MOT DEBUG:",{meuId:_meuId,meuTipo:_meuTipo,di:_di,df:_df,totalMud:mudancas.length,totalAg:agenda.length,minhas:_minhas.length,minhasAg:_minhasAg.length,sampleMud:mudancas.slice(0,3).map(function(m){return{id:m.id,data:m.data,van:m.motorista_van_id,cam:m.motorista_caminhao_id};})});
   // Juntar sem duplicar (por selo ou nome+data)
   var _todas=[].concat(_minhas);
   _minhasAg.forEach(function(a){
