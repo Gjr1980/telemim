@@ -2410,130 +2410,6 @@ export default function App(){
         })()}
 </div>
 
-{/* DEBUG SEMPRE VISÍVEL */}
-<div style={{background:"red",color:"white",padding:20,margin:10,borderRadius:8,fontSize:14,fontWeight:900}}>🔴 DEBUG: tab={tab} | perfil={perfil} | isMotorista={String(isMotorista)} | nome={usuario?.nome}</div>
-{tab==="fin_mot"&&isMotorista&&(function(){
-  try{
-  var _hj=new Date();
-  var _pad=function(n){return String(n).padStart(2,"0");};
-  var _dSem=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
-  var _meuId=usuario&&usuario.id;
-  var _meuTipo=usuario&&usuario.tipo_veiculo;
-  var _isVan=_meuTipo==="VAN";
-  var _isCam=_meuTipo==="CAMINHAO";
-  var _icone=_isVan?"🚐":"🚚";
-  var _label=_isVan?"Van":"Caminhão";
-
-  // Determinar período
-  var _di,_df,_periodoLabel;
-  if(periodoFinMot==="semana"){
-    var _dw=_hj.getDay();var _dif=_dw===0?6:_dw-1;
-    var _s0=new Date(_hj.getFullYear(),_hj.getMonth(),_hj.getDate()-_dif);
-    var _s6=new Date(_s0.getFullYear(),_s0.getMonth(),_s0.getDate()+6);
-    _di=_s0.getFullYear()+"-"+_pad(_s0.getMonth()+1)+"-"+_pad(_s0.getDate());
-    _df=_s6.getFullYear()+"-"+_pad(_s6.getMonth()+1)+"-"+_pad(_s6.getDate());
-    _periodoLabel="Semana "+_pad(_s0.getDate())+"/"+_pad(_s0.getMonth()+1)+" a "+_pad(_s6.getDate())+"/"+_pad(_s6.getMonth()+1);
-  }else if(periodoFinMot==="mes_atual"){
-    _di=_hj.getFullYear()+"-"+_pad(_hj.getMonth()+1)+"-01";
-    var _uf=new Date(_hj.getFullYear(),_hj.getMonth()+1,0);
-    _df=_uf.getFullYear()+"-"+_pad(_uf.getMonth()+1)+"-"+_pad(_uf.getDate());
-    _periodoLabel=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][_hj.getMonth()]+" "+_hj.getFullYear();
-  }else{
-    var _ma=new Date(_hj.getFullYear(),_hj.getMonth()-1,1);
-    _di=_ma.getFullYear()+"-"+_pad(_ma.getMonth()+1)+"-01";
-    var _uf2=new Date(_ma.getFullYear(),_ma.getMonth()+1,0);
-    _df=_uf2.getFullYear()+"-"+_pad(_uf2.getMonth()+1)+"-"+_pad(_uf2.getDate());
-    _periodoLabel=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][_ma.getMonth()]+" "+_ma.getFullYear();
-  }
-
-  // Filtrar mudanças onde eu sou o motorista designado (busca nas duas colunas)
-  var _minhas=mudancas.filter(function(m){
-    if(m.deleted_at||!m.data||m.data<_di||m.data>_df) return false;
-    return m.motorista_van_id===_meuId||m.motorista_caminhao_id===_meuId;
-  });
-  // Também da agenda
-  var _minhasAg=agenda.filter(function(a){
-    if(a.deleted_at||!a.data||a.data<_di||a.data>_df) return false;
-    return a.motorista_van_id===_meuId||a.motorista_caminhao_id===_meuId;
-  });
-  /* DEBUG TEMP */ console.log("FIN_MOT DEBUG:",{meuId:_meuId,meuTipo:_meuTipo,di:_di,df:_df,totalMud:mudancas.length,totalAg:agenda.length,minhas:_minhas.length,minhasAg:_minhasAg.length,sampleMud:mudancas.slice(0,3).map(function(m){return{id:m.id,data:m.data,van:m.motorista_van_id,cam:m.motorista_caminhao_id};})});
-  // Juntar sem duplicar (por selo ou nome+data)
-  var _todas=[].concat(_minhas);
-  _minhasAg.forEach(function(a){
-    var _jatem=_todas.some(function(m){return m.data===a.data&&(m.selo===a.selo||(m.nome===a.nome));});
-    if(!_jatem)_todas.push(a);
-  });
-
-  // Agrupar por dia
-  var _diasU=[...new Set(_todas.map(function(m){return m.data;}))].sort();
-  var _totalGeral=0;
-  var _detalhe=_diasU.map(function(dia){
-    var _doDia=_todas.filter(function(m){return m.data===dia;});
-    var numMud=_doDia.length;
-    // Detectar se neste dia fui designado como van ou caminhão
-    var _comoVan=_doDia.some(function(m){return m.motorista_van_id===_meuId;});
-    var valor;
-    if(_comoVan){
-      valor=parseFloat(RULES.vanCusto)||400;
-    }else{
-      var _c1=parseFloat(RULES.cam1a)||350;
-      var _cA=parseFloat(RULES.camAdd)||130;
-      valor=_c1+Math.max(0,numMud-1)*_cA;
-    }
-    _totalGeral+=valor;
-    var _dt=new Date(dia+"T12:00:00");
-    var _dNome=_dSem[_dt.getDay()];
-    return {dia:dia,dNome:_dNome,numMud:numMud,valor:valor,items:_doDia,comoVan:_comoVan};
-  });
-
-  var _fvR=function(v){return "R$ "+(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
-
-  return(
-    <div style={{padding:"0 12px 80px"}}>
-      <div style={{background:"linear-gradient(135deg,#1e293b,#1e3a8a)",borderRadius:14,padding:"16px 16px 12px",marginBottom:14}}>
-        <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",letterSpacing:1,textTransform:"uppercase"}}>💰 MEU FINANCEIRO</div>
-        <div style={{fontSize:16,fontWeight:900,color:"#fff",marginTop:4}}>{_periodoLabel}</div>
-      </div>
-      <div style={{display:"flex",gap:6,marginBottom:14}}>
-        {[["semana","Semana"],["mes_atual","Mês Atual"],["mes_ant","Mês Ant."]].map(function(p){
-          return <button key={p[0]} onClick={function(){setPeriodoFinMot(p[0]);}} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"1.5px solid "+(periodoFinMot===p[0]?"#1e40af":"#e2e8f0"),background:periodoFinMot===p[0]?"#1e40af":"#fff",color:periodoFinMot===p[0]?"#fff":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{p[1]}</button>;
-        })}
-      </div>
-      <div style={{background:"#fef3c7",border:"1px solid #f59e0b",borderRadius:8,padding:10,marginBottom:10,fontSize:10,color:"#92400e",wordBreak:"break-all"}}>
-        🔍 DEBUG: meuId={_meuId||"VAZIO"} | tipo={_meuTipo||"VAZIO"} | período={_di} a {_df} | mudancas={mudancas.length} | agenda={agenda.length} | minhas={_minhas.length} | minhasAg={_minhasAg.length} | todas={_todas.length}
-        {mudancas.length>0?" | 1ª mud: van="+String(mudancas[0].motorista_van_id)+" cam="+String(mudancas[0].motorista_caminhao_id)+" data="+String(mudancas[0].data):""}
-      </div>
-      {_detalhe.length===0?(
-        <div style={{textAlign:"center",padding:40,color:"#94a3b8",fontSize:13}}>Nenhuma mudança atribuída no período.</div>
-      ):(
-        <div>
-          {_detalhe.map(function(d){
-            return(
-              <div key={d.dia} style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"12px 14px",marginBottom:8,boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                  <div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>📅 {d.dia.slice(8)+"/"+d.dia.slice(5,7)} ({d.dNome})</div>
-                  <span style={{background:"#e0e7ff",color:"#3730a3",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{d.numMud} {d.numMud===1?"mudança":"mudanças"}</span>
-                </div>
-                {d.items.map(function(m,i){
-                  return <div key={i} style={{fontSize:11,color:"#475569",padding:"3px 0",borderTop:i>0?"1px solid #f1f5f9":"none"}}>👤 {m.nome}{m.comunidade?" · "+m.comunidade:""}</div>;
-                })}
-                <div style={{marginTop:8,textAlign:"right",fontWeight:800,fontSize:14,color:d.comoVan?"#2563eb":"#7c3aed"}}>{d.comoVan?"🚐 Van":"🚚 Caminhão"}: {_fvR(d.valor)}</div>
-              </div>
-            );
-          })}
-          <div style={{background:"linear-gradient(135deg,#15803d,#166534)",borderRadius:14,padding:"16px 18px",marginTop:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{color:"rgba(255,255,255,0.8)",fontWeight:700,fontSize:13}}>💰 TOTAL A RECEBER</div>
-              <div style={{fontWeight:900,fontSize:22,color:"#fff"}}>{_fvR(_totalGeral)}</div>
-            </div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginTop:4}}>{_detalhe.length} {_detalhe.length===1?"dia":"dias"} · {_todas.length} {_todas.length===1?"mudança":"mudanças"}</div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-  }catch(_err){return <div style={{background:"#fef2f2",border:"2px solid red",borderRadius:8,padding:20,margin:10,fontSize:13,color:"red",fontWeight:700}}>❌ ERRO FIN_MOT: {String(_err?.message||_err)}</div>;}
-})()}
 
 {!isMotorista&&tab==="dashboard"&&(function(){
   var _mN=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -2611,6 +2487,116 @@ export default function App(){
       )}
         {tab==="dashboard"&&isAdmin&&notificacoes.length>0&&(<div style={{padding:"0 12px 16px"}}><div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:14,padding:"14px 14px 10px"}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",letterSpacing:0.3,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>{"🔔 CENTRAL DE NOTIFICACOES"}</div>{notificacoes.slice(0,notifLimit).map(function(n){var ico=n.tipo==="concluida"?"🟢":n.tipo==="cubagem"?"📐":"✏️";var tit=n.tipo==="concluida"?"Mudanca concluida":n.tipo==="cubagem"?"Cubagem alterada":"Mudanca editada";var dt=n.criado_em?new Date(n.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";return(<div key={n.id} style={{padding:"8px 0",borderBottom:"1px solid #f1f5f9"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}><span style={{fontSize:14}}>{ico}</span><span style={{fontSize:12,fontWeight:700,color:"#334155"}}>{tit}</span></div><div style={{fontSize:11,color:"#475569",marginLeft:22}}>{n.mudanca_nome||""}{n.descricao&&n.descricao!==tit?(" - "+n.descricao):""}</div><div style={{fontSize:10,color:"#94a3b8",marginLeft:22,marginTop:2}}>{"por "}<b>{n.usuario_nome||"Sistema"}</b>{" · "+dt}</div></div>);})}{notificacoes.length>notifLimit&&(<div style={{textAlign:"center",paddingTop:8}}><button onClick={function(){setNotifLimit(function(p){return p+10;});}} style={{background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:8,padding:"6px 16px",fontSize:11,fontWeight:700,color:"#64748b",cursor:"pointer"}}>{"Ver mais ("+(notificacoes.length-notifLimit)+" anteriores)"}</button></div>)}</div></div>)}
         {tab==="dashboard"&&activityLogs.length>0&&<div style={{padding:"0 12px 16px"}}><div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:14,padding:"12px 14px"}}><div style={{fontWeight:800,fontSize:12,color:"#64748b",letterSpacing:0.5,marginBottom:8,display:"flex",alignItems:"center",gap:5}}>🔔 ÚNTIMAS ATUALIZAÇÕES</div>{activityLogs.slice(0,5).map(function(log){return(<div key={log.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #f8fafc"}}><span style={{fontSize:13,flexShrink:0}}>✅</span><div style={{flex:1,fontSize:11,color:"#334155",lineHeight:1.5}}>{log.msg}<span style={{color:"#94a3b8",marginLeft:6,fontSize:10}}>{log.hora}h</span></div></div>);})}</div></div>}
+{tab==="fin_mot"&&isMotorista&&(function(){
+  var _hj=new Date();
+  var _pad=function(n){return String(n).padStart(2,"0");};
+  var _dSem=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+  var _meuId=usuario&&usuario.id;
+  var _meuTipo=usuario&&usuario.tipo_veiculo;
+  var _isVan=_meuTipo==="VAN";
+  var _isCam=_meuTipo==="CAMINHAO";
+  var _icone=_isVan?"🚐":"🚚";
+  var _label=_isVan?"Van":"Caminhão";
+
+  var _di,_df,_periodoLabel;
+  if(periodoFinMot==="semana"){
+    var _dw=_hj.getDay();var _dif=_dw===0?6:_dw-1;
+    var _s0=new Date(_hj.getFullYear(),_hj.getMonth(),_hj.getDate()-_dif);
+    var _s6=new Date(_s0.getFullYear(),_s0.getMonth(),_s0.getDate()+6);
+    _di=_s0.getFullYear()+"-"+_pad(_s0.getMonth()+1)+"-"+_pad(_s0.getDate());
+    _df=_s6.getFullYear()+"-"+_pad(_s6.getMonth()+1)+"-"+_pad(_s6.getDate());
+    _periodoLabel="Semana "+_pad(_s0.getDate())+"/"+_pad(_s0.getMonth()+1)+" a "+_pad(_s6.getDate())+"/"+_pad(_s6.getMonth()+1);
+  }else if(periodoFinMot==="mes_atual"){
+    _di=_hj.getFullYear()+"-"+_pad(_hj.getMonth()+1)+"-01";
+    var _uf=new Date(_hj.getFullYear(),_hj.getMonth()+1,0);
+    _df=_uf.getFullYear()+"-"+_pad(_uf.getMonth()+1)+"-"+_pad(_uf.getDate());
+    _periodoLabel=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][_hj.getMonth()]+" "+_hj.getFullYear();
+  }else{
+    var _ma=new Date(_hj.getFullYear(),_hj.getMonth()-1,1);
+    _di=_ma.getFullYear()+"-"+_pad(_ma.getMonth()+1)+"-01";
+    var _uf2=new Date(_ma.getFullYear(),_ma.getMonth()+1,0);
+    _df=_uf2.getFullYear()+"-"+_pad(_uf2.getMonth()+1)+"-"+_pad(_uf2.getDate());
+    _periodoLabel=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][_ma.getMonth()]+" "+_ma.getFullYear();
+  }
+
+  var _minhas=mudancas.filter(function(m){
+    if(m.deleted_at||!m.data||m.data<_di||m.data>_df) return false;
+    return m.motorista_van_id===_meuId||m.motorista_caminhao_id===_meuId;
+  });
+  var _minhasAg=agenda.filter(function(a){
+    if(a.deleted_at||!a.data||a.data<_di||a.data>_df) return false;
+    return a.motorista_van_id===_meuId||a.motorista_caminhao_id===_meuId;
+  });
+  var _todas=[].concat(_minhas);
+  _minhasAg.forEach(function(a){
+    var _jatem=_todas.some(function(m){return m.data===a.data&&(m.selo===a.selo||(m.nome===a.nome));});
+    if(!_jatem)_todas.push(a);
+  });
+
+  var _diasU=[...new Set(_todas.map(function(m){return m.data;}))].sort();
+  var _totalGeral=0;
+  var _detalhe=_diasU.map(function(dia){
+    var _doDia=_todas.filter(function(m){return m.data===dia;});
+    var numMud=_doDia.length;
+    var _comoVan=_doDia.some(function(m){return m.motorista_van_id===_meuId;});
+    var valor;
+    if(_comoVan){
+      valor=parseFloat(RULES.vanCusto)||400;
+    }else{
+      var _c1=parseFloat(RULES.cam1a)||350;
+      var _cA=parseFloat(RULES.camAdd)||130;
+      valor=_c1+Math.max(0,numMud-1)*_cA;
+    }
+    _totalGeral+=valor;
+    var _dt=new Date(dia+"T12:00:00");
+    var _dNome=_dSem[_dt.getDay()];
+    return {dia:dia,dNome:_dNome,numMud:numMud,valor:valor,items:_doDia,comoVan:_comoVan};
+  });
+
+  var _fvR=function(v){return "R$ "+(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
+
+  return(
+    <div style={{padding:"0 12px 80px"}}>
+      <div style={{background:"linear-gradient(135deg,#1e293b,#1e3a8a)",borderRadius:14,padding:"16px 16px 12px",marginBottom:14}}>
+        <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",letterSpacing:1,textTransform:"uppercase"}}>💰 MEU FINANCEIRO</div>
+        <div style={{fontSize:16,fontWeight:900,color:"#fff",marginTop:4}}>{_periodoLabel}</div>
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:14}}>
+        {[["semana","Semana"],["mes_atual","Mês Atual"],["mes_ant","Mês Ant."]].map(function(p){
+          return <button key={p[0]} onClick={function(){setPeriodoFinMot(p[0]);}} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"1.5px solid "+(periodoFinMot===p[0]?"#1e40af":"#e2e8f0"),background:periodoFinMot===p[0]?"#1e40af":"#fff",color:periodoFinMot===p[0]?"#fff":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{p[1]}</button>;
+        })}
+      </div>
+      {_detalhe.length===0?(
+        <div style={{textAlign:"center",padding:40,color:"#94a3b8",fontSize:13}}>Nenhuma mudança atribuída no período.</div>
+      ):(
+        <div>
+          {_detalhe.map(function(d){
+            return(
+              <div key={d.dia} style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"12px 14px",marginBottom:8,boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>📅 {d.dia.slice(8)+"/"+d.dia.slice(5,7)} ({d.dNome})</div>
+                  <span style={{background:"#e0e7ff",color:"#3730a3",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{d.numMud} {d.numMud===1?"mudança":"mudanças"}</span>
+                </div>
+                {d.items.map(function(m,i){
+                  return <div key={i} style={{fontSize:11,color:"#475569",padding:"3px 0",borderTop:i>0?"1px solid #f1f5f9":"none"}}>👤 {m.nome}{m.comunidade?" · "+m.comunidade:""}</div>;
+                })}
+                <div style={{marginTop:8,textAlign:"right",fontWeight:800,fontSize:14,color:d.comoVan?"#2563eb":"#7c3aed"}}>{d.comoVan?"🚐 Van":"🚚 Caminhão"}: {_fvR(d.valor)}</div>
+              </div>
+            );
+          })}
+          <div style={{background:"linear-gradient(135deg,#15803d,#166534)",borderRadius:14,padding:"16px 18px",marginTop:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{color:"rgba(255,255,255,0.8)",fontWeight:700,fontSize:13}}>💰 TOTAL A RECEBER</div>
+              <div style={{fontWeight:900,fontSize:22,color:"#fff"}}>{_fvR(_totalGeral)}</div>
+            </div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginTop:4}}>{_detalhe.length} {_detalhe.length===1?"dia":"dias"} · {_todas.length} {_todas.length===1?"mudança":"mudanças"}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+})()}
+
       {tab==="lista"&&(
           <div>
             <div style={{padding:'8px 12px 0'}}><div style={{display:'flex',gap:6,marginBottom:8}}><button onClick={()=>{setFiltroMes('semana');setFiltroDataIni('');setFiltroDataFim('');}} style={{padding:'6px 14px',borderRadius:16,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,background:filtroMes==='semana'&&!filtroDataIni?'#1e40af':'#e2e8f0',color:filtroMes==='semana'&&!filtroDataIni?'#fff':'#475569'}}>Semana</button><button onClick={()=>{setFiltroMes('mes_atual');setFiltroDataIni('');setFiltroDataFim('');}} style={{padding:'6px 14px',borderRadius:16,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,background:filtroMes==='mes_atual'&&!filtroDataIni?'#1e40af':'#e2e8f0',color:filtroMes==='mes_atual'&&!filtroDataIni?'#fff':'#475569'}}>Mês Atual</button><button onClick={()=>{setFiltroMes('');setFiltroDataIni('');setFiltroDataFim('');}} style={{padding:'6px 14px',borderRadius:16,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,background:filtroMes===''&&!filtroDataIni?'#1e40af':'#e2e8f0',color:filtroMes===''&&!filtroDataIni?'#fff':'#475569'}}>Todos</button></div><div style={{display:'flex',gap:6,alignItems:'center',marginBottom:4}}><input type='date' value={filtroDataIni} onChange={e=>{setFiltroDataIni(e.target.value);setFiltroMes('datas');}} style={{flex:1,padding:'5px 8px',borderRadius:8,border:'1px solid #e2e8f0',fontSize:12,color:'#334155'}} /><span style={{fontSize:11,color:'#94a3b8',whiteSpace:'nowrap'}}>até</span><input type='date' value={filtroDataFim} onChange={e=>{setFiltroDataFim(e.target.value);setFiltroMes('datas');}} style={{flex:1,padding:'5px 8px',borderRadius:8,border:'1px solid #e2e8f0',fontSize:12,color:'#334155'}} /></div></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar nome, selo ou comunidade..."
