@@ -2410,7 +2410,8 @@ export default function App(){
         })()}
 </div>
 
-{tab==="fin_mot"&&isMotorista&&<div style={{background:"red",color:"white",padding:20,margin:10,borderRadius:8,fontSize:16,fontWeight:900}}>🔴 TESTE FIN_MOT VISÍVEL — ID: {usuario?.id} — TIPO: {usuario?.tipo_veiculo} — MUD: {mudancas.length} — AG: {agenda.length}</div>}
+{/* DEBUG SEMPRE VISÍVEL */}
+<div style={{background:"red",color:"white",padding:20,margin:10,borderRadius:8,fontSize:14,fontWeight:900}}>🔴 DEBUG: tab={tab} | perfil={perfil} | isMotorista={String(isMotorista)} | nome={usuario?.nome}</div>
 {tab==="fin_mot"&&isMotorista&&(function(){
   var _hj=new Date();
   var _pad=function(n){return String(n).padStart(2,"0");};
