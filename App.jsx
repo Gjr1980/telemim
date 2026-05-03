@@ -2257,7 +2257,7 @@ export default function App(){
     {id:"agenda",label:"📅 Agenda"},
     {id:"lista",label:"📋 Registros"},
     {id:"importar_mud",label:"+ Mudanças"},
-    ...(isAdmin?[{id:"equipe",label:"👷 Equipe"},{id:"contas",label:"💸 Contas"},{id:"financeiro",label:"💰 Financeiro"},{id:"config",label:"⚙️ Config"}]:[]),
+    ...(isAdmin?[{id:"contas",label:"💸 Contas"},{id:"financeiro",label:"💰 Financeiro"},{id:"config",label:"⚙️ Config"}]:[]),
   ];
 
   // ── BTN STYLES ─────────────────────────────────────────────────────────────
@@ -3378,7 +3378,7 @@ return(
   );
 })()}
         {/* ══ ABA EQUIPE ══ */}
-        {tab==="equipe"&&(isAdmin||isSupervisor)&&(function(){
+        {tab==="equipe"&&isSupervisor&&(function(){
           var _fv=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
           var _fd=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]:d;};
           var _fdFull=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:d;};
