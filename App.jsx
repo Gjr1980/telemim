@@ -742,6 +742,7 @@ export default function App(){
   const [userMsg,setUserMsg]=useState("");
   const [tab,setTab]=useState("dashboard");
   const [periodoFin,setPeriodoFin]=useState("semana");
+  const [periodoFinMot,setPeriodoFinMot]=useState("semana");
   const [calMes,setCalMes]=useState(new Date().getMonth());
   const [calAno,setCalAno]=useState(new Date().getFullYear());
   const [calDiaSel,setCalDiaSel]=useState(null);
@@ -2164,6 +2165,7 @@ export default function App(){
   const TABS=isMotorista?[
     {id:"dashboard",label:"🚚 Minha Operação"},
     {id:"registros_mot",label:"📋 Meus Registros"},
+    {id:"fin_mot",label:"💰 Financeiro"},
   ]:[
     {id:"dashboard",label:"📊 Dashboard"},
     {id:"agenda",label:"📅 Agenda"},
@@ -2408,6 +2410,116 @@ export default function App(){
         })()}
 </div>
 
+{tab==="fin_mot"&&isMotorista&&(function(){
+  var _hj=new Date();
+  var _pad=function(n){return String(n).padStart(2,"0");};
+  var _dSem=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+  var _meuId=usuario&&usuario.id;
+  var _meuTipo=usuario&&usuario.tipo_veiculo;
+  var _campo=_meuTipo==="VAN"?"motorista_van_id":"motorista_caminhao_id";
+  var _icone=_meuTipo==="VAN"?"🚐":"🚚";
+  var _label=_meuTipo==="VAN"?"Van":"Caminhão";
+
+  // Determinar período
+  var _di,_df,_periodoLabel;
+  if(periodoFinMot==="semana"){
+    var _dw=_hj.getDay();var _dif=_dw===0?6:_dw-1;
+    var _s0=new Date(_hj.getFullYear(),_hj.getMonth(),_hj.getDate()-_dif);
+    var _s6=new Date(_s0.getFullYear(),_s0.getMonth(),_s0.getDate()+6);
+    _di=_s0.getFullYear()+"-"+_pad(_s0.getMonth()+1)+"-"+_pad(_s0.getDate());
+    _df=_s6.getFullYear()+"-"+_pad(_s6.getMonth()+1)+"-"+_pad(_s6.getDate());
+    _periodoLabel="Semana "+_pad(_s0.getDate())+"/"+_pad(_s0.getMonth()+1)+" a "+_pad(_s6.getDate())+"/"+_pad(_s6.getMonth()+1);
+  }else if(periodoFinMot==="mes_atual"){
+    _di=_hj.getFullYear()+"-"+_pad(_hj.getMonth()+1)+"-01";
+    var _uf=new Date(_hj.getFullYear(),_hj.getMonth()+1,0);
+    _df=_uf.getFullYear()+"-"+_pad(_uf.getMonth()+1)+"-"+_pad(_uf.getDate());
+    _periodoLabel=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][_hj.getMonth()]+" "+_hj.getFullYear();
+  }else{
+    var _ma=new Date(_hj.getFullYear(),_hj.getMonth()-1,1);
+    _di=_ma.getFullYear()+"-"+_pad(_ma.getMonth()+1)+"-01";
+    var _uf2=new Date(_ma.getFullYear(),_ma.getMonth()+1,0);
+    _df=_uf2.getFullYear()+"-"+_pad(_uf2.getMonth()+1)+"-"+_pad(_uf2.getDate());
+    _periodoLabel=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][_ma.getMonth()]+" "+_ma.getFullYear();
+  }
+
+  // Filtrar mudanças onde eu sou o motorista designado
+  var _minhas=mudancas.filter(function(m){
+    return !m.deleted_at&&m.data&&m.data>=_di&&m.data<=_df&&m[_campo]===_meuId;
+  });
+  // Também da agenda (concluídas ficam em mudanças, pendentes na agenda)
+  var _minhasAg=agenda.filter(function(a){
+    return !a.deleted_at&&a.data&&a.data>=_di&&a.data<=_df&&a[_campo]===_meuId;
+  });
+  // Juntar sem duplicar (por selo ou nome+data)
+  var _todas=[].concat(_minhas);
+  _minhasAg.forEach(function(a){
+    var _jatem=_todas.some(function(m){return m.data===a.data&&(m.selo===a.selo||(m.nome===a.nome));});
+    if(!_jatem)_todas.push(a);
+  });
+
+  // Agrupar por dia
+  var _diasU=[...new Set(_todas.map(function(m){return m.data;}))].sort();
+  var _totalGeral=0;
+  var _detalhe=_diasU.map(function(dia){
+    var _doDia=_todas.filter(function(m){return m.data===dia;});
+    var numMud=_doDia.length;
+    var valor;
+    if(_meuTipo==="VAN"){
+      valor=parseFloat(RULES.vanCusto)||400;
+    }else{
+      var _c1=parseFloat(RULES.cam1a)||350;
+      var _cA=parseFloat(RULES.camAdd)||130;
+      valor=_c1+Math.max(0,numMud-1)*_cA;
+    }
+    _totalGeral+=valor;
+    var _dt=new Date(dia+"T12:00:00");
+    var _dNome=_dSem[_dt.getDay()];
+    return {dia:dia,dNome:_dNome,numMud:numMud,valor:valor,items:_doDia};
+  });
+
+  var _fvR=function(v){return "R$ "+(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
+
+  return(
+    <div style={{padding:"0 12px 80px"}}>
+      <div style={{background:"linear-gradient(135deg,#1e293b,#1e3a8a)",borderRadius:14,padding:"16px 16px 12px",marginBottom:14}}>
+        <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",letterSpacing:1,textTransform:"uppercase"}}>💰 MEU FINANCEIRO</div>
+        <div style={{fontSize:16,fontWeight:900,color:"#fff",marginTop:4}}>{_periodoLabel}</div>
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:14}}>
+        {[["semana","Semana"],["mes_atual","Mês Atual"],["mes_ant","Mês Ant."]].map(function(p){
+          return <button key={p[0]} onClick={function(){setPeriodoFinMot(p[0]);}} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"1.5px solid "+(periodoFinMot===p[0]?"#1e40af":"#e2e8f0"),background:periodoFinMot===p[0]?"#1e40af":"#fff",color:periodoFinMot===p[0]?"#fff":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{p[1]}</button>;
+        })}
+      </div>
+      {_detalhe.length===0?(
+        <div style={{textAlign:"center",padding:40,color:"#94a3b8",fontSize:13}}>Nenhuma mudança atribuída no período.</div>
+      ):(
+        <div>
+          {_detalhe.map(function(d){
+            return(
+              <div key={d.dia} style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"12px 14px",marginBottom:8,boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>📅 {d.dia.slice(8)+"/"+d.dia.slice(5,7)} ({d.dNome})</div>
+                  <span style={{background:"#e0e7ff",color:"#3730a3",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{d.numMud} {d.numMud===1?"mudança":"mudanças"}</span>
+                </div>
+                {d.items.map(function(m,i){
+                  return <div key={i} style={{fontSize:11,color:"#475569",padding:"3px 0",borderTop:i>0?"1px solid #f1f5f9":"none"}}>👤 {m.nome}{m.comunidade?" · "+m.comunidade:""}</div>;
+                })}
+                <div style={{marginTop:8,textAlign:"right",fontWeight:800,fontSize:14,color:_meuTipo==="VAN"?"#2563eb":"#7c3aed"}}>{_icone} {_label}: {_fvR(d.valor)}</div>
+              </div>
+            );
+          })}
+          <div style={{background:"linear-gradient(135deg,#15803d,#166534)",borderRadius:14,padding:"16px 18px",marginTop:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{color:"rgba(255,255,255,0.8)",fontWeight:700,fontSize:13}}>💰 TOTAL A RECEBER</div>
+              <div style={{fontWeight:900,fontSize:22,color:"#fff"}}>{_fvR(_totalGeral)}</div>
+            </div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginTop:4}}>{_detalhe.length} {_detalhe.length===1?"dia":"dias"} · {_todas.length} {_todas.length===1?"mudança":"mudanças"}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+})()}
 
 {!isMotorista&&tab==="dashboard"&&(function(){
   var _mN=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
