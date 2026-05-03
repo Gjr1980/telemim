@@ -1831,9 +1831,10 @@ export default function App(){
 
     // Definir o carimbo com base na role do utilizador logado
     var updatePayload={};
-    if(usuario&&usuario.perfil==='admin')    updatePayload.approved_by_admin=usuario.nome;
-    if(usuario&&usuario.perfil==='social')   updatePayload.approved_by_social=usuario.nome;
-    if(usuario&&usuario.perfil==='promorar') updatePayload.approved_by_promorar=usuario.nome;
+    if(usuario&&usuario.perfil==='admin')      updatePayload.approved_by_admin=usuario.nome;
+    if(usuario&&usuario.perfil==='social')     updatePayload.approved_by_social=usuario.nome;
+    if(usuario&&usuario.perfil==='promorar')   updatePayload.approved_by_promorar=usuario.nome;
+    if(usuario&&usuario.perfil==='supervisor') updatePayload.approved_by_supervisor=usuario.nome;
 
     if(Object.keys(updatePayload).length===0){
       setIsApproving(function(prev){var n={};Object.assign(n,prev);delete n[osId];return n;});
@@ -1873,7 +1874,7 @@ export default function App(){
     _setAgendaRemovidaIds(function(prev){var s=new Set(prev);s.add(ag.id);return s;});
     setAgenda(function(prev){return prev.filter(function(x){return x.id!==ag.id;});});
     try{
-      var novaOS={nome:ag.nome,data:ag.data,horario:ag.horario||null,selo:ag.selo||null,van:ag.van||false,caminhao:ag.caminhao||false,comunidade:ag.comunidade||null,observacao:ag.observacao||null,origem:ag.origem||null,destino:ag.destino||null,contato:ag.contato||null,medicao:parseFloat(ag.medicao)||0,ajudantes:parseInt(ag.ajudantes)||0,status:"Registrado",requested_by:ag.requested_by||null,approved_by_admin:ag.approved_by_admin||null,approved_by_social:ag.approved_by_social||null,approved_by_promorar:ag.approved_by_promorar||null,motorista_van_id:ag.motorista_van_id||null,motorista_caminhao_id:ag.motorista_caminhao_id||null};
+      var novaOS={nome:ag.nome,data:ag.data,horario:ag.horario||null,selo:ag.selo||null,van:ag.van||false,caminhao:ag.caminhao||false,comunidade:ag.comunidade||null,observacao:ag.observacao||null,origem:ag.origem||null,destino:ag.destino||null,contato:ag.contato||null,medicao:parseFloat(ag.medicao)||0,ajudantes:parseInt(ag.ajudantes)||0,status:"Registrado",requested_by:ag.requested_by||null,approved_by_admin:ag.approved_by_admin||null,approved_by_social:ag.approved_by_social||null,approved_by_promorar:ag.approved_by_promorar||null,approved_by_supervisor:ag.approved_by_supervisor||null,motorista_van_id:ag.motorista_van_id||null,motorista_caminhao_id:ag.motorista_caminhao_id||null,supervisor_id:ag.supervisor_id||null};
       var r1=await fetch(SUPA_URL+"/rest/v1/mudancas?on_conflict=nome,data",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation,resolution=merge-duplicates"}),body:JSON.stringify(novaOS)});
       if(!r1.ok) throw new Error("HTTP "+r1.status);
       var _r1Body=await r1.json().catch(function(){return null;});
@@ -1901,9 +1902,10 @@ export default function App(){
     setIsApproving(function(prev){var n={};Object.assign(n,prev);n[agId]=true;return n;});
     var previousAgenda=agenda.slice();
     var updatePayload={};
-    if(usuario&&usuario.perfil==='admin')    updatePayload.approved_by_admin=usuario.nome;
-    if(usuario&&usuario.perfil==='social')   updatePayload.approved_by_social=usuario.nome;
-    if(usuario&&usuario.perfil==='promorar') updatePayload.approved_by_promorar=usuario.nome;
+    if(usuario&&usuario.perfil==='admin')      updatePayload.approved_by_admin=usuario.nome;
+    if(usuario&&usuario.perfil==='social')     updatePayload.approved_by_social=usuario.nome;
+    if(usuario&&usuario.perfil==='promorar')   updatePayload.approved_by_promorar=usuario.nome;
+    if(usuario&&usuario.perfil==='supervisor') updatePayload.approved_by_supervisor=usuario.nome;
     if(Object.keys(updatePayload).length===0){
       setIsApproving(function(prev){var n={};Object.assign(n,prev);delete n[agId];return n;});
       return;
@@ -1959,11 +1961,13 @@ export default function App(){
   async function handleDespacharSup(agId,supId){
     await _ensureAuth();
     var sid=supId||null;
+    var _ag=agenda.find(function(a){return a.id===agId;});
     setAgenda(function(prev){return prev.map(function(a){if(a.id!==agId)return a;return Object.assign({},a,{supervisor_id:sid});});});
     try{
       var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({supervisor_id:sid})});
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Supervisor designado!");
+      if(sid&&_ag){var _sup=listaUsuarios.find(function(u){return u.id===sid;});if(_sup&&_sup.email){try{await fetch(SUPA_URL+"/functions/v1/enviar-email-agendamento",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({to:_sup.email,subject:"📋 Designação de Supervisão — "+(_ag.nome||"Mudança"),html:"<h2>Olá "+(_sup.nome||"Supervisor")+"!</h2><p>Você foi designado(a) para supervisionar a seguinte mudança:</p><p><b>👤 Cliente:</b> "+(_ag.nome||"—")+"</p><p><b>📅 Data:</b> "+(_ag.data||"—")+(_ag.horario?" às "+_ag.horario+"h":"")+"</p><p><b>🏷️ Selo:</b> "+(_ag.selo||"—")+"</p><p><b>📦 Saída:</b> "+(_ag.origem||"—")+"</p><p><b>🏘️ Destino:</b> "+(_ag.destino||"—")+"</p><br><p>Acesse o app para mais detalhes.</p><p><b>TELEMIM — PROMORAR</b></p>"})});} catch(e){}}}
     }catch(e){loadAg();setSyncStatus("⚠️ Erro ao designar");}
   }
 
@@ -2284,7 +2288,7 @@ export default function App(){
         {/* ══ DASHBOARD ══ */}
         {tab==="dashboard"&&(
         <div style={{paddingBottom:16}}>
-        {(()=>{var _p=usuario&&usuario.perfil||"";var _campoMeu=_p==="admin"?"approved_by_admin":_p==="social"?"approved_by_social":_p==="promorar"?"approved_by_promorar":null;if(!_campoMeu)return null;var _pend=[...agenda].filter(function(x){if(!x.data||x.deleted_at)return false;if(x[_campoMeu])return false;return true;});if(!_pend.length)return null;return(<div style={{margin:"0 12px 16px",background:"#fffbeb",border:"2.5px solid #f59e0b",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(245,158,11,0.25)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🔔</span><div><div style={{fontWeight:800,fontSize:14,color:"#92400e"}}>Notificações ({_pend.length})</div><div style={{fontWeight:600,fontSize:11,color:"#b45309"}}>Confirme o recebimento das mudanças agendadas</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pend.map(function(x){var _quem=x.created_by||x.approved_by_admin||x.approved_by_social||x.approved_by_promorar||"Sistema";var _perfQuem=x.creator_role||"";return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"10px 12px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>👤 {x.nome}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · 🏷️ {x.selo||"—"}</div><div style={{fontSize:10,color:"#64748b",marginTop:1}}>Agendado por: <strong>{_quem}</strong>{_perfQuem?" ("+_perfQuem+")":""}</div></div><button onClick={function(e){e.stopPropagation();handleApproveAgenda(x.id);}} disabled={!!isApproving[x.id]} style={{padding:"7px 14px",background:isApproving[x.id]?"#94a3b8":"#16a34a",color:"#fff",border:"none",borderRadius:999,fontWeight:800,fontSize:11,cursor:isApproving[x.id]?"not-allowed":"pointer",whiteSpace:"nowrap",flexShrink:0,boxShadow:"0 2px 8px rgba(22,163,74,0.3)"}}>{isApproving[x.id]?"⏳":"✅ Confirmar"}</button></div></div>);})}</div></div>);})()}
+        {(()=>{var _p=usuario&&usuario.perfil||"";var _campoMeu=_p==="admin"?"approved_by_admin":_p==="social"?"approved_by_social":_p==="promorar"?"approved_by_promorar":_p==="supervisor"?"approved_by_supervisor":null;if(!_campoMeu)return null;var _pend=[...agenda].filter(function(x){if(!x.data||x.deleted_at)return false;if(x[_campoMeu])return false;return true;});if(!_pend.length)return null;return(<div style={{margin:"0 12px 16px",background:"#fffbeb",border:"2.5px solid #f59e0b",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(245,158,11,0.25)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🔔</span><div><div style={{fontWeight:800,fontSize:14,color:"#92400e"}}>Notificações ({_pend.length})</div><div style={{fontWeight:600,fontSize:11,color:"#b45309"}}>Confirme o recebimento das mudanças agendadas</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pend.map(function(x){var _quem=x.created_by||x.approved_by_admin||x.approved_by_social||x.approved_by_promorar||"Sistema";var _perfQuem=x.creator_role||"";return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"10px 12px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>👤 {x.nome}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · 🏷️ {x.selo||"—"}</div><div style={{fontSize:10,color:"#64748b",marginTop:1}}>Agendado por: <strong>{_quem}</strong>{_perfQuem?" ("+_perfQuem+")":""}</div></div><button onClick={function(e){e.stopPropagation();handleApproveAgenda(x.id);}} disabled={!!isApproving[x.id]} style={{padding:"7px 14px",background:isApproving[x.id]?"#94a3b8":"#16a34a",color:"#fff",border:"none",borderRadius:999,fontWeight:800,fontSize:11,cursor:isApproving[x.id]?"not-allowed":"pointer",whiteSpace:"nowrap",flexShrink:0,boxShadow:"0 2px 8px rgba(22,163,74,0.3)"}}>{isApproving[x.id]?"⏳":"✅ Confirmar"}</button></div></div>);})}</div></div>);})()}
         {isMotorista&&mudancasHoje.length===0&&mudancasAmanha.length===0&&mudancasFuturas.length===0&&(<div style={{margin:"12px 0 0",background:"#f0fdf4",border:"2px solid #86efac",borderRadius:14,padding:"20px 16px",textAlign:"center"}}><div style={{fontSize:28,marginBottom:8}}>😊</div><div style={{fontWeight:800,fontSize:15,color:"#15803d",marginBottom:6}}>Nenhuma mudança agendada!</div><div style={{fontSize:13,color:"#16a34a"}}>Bom descanso! ✅</div></div>)}
         {mudancasHoje.length>0&&(
           <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
@@ -2671,9 +2675,10 @@ export default function App(){
                 <div style={{padding:"10px 16px 8px",fontSize:12,color:"#475569"}}>
                   <div style={{marginBottom:4}}>🕐 <b>Concluída em:</b> {m.termino_em?new Date(m.termino_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):m.criado_em?new Date(m.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—"}</div>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
+                    <span>{m.approved_by_promorar?<b style={{color:"#16a34a"}}>✅ {m.approved_by_promorar}</b>:<span style={{color:"#9ca3af"}}>⏳ Promorar</span>}</span>
                     <span>{m.approved_by_admin?<b style={{color:"#16a34a"}}>✅ {m.approved_by_admin}</b>:<span style={{color:"#9ca3af"}}>⏳ Admin</span>}</span>
                     <span>{m.approved_by_social?<b style={{color:"#16a34a"}}>✅ {m.approved_by_social}</b>:<span style={{color:"#9ca3af"}}>⏳ Social</span>}</span>
-                    <span>{m.approved_by_promorar?<b style={{color:"#16a34a"}}>✅ {m.approved_by_promorar}</b>:<span style={{color:"#9ca3af"}}>⏳ Promorar</span>}</span>
+                    <span>{m.approved_by_supervisor?<b style={{color:"#16a34a"}}>✅ {m.approved_by_supervisor}</b>:<span style={{color:"#9ca3af"}}>⏳ Supervisor</span>}</span>
                   </div>
                   {(function(){var _vn=null,_cn=null;if(m.motorista_van_id){var _fv=listaUsuarios.find(function(u){return u.id===m.motorista_van_id;});if(_fv)_vn=_fv;}if(m.motorista_caminhao_id){var _fc=listaUsuarios.find(function(u){return u.id===m.motorista_caminhao_id;});if(_fc)_cn=_fc;}if(!_vn&&!_cn)return null;return(<div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:4,fontSize:11}}>{_vn&&<span><b style={{color:"#2563eb"}}>🚐 {_vn.nome}</b>{_vn.placa_veiculo?" · "+_vn.placa_veiculo:""}</span>}{_cn&&<span><b style={{color:"#7c3aed"}}>🚚 {_cn.nome}</b>{_cn.placa_veiculo?" · "+_cn.placa_veiculo:""}</span>}</div>);})()}
                   {(isAdmin||isSupervisor)&&(function(){var _motsV=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="VAN";});var _motsC=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="CAMINHAO";});var _ds={padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",width:"100%"};return <>{m.van&&_motsV.length>0&&<div style={{marginTop:4}}><label style={{fontSize:9,color:"#2563eb",fontWeight:700}}>🚐 Motorista Van</label><select value={m.motorista_van_id||""} onChange={function(e){handleDespacharMud(m.id,e.target.value||null,"VAN");}} style={Object.assign({},_ds,{border:"1px solid #93c5fd",background:"#eff6ff",color:"#2563eb"})}><option value="">— Sem motorista Van —</option>{_motsV.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}</option>);})}</select></div>}{m.caminhao&&_motsC.length>0&&<div style={{marginTop:4}}><label style={{fontSize:9,color:"#7c3aed",fontWeight:700}}>🚚 Motorista Caminhão</label><select value={m.motorista_caminhao_id||""} onChange={function(e){handleDespacharMud(m.id,e.target.value||null,"CAMINHAO");}} style={Object.assign({},_ds,{border:"1px solid #c4b5fd",background:"#f5f3ff",color:"#7c3aed"})}><option value="">— Sem motorista Caminhão —</option>{_motsC.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}</option>);})}</select></div>}</>;})()}
@@ -2773,10 +2778,14 @@ export default function App(){
                   
                   
                     {/* ── Carimbos de Aprovação (Agenda) ── */}
-                    {(a.approved_by_admin||a.approved_by_social||a.approved_by_promorar||a.requested_by||
-                    (usuario&&['admin','social','promorar'].includes(usuario.perfil)))&&(
+                    {(a.approved_by_admin||a.approved_by_social||a.approved_by_promorar||a.approved_by_supervisor||a.requested_by||
+                    (usuario&&['admin','social','promorar','supervisor'].includes(usuario.perfil)))&&(
                     <div style={{borderTop:"1px solid #e2e8f0",marginTop:6,paddingTop:5,fontSize:11,color:"#475569"}}>
                       <div style={{marginBottom:3}}>📝 <b>Solicitado por:</b> {a.created_by||a.requested_by||"Sistema"}{a.criado_em?" · "+new Date(a.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+                        <span>Promorar: {a.approved_by_promorar?<b style={{color:"#16a34a"}}>✅ {a.approved_by_promorar}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>
+                        {usuario&&usuario.perfil==="promorar"&&!a.approved_by_promorar&&(<button onClick={function(){handleApproveAgenda(a.id);}} disabled={!!isApproving[a.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[a.id]?"#94a3b8":"#7e22ce",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[a.id]?"not-allowed":"pointer"}}>{isApproving[a.id]?"⏳":"Confirmar"}</button>)}
+                      </div>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
                         <span>Admin: {a.approved_by_admin?<b style={{color:"#16a34a"}}>✅ {a.approved_by_admin}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>
                         {usuario&&usuario.perfil==="admin"&&!a.approved_by_admin&&(<button onClick={function(){handleApproveAgenda(a.id);}} disabled={!!isApproving[a.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[a.id]?"#94a3b8":"#1e40af",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[a.id]?"not-allowed":"pointer"}}>{isApproving[a.id]?"⏳":"Confirmar"}</button>)}
@@ -2786,8 +2795,8 @@ export default function App(){
                         {usuario&&usuario.perfil==="social"&&!a.approved_by_social&&(<button onClick={function(){handleApproveAgenda(a.id);}} disabled={!!isApproving[a.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[a.id]?"#94a3b8":"#0f766e",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[a.id]?"not-allowed":"pointer"}}>{isApproving[a.id]?"⏳":"Confirmar"}</button>)}
                       </div>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                        <span>Promorar: {a.approved_by_promorar?<b style={{color:"#16a34a"}}>✅ {a.approved_by_promorar}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>
-                        {usuario&&usuario.perfil==="promorar"&&!a.approved_by_promorar&&(<button onClick={function(){handleApproveAgenda(a.id);}} disabled={!!isApproving[a.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[a.id]?"#94a3b8":"#7e22ce",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[a.id]?"not-allowed":"pointer"}}>{isApproving[a.id]?"⏳":"Confirmar"}</button>)}
+                        <span>Supervisor: {a.approved_by_supervisor?<b style={{color:"#16a34a"}}>✅ {a.approved_by_supervisor}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>
+                        {usuario&&usuario.perfil==="supervisor"&&!a.approved_by_supervisor&&(<button onClick={function(){handleApproveAgenda(a.id);}} disabled={!!isApproving[a.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[a.id]?"#94a3b8":"#b45309",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[a.id]?"not-allowed":"pointer"}}>{isApproving[a.id]?"⏳":"Confirmar"}</button>)}
                       </div>
                     </div>)}
                     </Card>
