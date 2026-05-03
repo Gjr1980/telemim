@@ -1806,6 +1806,20 @@ export default function App(){
       setSyncStatus("⚠️ Erro ao actualizar status");
     }
   }
+  async function handleDeslocamento(ag, tipo){
+    if(!ag||!ag.id) return;
+    var campo=tipo==="van"?"van_saiu_em":"caminhao_saiu_em";
+    var agora=new Date().toISOString();
+    var prevAgenda=agenda.slice();
+    setAgenda(function(prev){return prev.map(function(a){if(a.id!==ag.id)return a;var u={};u[campo]=agora;return Object.assign({},a,u);});});
+    try{
+      var body={};body[campo]=agora;
+      var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      setSyncStatus("✅ Deslocamento registrado!");
+      setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);
+    }catch(e){setAgenda(prevAgenda);setSyncStatus("⚠️ Erro ao registrar deslocamento");}
+  }
   // ── Optimistic UI — Carimbos de Aprovação ──────────────
   async function handleApprove(osId){
     // Anti-duplo clique: bloquear se já em aprovação
@@ -2277,6 +2291,12 @@ export default function App(){
                   </div>{_stMot==="Em Deslocamento"||_stMot==="Realizando"?
                     <div style={{marginTop:4,fontSize:_dest?11:10,color:_stMot==="Em Deslocamento"?"#1d4ed8":"#854d0e",fontWeight:700,letterSpacing:0.5}}>{(function(){var _ts=_stMot==="Em Deslocamento"?a.inicio_em:a.inicio_mudanca_em;if(!_ts)return null;var _ini=new Date(_ts);var _pad=function(n){return String(n).padStart(2,"0");};var _hora=_pad(_ini.getHours())+":"+_pad(_ini.getMinutes());var _label=_stMot==="Em Deslocamento"?"🚐 Saída: ":"🚛 Início: ";return _label+_hora;})()}</div>:null}
                 </div>
+                {(a.van_saiu_em||a.caminhao_saiu_em)&&(
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
+                    {a.van_saiu_em&&<div style={{fontSize:_dest?12:10,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:8,padding:"4px 10px"}}>🚐 Van em deslocamento — {new Date(a.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                    {a.caminhao_saiu_em&&<div style={{fontSize:_dest?12:10,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:8,padding:"4px 10px"}}>🚚 Caminhão em deslocamento — {new Date(a.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                  </div>
+                )}
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
                   {(_stMot==="confirmado"||_stMot==="pendente")&&(
                     <button onClick={function(){handleStatusMotorista(a,"Em Deslocamento");}} style={{width:"100%",background:"#2563eb",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
@@ -2464,17 +2484,32 @@ export default function App(){
               <span style={{background:"#e0e7ff",color:"#3730a3",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700}}>{_selItems.length} mud.</span>
             </div>
             {_selItems.map(function(a){return(
-              <div key={a.id} style={{display:"flex",alignItems:"center",padding:"8px 10px",marginBottom:4,background:"#f8fafc",borderRadius:10,border:"1px solid #e2e8f0"}}>
-                <div style={{width:8,height:8,borderRadius:"50%",background:a.status==="concluida"?"#047857":a.status==="cancelada"?"#dc2626":"#f59e0b",marginRight:10,flexShrink:0}}></div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:600,color:"#334155",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nome}</div>
-                  <div style={{fontSize:11,color:"#94a3b8"}}>{a.comunidade||a.origem||""}{a.horario?<span> - <b style={{color:"#334155"}}>{a.horario.replace(":00","")+"h"}</b></span>:""}</div>
+              <div key={a.id} style={{padding:"8px 10px",marginBottom:4,background:"#f8fafc",borderRadius:10,border:"1px solid #e2e8f0"}}>
+                <div style={{display:"flex",alignItems:"center"}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:a.status==="concluida"?"#047857":a.status==="cancelada"?"#dc2626":"#f59e0b",marginRight:10,flexShrink:0}}></div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:"#334155",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nome}</div>
+                    <div style={{fontSize:11,color:"#94a3b8"}}>{a.comunidade||a.origem||""}{a.horario?<span> - <b style={{color:"#334155"}}>{a.horario.replace(":00","")+"h"}</b></span>:""}</div>
+                  </div>
+                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                    <span style={{fontSize:11,fontWeight:700,color:a.status==="concluida"?"#047857":a.status==="cancelada"?"#dc2626":"#d97706"}}>{a.status==="concluida"?"✅":a.status==="cancelada"?"❌":"⏳"}</span>
+                    <button onClick={function(e){e.stopPropagation();setViewMud(a);}} style={{background:"#f0f9ff",border:"1.5px solid #0ea5e9",color:"#0ea5e9",borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>👁️ Ver</button>
+                  </div>
                 </div>
-                <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                  <span style={{fontSize:11,fontWeight:700,color:a.status==="concluida"?"#047857":a.status==="cancelada"?"#dc2626":"#d97706"}}>{a.status==="concluida"?"✅":a.status==="cancelada"?"❌":"⏳"}</span>
-                  <button onClick={function(e){e.stopPropagation();setViewMud(a);}} style={{background:"#f0f9ff",border:"1.5px solid #0ea5e9",color:"#0ea5e9",borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>👁️ Ver</button>
-                </div>
-              </div>);})}
+                {(a.van||a.motorista_van_id||a.caminhao||a.motorista_caminhao_id)&&calDiaSel===_hjStr&&(
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
+                    {(a.van||a.motorista_van_id)&&(a.van_saiu_em?
+                      <div style={{fontSize:10,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:6,padding:"3px 8px"}}>🚐 Van em deslocamento — {new Date(a.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
+                      :<button onClick={function(e){e.stopPropagation();handleDeslocamento(a,"van");}} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🚐 Van Saiu</button>
+                    )}
+                    {(a.caminhao||a.motorista_caminhao_id)&&(a.caminhao_saiu_em?
+                      <div style={{fontSize:10,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:6,padding:"3px 8px"}}>🚚 Caminhão em deslocamento — {new Date(a.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
+                      :<button onClick={function(e){e.stopPropagation();handleDeslocamento(a,"caminhao");}} style={{background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🚚 Caminhão Saiu</button>
+                    )}
+                  </div>
+                )}
+              </div>
+              );})}
           </div>
         )}
         {calDiaSel&&_selItems.length===0&&(
