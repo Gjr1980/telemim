@@ -2355,7 +2355,7 @@ export default function App(){
                   <div style={{background:"#ffedd5",border:"1px solid #fed7aa",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:"#c2410c",whiteSpace:"nowrap"}}>⏳ Amanhã</div>
                 </div>
                 <div style={{background:"#fff",border:"1px solid #fed7aa",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#92400e",fontWeight:600,textAlign:"center"}}>
-                  🛠️ Prepare a van para amanhã!
+                  🛠️ {isSupervisor||isPromorar?"Prepare a sua equipe para amanhã!":(usuario&&usuario.tipo_veiculo==="CAMINHAO"?"Prepare o caminhão para amanhã!":"Prepare a van para amanhã!")}
                 </div>
               </div>
               );
