@@ -918,6 +918,7 @@ export default function App(){
         }catch(e3){setContasHist([]);}
       }finally{
         loadPrestadores();
+        loadAjudantes();
         // SEMPRE executado — garante que o app abre
                 setAuthChecked(true);
         setLoading(false);
@@ -1134,6 +1135,43 @@ export default function App(){
       var data=await res.json();
       if(Array.isArray(data)&&data.length>0) setPrestadores(data);
     }catch(e){}
+  }
+
+  // ── BANCO DE AJUDANTES ──
+  const [ajudantesList,setAjudantesList]=useState([]);
+  const [teamModalAg,setTeamModalAg]=useState(null);
+  const [teamSel,setTeamSel]=useState([]);
+  const [showAddAjudante,setShowAddAjudante]=useState(false);
+  const [novoAjudante,setNovoAjudante]=useState({nome:"",valor_diaria:80});
+
+  async function loadAjudantes(){
+    try{var r=await fetch(SUPA_URL+"/rest/v1/ajudantes?select=*&ativo=eq.true&order=nome",{headers:getH()});var d=await r.json();if(Array.isArray(d))setAjudantesList(d);}catch(e){}
+  }
+  async function criarAjudante(){
+    if(!novoAjudante.nome.trim())return;
+    try{var r=await fetch(SUPA_URL+"/rest/v1/ajudantes",{method:"POST",headers:Object.assign({},getH(),{"Prefer":"return=representation"}),body:JSON.stringify({nome:novoAjudante.nome.trim(),valor_diaria:parseFloat(novoAjudante.valor_diaria)||80})});if(r.ok){await loadAjudantes();setNovoAjudante({nome:"",valor_diaria:80});setShowAddAjudante(false);}}catch(e){}
+  }
+  function getAjudantesOcupados(dataAlvo,agIdExcluir){
+    var ocupados={};
+    agenda.forEach(function(a){if(a.deleted_at||a.id===agIdExcluir||a.data!==dataAlvo)return;var eq=a.equipa_confirmada;if(eq&&Array.isArray(eq)){eq.forEach(function(aj){ocupados[aj.id]={osNome:a.nome,osData:a.data};});}});
+    mudancas.forEach(function(m){if(m.data!==dataAlvo)return;var eq=m.equipa_confirmada;if(eq&&Array.isArray(eq)){eq.forEach(function(aj){ocupados[aj.id]={osNome:m.nome,osData:m.data};});}});
+    return ocupados;
+  }
+  async function salvarEquipa(agId,equipaArr){
+    try{var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({equipa_confirmada:equipaArr,ajudantes:equipaArr.length})});if(r.ok){setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,{equipa_confirmada:equipaArr,ajudantes:equipaArr.length}):a;});});setTeamModalAg(null);setSyncStatus("✅ Equipa salva!");}}catch(e){setSyncStatus("⚠️ Erro ao salvar equipa");}
+  }
+  async function salvarEquipaPadrao(){
+    if(!usuario)return;
+    try{await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+usuario.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({equipa_padrao:teamSel})});setSyncStatus("✅ Equipe padrão salva!");}catch(e){}
+  }
+  function carregarEquipaPadrao(){
+    if(!usuario||!usuario.equipa_padrao)return;
+    var padrao=usuario.equipa_padrao;
+    if(!Array.isArray(padrao)||padrao.length===0){setSyncStatus("⚠️ Nenhuma equipe padrão salva");return;}
+    var ocp=teamModalAg?getAjudantesOcupados(teamModalAg.data,teamModalAg.id):{};
+    var novaSel=[];
+    padrao.forEach(function(aj){if(!ocp[aj.id]&&novaSel.length<5){var found=ajudantesList.find(function(a){return a.id===aj.id&&a.ativo!==false;});if(found)novaSel.push({id:found.id,nome:found.nome,valor:found.valor_diaria||80});}});
+    setTeamSel(novaSel);
   }
 
     async function criarUsuario(){
@@ -1874,7 +1912,7 @@ export default function App(){
     _setAgendaRemovidaIds(function(prev){var s=new Set(prev);s.add(ag.id);return s;});
     setAgenda(function(prev){return prev.filter(function(x){return x.id!==ag.id;});});
     try{
-      var novaOS={nome:ag.nome,data:ag.data,horario:ag.horario||null,selo:ag.selo||null,van:ag.van||false,caminhao:ag.caminhao||false,comunidade:ag.comunidade||null,observacao:ag.observacao||null,origem:ag.origem||null,destino:ag.destino||null,contato:ag.contato||null,medicao:parseFloat(ag.medicao)||0,ajudantes:parseInt(ag.ajudantes)||0,status:"Registrado",requested_by:ag.requested_by||null,approved_by_admin:ag.approved_by_admin||null,approved_by_social:ag.approved_by_social||null,approved_by_promorar:ag.approved_by_promorar||null,approved_by_supervisor:ag.approved_by_supervisor||null,motorista_van_id:ag.motorista_van_id||null,motorista_caminhao_id:ag.motorista_caminhao_id||null,supervisor_id:ag.supervisor_id||null};
+      var novaOS={nome:ag.nome,data:ag.data,horario:ag.horario||null,selo:ag.selo||null,van:ag.van||false,caminhao:ag.caminhao||false,comunidade:ag.comunidade||null,observacao:ag.observacao||null,origem:ag.origem||null,destino:ag.destino||null,contato:ag.contato||null,medicao:parseFloat(ag.medicao)||0,ajudantes:parseInt(ag.ajudantes)||0,status:"Registrado",requested_by:ag.requested_by||null,approved_by_admin:ag.approved_by_admin||null,approved_by_social:ag.approved_by_social||null,approved_by_promorar:ag.approved_by_promorar||null,approved_by_supervisor:ag.approved_by_supervisor||null,motorista_van_id:ag.motorista_van_id||null,motorista_caminhao_id:ag.motorista_caminhao_id||null,supervisor_id:ag.supervisor_id||null,equipa_confirmada:ag.equipa_confirmada||[]};
       var r1=await fetch(SUPA_URL+"/rest/v1/mudancas?on_conflict=nome,data",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation,resolution=merge-duplicates"}),body:JSON.stringify(novaOS)});
       if(!r1.ok) throw new Error("HTTP "+r1.status);
       var _r1Body=await r1.json().catch(function(){return null;});
@@ -1886,6 +1924,17 @@ export default function App(){
         setMudAssinatura(_novaMud);
         setRessalvas("");
         setShowAssinatura(true);
+        // ── Auto Contas a Pagar ──
+        var _eqConf=ag.equipa_confirmada||[];
+        if(_eqConf.length>0){
+          try{
+            var _supNome="";if(ag.supervisor_id){var _sf=listaUsuarios.find(function(u){return u.id===ag.supervisor_id;});if(_sf)_supNome=_sf.nome;}
+            var _nomes=_eqConf.map(function(a){return a.nome;}).join(", ");
+            var _totalEq=_eqConf.reduce(function(s,a){return s+(parseFloat(a.valor)||80);},0);
+            var _desc="Acerto OS #"+_novaMud.id+" - "+(_supNome?"Sup: "+_supNome+" + ":"")+"Equipa: "+_nomes;
+            await fetch(SUPA_URL+"/rest/v1/contas_pagar",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({tipo:"PAGAR",categoria:"Pagamento de Equipe",descricao:_desc,valor:_totalEq,data:ag.data||new Date().toISOString().slice(0,10),os_id:_novaMud.id,agenda_id:ag.id,status:"pendente"})});
+          }catch(e){}
+        }
       }
       setAgenda(function(prev){return prev.filter(function(x){return x.id!==ag.id;});});
       setSyncStatus("✅ OS registada com sucesso!");
@@ -2760,6 +2809,10 @@ export default function App(){
                               onBlur={e=>e.target.style.border=`1.5px solid ${a.ajudantes?COLORS.green:COLORS.cardBorder}`}/>
                           </div>}
                         </div>}
+                        {(isAdmin||isSupervisor)&&<div style={{marginBottom:8}}>
+                          <button onClick={function(){var _eq=a.equipa_confirmada&&Array.isArray(a.equipa_confirmada)?a.equipa_confirmada:[];setTeamSel(_eq);setTeamModalAg(a);loadAjudantes();}} style={{padding:"7px 14px",borderRadius:10,border:"1.5px solid #b45309",background:a.equipa_confirmada&&a.equipa_confirmada.length>0?"#fef3c7":"#f8fafc",color:"#92400e",fontWeight:800,fontSize:12,cursor:"pointer"}}>👷 {a.equipa_confirmada&&a.equipa_confirmada.length>0?"Equipa ("+a.equipa_confirmada.length+")":"Definir Equipa"}</button>
+                          {a.equipa_confirmada&&a.equipa_confirmada.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{a.equipa_confirmada.map(function(aj){return <span key={aj.id} style={{background:"#dcfce7",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#15803d"}}>{aj.nome}</span>;})}</div>}
+                        </div>}
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
                           <button onClick={function(){pedirFinalizacao(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>
                           <div style={{display:"flex",gap:5,alignItems:"center"}}>
@@ -3624,6 +3677,61 @@ return(
         </div>
       </div>
     )}
+    {/* ── MODAL MONTAR EQUIPA ── */}
+    {teamModalAg&&(function(){
+      var _ag=teamModalAg;
+      var _ocp=getAjudantesOcupados(_ag.data,_ag.id);
+      return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setTeamModalAg(null);}}>
+        <div style={{background:"#fff",borderRadius:20,padding:"20px 16px",width:"100%",maxWidth:420,maxHeight:"85vh",overflowY:"auto"}} onClick={function(e){e.stopPropagation();}}>
+          <div style={{fontSize:15,fontWeight:900,color:"#1e293b",marginBottom:4}}>👷 MONTAR EQUIPA</div>
+          <div style={{fontSize:12,color:"#64748b",marginBottom:14}}>{_ag.nome} — {_ag.data?new Date(_ag.data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"?"}</div>
+          <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+            <button onClick={carregarEquipaPadrao} style={{padding:"7px 12px",borderRadius:10,border:"1.5px solid #2563eb",background:"#eff6ff",color:"#2563eb",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔄 Carregar Equipe Padrão</button>
+            <button onClick={function(){if(teamSel.length>0)salvarEquipaPadrao();}} disabled={teamSel.length===0} style={{padding:"7px 12px",borderRadius:10,border:"1.5px solid #b45309",background:teamSel.length>0?"#fef3c7":"#f1f5f9",color:teamSel.length>0?"#92400e":"#94a3b8",fontSize:11,fontWeight:700,cursor:teamSel.length>0?"pointer":"not-allowed"}}>💾 Salvar como Padrão</button>
+            <button onClick={function(){setShowAddAjudante(!showAddAjudante);}} style={{padding:"7px 12px",borderRadius:10,border:"1.5px solid #16a34a",background:"#f0fdf4",color:"#16a34a",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Novo Ajudante</button>
+          </div>
+          {showAddAjudante&&<div style={{background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"10px 12px",marginBottom:12}}>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <input placeholder="Nome" value={novoAjudante.nome} onChange={function(e){setNovoAjudante(function(p){return Object.assign({},p,{nome:e.target.value});});}} style={{flex:2,padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+              <input type="number" placeholder="R$" value={novoAjudante.valor_diaria} onChange={function(e){setNovoAjudante(function(p){return Object.assign({},p,{valor_diaria:e.target.value});});}} style={{flex:1,padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+              <button onClick={criarAjudante} style={{padding:"8px 12px",borderRadius:8,border:"none",background:"#16a34a",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>✓</button>
+            </div>
+          </div>}
+          <div style={{borderTop:"1px solid #e2e8f0",paddingTop:10}}>
+            {ajudantesList.map(function(aj){
+              var _ocupado=_ocp[aj.id];
+              var _sel=teamSel.find(function(s){return s.id===aj.id;});
+              var _disabled=!!_ocupado||(teamSel.length>=5&&!_sel);
+              return(<div key={aj.id} onClick={function(){
+                if(_disabled)return;
+                if(_sel){setTeamSel(function(prev){return prev.filter(function(s){return s.id!==aj.id;});});}
+                else{setTeamSel(function(prev){return prev.concat([{id:aj.id,nome:aj.nome,valor:aj.valor_diaria||80}]); });}
+              }} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",marginBottom:4,borderRadius:10,border:"1.5px solid "+(_sel?"#16a34a":_ocupado?"#fca5a5":"#e2e8f0"),background:_sel?"#f0fdf4":_ocupado?"#fef2f2":"#fff",cursor:_disabled?"not-allowed":"pointer",opacity:_ocupado?0.6:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:16}}>{_sel?"☑":_ocupado?"🚫":"☐"}</span>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13,color:_ocupado?"#dc2626":"#1e293b"}}>{aj.nome}{_ocupado?" (Ocupado)":""}</div>
+                    {_ocupado&&<div style={{fontSize:10,color:"#dc2626"}}>→ {_ocupado.osNome}</div>}
+                  </div>
+                </div>
+                <span style={{fontSize:12,fontWeight:700,color:"#64748b"}}>R$ {(aj.valor_diaria||80).toFixed(0)}</span>
+              </div>);
+            })}
+          </div>
+          <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12,marginTop:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+              <span style={{fontSize:12,fontWeight:700,color:"#64748b"}}>Selecionados: <b style={{color:"#1e293b"}}>{teamSel.length}/5</b></span>
+              <span style={{fontSize:13,fontWeight:800,color:"#16a34a"}}>💰 R$ {teamSel.reduce(function(s,a){return s+(a.valor||80);},0).toFixed(2)}</span>
+            </div>
+            {teamSel.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>{teamSel.map(function(s){return <span key={s.id} style={{background:"#dcfce7",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,color:"#15803d"}}>{s.nome}</span>;})}</div>}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={function(){setTeamModalAg(null);}} style={{flex:1,padding:11,borderRadius:10,background:"#f1f5f9",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>Cancelar</button>
+              <button onClick={function(){salvarEquipa(_ag.id,teamSel);}} style={{flex:2,padding:11,borderRadius:10,background:"#16a34a",color:"#fff",fontWeight:900,fontSize:13,border:"none",cursor:"pointer"}}>✅ Confirmar Equipa</button>
+            </div>
+          </div>
+        </div>
+      </div>);
+    })()}
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.55)",zIndex:9998,display:confirmDelete?"flex":"none",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setConfirmDelete(null);}}><div style={{background:"#fff",borderRadius:20,padding:"28px 24px",maxWidth:340,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.2)",textAlign:"center"}} onClick={function(e){e.stopPropagation();}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><div style={{fontWeight:800,fontSize:16,color:"#1e293b",marginBottom:8}}>Tem a certeza?</div><div style={{fontSize:13,color:"#64748b",marginBottom:20}}>Apagar <strong>{confirmDelete&&confirmDelete.nome}</strong>?</div><div style={{display:"flex",gap:10}}><button onClick={function(){setConfirmDelete(null);}} style={{flex:1,padding:"11px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancelar</button><button onClick={function(){if(confirmDelete&&confirmDelete.tipo==="mud")handleDelMud(confirmDelete.id);else if(confirmDelete)handleDelAg(confirmDelete.id);setConfirmDelete(null);}} style={{flex:1,padding:"11px 0",borderRadius:12,border:"none",background:"#ef4444",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>🗑️ Sim, Apagar</button></div></div></div>
     </div>
   );
