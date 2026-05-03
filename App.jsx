@@ -2496,6 +2496,10 @@ export default function App(){
           return <button key={p[0]} onClick={function(){setPeriodoFinMot(p[0]);}} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"1.5px solid "+(periodoFinMot===p[0]?"#1e40af":"#e2e8f0"),background:periodoFinMot===p[0]?"#1e40af":"#fff",color:periodoFinMot===p[0]?"#fff":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>{p[1]}</button>;
         })}
       </div>
+      <div style={{background:"#fef3c7",border:"1px solid #f59e0b",borderRadius:8,padding:10,marginBottom:10,fontSize:10,color:"#92400e",wordBreak:"break-all"}}>
+        🔍 DEBUG: meuId={_meuId||"VAZIO"} | tipo={_meuTipo||"VAZIO"} | período={_di} a {_df} | mudancas={mudancas.length} | agenda={agenda.length} | minhas={_minhas.length} | minhasAg={_minhasAg.length} | todas={_todas.length}
+        {mudancas.length>0?" | 1ª mud: van="+String(mudancas[0].motorista_van_id)+" cam="+String(mudancas[0].motorista_caminhao_id)+" data="+String(mudancas[0].data):""}
+      </div>
       {_detalhe.length===0?(
         <div style={{textAlign:"center",padding:40,color:"#94a3b8",fontSize:13}}>Nenhuma mudança atribuída no período.</div>
       ):(
