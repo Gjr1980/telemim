@@ -1142,14 +1142,14 @@ export default function App(){
   const [teamModalAg,setTeamModalAg]=useState(null);
   const [teamSel,setTeamSel]=useState([]);
   const [showAddAjudante,setShowAddAjudante]=useState(false);
-  const [novoAjudante,setNovoAjudante]=useState({nome:"",valor_diaria:80});
+  const [novoAjudante,setNovoAjudante]=useState({nome:"",telefone:""});
 
   async function loadAjudantes(){
     try{var r=await fetch(SUPA_URL+"/rest/v1/ajudantes?select=*&ativo=eq.true&order=nome",{headers:getH()});var d=await r.json();if(Array.isArray(d))setAjudantesList(d);}catch(e){}
   }
   async function criarAjudante(){
     if(!novoAjudante.nome.trim())return;
-    try{var r=await fetch(SUPA_URL+"/rest/v1/ajudantes",{method:"POST",headers:Object.assign({},getH(),{"Prefer":"return=representation"}),body:JSON.stringify({nome:novoAjudante.nome.trim(),valor_diaria:parseFloat(novoAjudante.valor_diaria)||80})});if(r.ok){await loadAjudantes();setNovoAjudante({nome:"",valor_diaria:80});setShowAddAjudante(false);}}catch(e){}
+    try{var _body={nome:novoAjudante.nome.trim()};if(novoAjudante.telefone.trim())_body.telefone=novoAjudante.telefone.trim();var r=await fetch(SUPA_URL+"/rest/v1/ajudantes",{method:"POST",headers:Object.assign({},getH(),{"Prefer":"return=representation"}),body:JSON.stringify(_body)});if(r.ok){await loadAjudantes();setNovoAjudante({nome:"",telefone:""});setShowAddAjudante(false);}}catch(e){}
   }
   function getAjudantesOcupados(dataAlvo,agIdExcluir){
     var ocupados={};
@@ -1170,7 +1170,7 @@ export default function App(){
     if(!Array.isArray(padrao)||padrao.length===0){setSyncStatus("⚠️ Nenhuma equipe padrão salva");return;}
     var ocp=teamModalAg?getAjudantesOcupados(teamModalAg.data,teamModalAg.id):{};
     var novaSel=[];
-    padrao.forEach(function(aj){if(!ocp[aj.id]&&novaSel.length<5){var found=ajudantesList.find(function(a){return a.id===aj.id&&a.ativo!==false;});if(found)novaSel.push({id:found.id,nome:found.nome,valor:found.valor_diaria||80});}});
+    padrao.forEach(function(aj){if(!ocp[aj.id]&&novaSel.length<5){var found=ajudantesList.find(function(a){return a.id===aj.id&&a.ativo!==false;});if(found)novaSel.push({id:found.id,nome:found.nome});}});
     setTeamSel(novaSel);
   }
 
@@ -1930,9 +1930,8 @@ export default function App(){
           try{
             var _supNome="";if(ag.supervisor_id){var _sf=listaUsuarios.find(function(u){return u.id===ag.supervisor_id;});if(_sf)_supNome=_sf.nome;}
             var _nomes=_eqConf.map(function(a){return a.nome;}).join(", ");
-            var _totalEq=_eqConf.reduce(function(s,a){return s+(parseFloat(a.valor)||80);},0);
             var _desc="Acerto OS #"+_novaMud.id+" - "+(_supNome?"Sup: "+_supNome+" + ":"")+"Equipa: "+_nomes;
-            await fetch(SUPA_URL+"/rest/v1/contas_pagar",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({tipo:"PAGAR",categoria:"Pagamento de Equipe",descricao:_desc,valor:_totalEq,data:ag.data||new Date().toISOString().slice(0,10),os_id:_novaMud.id,agenda_id:ag.id,status:"pendente"})});
+            await fetch(SUPA_URL+"/rest/v1/contas_pagar",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({tipo:"PAGAR",categoria:"Pagamento de Equipe",descricao:_desc,valor:0,data:ag.data||new Date().toISOString().slice(0,10),os_id:_novaMud.id,agenda_id:ag.id,status:"pendente"})});
           }catch(e){}
         }
       }
@@ -3693,7 +3692,7 @@ return(
           {showAddAjudante&&<div style={{background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"10px 12px",marginBottom:12}}>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
               <input placeholder="Nome" value={novoAjudante.nome} onChange={function(e){setNovoAjudante(function(p){return Object.assign({},p,{nome:e.target.value});});}} style={{flex:2,padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
-              <input type="number" placeholder="R$" value={novoAjudante.valor_diaria} onChange={function(e){setNovoAjudante(function(p){return Object.assign({},p,{valor_diaria:e.target.value});});}} style={{flex:1,padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+              <input type="tel" placeholder="📞 Fone" value={novoAjudante.telefone} onChange={function(e){setNovoAjudante(function(p){return Object.assign({},p,{telefone:e.target.value});});}} style={{flex:1,padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
               <button onClick={criarAjudante} style={{padding:"8px 12px",borderRadius:8,border:"none",background:"#16a34a",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>✓</button>
             </div>
           </div>}
@@ -3705,23 +3704,23 @@ return(
               return(<div key={aj.id} onClick={function(){
                 if(_disabled)return;
                 if(_sel){setTeamSel(function(prev){return prev.filter(function(s){return s.id!==aj.id;});});}
-                else{setTeamSel(function(prev){return prev.concat([{id:aj.id,nome:aj.nome,valor:aj.valor_diaria||80}]); });}
+                else{setTeamSel(function(prev){return prev.concat([{id:aj.id,nome:aj.nome}]); });}
               }} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",marginBottom:4,borderRadius:10,border:"1.5px solid "+(_sel?"#16a34a":_ocupado?"#fca5a5":"#e2e8f0"),background:_sel?"#f0fdf4":_ocupado?"#fef2f2":"#fff",cursor:_disabled?"not-allowed":"pointer",opacity:_ocupado?0.6:1}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontSize:16}}>{_sel?"☑":_ocupado?"🚫":"☐"}</span>
                   <div>
                     <div style={{fontWeight:700,fontSize:13,color:_ocupado?"#dc2626":"#1e293b"}}>{aj.nome}{_ocupado?" (Ocupado)":""}</div>
                     {_ocupado&&<div style={{fontSize:10,color:"#dc2626"}}>→ {_ocupado.osNome}</div>}
+                    {aj.telefone&&!_ocupado&&<div style={{fontSize:10,color:"#64748b"}}>📞 {aj.telefone}</div>}
                   </div>
                 </div>
-                <span style={{fontSize:12,fontWeight:700,color:"#64748b"}}>R$ {(aj.valor_diaria||80).toFixed(0)}</span>
+                <span style={{fontSize:11,color:"#64748b"}}>{_sel?"✅":""}</span>
               </div>);
             })}
           </div>
           <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12,marginTop:8}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+            <div style={{marginBottom:10}}>
               <span style={{fontSize:12,fontWeight:700,color:"#64748b"}}>Selecionados: <b style={{color:"#1e293b"}}>{teamSel.length}/5</b></span>
-              <span style={{fontSize:13,fontWeight:800,color:"#16a34a"}}>💰 R$ {teamSel.reduce(function(s,a){return s+(a.valor||80);},0).toFixed(2)}</span>
             </div>
             {teamSel.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>{teamSel.map(function(s){return <span key={s.id} style={{background:"#dcfce7",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,color:"#15803d"}}>{s.nome}</span>;})}</div>}
             <div style={{display:"flex",gap:8}}>
