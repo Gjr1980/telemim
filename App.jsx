@@ -2416,9 +2416,10 @@ export default function App(){
   var _dSem=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
   var _meuId=usuario&&usuario.id;
   var _meuTipo=usuario&&usuario.tipo_veiculo;
-  var _campo=_meuTipo==="VAN"?"motorista_van_id":"motorista_caminhao_id";
-  var _icone=_meuTipo==="VAN"?"🚐":"🚚";
-  var _label=_meuTipo==="VAN"?"Van":"Caminhão";
+  var _isVan=_meuTipo==="VAN";
+  var _isCam=_meuTipo==="CAMINHAO";
+  var _icone=_isVan?"🚐":"🚚";
+  var _label=_isVan?"Van":"Caminhão";
 
   // Determinar período
   var _di,_df,_periodoLabel;
@@ -2442,13 +2443,15 @@ export default function App(){
     _periodoLabel=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][_ma.getMonth()]+" "+_ma.getFullYear();
   }
 
-  // Filtrar mudanças onde eu sou o motorista designado
+  // Filtrar mudanças onde eu sou o motorista designado (busca nas duas colunas)
   var _minhas=mudancas.filter(function(m){
-    return !m.deleted_at&&m.data&&m.data>=_di&&m.data<=_df&&m[_campo]===_meuId;
+    if(m.deleted_at||!m.data||m.data<_di||m.data>_df) return false;
+    return m.motorista_van_id===_meuId||m.motorista_caminhao_id===_meuId;
   });
-  // Também da agenda (concluídas ficam em mudanças, pendentes na agenda)
+  // Também da agenda
   var _minhasAg=agenda.filter(function(a){
-    return !a.deleted_at&&a.data&&a.data>=_di&&a.data<=_df&&a[_campo]===_meuId;
+    if(a.deleted_at||!a.data||a.data<_di||a.data>_df) return false;
+    return a.motorista_van_id===_meuId||a.motorista_caminhao_id===_meuId;
   });
   // Juntar sem duplicar (por selo ou nome+data)
   var _todas=[].concat(_minhas);
@@ -2463,8 +2466,10 @@ export default function App(){
   var _detalhe=_diasU.map(function(dia){
     var _doDia=_todas.filter(function(m){return m.data===dia;});
     var numMud=_doDia.length;
+    // Detectar se neste dia fui designado como van ou caminhão
+    var _comoVan=_doDia.some(function(m){return m.motorista_van_id===_meuId;});
     var valor;
-    if(_meuTipo==="VAN"){
+    if(_comoVan){
       valor=parseFloat(RULES.vanCusto)||400;
     }else{
       var _c1=parseFloat(RULES.cam1a)||350;
@@ -2474,7 +2479,7 @@ export default function App(){
     _totalGeral+=valor;
     var _dt=new Date(dia+"T12:00:00");
     var _dNome=_dSem[_dt.getDay()];
-    return {dia:dia,dNome:_dNome,numMud:numMud,valor:valor,items:_doDia};
+    return {dia:dia,dNome:_dNome,numMud:numMud,valor:valor,items:_doDia,comoVan:_comoVan};
   });
 
   var _fvR=function(v){return "R$ "+(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
@@ -2504,7 +2509,7 @@ export default function App(){
                 {d.items.map(function(m,i){
                   return <div key={i} style={{fontSize:11,color:"#475569",padding:"3px 0",borderTop:i>0?"1px solid #f1f5f9":"none"}}>👤 {m.nome}{m.comunidade?" · "+m.comunidade:""}</div>;
                 })}
-                <div style={{marginTop:8,textAlign:"right",fontWeight:800,fontSize:14,color:_meuTipo==="VAN"?"#2563eb":"#7c3aed"}}>{_icone} {_label}: {_fvR(d.valor)}</div>
+                <div style={{marginTop:8,textAlign:"right",fontWeight:800,fontSize:14,color:d.comoVan?"#2563eb":"#7c3aed"}}>{d.comoVan?"🚐 Van":"🚚 Caminhão"}: {_fvR(d.valor)}</div>
               </div>
             );
           })}
