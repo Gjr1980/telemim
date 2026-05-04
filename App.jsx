@@ -768,6 +768,7 @@ export default function App(){
   const [confirmFinAg,setConfirmFinAg]=useState(null);
   const [cancelModal,setCancelModal]=useState(null);
   const [cancelMotivo,setCancelMotivo]=useState("");
+  const [viewEquipeAg,setViewEquipeAg]=useState(null);
   const [showAssinatura,setShowAssinatura]=useState(false);
   const [mudAssinatura,setMudAssinatura]=useState(null);
   const [ressalvas,setRessalvas]=useState("");
@@ -2898,6 +2899,7 @@ export default function App(){
                         <button onClick={()=>converterEmMudanca(a)} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>
                         <button onClick={()=>setEditAg({...a})} style={btnBlue}>✏️</button>
                         {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={btnRed}>✕</button>}
+                        {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===a.data;});setViewEquipeAg({nome:a.nome,data:a.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"none",color:"#92400e",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Ver equipe do dia">👷</button>}
                       </div>
                     </div>
                   
@@ -3903,6 +3905,25 @@ return(
             <button onClick={()=>{setModalAssinatura(false);setMudancaCanhoto(null);}} style={{flex:1,padding:"10px 0",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:13}}>Cancelar</button>
             <button onClick={async()=>{const c=document.getElementById("cvAssin");await confirmarComAssinatura(c?c.toDataURL("image/png"):null);}} style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:"#16a34a",color:"#fff",cursor:"pointer",fontWeight:700,fontSize:14}}>✅ Confirmar</button>
           </div>
+        </div>
+      </div>
+    )}
+    {/* ══ MODAL VER EQUIPE DO DIA ══ */}
+    {viewEquipeAg&&(
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setViewEquipeAg(null);}}>
+        <div style={{background:"#fff",borderRadius:16,padding:"20px 18px",width:"100%",maxWidth:360}} onClick={function(e){e.stopPropagation();}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div style={{fontSize:15,fontWeight:900,color:"#92400e"}}>👷 Equipe do Dia</div>
+            <button onClick={function(){setViewEquipeAg(null);}} style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:"#94a3b8"}}>✕</button>
+          </div>
+          <div style={{fontSize:12,color:"#64748b",marginBottom:12}}>📅 {viewEquipeAg.data?viewEquipeAg.data.slice(8)+"/"+viewEquipeAg.data.slice(5,7)+"/"+viewEquipeAg.data.slice(0,4):""}</div>
+          {viewEquipeAg.ajudantes.length===0?<div style={{textAlign:"center",padding:"24px 0",color:"#94a3b8",fontSize:13}}>Nenhuma equipe escalada neste dia</div>:viewEquipeAg.ajudantes.map(function(aj){
+            return <div key={aj.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",marginBottom:4,background:"#f0fdf4",borderRadius:10,border:"1px solid #bbf7d0"}}>
+              <span style={{fontSize:16}}>✅</span>
+              <div><div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>{aj.nome}</div>{aj.telefone&&<div style={{fontSize:11,color:"#64748b"}}>📞 {aj.telefone}</div>}</div>
+            </div>;
+          })}
+          {viewEquipeAg.ajudantes.length>0&&<div style={{marginTop:10,fontSize:12,color:"#065f46",fontWeight:700,textAlign:"center"}}>{viewEquipeAg.ajudantes.length} ajudante{viewEquipeAg.ajudantes.length!==1?"s":""} escalado{viewEquipeAg.ajudantes.length!==1?"s":""}</div>}
         </div>
       </div>
     )}
