@@ -716,10 +716,11 @@ function RotaTerceirizada({token}){
                 <div style={{fontSize:12,marginTop:8}}>📦 {r.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(r.origem)} target="_blank" rel="noopener" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{r.origem} 🗺️</a>:<span style={{color:"#94a3b8"}}>Origem não informada</span>}</div>
                 <div style={{fontSize:12,marginTop:16}}>🏘️ {r.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(r.destino)} target="_blank" rel="noopener" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{r.destino} 🗺️</a>:<span style={{color:"#94a3b8"}}>Destino não informado</span>}</div>
                 {r.observacoes&&<div style={{fontSize:11,color:"#64748b",marginTop:8,fontStyle:"italic"}}>📝 {r.observacoes}</div>}
-                {r.inicio_em&&<div style={{fontSize:10,color:"#16a34a",marginTop:6}}>▶️ Início: {new Date(r.inicio_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
-                {r.termino_em&&<div style={{fontSize:10,color:"#16a34a",marginTop:2}}>🏁 Término: {new Date(r.termino_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
+                {(r.inicio_van_em||r.inicio_caminhao_em||r.inicio_em)&&<div style={{fontSize:10,color:"#16a34a",marginTop:6}}>🚗 Saiu: {new Date(r.inicio_van_em||r.inicio_caminhao_em||r.inicio_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
+                {(r.chegada_van_em||r.chegada_caminhao_em)&&<div style={{fontSize:10,color:"#2563eb",marginTop:2}}>📍 Chegou: {new Date(r.chegada_van_em||r.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
+                {(r.termino_van_em||r.termino_caminhao_em||r.termino_em)&&<div style={{fontSize:10,color:"#16a34a",marginTop:2}}>🏁 Fim: {new Date(r.termino_van_em||r.termino_caminhao_em||r.termino_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
                 {!isFinal&&prox&&(
-                  <button onClick={function(){var ct=null;if(st==="confirmado")ct="inicio_em";if(st==="em_andamento")ct="termino_em";atualizarStatus({id:r.id,_tabela:"agenda"},prox,ct);}} disabled={!!updating[r.id]} style={{marginTop:12,width:"100%",padding:12,background:updating[r.id]?"#94a3b8":(_statusCor[st]||"#3b82f6"),color:"#fff",border:"none",borderRadius:10,fontWeight:800,fontSize:13,cursor:updating[r.id]?"not-allowed":"pointer",boxShadow:"0 4px 12px rgba(0,0,0,0.15)"}}>{updating[r.id]?"⏳ Atualizando...":_statusLabel[st]}</button>
+                  <button onClick={function(){var ct=null;if(st==="confirmado")ct="inicio_em";if(st==="em_deslocamento")ct="chegada_em";if(st==="em_andamento")ct="termino_em";atualizarStatus({id:r.id,_tabela:"agenda"},prox,ct);}} disabled={!!updating[r.id]} style={{marginTop:12,width:"100%",padding:12,background:updating[r.id]?"#94a3b8":(_statusCor[st]||"#3b82f6"),color:"#fff",border:"none",borderRadius:10,fontWeight:800,fontSize:13,cursor:updating[r.id]?"not-allowed":"pointer",boxShadow:"0 4px 12px rgba(0,0,0,0.15)"}}>{updating[r.id]?"⏳ Atualizando...":_statusLabel[st]}</button>
                 )}
                 {isFinal&&<div style={{marginTop:10,textAlign:"center",fontWeight:700,fontSize:12,color:"#16a34a"}}>✅ Mudança finalizada!</div>}
               </div>
@@ -1847,13 +1848,32 @@ export default function App(){
   // 🚚 MÁQUINA DE ESTADOS DO MOTORISTA ???????????????????????????????????
   async function handleStatusMotorista(ag, novoStatus){
     if(!ag||!ag.id) return;
+    var agora=new Date().toISOString();
+    var _isVanMot=usuario&&(usuario.tipo_veiculo==="VAN"||ag.motorista_van_id===usuario.id);
+    var _isCamMot=usuario&&(usuario.tipo_veiculo==="CAMINHAO"||ag.motorista_caminhao_id===usuario.id);
+    var body={status:novoStatus};
+    if(novoStatus==="Em Deslocamento"){
+      body.inicio_em=agora;
+      if(_isVanMot) body.inicio_van_em=agora;
+      if(_isCamMot) body.inicio_caminhao_em=agora;
+    }
+    if(novoStatus==="Realizando"){
+      body.inicio_mudanca_em=agora;
+      if(_isVanMot) body.chegada_van_em=agora;
+      if(_isCamMot) body.chegada_caminhao_em=agora;
+    }
+    if(novoStatus==="Concluido"||novoStatus==="realizado"){
+      body.termino_em=agora;
+      if(_isVanMot) body.termino_van_em=agora;
+      if(_isCamMot) body.termino_caminhao_em=agora;
+    }
     var prevAgenda=agenda.slice();
-    setAgenda(function(prev){return prev.map(function(a){return a.id===ag.id?{...a,status:novoStatus}:a;});});
+    setAgenda(function(prev){return prev.map(function(a){return a.id===ag.id?Object.assign({},a,body):a;});});
     try{
       var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{
         method:"PATCH",
         headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),
-        body:JSON.stringify({status:novoStatus,...(novoStatus==="Em Deslocamento"?{inicio_em:new Date().toISOString()}:{}),...(novoStatus==="Realizando"?{inicio_mudanca_em:new Date().toISOString()}:{}),...(novoStatus==="Concluido"||novoStatus==="realizado"?{termino_em:new Date().toISOString()}:{})})
+        body:JSON.stringify(body)
       });
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Status actualizado!");
@@ -1865,12 +1885,13 @@ export default function App(){
   }
   async function handleDeslocamento(ag, tipo){
     if(!ag||!ag.id) return;
-    var campo=tipo==="van"?"van_saiu_em":"caminhao_saiu_em";
     var agora=new Date().toISOString();
+    var body={};
+    if(tipo==="van"){body.van_saiu_em=agora;body.inicio_van_em=agora;}
+    else{body.caminhao_saiu_em=agora;body.inicio_caminhao_em=agora;}
     var prevAgenda=agenda.slice();
-    setAgenda(function(prev){return prev.map(function(a){if(a.id!==ag.id)return a;var u={};u[campo]=agora;return Object.assign({},a,u);});});
+    setAgenda(function(prev){return prev.map(function(a){if(a.id!==ag.id)return a;return Object.assign({},a,body);});});
     try{
-      var body={};body[campo]=agora;
       var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)});
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Deslocamento registrado!");
@@ -2419,10 +2440,18 @@ export default function App(){
                   </div>{_stMot==="Em Deslocamento"||_stMot==="Realizando"?
                     <div style={{marginTop:4,fontSize:_dest?11:10,color:_stMot==="Em Deslocamento"?"#1d4ed8":"#854d0e",fontWeight:700,letterSpacing:0.5}}>{(function(){var _ts=_stMot==="Em Deslocamento"?a.inicio_em:a.inicio_mudanca_em;if(!_ts)return null;var _ini=new Date(_ts);var _pad=function(n){return String(n).padStart(2,"0");};var _hora=_pad(_ini.getHours())+":"+_pad(_ini.getMinutes());var _label=_stMot==="Em Deslocamento"?"🚐 Saída: ":"🚛 Início: ";return _label+_hora;})()}</div>:null}
                 </div>
-                {(a.van_saiu_em||a.caminhao_saiu_em)&&(
-                  <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
-                    {a.van_saiu_em&&<div style={{fontSize:_dest?12:10,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:8,padding:"4px 10px"}}>🚐 Van em deslocamento — {new Date(a.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
-                    {a.caminhao_saiu_em&&<div style={{fontSize:_dest?12:10,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:8,padding:"4px 10px"}}>🚚 Caminhão em deslocamento — {new Date(a.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                {(a.inicio_van_em||a.inicio_caminhao_em||a.van_saiu_em||a.caminhao_saiu_em)&&(
+                  <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:6}}>
+                    {(a.inicio_van_em||a.van_saiu_em)&&<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                      <div style={{fontSize:_dest?12:10,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:8,padding:"4px 10px"}}>🚐 Van saiu — {new Date(a.inicio_van_em||a.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
+                      {a.chegada_van_em&&<div style={{fontSize:_dest?12:10,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:8,padding:"4px 10px"}}>📍 Van chegou — {new Date(a.chegada_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.termino_van_em&&<div style={{fontSize:_dest?12:10,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:8,padding:"4px 10px"}}>🏁 Van fim — {new Date(a.termino_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                    </div>}
+                    {(a.inicio_caminhao_em||a.caminhao_saiu_em)&&<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                      <div style={{fontSize:_dest?12:10,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:8,padding:"4px 10px"}}>🚚 Caminhão saiu — {new Date(a.inicio_caminhao_em||a.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
+                      {a.chegada_caminhao_em&&<div style={{fontSize:_dest?12:10,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:8,padding:"4px 10px"}}>📍 Caminhão chegou — {new Date(a.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.termino_caminhao_em&&<div style={{fontSize:_dest?12:10,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:8,padding:"4px 10px"}}>🏁 Caminhão fim — {new Date(a.termino_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                    </div>}
                   </div>
                 )}
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -2648,15 +2677,23 @@ export default function App(){
                   </div>
                 </div>
                 {(a.van||a.motorista_van_id||a.caminhao||a.motorista_caminhao_id)&&calDiaSel===_hjStr&&(
-                  <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
-                    {(a.van||a.motorista_van_id)&&(a.van_saiu_em?
-                      <div style={{fontSize:10,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:6,padding:"3px 8px"}}>🚐 Van em deslocamento — {new Date(a.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
-                      :<button onClick={function(e){e.stopPropagation();handleDeslocamento(a,"van");}} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🚐 Van Saiu</button>
-                    )}
-                    {(a.caminhao||a.motorista_caminhao_id)&&(a.caminhao_saiu_em?
-                      <div style={{fontSize:10,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:6,padding:"3px 8px"}}>🚚 Caminhão em deslocamento — {new Date(a.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
-                      :<button onClick={function(e){e.stopPropagation();handleDeslocamento(a,"caminhao");}} style={{background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🚚 Caminhão Saiu</button>
-                    )}
+                  <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:6}}>
+                    {(a.van||a.motorista_van_id)&&(<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                      {(a.inicio_van_em||a.van_saiu_em)?
+                        <div style={{fontSize:10,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:6,padding:"3px 8px"}}>🚐 Van saiu — {new Date(a.inicio_van_em||a.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
+                        :<button onClick={function(e){e.stopPropagation();handleDeslocamento(a,"van");}} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🚐 Van Saiu</button>
+                      }
+                      {a.chegada_van_em&&<div style={{fontSize:10,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:6,padding:"3px 8px"}}>📍 Chegou — {new Date(a.chegada_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.termino_van_em&&<div style={{fontSize:10,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:6,padding:"3px 8px"}}>🏁 Fim — {new Date(a.termino_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                    </div>)}
+                    {(a.caminhao||a.motorista_caminhao_id)&&(<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                      {(a.inicio_caminhao_em||a.caminhao_saiu_em)?
+                        <div style={{fontSize:10,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:6,padding:"3px 8px"}}>🚚 Caminhão saiu — {new Date(a.inicio_caminhao_em||a.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
+                        :<button onClick={function(e){e.stopPropagation();handleDeslocamento(a,"caminhao");}} style={{background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🚚 Caminhão Saiu</button>
+                      }
+                      {a.chegada_caminhao_em&&<div style={{fontSize:10,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:6,padding:"3px 8px"}}>📍 Chegou — {new Date(a.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.termino_caminhao_em&&<div style={{fontSize:10,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:6,padding:"3px 8px"}}>🏁 Fim — {new Date(a.termino_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                    </div>)}
                   </div>
                 )}
               </div>
