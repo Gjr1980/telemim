@@ -893,7 +893,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();if(isMotorista&&(tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().then(function(){loadMud();loadAg();});}},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().then(function(){loadMud();loadAg();});}},[tab]);
   useEffect(()=>{
     async function load(){
       try{
@@ -972,8 +972,6 @@ export default function App(){
     }catch(e){console.warn("loadCfgWA:",e);}
   }
 
-  async function loadMud(){const rows=await dbGet("mudancas");if(rows)setMudancas(rows);}
-  async function loadAg(){const rows=await dbGet("agenda");if(rows)setAgenda(rows);}
 
   // ── SYNC HELPERS ───────────────────────────────────────────────────────────
   function parseImport(txt){
@@ -2532,6 +2530,9 @@ export default function App(){
           var _mesProx=function(){var d=new Date(regMotMes+"-15");d.setMonth(d.getMonth()+1);setRegMotMes(d.toISOString().slice(0,7));};
           var _hj3=new Date().toISOString().slice(0,10);
           var _mm3=(mudancas||[]).filter(function(m){if(m.deleted_at||!m.data||m.data.slice(0,7)!==regMotMes)return false;if(!usuario||!usuario.id)return false;return m.motorista_van_id===usuario.id||m.motorista_caminhao_id===usuario.id;});
+          // Incluir também agenda items atribuídos ao motorista que ainda não migraram para mudancas
+          var _agMot=(agenda||[]).filter(function(a){if(a.deleted_at||!a.data||a.data.slice(0,7)!==regMotMes)return false;if(!usuario||!usuario.id)return false;if(a.motorista_van_id!==usuario.id&&a.motorista_caminhao_id!==usuario.id)return false;var _jaExiste=_mm3.some(function(m){return m.data===a.data&&(m.nome||"").toLowerCase().trim()===(a.nome||"").toLowerCase().trim();});return !_jaExiste;});
+          _agMot.forEach(function(a){_mm3.push({id:a.id,nome:a.nome,data:a.data,horario:a.horario,selo:a.selo,comunidade:a.comunidade,origem:a.origem,destino:a.destino,van:a.van,caminhao:a.caminhao,medicao:a.medicao,status:a.status==="realizado"||a.status==="concluida"?"Concluído":a.status==="confirmado"?"Agendado":"Pendente",motorista_van_id:a.motorista_van_id,motorista_caminhao_id:a.motorista_caminhao_id,_fromAgenda:true});});
           var _dd3=[...new Set(_mm3.map(function(m){return m.data;}))].sort(function(a,b){return b.localeCompare(a);});
           return(
             <div style={{padding:"0 12px 80px",background:"#f8fafc"}}>
