@@ -2357,6 +2357,7 @@ export default function App(){
                     {a.horario&&<div style={{fontSize:_dest?14:12,color:"#475569"}}>⏰ {a.horario}h</div>}
                     <div style={{fontSize:_dest?13:11,marginTop:8}}>📦 {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     <div style={{fontSize:_dest?13:11,marginTop:24}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
+                    {a.approved_by_supervisor&&<div style={{fontSize:_dest?13:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {a.approved_by_supervisor}</div>}
                   </div>
                   <div style={{background:_stMot==="Em Deslocamento"?"#dbeafe":_stMot==="Realizando"?"#fef9c3":"#dcfce7",border:"1px solid "+(_stMot==="Em Deslocamento"?"#93c5fd":_stMot==="Realizando"?"#fde047":"#86efac"),borderRadius:20,padding:"3px 10px",fontSize:_dest?11:10,fontWeight:700,color:_stMot==="Em Deslocamento"?"#1d4ed8":_stMot==="Realizando"?"#854d0e":"#15803d",whiteSpace:"nowrap"}}>
                     {_stMot==="confirmado"||_stMot==="pendente"?"🟡 Pendente":_stMot==="Em Deslocamento"?"🚚 Em Deslocamento":_stMot==="Realizando"?"⚡ Realizando":_stMot}
@@ -2404,6 +2405,7 @@ export default function App(){
                     {a.horario&&<div style={{fontSize:12,color:"#475569"}}>⏰ {a.horario}h</div>}
                     <div style={{fontSize:11,marginTop:8}}>📦 {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     <div style={{fontSize:11,marginTop:24}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
+                    {a.approved_by_supervisor&&<div style={{fontSize:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {a.approved_by_supervisor}</div>}
                   </div>
                   <div style={{background:"#ffedd5",border:"1px solid #fed7aa",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:"#c2410c",whiteSpace:"nowrap"}}>⏳ Amanhã</div>
                 </div>
@@ -2428,6 +2430,7 @@ export default function App(){
                     {a.horario&&<div style={{fontSize:12,color:"#475569"}}>⏰ {a.horario}h</div>}
                     <div style={{fontSize:11,marginTop:8}}>📦 {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     <div style={{fontSize:11,marginTop:24}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
+                    {a.approved_by_supervisor&&<div style={{fontSize:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {a.approved_by_supervisor}</div>}
                   </div>
                   <div style={{background:"#bfdbfe",border:"1px solid #93c5fd",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:"#1e40af",whiteSpace:"nowrap"}}>{a.data?new Date(a.data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"?"}</div>
                 </div>
