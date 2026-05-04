@@ -722,6 +722,7 @@ function RotaTerceirizada({token}){
 export default function App(){
   const [usuario,setUsuario]=useState(null);
   const [abaMotorista,setAbaMotorista]=useState('hoje');
+  const [regMotMes,setRegMotMes]=useState(()=>new Date().toISOString().slice(0,7));
   const [modalAssinatura, setModalAssinatura] = useState(false);
   const [mudancaCanhoto, setMudancaCanhoto] = useState(null);
   const [loginForm,setLoginForm]=useState({email:"",senha:""});
@@ -875,7 +876,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();if(isMotorista&&tab==="fin_mot"){_ensureAuth().then(function(){loadMud();loadAg();});}},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();if(isMotorista&&(tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().then(function(){loadMud();loadAg();});}},[tab]);
   useEffect(()=>{
     async function load(){
       try{
@@ -2464,33 +2465,51 @@ export default function App(){
           );})()}
         <div style={{display:isMotorista&&abaMotorista!=='registros'&&tab!=='registros_mot'?'none':undefined}}>
 {tab==="registros_mot"&&isMotorista&&(function(){
-          var _hj3=new Date();
-          var _am3=_hj3.toISOString().slice(0,7);
-          var _mm3=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===_am3;});
+          var _nomesMes=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+          var _mesD=new Date(regMotMes+"-15");
+          var _mesLabel=_nomesMes[_mesD.getMonth()]+" "+_mesD.getFullYear();
+          var _mesAnt=function(){var d=new Date(regMotMes+"-15");d.setMonth(d.getMonth()-1);setRegMotMes(d.toISOString().slice(0,7));};
+          var _mesProx=function(){var d=new Date(regMotMes+"-15");d.setMonth(d.getMonth()+1);setRegMotMes(d.toISOString().slice(0,7));};
+          var _hj3=new Date().toISOString().slice(0,10);
+          var _mm3=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===regMotMes;});
           var _dd3=[...new Set(_mm3.map(function(m){return m.data;}))].sort(function(a,b){return b.localeCompare(a);});
-          if(!_mm3.length) return null;
           return(
-            <div style={{padding:"0 12px 16px",background:"#f8fafc"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                <div style={{fontWeight:800,fontSize:15,color:"#1e293b"}}>📋 Mudanças do Mês</div>
-                <span style={{background:"#e0e7ff",color:"#3730a3",borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700}}>{_mm3.length} total</span>
+            <div style={{padding:"0 12px 80px",background:"#f8fafc"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:16,paddingTop:4}}>
+                <button onClick={_mesAnt} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>◀</button>
+                <div style={{fontSize:15,fontWeight:800,color:"#1e293b"}}>📅 {_mesLabel}</div>
+                <button onClick={_mesProx} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>▶</button>
               </div>
-              {_dd3.map(function(dia){
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <div style={{fontWeight:800,fontSize:15,color:"#1e293b"}}>📋 Meus Registros</div>
+                <span style={{background:"#e0e7ff",color:"#3730a3",borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700}}>{_mm3.length} mudança{_mm3.length!==1?"s":""}</span>
+              </div>
+              {_mm3.length===0?<div style={{background:"#fff",borderRadius:12,padding:"32px 16px",textAlign:"center",border:"1px solid #e2e8f0"}}><div style={{fontSize:32,marginBottom:8}}>📭</div><div style={{fontSize:13,color:"#94a3b8",fontWeight:600}}>Nenhuma mudança registrada neste mês</div></div>:_dd3.map(function(dia){
                 var _md3=_mm3.filter(function(m){return m.data===dia;}).sort(function(a,b){return(a.horario||"99:99").localeCompare(b.horario||"99:99");});
                 var _df3=dia.slice(8)+"/"+dia.slice(5,7)+"/"+dia.slice(0,4);
-                var _ih3=dia===_hj3.toISOString().slice(0,10);
+                var _ih3=dia===_hj3;
                 return(
-                <div key={dia} style={{background:"#fff",borderRadius:12,padding:"14px 16px",marginBottom:10,boxShadow:"0 1px 6px rgba(0,0,0,0.06)",border:_ih3?"1.5px solid #3b82f6":"1px solid #e2e8f0"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                    <div style={{fontWeight:700,fontSize:14,color:_ih3?"#1e40af":"#1e293b"}}>{_df3}</div>
-                    <span style={{background:"#e0e7ff",color:"#3730a3",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700}}>{_md3.length} mud.</span>
+                <div key={dia} style={{background:"#fff",borderRadius:14,padding:"14px 16px",marginBottom:12,boxShadow:"0 1px 8px rgba(0,0,0,0.06)",border:_ih3?"2px solid #3b82f6":"1px solid #e2e8f0"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <div style={{fontWeight:700,fontSize:14,color:_ih3?"#1e40af":"#1e293b"}}>{_ih3?"📍 Hoje — ":""}{_df3}</div>
+                    <span style={{background:"#e0e7ff",color:"#3730a3",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{_md3.length} mud.</span>
                   </div>
-                  {_md3.map(function(m,_i3){return(
-                    <div key={_i3} style={{display:"flex",alignItems:"center",padding:"7px 0",borderTop:_i3>0?"1px solid #f1f5f9":"none"}}>
-                      <div style={{width:7,height:7,borderRadius:"50%",background:"#f59e0b",marginRight:10,flexShrink:0}}></div>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:13,fontWeight:600,color:"#334155"}}>{m.nome}</div>
-                        <div style={{fontSize:11,color:"#94a3b8"}}>{m.comunidade||""}{m.horario?<span> - <b style={{color:"#334155"}}>{m.horario.replace(":00","")+"h"}</b></span>:""}</div>
+                  {_md3.map(function(m,_i3){
+                    var _stColor=m.status==="Concluído"||m.status==="concluida"?"#16a34a":m.status==="Registrado"?"#d97706":"#64748b";
+                    var _stLabel=m.status==="Concluído"||m.status==="concluida"?"✅ Concluído":m.status==="Registrado"?"⏳ Registrado":"📋 "+m.status;
+                    var _veics=[m.van&&"🚐 Van",m.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"";
+                    return(
+                    <div key={_i3} style={{padding:"10px 12px",marginBottom:_i3<_md3.length-1?6:0,background:"#f8fafc",borderRadius:10,border:"1px solid #e2e8f0"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                        <div style={{fontWeight:700,fontSize:13,color:"#1e293b",flex:1}}>{m.nome}</div>
+                        <span style={{fontSize:10,fontWeight:700,color:_stColor,background:_stColor==="#16a34a"?"#f0fdf4":_stColor==="#d97706"?"#fffbeb":"#f8fafc",borderRadius:6,padding:"2px 8px",border:"1px solid "+_stColor+"33",whiteSpace:"nowrap",marginLeft:6}}>{_stLabel}</span>
+                      </div>
+                      {m.comunidade&&<div style={{fontSize:11,color:"#64748b",marginBottom:3}}>{m.comunidade}</div>}
+                      {(m.origem||m.destino)&&<div style={{fontSize:11,color:"#475569",marginBottom:3}}>📦 {m.origem||"?"} → 🏠 {m.destino||"?"}</div>}
+                      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+                        {_veics&&<span style={{fontSize:10,fontWeight:600,color:"#1e40af",background:"#dbeafe",borderRadius:6,padding:"2px 7px"}}>{_veics}</span>}
+                        {m.medicao>0&&<span style={{fontSize:10,fontWeight:600,color:"#7c3aed",background:"#ede9fe",borderRadius:6,padding:"2px 7px"}}>📐 {m.medicao} m³</span>}
+                        {m.horario&&<span style={{fontSize:10,fontWeight:600,color:"#334155",background:"#f1f5f9",borderRadius:6,padding:"2px 7px"}}>⏰ {m.horario}</span>}
                       </div>
                     </div>
                   );})}
