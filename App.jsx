@@ -859,6 +859,82 @@ export default function App(){
   const [backupLoading,setBackupLoading]=useState(false);
   const [contaEditVal,setContaEditVal]=useState("");
 
+  // ── GPS TRACKING STATE ─────────────────────────────────────────────────────
+  const [gpsWatchId,setGpsWatchId]=useState(null);
+  const [gpsAgendaId,setGpsAgendaId]=useState(null);
+  const [gpsPositions,setGpsPositions]=useState([]);// admin: latest positions per motorista
+  const [showGpsMap,setShowGpsMap]=useState(false);
+  const [gpsMapAgenda,setGpsMapAgenda]=useState(null);
+  const [gpsEta,setGpsEta]=useState(null);
+
+  const MAPBOX_TOKEN=["pk.eyJ1IjoidGVsZW1pbSIsImEiOiJjbW9yd","HJzMmcwNW8yMndwdnZ1bDFoOXZ2In0.","4MHg1RPF_jFgiQt4Ax4Psw"].join("");
+
+  // ── GPS: Start tracking (motorista) ────────────────────────────────────────
+  function gpsStart(agendaId){
+    if(gpsWatchId!==null) return;// already tracking
+    if(!navigator.geolocation) return;
+    var _lastSent=0;
+    var wid=navigator.geolocation.watchPosition(
+      function(pos){
+        var now=Date.now();
+        if(now-_lastSent<30000) return;// throttle 30s
+        _lastSent=now;
+        var payload={motorista_id:usuario.id,agenda_id:agendaId,lat:pos.coords.latitude,lng:pos.coords.longitude,heading:pos.coords.heading,speed:pos.coords.speed};
+        fetch(SUPA_URL+"/rest/v1/gps_tracking",{
+          method:"POST",
+          headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),
+          body:JSON.stringify(payload)
+        }).catch(function(){});
+      },
+      function(err){console.warn("[GPS] error:",err.message);},
+      {enableHighAccuracy:true,maximumAge:10000,timeout:15000}
+    );
+    setGpsWatchId(wid);
+    setGpsAgendaId(agendaId);
+  }
+
+  // ── GPS: Stop tracking (motorista) ─────────────────────────────────────────
+  function gpsStop(){
+    if(gpsWatchId!==null){
+      navigator.geolocation.clearWatch(gpsWatchId);
+      setGpsWatchId(null);
+      setGpsAgendaId(null);
+    }
+  }
+
+  // ── GPS: Load latest positions for admin ───────────────────────────────────
+  async function gpsLoadPositions(agId){
+    try{
+      var url=SUPA_URL+"/rest/v1/gps_tracking?agenda_id=eq."+agId+"&order=created_at.desc&limit=1";
+      var r=await fetch(url,{headers:getH()});
+      if(!r.ok) return null;
+      var d=await r.json();
+      return d&&d.length>0?d[0]:null;
+    }catch(e){return null;}
+  }
+
+  // ── GPS: Fetch ETA via Mapbox Directions ───────────────────────────────────
+  async function gpsCalcEta(fromLat,fromLng,toAddress){
+    try{
+      // Geocode destination address
+      var geoUrl="https://api.mapbox.com/geocoding/v5/mapbox.places/"+encodeURIComponent(toAddress)+".json?access_token="+MAPBOX_TOKEN+"&limit=1&country=BR";
+      var geoR=await fetch(geoUrl);
+      var geoD=await geoR.json();
+      if(!geoD.features||geoD.features.length===0) return null;
+      var destCoords=geoD.features[0].center;// [lng,lat]
+      // Directions API
+      var dirUrl="https://api.mapbox.com/directions/v5/mapbox/driving/"+fromLng+","+fromLat+";"+destCoords[0]+","+destCoords[1]+"?overview=full&geometries=geojson&access_token="+MAPBOX_TOKEN;
+      var dirR=await fetch(dirUrl);
+      var dirD=await dirR.json();
+      if(!dirD.routes||dirD.routes.length===0) return null;
+      var route=dirD.routes[0];
+      var durMin=Math.ceil(route.duration/60);
+      var eta=new Date(Date.now()+route.duration*1000);
+      var _pad=function(n){return String(n).padStart(2,"0");};
+      return {durMin:durMin,etaStr:_pad(eta.getHours())+":"+_pad(eta.getMinutes()),route:route.geometry,destCoords:destCoords};
+    }catch(e){return null;}
+  }
+
   // ── LOAD DATA ──────────────────────────────────────────────────────────────
   // ── FUNÇÃO loadContasSemana ─────────────────────────────────────────
   async function loadContasSemana(){
@@ -1856,16 +1932,19 @@ export default function App(){
       body.inicio_em=agora;
       if(_isVanMot) body.inicio_van_em=agora;
       if(_isCamMot) body.inicio_caminhao_em=agora;
+      gpsStart(ag.id);
     }
     if(novoStatus==="Realizando"){
       body.inicio_mudanca_em=agora;
       if(_isVanMot) body.chegada_van_em=agora;
       if(_isCamMot) body.chegada_caminhao_em=agora;
+      gpsStop();
     }
     if(novoStatus==="Concluido"||novoStatus==="realizado"){
       body.termino_em=agora;
       if(_isVanMot) body.termino_van_em=agora;
       if(_isCamMot) body.termino_caminhao_em=agora;
+      gpsStop();
     }
     var prevAgenda=agenda.slice();
     setAgenda(function(prev){return prev.map(function(a){return a.id===ag.id?Object.assign({},a,body):a;});});
@@ -2461,9 +2540,15 @@ export default function App(){
                     </button>
                   )}
                   {_stMot==="Em Deslocamento"&&(
-                    <button onClick={function(){handleStatusMotorista(a,"Realizando");}} style={{width:"100%",background:"#7c3aed",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                      🚛 Iniciar Mudança
-                    </button>
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,background:"#ecfdf5",border:"1.5px solid #a7f3d0",borderRadius:_dest?10:8,padding:_dest?"10px 14px":"8px 12px"}}>
+                        <span style={{width:10,height:10,borderRadius:"50%",background:"#16a34a",animation:"pulse 1.5s infinite"}}></span>
+                        <span style={{fontSize:_dest?12:11,fontWeight:700,color:"#065f46"}}>📡 GPS ativo — enviando posição</span>
+                      </div>
+                      <button onClick={function(){handleStatusMotorista(a,"Realizando");}} style={{width:"100%",background:"#7c3aed",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                        🚛 Iniciar Mudança
+                      </button>
+                    </div>
                   )}
                   {_stMot==="Realizando"&&(
                     <button onClick={function(){gerarPDFMudanca(a);}} style={{width:"100%",background:"#16a34a",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
@@ -2697,6 +2782,11 @@ export default function App(){
                       {a.chegada_caminhao_em&&<div style={{fontSize:10,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:6,padding:"3px 8px"}}>📍 Chegou — {new Date(a.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
                       {a.termino_caminhao_em&&<div style={{fontSize:10,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:6,padding:"3px 8px"}}>🏁 Fim — {new Date(a.termino_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
                     </div>)}
+                    {((a.inicio_van_em||a.van_saiu_em)&&!a.chegada_van_em)||((a.inicio_caminhao_em||a.caminhao_saiu_em)&&!a.chegada_caminhao_em)?
+                      <button onClick={function(e){e.stopPropagation();setGpsMapAgenda(a);setShowGpsMap(true);setGpsEta(null);
+                        gpsLoadPositions(a.id).then(function(pos){if(pos&&a.destino){gpsCalcEta(pos.lat,pos.lng,a.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
+                      }} style={{background:"#059669",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer",marginTop:4}}>📍 Ver Mapa GPS</button>
+                    :null}
                   </div>
                 )}
               </div>
@@ -3702,6 +3792,65 @@ return(
               }} disabled={waLoading} style={{width:"100%",padding:10,borderRadius:10,border:"none",background:waLoading?"#86efac":"#16a34a",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",marginTop:12}}>{waLoading?"⏳ Salvando...":"💾 Salvar Configurações WhatsApp"}</button>
             </div>
           )}
+            {/* ══ MODAL GPS MAP ══ */}
+      {showGpsMap&&gpsMapAgenda&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(4px)",zIndex:2000,display:"flex",flexDirection:"column",padding:0}} onClick={function(){setShowGpsMap(false);setGpsMapAgenda(null);setGpsEta(null);setGpsPositions([]);}}>
+          <div style={{flex:1,display:"flex",flexDirection:"column"}} onClick={function(e){e.stopPropagation();}}>
+            <div style={{background:"#1e293b",padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{color:"#fff",fontWeight:800,fontSize:14}}>📍 GPS — {gpsMapAgenda.nome}</div>
+              <button onClick={function(){setShowGpsMap(false);setGpsMapAgenda(null);setGpsEta(null);setGpsPositions([]);}} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕ Fechar</button>
+            </div>
+            {gpsEta&&(
+              <div style={{background:"#ecfdf5",padding:"10px 16px",borderBottom:"1px solid #a7f3d0",display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:18}}>⏱️</span>
+                <span style={{fontWeight:800,fontSize:14,color:"#065f46"}}>Chegada prevista: {gpsEta.etaStr}</span>
+                <span style={{fontSize:12,color:"#047857",marginLeft:8}}>({gpsEta.durMin} min restantes)</span>
+              </div>
+            )}
+            {gpsPositions.length===0&&!gpsEta&&(
+              <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"#94a3b8",fontSize:14,fontWeight:600}}>
+                Aguardando dados GPS do motorista...
+              </div>
+            )}
+            {gpsPositions.length>0&&(
+              <div style={{flex:1,position:"relative"}} ref={function(el){
+                if(!el||!window.mapboxgl) return;
+                if(el._mapInstance) {el._mapInstance.remove();el._mapInstance=null;}
+                var pos=gpsPositions[0];
+                window.mapboxgl.accessToken=MAPBOX_TOKEN;
+                var map=new window.mapboxgl.Map({container:el,style:"mapbox://styles/mapbox/streets-v12",center:[pos.lng,pos.lat],zoom:13});
+                el._mapInstance=map;
+                var markerEl=document.createElement("div");
+                markerEl.innerHTML="🚚";
+                markerEl.style.fontSize="32px";
+                new window.mapboxgl.Marker({element:markerEl}).setLngLat([pos.lng,pos.lat]).addTo(map);
+                if(gpsEta&&gpsEta.route){
+                  map.on("load",function(){
+                    map.addSource("route",{type:"geojson",data:{type:"Feature",geometry:gpsEta.route}});
+                    map.addLayer({id:"route",type:"line",source:"route",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#2563eb","line-width":4}});
+                    var destMarkerEl=document.createElement("div");
+                    destMarkerEl.innerHTML="📍";
+                    destMarkerEl.style.fontSize="28px";
+                    new window.mapboxgl.Marker({element:destMarkerEl}).setLngLat(gpsEta.destCoords).addTo(map);
+                    var bounds=new window.mapboxgl.LngLatBounds();
+                    bounds.extend([pos.lng,pos.lat]);
+                    bounds.extend(gpsEta.destCoords);
+                    map.fitBounds(bounds,{padding:60});
+                  });
+                }
+              }}></div>
+            )}
+            <div style={{background:"#1e293b",padding:"10px 16px",display:"flex",gap:8}}>
+              <button onClick={function(){
+                gpsLoadPositions(gpsMapAgenda.id).then(function(pos){
+                  if(pos&&gpsMapAgenda.destino){gpsCalcEta(pos.lat,pos.lng,gpsMapAgenda.destino).then(function(eta){setGpsEta(eta);});}
+                  setGpsPositions(pos?[pos]:[]);
+                });
+              }} style={{flex:1,background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 0",fontWeight:700,fontSize:13,cursor:"pointer"}}>🔄 Atualizar Posição</button>
+            </div>
+          </div>
+        </div>
+      )}
             {/* ══ MODAL CONFIRMAR FINALIZAÇÃO ══ */}
       {confirmFinAg&&(
         <div style={{position:"fixed",inset:0,background:"rgba(30,64,175,0.75)",backdropFilter:"blur(4px)",zIndex:1500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setConfirmFinAg(null);}}>
