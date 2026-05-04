@@ -2558,10 +2558,11 @@ export default function App(){
           var _mesAnt=function(){var d=new Date(regMotMes+"-15");d.setMonth(d.getMonth()-1);setRegMotMes(d.toISOString().slice(0,7));};
           var _mesProx=function(){var d=new Date(regMotMes+"-15");d.setMonth(d.getMonth()+1);setRegMotMes(d.toISOString().slice(0,7));};
           var _hj3=new Date().toISOString().slice(0,10);
+          var _statusConcluido=function(s){return["realizado","realizada","concluido","concluida","Concluido","Concluído"].indexOf(s)>=0;};
           var _mm3=(mudancas||[]).filter(function(m){if(m.deleted_at||!m.data||m.data.slice(0,7)!==regMotMes)return false;if(!usuario||!usuario.id)return false;return m.motorista_van_id===usuario.id||m.motorista_caminhao_id===usuario.id;});
-          // Incluir também agenda items atribuídos ao motorista que ainda não migraram para mudancas
-          var _agMot=(agenda||[]).filter(function(a){if(a.deleted_at||!a.data||a.data.slice(0,7)!==regMotMes)return false;if(!usuario||!usuario.id)return false;if(a.motorista_van_id!==usuario.id&&a.motorista_caminhao_id!==usuario.id)return false;var _jaExiste=_mm3.some(function(m){return m.data===a.data&&(m.nome||"").toLowerCase().trim()===(a.nome||"").toLowerCase().trim();});return !_jaExiste;});
-          _agMot.forEach(function(a){_mm3.push({id:a.id,nome:a.nome,data:a.data,horario:a.horario,selo:a.selo,comunidade:a.comunidade,origem:a.origem,destino:a.destino,van:a.van,caminhao:a.caminhao,medicao:a.medicao,status:a.status==="realizado"||a.status==="concluida"?"Concluído":a.status==="confirmado"?"Agendado":"Pendente",motorista_van_id:a.motorista_van_id,motorista_caminhao_id:a.motorista_caminhao_id,_fromAgenda:true});});
+          // Incluir agenda items atribuídos ao motorista — inclusive soft-deleted (admin já registrou OS) para não sumir do histórico
+          var _agMot=(agenda||[]).filter(function(a){if(!a.data||a.data.slice(0,7)!==regMotMes)return false;if(a.status==="cancelada")return false;if(!usuario||!usuario.id)return false;if(a.motorista_van_id!==usuario.id&&a.motorista_caminhao_id!==usuario.id)return false;var _jaExiste=_mm3.some(function(m){return m.data===a.data&&(m.nome||"").toLowerCase().trim()===(a.nome||"").toLowerCase().trim();});return !_jaExiste;});
+          _agMot.forEach(function(a){var _st=_statusConcluido(a.status)?"Concluído":a.status==="confirmado"?"Agendado":a.status==="Em Deslocamento"?"Em Deslocamento":a.status==="Realizando"?"Realizando":"Pendente";_mm3.push({id:a.id,nome:a.nome,data:a.data,horario:a.horario,selo:a.selo,comunidade:a.comunidade,origem:a.origem,destino:a.destino,van:a.van,caminhao:a.caminhao,medicao:a.medicao,status:_st,motorista_van_id:a.motorista_van_id,motorista_caminhao_id:a.motorista_caminhao_id,_fromAgenda:true});});
           var _dd3=[...new Set(_mm3.map(function(m){return m.data;}))].sort(function(a,b){return b.localeCompare(a);});
           return(
             <div style={{padding:"0 12px 80px",background:"#f8fafc"}}>
@@ -2585,8 +2586,10 @@ export default function App(){
                     <span style={{background:"#e0e7ff",color:"#3730a3",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{_md3.length} mud.</span>
                   </div>
                   {_md3.map(function(m,_i3){
-                    var _stColor=m.status==="Concluído"||m.status==="concluida"?"#16a34a":m.status==="Registrado"?"#d97706":"#64748b";
-                    var _stLabel=m.status==="Concluído"||m.status==="concluida"?"✅ Concluído":m.status==="Registrado"?"⏳ Registrado":"📋 "+m.status;
+                    var _isConcl=["Concluído","concluida","concluido","Concluido","realizado","realizada"].indexOf(m.status)>=0;
+                    var _isAndamento=m.status==="Em Deslocamento"||m.status==="Realizando";
+                    var _stColor=_isConcl?"#16a34a":m.status==="Registrado"||m.status==="Agendado"?"#d97706":_isAndamento?"#1d4ed8":"#64748b";
+                    var _stLabel=_isConcl?"✅ Concluído":m.status==="Registrado"?"⏳ Registrado":m.status==="Em Deslocamento"?"🚚 Em Deslocamento":m.status==="Realizando"?"⚡ Realizando":m.status==="Agendado"?"📋 Agendado":"📋 "+m.status;
                     var _veics=[m.van&&"🚐 Van",m.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"";
                     return(
                     <div key={_i3} style={{padding:"10px 12px",marginBottom:_i3<_md3.length-1?6:0,background:"#f8fafc",borderRadius:10,border:"1px solid #e2e8f0"}}>
