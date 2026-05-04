@@ -2966,26 +2966,89 @@ export default function App(){
                       <div style={{width:8,height:8,borderRadius:"50%",background:"#2563eb",animation:"pulse 1.5s infinite"}}></div>
                       <div style={{fontSize:11,fontWeight:800,color:"#2563eb",letterSpacing:1,textTransform:"uppercase"}}>Operação em Andamento</div>
                     </div>
-                    <div style={{fontWeight:800,fontSize:16,color:"#1e293b",marginBottom:4}}>👤 {am.nome}</div>
-                    {am.selo&&<div style={{fontSize:11,color:"#64748b",marginBottom:6}}>🏷️ Selo: {am.selo}</div>}
-                    <div style={{fontSize:12,color:"#475569",marginBottom:3}}>📦 <span style={{fontWeight:600}}>{am.origem||"?"}</span></div>
-                    <div style={{fontSize:12,color:"#475569",marginBottom:2}}>🏠 <span style={{fontWeight:600}}>{am.destino||"?"}</span></div>
-                    {am.horario&&<div style={{fontSize:11,color:"#64748b",marginTop:4}}>⏰ Horário: {am.horario}h</div>}
+
+                    {/* Dados do Morador */}
+                    <div style={{background:"#fff7ed",borderRadius:10,padding:"10px 12px",marginBottom:10,border:"1px solid #fed7aa"}}>
+                      <div style={{fontSize:10,fontWeight:700,color:"#c2410c",letterSpacing:0.5,marginBottom:4}}>MORADOR</div>
+                      <div style={{fontWeight:800,fontSize:16,color:"#1e293b",marginBottom:2}}>👤 {am.nome}</div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+                        {am.selo&&<span style={{fontSize:10,fontWeight:700,color:"#92400e",background:"#fef3c7",borderRadius:6,padding:"2px 8px"}}>🏷️ {am.selo}</span>}
+                        {am.comunidade&&<span style={{fontSize:10,fontWeight:700,color:"#92400e",background:"#fef3c7",borderRadius:6,padding:"2px 8px"}}>📍 {am.comunidade}</span>}
+                        {am.contato&&<span style={{fontSize:10,fontWeight:700,color:"#92400e",background:"#fef3c7",borderRadius:6,padding:"2px 8px"}}>📞 {am.contato}</span>}
+                        {am.horario&&<span style={{fontSize:10,fontWeight:700,color:"#92400e",background:"#fef3c7",borderRadius:6,padding:"2px 8px"}}>⏰ {am.horario}h</span>}
+                        {am.medicao>0&&<span style={{fontSize:10,fontWeight:700,color:"#92400e",background:"#fef3c7",borderRadius:6,padding:"2px 8px"}}>📐 {am.medicao} m³</span>}
+                      </div>
+                    </div>
+
+                    {/* Origem → Destino */}
+                    <div style={{display:"flex",alignItems:"stretch",gap:8,marginBottom:10}}>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,paddingTop:4}}>
+                        <div style={{width:10,height:10,borderRadius:"50%",background:"#2563eb",border:"2px solid #93c5fd"}}></div>
+                        <div style={{flex:1,width:2,background:"#cbd5e1"}}></div>
+                        <div style={{width:10,height:10,borderRadius:"50%",background:"#16a34a",border:"2px solid #86efac"}}></div>
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:11,color:"#64748b",fontWeight:600,marginBottom:2}}>SAÍDA</div>
+                        <div style={{fontSize:12,color:"#1e293b",fontWeight:700,marginBottom:8}}>{am.origem||"?"}</div>
+                        <div style={{fontSize:11,color:"#64748b",fontWeight:600,marginBottom:2}}>DESTINO</div>
+                        <div style={{fontSize:12,color:"#1e293b",fontWeight:700}}>{am.destino||"?"}</div>
+                      </div>
+                    </div>
+
+                    {/* Van e Caminhão — Motoristas */}
+                    {(am.motorista_van_id||am.motorista_caminhao_id)&&(function(){
+                      var _vanMot=am.motorista_van_id?listaUsuarios.find(function(u){return u.id===am.motorista_van_id;}):null;
+                      var _camMot=am.motorista_caminhao_id?listaUsuarios.find(function(u){return u.id===am.motorista_caminhao_id;}):null;
+                      return(
+                        <div style={{display:"flex",gap:6,marginBottom:10}}>
+                          {_vanMot&&(
+                            <div style={{flex:1,background:"#dbeafe",borderRadius:8,padding:"8px 10px",border:"1px solid #93c5fd"}}>
+                              <div style={{fontSize:10,fontWeight:700,color:"#1d4ed8",marginBottom:3}}>🚐 VAN</div>
+                              <div style={{fontSize:12,fontWeight:800,color:"#1e293b"}}>{_vanMot.nome}</div>
+                              {_vanMot.placa_veiculo&&<div style={{fontSize:10,color:"#475569",marginTop:2}}>🔖 {_vanMot.placa_veiculo}</div>}
+                              {_vanMot.contato&&<div style={{fontSize:10,color:"#475569",marginTop:1}}>📞 {_vanMot.contato}</div>}
+                              {/* Van timestamps */}
+                              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                                {(am.inicio_van_em||am.van_saiu_em)&&<span style={{fontSize:9,fontWeight:700,color:"#1d4ed8",background:"#eff6ff",borderRadius:4,padding:"2px 6px"}}>🚐 Saiu {new Date(am.inicio_van_em||am.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                                {am.chegada_van_em&&<span style={{fontSize:9,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:4,padding:"2px 6px"}}>📍 Chegou {new Date(am.chegada_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                                {am.termino_van_em&&<span style={{fontSize:9,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:4,padding:"2px 6px"}}>🏁 Fim {new Date(am.termino_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                              </div>
+                              {/* GPS button for Van */}
+                              {(am.inicio_van_em||am.van_saiu_em)&&!am.chegada_van_em&&(
+                                <button onClick={function(){setGpsMapAgenda(am);setShowGpsMap(true);setGpsEta(null);
+                                  gpsLoadPositions(am.id).then(function(pos){if(pos&&am.destino){gpsCalcEta(pos.lat,pos.lng,am.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
+                                }} style={{marginTop:6,width:"100%",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 0",fontWeight:700,fontSize:10,cursor:"pointer"}}>📡 Rastrear Van</button>
+                              )}
+                            </div>
+                          )}
+                          {_camMot&&(
+                            <div style={{flex:1,background:"#ede9fe",borderRadius:8,padding:"8px 10px",border:"1px solid #c4b5fd"}}>
+                              <div style={{fontSize:10,fontWeight:700,color:"#7c3aed",marginBottom:3}}>🚚 CAMINHÃO</div>
+                              <div style={{fontSize:12,fontWeight:800,color:"#1e293b"}}>{_camMot.nome}</div>
+                              {_camMot.placa_veiculo&&<div style={{fontSize:10,color:"#475569",marginTop:2}}>🔖 {_camMot.placa_veiculo}</div>}
+                              {_camMot.contato&&<div style={{fontSize:10,color:"#475569",marginTop:1}}>📞 {_camMot.contato}</div>}
+                              {/* Caminhão timestamps */}
+                              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                                {(am.inicio_caminhao_em||am.caminhao_saiu_em)&&<span style={{fontSize:9,fontWeight:700,color:"#7c3aed",background:"#f5f3ff",borderRadius:4,padding:"2px 6px"}}>🚚 Saiu {new Date(am.inicio_caminhao_em||am.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                                {am.chegada_caminhao_em&&<span style={{fontSize:9,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:4,padding:"2px 6px"}}>📍 Chegou {new Date(am.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                                {am.termino_caminhao_em&&<span style={{fontSize:9,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:4,padding:"2px 6px"}}>🏁 Fim {new Date(am.termino_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                              </div>
+                              {/* GPS button for Caminhão */}
+                              {(am.inicio_caminhao_em||am.caminhao_saiu_em)&&!am.chegada_caminhao_em&&(
+                                <button onClick={function(){setGpsMapAgenda(am);setShowGpsMap(true);setGpsEta(null);
+                                  gpsLoadPositions(am.id).then(function(pos){if(pos&&am.destino){gpsCalcEta(pos.lat,pos.lng,am.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
+                                }} style={{marginTop:6,width:"100%",background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,padding:"6px 0",fontWeight:700,fontSize:10,cursor:"pointer"}}>📡 Rastrear Caminhão</button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {/* Step Tracker */}
-                    <div style={{background:"#f8fafc",borderRadius:12,padding:"8px 12px",marginTop:10,border:"1px solid #e2e8f0"}}>
+                    <div style={{background:"#f8fafc",borderRadius:12,padding:"8px 12px",marginTop:4,border:"1px solid #e2e8f0"}}>
                       <StepTracker status={am.status}/>
                     </div>
-                    {/* Timestamps */}
-                    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:8}}>
-                      {(am.inicio_em||am.inicio_van_em||am.van_saiu_em)&&<span style={{fontSize:10,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:6,padding:"3px 8px"}}>🚚 Saída: {new Date(am.inicio_em||am.inicio_van_em||am.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
-                      {(am.inicio_mudanca_em||am.chegada_van_em)&&<span style={{fontSize:10,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:6,padding:"3px 8px"}}>📍 Chegou: {new Date(am.inicio_mudanca_em||am.chegada_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
-                    </div>
-                    {/* GPS Map button */}
-                    {(am.inicio_em||am.inicio_van_em||am.inicio_caminhao_em)&&!am.chegada_van_em&&!am.chegada_caminhao_em&&(
-                      <button onClick={function(){setGpsMapAgenda(am);setShowGpsMap(true);setGpsEta(null);
-                        gpsLoadPositions(am.id).then(function(pos){if(pos&&am.destino){gpsCalcEta(pos.lat,pos.lng,am.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
-                      }} style={{marginTop:8,width:"100%",background:"#059669",color:"#fff",border:"none",borderRadius:8,padding:"8px 0",fontWeight:700,fontSize:12,cursor:"pointer"}}>📍 Ver Mapa GPS</button>
-                    )}
                   </div>
                 ):(
                   <div style={{textAlign:"center",padding:"16px 0",color:"#94a3b8"}}>
