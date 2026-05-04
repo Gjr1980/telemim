@@ -968,9 +968,36 @@ export default function App(){
     return contasHist.reduce(function(acc,x){return acc+(Number(x.valor)||0);},0);
   },[contasHist]);
 
+  // ── MONITORAMENTO: agrupamento por supervisor (useMemo) ─────────────
+  var monitorData=useMemo(function(){
+    var _hj=new Date().toISOString().slice(0,10);
+    var _statusAtivo=function(s){return s==="Em Deslocamento"||s==="Realizando";};
+    var _statusConcl=function(s){return["Concluido","Concluído","concluido","concluida","realizado","realizada"].indexOf(s)>=0;};
+    var _statusPend=function(s){return s==="confirmado"||s==="pendente"||s==="Agendado"||s==="Registrado"||!s;};
+    // Combinar agenda + mudancas de hoje
+    var _todayAg=(agenda||[]).filter(function(a){return a.data===_hj&&!a.deleted_at&&a.supervisor_id;});
+    var _todayMud=(mudancas||[]).filter(function(m){return m.data===_hj&&!m.deleted_at&&m.supervisor_id;});
+    // Unir, evitando duplicatas (preferir agenda se ambos existem)
+    var _seen={};
+    var _all=[];
+    _todayAg.forEach(function(a){var key=(a.nome||"").toLowerCase().trim()+"|"+a.data;_seen[key]=true;_all.push(a);});
+    _todayMud.forEach(function(m){var key=(m.nome||"").toLowerCase().trim()+"|"+m.data;if(!_seen[key]){_seen[key]=true;_all.push(m);}});
+    // Agrupar por supervisor_id
+    var _groups={};
+    _all.forEach(function(item){
+      var sid=item.supervisor_id;
+      if(!_groups[sid])_groups[sid]={supervisorId:sid,activeMove:null,pendingMoves:[],completedMoves:[]};
+      var st=item.status||"confirmado";
+      if(_statusAtivo(st)){_groups[sid].activeMove=item;}
+      else if(_statusConcl(st)){_groups[sid].completedMoves.push(item);}
+      else{_groups[sid].pendingMoves.push(item);}
+    });
+    return Object.values(_groups);
+  },[agenda,mudancas]);
+
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}},[tab]);
   useEffect(()=>{
     async function load(){
       try{
@@ -2409,6 +2436,7 @@ export default function App(){
     {id:"config",label:"⚙️ Config"},
   ]:[
     {id:"dashboard",label:"📊 Dashboard"},
+    {id:"monitoramento",label:"📡 Monitor"},
     {id:"agenda",label:"📅 Agenda"},
     {id:"lista",label:"📋 Registros"},
     {id:"importar_mud",label:"+ Mudanças"},
@@ -2481,12 +2509,12 @@ export default function App(){
         {/* Tabs */}
         <div style={{marginTop:8,marginBottom:0}}>
           <div style={{display:"flex",gap:6,marginBottom:6}}>
-            {TABS.slice(0,3).map(t=>(
+            {TABS.slice(0,4).map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"10px 2px",borderRadius:12,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
             ))}
           </div>
           <div style={{display:"flex",gap:6}}>
-            {TABS.slice(3).map(t=>(
+            {TABS.slice(4).map(t=>(
               <button key={t.id} onClick={()=>t.id==="importar_mud"?(setTab("novaAgenda"),setShowImportAg(true)):(setTab(t.id),t.id==="registros_mot"&&setAbaMotorista('registros'))} style={{flex:1,padding:"10px 2px",borderRadius:12,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
             ))}
           </div>
@@ -2812,6 +2840,192 @@ export default function App(){
       )}
         {tab==="dashboard"&&isAdmin&&notificacoes.length>0&&(<div style={{padding:"0 12px 16px"}}><div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:14,padding:"14px 14px 10px"}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",letterSpacing:0.3,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>{"🔔 CENTRAL DE NOTIFICACOES"}</div>{notificacoes.slice(0,notifLimit).map(function(n){var ico=n.tipo==="concluida"?"🟢":n.tipo==="cubagem"?"📐":"✏️";var tit=n.tipo==="concluida"?"Mudanca concluida":n.tipo==="cubagem"?"Cubagem alterada":"Mudanca editada";var dt=n.criado_em?new Date(n.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";return(<div key={n.id} style={{padding:"8px 0",borderBottom:"1px solid #f1f5f9"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}><span style={{fontSize:14}}>{ico}</span><span style={{fontSize:12,fontWeight:700,color:"#334155"}}>{tit}</span></div><div style={{fontSize:11,color:"#475569",marginLeft:22}}>{n.mudanca_nome||""}{n.descricao&&n.descricao!==tit?(" - "+n.descricao):""}</div><div style={{fontSize:10,color:"#94a3b8",marginLeft:22,marginTop:2}}>{"por "}<b>{n.usuario_nome||"Sistema"}</b>{" · "+dt}</div></div>);})}{notificacoes.length>notifLimit&&(<div style={{textAlign:"center",paddingTop:8}}><button onClick={function(){setNotifLimit(function(p){return p+10;});}} style={{background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:8,padding:"6px 16px",fontSize:11,fontWeight:700,color:"#64748b",cursor:"pointer"}}>{"Ver mais ("+(notificacoes.length-notifLimit)+" anteriores)"}</button></div>)}</div></div>)}
         {tab==="dashboard"&&activityLogs.length>0&&<div style={{padding:"0 12px 16px"}}><div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:14,padding:"12px 14px"}}><div style={{fontWeight:800,fontSize:12,color:"#64748b",letterSpacing:0.5,marginBottom:8,display:"flex",alignItems:"center",gap:5}}>🔔 ÚNTIMAS ATUALIZAÇÕES</div>{activityLogs.slice(0,5).map(function(log){return(<div key={log.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #f8fafc"}}><span style={{fontSize:13,flexShrink:0}}>✅</span><div style={{flex:1,fontSize:11,color:"#334155",lineHeight:1.5}}>{log.msg}<span style={{color:"#94a3b8",marginLeft:6,fontSize:10}}>{log.hora}h</span></div></div>);})}</div></div>}
+{/* ══ ABA MONITORAMENTO — Torre de Controle ══ */}
+{tab==="monitoramento"&&!isMotorista&&(function(){
+  var _hjStr=new Date().toISOString().slice(0,10);
+  var _hjFmt=(function(){var p=_hjStr.split("-");return p[2]+"/"+p[1]+"/"+p[0];})();
+  var _hora=new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+  // Step Tracker component
+  var StepTracker=function(props){
+    var status=props.status||"confirmado";
+    var steps=[
+      {key:"deslocamento",label:"Em Deslocamento",icon:"🚚"},
+      {key:"inicio",label:"Carregamento",icon:"📦"},
+      {key:"descarregar",label:"Descarregar",icon:"🏠"},
+      {key:"termino",label:"Concluído",icon:"✅"}
+    ];
+    var _map={"Em Deslocamento":0,"Realizando":1,"Descarregar":2,"Concluido":3,"Concluído":3,"concluido":3,"concluida":3,"realizado":3,"realizada":3};
+    var activeIdx=_map[status]!==undefined?_map[status]:-1;
+    return(
+      <div style={{display:"flex",alignItems:"center",gap:0,padding:"12px 0"}}>
+        {steps.map(function(step,idx){
+          var isDone=idx<activeIdx;
+          var isActive=idx===activeIdx;
+          var isFuture=idx>activeIdx;
+          return(
+            <div key={step.key} style={{display:"flex",alignItems:"center",flex:1}}>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",flex:0}}>
+                <div style={{width:36,height:36,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,
+                  background:isDone?"#16a34a":isActive?"#2563eb":"#e2e8f0",
+                  color:isDone||isActive?"#fff":"#94a3b8",
+                  fontWeight:800,
+                  boxShadow:isActive?"0 0 0 4px rgba(37,99,235,0.25)":"none",
+                  animation:isActive?"pulse 1.5s infinite":"none",
+                  border:isActive?"3px solid #93c5fd":"2px solid "+(isDone?"#16a34a":"#e2e8f0")
+                }}>{isDone?"✓":step.icon}</div>
+                <div style={{fontSize:9,fontWeight:isDone||isActive?700:500,color:isDone?"#16a34a":isActive?"#2563eb":"#94a3b8",marginTop:4,textAlign:"center",whiteSpace:"nowrap"}}>{step.label}</div>
+              </div>
+              {idx<steps.length-1&&(
+                <div style={{flex:1,height:3,background:isDone?"#16a34a":"#e2e8f0",borderRadius:2,margin:"0 4px",marginBottom:18,alignSelf:"flex-start",marginTop:17}}></div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+  // Totais gerais do dia
+  var _allToday=[...(agenda||[]).filter(function(a){return a.data===_hjStr&&!a.deleted_at;}),
+    ...(mudancas||[]).filter(function(m){return m.data===_hjStr&&!m.deleted_at;})];
+  var _statusAtivo2=function(s){return s==="Em Deslocamento"||s==="Realizando";};
+  var _statusConcl2=function(s){return["Concluido","Concluído","concluido","concluida","realizado","realizada"].indexOf(s)>=0;};
+  var _totalAtivas=_allToday.filter(function(x){return _statusAtivo2(x.status);}).length;
+  var _totalConcl=_allToday.filter(function(x){return _statusConcl2(x.status);}).length;
+  var _totalPend=_allToday.filter(function(x){return !_statusAtivo2(x.status)&&!_statusConcl2(x.status);}).length;
+
+  return(
+    <div style={{padding:"0 0 80px"}}>
+      {/* Header */}
+      <div style={{background:"linear-gradient(135deg,#0f172a,#1e3a5f)",padding:"20px 16px 16px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",letterSpacing:1.5,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Torre de Controle</div>
+            <div style={{fontSize:22,fontWeight:900,color:"#fff",letterSpacing:-0.5}}>📡 Monitoramento</div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.6)"}}>📅 {_hjFmt}</div>
+            <div style={{fontSize:13,fontWeight:700,color:"#60a5fa"}}>⏰ {_hora}</div>
+          </div>
+        </div>
+        {/* KPIs */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:14}}>
+          <div style={{background:"rgba(37,99,235,0.2)",borderRadius:10,padding:"10px 8px",textAlign:"center",border:"1px solid rgba(37,99,235,0.3)"}}>
+            <div style={{fontSize:22,fontWeight:900,color:"#60a5fa"}}>{_totalAtivas}</div>
+            <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.6)",letterSpacing:0.5}}>EM ANDAMENTO</div>
+          </div>
+          <div style={{background:"rgba(245,158,11,0.2)",borderRadius:10,padding:"10px 8px",textAlign:"center",border:"1px solid rgba(245,158,11,0.3)"}}>
+            <div style={{fontSize:22,fontWeight:900,color:"#fbbf24"}}>{_totalPend}</div>
+            <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.6)",letterSpacing:0.5}}>PENDENTES</div>
+          </div>
+          <div style={{background:"rgba(22,163,74,0.2)",borderRadius:10,padding:"10px 8px",textAlign:"center",border:"1px solid rgba(22,163,74,0.3)"}}>
+            <div style={{fontSize:22,fontWeight:900,color:"#4ade80"}}>{_totalConcl}</div>
+            <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.6)",letterSpacing:0.5}}>CONCLUÍDAS</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Cards por Supervisor */}
+      <div style={{padding:"12px 12px 0"}}>
+        {monitorData.length===0&&(
+          <div style={{background:"#fff",borderRadius:16,padding:"40px 20px",textAlign:"center",border:"1.5px solid #e2e8f0"}}>
+            <div style={{fontSize:40,marginBottom:8}}>📡</div>
+            <div style={{fontSize:15,fontWeight:800,color:"#64748b"}}>Nenhuma operação hoje</div>
+            <div style={{fontSize:12,color:"#94a3b8",marginTop:4}}>Agende mudanças com supervisor para monitorar</div>
+          </div>
+        )}
+        {monitorData.map(function(group){
+          var sup=listaUsuarios.find(function(u){return u.id===group.supervisorId;});
+          var supNome=sup?sup.nome:"Supervisor #"+String(group.supervisorId).slice(0,6);
+          var supContato=sup&&sup.contato?sup.contato:"";
+          var am=group.activeMove;
+          var _hasActive=!!am;
+          var _pendCount=group.pendingMoves.length;
+          var _doneCount=group.completedMoves.length;
+          var _totalSup=(_hasActive?1:0)+_pendCount+_doneCount;
+
+          return(
+            <div key={group.supervisorId} style={{background:"#fff",borderRadius:16,marginBottom:12,border:_hasActive?"2.5px solid #2563eb":"1.5px solid #e2e8f0",boxShadow:_hasActive?"0 4px 20px rgba(37,99,235,0.15)":"0 2px 8px rgba(0,0,0,0.04)",overflow:"hidden"}}>
+              {/* Cabeçalho do Supervisor */}
+              <div style={{background:_hasActive?"linear-gradient(135deg,#1e3a5f,#1e40af)":"#f8fafc",padding:"12px 16px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid "+(_hasActive?"rgba(255,255,255,0.1)":"#e2e8f0")}}>
+                <div style={{width:42,height:42,borderRadius:"50%",background:_hasActive?"rgba(255,255,255,0.15)":"#e0e7ff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,border:_hasActive?"2px solid rgba(255,255,255,0.3)":"2px solid #c7d2fe"}}>👷</div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:800,fontSize:14,color:_hasActive?"#fff":"#1e293b"}}>{supNome}</div>
+                  {supContato&&<div style={{fontSize:11,color:_hasActive?"rgba(255,255,255,0.6)":"#94a3b8"}}>📞 {supContato}</div>}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  {_hasActive&&<div style={{width:10,height:10,borderRadius:"50%",background:"#22c55e",animation:"pulse 1.5s infinite"}}></div>}
+                  <span style={{fontSize:11,fontWeight:700,color:_hasActive?"#93c5fd":"#94a3b8"}}>{_totalSup} OS</span>
+                </div>
+              </div>
+
+              {/* Corpo — Active Move com Step Tracker */}
+              <div style={{padding:"14px 16px"}}>
+                {_hasActive?(
+                  <div>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:"#2563eb",animation:"pulse 1.5s infinite"}}></div>
+                      <div style={{fontSize:11,fontWeight:800,color:"#2563eb",letterSpacing:1,textTransform:"uppercase"}}>Operação em Andamento</div>
+                    </div>
+                    <div style={{fontWeight:800,fontSize:16,color:"#1e293b",marginBottom:4}}>👤 {am.nome}</div>
+                    {am.selo&&<div style={{fontSize:11,color:"#64748b",marginBottom:6}}>🏷️ Selo: {am.selo}</div>}
+                    <div style={{fontSize:12,color:"#475569",marginBottom:3}}>📦 <span style={{fontWeight:600}}>{am.origem||"?"}</span></div>
+                    <div style={{fontSize:12,color:"#475569",marginBottom:2}}>🏠 <span style={{fontWeight:600}}>{am.destino||"?"}</span></div>
+                    {am.horario&&<div style={{fontSize:11,color:"#64748b",marginTop:4}}>⏰ Horário: {am.horario}h</div>}
+                    {/* Step Tracker */}
+                    <div style={{background:"#f8fafc",borderRadius:12,padding:"8px 12px",marginTop:10,border:"1px solid #e2e8f0"}}>
+                      <StepTracker status={am.status}/>
+                    </div>
+                    {/* Timestamps */}
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:8}}>
+                      {(am.inicio_em||am.inicio_van_em||am.van_saiu_em)&&<span style={{fontSize:10,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:6,padding:"3px 8px"}}>🚚 Saída: {new Date(am.inicio_em||am.inicio_van_em||am.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                      {(am.inicio_mudanca_em||am.chegada_van_em)&&<span style={{fontSize:10,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:6,padding:"3px 8px"}}>📍 Chegou: {new Date(am.inicio_mudanca_em||am.chegada_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                    </div>
+                    {/* GPS Map button */}
+                    {(am.inicio_em||am.inicio_van_em||am.inicio_caminhao_em)&&!am.chegada_van_em&&!am.chegada_caminhao_em&&(
+                      <button onClick={function(){setGpsMapAgenda(am);setShowGpsMap(true);setGpsEta(null);
+                        gpsLoadPositions(am.id).then(function(pos){if(pos&&am.destino){gpsCalcEta(pos.lat,pos.lng,am.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
+                      }} style={{marginTop:8,width:"100%",background:"#059669",color:"#fff",border:"none",borderRadius:8,padding:"8px 0",fontWeight:700,fontSize:12,cursor:"pointer"}}>📍 Ver Mapa GPS</button>
+                    )}
+                  </div>
+                ):(
+                  <div style={{textAlign:"center",padding:"16px 0",color:"#94a3b8"}}>
+                    <div style={{fontSize:28,marginBottom:4}}>☕</div>
+                    <div style={{fontSize:13,fontWeight:600}}>Nenhuma operação em andamento</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Rodapé — Pendentes e Concluídas */}
+              <div style={{background:"#f8fafc",padding:"10px 16px",borderTop:"1px solid #e2e8f0",display:"flex",gap:8}}>
+                <div style={{flex:1,background:"#fffbeb",borderRadius:8,padding:"8px 10px",border:"1px solid #fcd34d"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}>
+                    <span style={{fontSize:12}}>⏳</span>
+                    <span style={{fontSize:11,fontWeight:800,color:"#92400e"}}>Falta Realizar: {_pendCount}</span>
+                  </div>
+                  {_pendCount>0&&<div style={{fontSize:10,color:"#b45309",lineHeight:1.6}}>
+                    {group.pendingMoves.slice(0,3).map(function(pm){return <div key={pm.id}>• {pm.nome}{pm.horario?" ("+pm.horario+"h)":""}</div>;})}
+                    {_pendCount>3&&<div style={{color:"#94a3b8",fontStyle:"italic"}}>+{_pendCount-3} mais...</div>}
+                  </div>}
+                </div>
+                <div style={{flex:1,background:"#f0fdf4",borderRadius:8,padding:"8px 10px",border:"1px solid #bbf7d0"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}>
+                    <span style={{fontSize:12}}>✅</span>
+                    <span style={{fontSize:11,fontWeight:800,color:"#166534"}}>Concluídas: {_doneCount}</span>
+                  </div>
+                  {_doneCount>0&&<div style={{fontSize:10,color:"#15803d",lineHeight:1.6}}>
+                    {group.completedMoves.slice(0,3).map(function(cm){return <div key={cm.id}>• {cm.nome}</div>;})}
+                    {_doneCount>3&&<div style={{color:"#94a3b8",fontStyle:"italic"}}>+{_doneCount-3} mais...</div>}
+                  </div>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+})()}
+
 {tab==="fin_mot"&&isMotorista&&(function(){
   var _hj=new Date();
   var _pad=function(n){return String(n).padStart(2,"0");};
