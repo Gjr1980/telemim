@@ -238,7 +238,7 @@ function _calcCustos(mudP, cdP, cpP, RULES){
     numMud:mudP.length,m3Total,diasU,numVan
   };
 }
-function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiarios}){
+function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiarios,setContasSemana}){
   var _pc=function(n){return String(n).padStart(2,"0");};
   var _hc=new Date();var _dwc=_hc.getDay();var _dc=_dwc===0?6:_dwc-1;
   var _s0c=new Date(_hc.getFullYear(),_hc.getMonth(),_hc.getDate()-_dc);
@@ -580,6 +580,20 @@ function ResumoSemanal({mudancas,RULES,prestadores,custosDiarios,setCustosDiario
               if(rows&&rows.length>0){return fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+dt,{method:"PATCH",headers:_hd2,body:JSON.stringify(body)});}
               else{body.data=dt;return fetch(SUPA_URL+"/rest/v1/custos_diarios",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(body)});}
             }).catch(function(e){console.warn(e);});
+          // Sync to contas_semana para Financeiro refletir
+          if(field==="custo_almoco"){
+            var _almTot=0;
+            _cd.forEach(function(x){_almTot+=(x.data===dt?numVal:(parseFloat(x.custo_almoco)||0));});
+            if(!_cd.some(function(x){return x.data===dt;})) _almTot+=numVal;
+            fetch(SUPA_URL+"/rest/v1/contas_semana",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({semana_inicio:_sic,semana_fim:_sfc,tipo:"almoco",valor_calculado:_almTot,status:"pendente"})}).catch(function(){});
+            if(typeof setContasSemana==="function"){
+              setContasSemana(function(prev){
+                var existe=prev.some(function(x){return x.semana_inicio===_sic&&x.tipo==="almoco";});
+                if(existe) return prev.map(function(x){return(x.semana_inicio===_sic&&x.tipo==="almoco")?{...x,valor_calculado:String(_almTot)}:x;});
+                return [...prev,{semana_inicio:_sic,semana_fim:_sfc,tipo:"almoco",valor_calculado:String(_almTot),status:"pendente"}];
+              });
+            }
+          }
         }
         function _saveDesc(dt,val){
           var _hd2={...getH(),"Content-Type":"application/json","Prefer":"return=minimal"};
@@ -3430,7 +3444,7 @@ return(
     </div>
   );
 })()}
-{tab==="contas"&&<ResumoSemanal mudancas={mudancas} RULES={RULES} prestadores={prestadores} custosDiarios={custosDiarios} setCustosDiarios={setCustosDiarios}/>}
+{tab==="contas"&&<ResumoSemanal mudancas={mudancas} RULES={RULES} prestadores={prestadores} custosDiarios={custosDiarios} setCustosDiarios={setCustosDiarios} setContasSemana={setContasSemana}/>}
 {tab==="contas"&&isAdmin&&(function(){
   var _pc=function(n){return String(n).padStart(2,"0");};
   var _hj=new Date();var _dw=_hj.getDay();var _df=_dw===0?6:_dw-1;
