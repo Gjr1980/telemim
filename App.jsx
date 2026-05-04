@@ -3011,7 +3011,7 @@ export default function App(){
           var _cdM=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===_am;});
           var _cpM=(contasPagar||[]).filter(function(cp){return cp.data&&cp.data.slice(0,7)===_am;});
           // Usar função centralizada — MESMA lógica que aba Contas
-          var _r=_calcCustos(_mudM,_cdM,_cpM,RULES);var _csM=(contasSemana||[]).filter(function(x){return x.semana_inicio&&x.semana_inicio.slice(0,7)===_am&&["caminhao","van","ajudante","almoco"].includes(x.tipo)&&x.tipo_conta!=="receber";});if(_csM.length>0){var _sCS=function(tp){return _csM.filter(function(x){return x.tipo===tp;}).reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0);};var _almCS=_sCS("almoco");var _almFinal=_almCS>0?_almCS:_r.cAlm;_r=Object.assign({},_r,{cCam:_sCS("caminhao"),cVan:_sCS("van"),cAj:_sCS("ajudante"),cAlm:_almFinal,despTotal:_sCS("caminhao")+_sCS("van")+_sCS("ajudante")+_almFinal+_r.cDesp+_r.cExtra});}
+          var _r=_calcCustos(_mudM,_cdM,_cpM,RULES);var _csM=(contasSemana||[]).filter(function(x){return x.semana_inicio&&x.semana_inicio.slice(0,7)===_am&&["caminhao","van","ajudante","almoco"].includes(x.tipo)&&x.tipo_conta!=="receber";});if(_csM.length>0){var _getEdited=function(tp){var _items=_csM.filter(function(x){return x.tipo===tp&&x.valor_editado;});return _items.length>0?_items.reduce(function(s,x){return s+(parseFloat(x.valor_editado)||0);},0):null;};var _eCam=_getEdited("caminhao");var _eVan=_getEdited("van");var _eAj=_getEdited("ajudante");var _eAlm=_getEdited("almoco");_r=Object.assign({},_r,{cCam:_eCam!==null?_eCam:_r.cCam,cVan:_eVan!==null?_eVan:_r.cVan,cAj:_eAj!==null?_eAj:_r.cAj,cAlm:_eAlm!==null?_eAlm:_r.cAlm});_r.despTotal=_r.cCam+_r.cVan+_r.cAj+_r.cAlm+_r.cDesp+_r.cExtra;}
           return (
             <div style={{padding:"12px 12px 0"}}>
               <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>
@@ -3168,12 +3168,17 @@ return(
     {_semFin.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:24,fontSize:13}}>Nenhuma semana neste período</div>}
     {_semFin.map(function(_sem2){
       var _its2=contasSemana.filter(function(x){return x.semana_inicio===_sem2.si&&["caminhao","van","ajudante","almoco"].includes(x.tipo);});
+      var _mudSem2=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data>=_sem2.si&&m.data<=_sem2.sf;});
+      var _cdSem2=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data>=_sem2.si&&cd.data<=_sem2.sf;});
+      var _rSem2=_calcCustos(_mudSem2,_cdSem2,[],RULES);
+      var _calcMap2={caminhao:_rSem2.cCam,van:_rSem2.cVan,ajudante:_rSem2.cAj,almoco:_rSem2.cAlm};
+      var _totalSem2=_tipos2.reduce(function(s,t){var _it=_its2.find(function(x){return x.tipo===t.tp;});return s+((_it&&_it.valor_editado)?parseFloat(_it.valor_editado):(_calcMap2[t.tp]||0));},0);
       return(
         <div key={_sem2.si} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:"12px 14px",marginBottom:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><span style={{fontWeight:700,fontSize:12,color:"#64748b"}}>📆 {_fD3(_sem2.si)} a {_fD3(_sem2.sf)}</span><span style={{fontWeight:800,fontSize:13,color:_its2.reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0)>0?"#dc2626":"#94a3b8"}}>{_fV3(_its2.reduce(function(s,x){return s+(parseFloat(x.valor_editado||x.valor_calculado)||0);},0))}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><span style={{fontWeight:700,fontSize:12,color:"#64748b"}}>📆 {_fD3(_sem2.si)} a {_fD3(_sem2.sf)}</span><span style={{fontWeight:800,fontSize:13,color:_totalSem2>0?"#dc2626":"#94a3b8"}}>{_fV3(_totalSem2)}</span></div>
           {_tipos2.map(function(_t2){
             var _it2=_its2.find(function(x){return x.tipo===_t2.tp;});
-            var _val2=parseFloat((_it2&&(_it2.valor_editado||_it2.valor_calculado))||0);
+            var _val2=(_it2&&_it2.valor_editado)?parseFloat(_it2.valor_editado):(_calcMap2[_t2.tp]||0);
             var _ek2=_sem2.si+"_"+_t2.tp;
             return(
               <div key={_t2.tp} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #f1f5f9"}}>
