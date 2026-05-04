@@ -2806,6 +2806,7 @@ export default function App(){
                     : <button onClick={()=>gerarPDFMudanca(m)} style={{background:"#fff7ed",border:"1.5px solid #ea580c",color:"#ea580c",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:11,fontWeight:700}}>✍️ Assinar</button>}
                   <button onClick={()=>setEditMud((function(){var _cd=(custosDiarios||[]).find(function(x){return x.data===m.data;});return {...m,_qtdAj:_cd?parseInt(_cd.ajudantes)||1:1};})())} style={{...btnBlue,borderRadius:8,padding:"6px 10px",fontSize:13}}>✏️</button>
                   {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud"});}} style={{...btnRed,borderRadius:8,padding:"6px 10px",fontSize:13}}>✕</button>}
+                  {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===m.data;});setViewEquipeAg({nome:m.nome,data:m.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"1.5px solid #fde047",color:"#92400e",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700}} title="Ver equipe do dia">👷</button>}
                 </div>
               </Card>
             ))}
