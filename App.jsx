@@ -2690,18 +2690,12 @@ export default function App(){
     _periodoLabel=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][_ma.getMonth()]+" "+_ma.getFullYear();
   }
 
-  var _minhas=mudancas.filter(function(m){
+  // Só conta mudanças FINALIZADAS (status Concluído/concluida)
+  var _statusFin=["Concluído","concluida","Concluido","concluído"];
+  var _todas=mudancas.filter(function(m){
     if(m.deleted_at||!m.data||m.data<_di||m.data>_df) return false;
+    if(!_statusFin.includes(m.status)) return false;
     return m.motorista_van_id===_meuId||m.motorista_caminhao_id===_meuId;
-  });
-  var _minhasAg=agenda.filter(function(a){
-    if(a.deleted_at||!a.data||a.data<_di||a.data>_df) return false;
-    return a.motorista_van_id===_meuId||a.motorista_caminhao_id===_meuId;
-  });
-  var _todas=[].concat(_minhas);
-  _minhasAg.forEach(function(a){
-    var _jatem=_todas.some(function(m){return m.data===a.data&&(m.selo===a.selo||(m.nome===a.nome));});
-    if(!_jatem)_todas.push(a);
   });
 
   var _diasU=[...new Set(_todas.map(function(m){return m.data;}))].sort();
