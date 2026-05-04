@@ -766,6 +766,8 @@ export default function App(){
   const [showViewPDF,setShowViewPDF]=useState(false);
   const [mudViewPDF,setMudViewPDF]=useState(null);
   const [confirmFinAg,setConfirmFinAg]=useState(null);
+  const [cancelModal,setCancelModal]=useState(null);
+  const [cancelMotivo,setCancelMotivo]=useState("");
   const [showAssinatura,setShowAssinatura]=useState(false);
   const [mudAssinatura,setMudAssinatura]=useState(null);
   const [ressalvas,setRessalvas]=useState("");
@@ -1984,6 +1986,45 @@ export default function App(){
       setIsApproving(function(prev){var n={};Object.assign(n,prev);delete n[agId];return n;});
     }
   }
+  // ── CANCELAR MUDANÇA ─────────────────────────────────────────────────
+  async function handleSolicitarCancelamento(agId,motivo){
+    await _ensureAuth();
+    var _nome=usuario?(usuario.nome||usuario.email):"";
+    var _perfil=usuario?usuario.perfil:"";
+    var payload={cancelamento_solicitado:true,cancelamento_motivo:motivo,cancelamento_por:_nome,cancelamento_perfil:_perfil,cancelamento_em:new Date().toISOString()};
+    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,payload):a;});});
+    try{
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(payload)});
+      try{_addNotif("cancelamento","Solicitação de cancelamento por "+_nome,(agenda.find(function(a){return a.id===agId;})||{}).nome||"");}catch(e){}
+      setSyncStatus("✅ Solicitação de cancelamento enviada!");
+    }catch(e){setSyncStatus("⚠️ Erro ao solicitar cancelamento");}
+    setCancelModal(null);setCancelMotivo("");
+  }
+  async function handleCancelarDireto(agId){
+    await _ensureAuth();
+    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,{status:"cancelada",cancelamento_solicitado:false}):a;});});
+    try{
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({status:"cancelada",cancelamento_solicitado:false})});
+      try{_addNotif("cancelamento","Mudança cancelada pelo admin",(agenda.find(function(a){return a.id===agId;})||{}).nome||"");}catch(e){}
+      setSyncStatus("✅ Mudança cancelada!");
+    }catch(e){setSyncStatus("⚠️ Erro ao cancelar");}
+  }
+  async function handleAutorizarCancelamento(agId){
+    await _ensureAuth();
+    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,{status:"cancelada",cancelamento_solicitado:false}):a;});});
+    try{
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({status:"cancelada",cancelamento_solicitado:false})});
+      setSyncStatus("✅ Cancelamento autorizado!");
+    }catch(e){setSyncStatus("⚠️ Erro ao autorizar");}
+  }
+  async function handleRecusarCancelamento(agId){
+    await _ensureAuth();
+    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,{cancelamento_solicitado:false,cancelamento_motivo:null,cancelamento_por:null,cancelamento_perfil:null}):a;});});
+    try{
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({cancelamento_solicitado:false,cancelamento_motivo:null,cancelamento_por:null,cancelamento_perfil:null})});
+      setSyncStatus("✅ Cancelamento recusado!");
+    }catch(e){setSyncStatus("⚠️ Erro ao recusar");}
+  }
   async function handleDespachar(agId,motoristaId,tipo){
     await _ensureAuth();
     var mid=motoristaId||null;
@@ -2215,7 +2256,7 @@ export default function App(){
   var _m0={v:_d0.toISOString().slice(0,7),l:_nms[_d0.getMonth()]+'/'+String(_d0.getFullYear()).slice(2)};
   var _m1={v:_d1.toISOString().slice(0,7),l:_nms[_d1.getMonth()]+'/'+String(_d1.getFullYear()).slice(2)};
   var _m2={v:_d2.toISOString().slice(0,7),l:_nms[_d2.getMonth()]+'/'+String(_d2.getFullYear()).slice(2)};
-  const agendaOrdenada=[...agenda].filter(a=>a.status!=='concluida'&&!a.deleted_at&&!_agendaRemovidaIds.has(a.id)).sort((a,b)=>a.data.localeCompare(b.data)||(a.horario||"").localeCompare(b.horario||""));
+  const agendaOrdenada=[...agenda].filter(a=>a.status!=='concluida'&&a.status!=='cancelada'&&!a.deleted_at&&!_agendaRemovidaIds.has(a.id)).sort((a,b)=>a.data.localeCompare(b.data)||(a.horario||"").localeCompare(b.horario||""));
   const hoje=(function(){var _d=new Date();var _y=_d.getFullYear();var _m=String(_d.getMonth()+1).padStart(2,"0");var _dd=String(_d.getDate()).padStart(2,"0");return _y+"-"+_m+"-"+_dd;})();
   const amanha=(function(){
     var _d=new Date();
@@ -2342,6 +2383,7 @@ export default function App(){
         {tab==="dashboard"&&(
         <div style={{paddingBottom:16}}>
         {(()=>{var _p=usuario&&usuario.perfil||"";var _campoMeu=_p==="admin"?"approved_by_admin":_p==="social"?"approved_by_social":_p==="promorar"?"approved_by_promorar":_p==="supervisor"?"approved_by_supervisor":null;if(!_campoMeu)return null;var _pend=[...agenda].filter(function(x){if(!x.data||x.deleted_at)return false;if(x[_campoMeu])return false;return true;});if(!_pend.length)return null;return(<div style={{margin:"0 12px 16px",background:"#fffbeb",border:"2.5px solid #f59e0b",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(245,158,11,0.25)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🔔</span><div><div style={{fontWeight:800,fontSize:14,color:"#92400e"}}>Notificações ({_pend.length})</div><div style={{fontWeight:600,fontSize:11,color:"#b45309"}}>Confirme o recebimento das mudanças agendadas</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pend.map(function(x){var _quem=x.created_by||x.approved_by_admin||x.approved_by_social||x.approved_by_promorar||"Sistema";var _perfQuem=x.creator_role||"";return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"10px 12px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>👤 {x.nome}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · 🏷️ {x.selo||"—"}</div><div style={{fontSize:10,color:"#64748b",marginTop:1}}>Agendado por: <strong>{_quem}</strong>{_perfQuem?" ("+_perfQuem+")":""}</div></div><button onClick={function(e){e.stopPropagation();handleApproveAgenda(x.id);}} disabled={!!isApproving[x.id]} style={{padding:"7px 14px",background:isApproving[x.id]?"#94a3b8":"#16a34a",color:"#fff",border:"none",borderRadius:999,fontWeight:800,fontSize:11,cursor:isApproving[x.id]?"not-allowed":"pointer",whiteSpace:"nowrap",flexShrink:0,boxShadow:"0 2px 8px rgba(22,163,74,0.3)"}}>{isApproving[x.id]?"⏳":"✅ Confirmar"}</button></div></div>);})}</div></div>);})()}
+        {isAdmin&&(function(){var _pendCanc=agenda.filter(function(a){return !a.deleted_at&&a.cancelamento_solicitado;});if(_pendCanc.length===0)return null;return(<div style={{margin:"0 12px 16px",background:"#fef2f2",border:"2.5px solid #dc2626",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(220,38,38,0.15)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🚨</span><div><div style={{fontWeight:800,fontSize:14,color:"#991b1b"}}>Solicitações de Cancelamento ({_pendCanc.length})</div><div style={{fontWeight:600,fontSize:11,color:"#b91c1c"}}>Autorize ou recuse os pedidos abaixo</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pendCanc.map(function(x){return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fecaca",borderRadius:12,padding:"10px 12px"}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",marginBottom:3}}>📦 {x.nome}</div><div style={{fontSize:10,color:"#64748b"}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · ⏰ {x.horario||"?"}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>👤 Solicitado por: <strong>{x.cancelamento_por}</strong> ({x.cancelamento_perfil})</div>{x.cancelamento_motivo&&<div style={{fontSize:10,color:"#991b1b",marginTop:2}}>💬 {x.cancelamento_motivo}</div>}<div style={{display:"flex",gap:6,marginTop:8}}><button onClick={function(){handleRecusarCancelamento(x.id);}} style={{flex:1,padding:"6px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Recusar</button><button onClick={function(){handleAutorizarCancelamento(x.id);}} style={{flex:1,padding:"6px 10px",borderRadius:8,border:"none",background:"#dc2626",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>✅ Autorizar Cancelamento</button></div></div>);})}</div></div>);})()}
         {isMotorista&&mudancasHoje.length===0&&mudancasAmanha.length===0&&mudancasFuturas.length===0&&(<div style={{margin:"12px 0 0",background:"#f0fdf4",border:"2px solid #86efac",borderRadius:14,padding:"20px 16px",textAlign:"center"}}><div style={{fontSize:28,marginBottom:8}}>😊</div><div style={{fontWeight:800,fontSize:15,color:"#15803d",marginBottom:6}}>Nenhuma mudança agendada!</div><div style={{fontSize:13,color:"#16a34a"}}>Bom descanso! ✅</div></div>)}
         {mudancasHoje.length>0&&(
           <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
@@ -2357,7 +2399,7 @@ export default function App(){
                     {a.horario&&<div style={{fontSize:_dest?14:12,color:"#475569"}}>⏰ {a.horario}h</div>}
                     <div style={{fontSize:_dest?13:11,marginTop:8}}>📦 {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     <div style={{fontSize:_dest?13:11,marginTop:24}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
-                    {a.approved_by_supervisor&&<div style={{fontSize:_dest?13:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {a.approved_by_supervisor}</div>}
+                    {(a.approved_by_supervisor||a.supervisor_id)&&(function(){var _supNome=a.approved_by_supervisor||(function(){var _s=listaUsuarios.find(function(u){return u.id===a.supervisor_id;});return _s?_s.nome:null;})();return _supNome?<div style={{fontSize:_dest?13:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {_supNome}</div>:null;})()}
                   </div>
                   <div style={{background:_stMot==="Em Deslocamento"?"#dbeafe":_stMot==="Realizando"?"#fef9c3":"#dcfce7",border:"1px solid "+(_stMot==="Em Deslocamento"?"#93c5fd":_stMot==="Realizando"?"#fde047":"#86efac"),borderRadius:20,padding:"3px 10px",fontSize:_dest?11:10,fontWeight:700,color:_stMot==="Em Deslocamento"?"#1d4ed8":_stMot==="Realizando"?"#854d0e":"#15803d",whiteSpace:"nowrap"}}>
                     {_stMot==="confirmado"||_stMot==="pendente"?"🟡 Pendente":_stMot==="Em Deslocamento"?"🚚 Em Deslocamento":_stMot==="Realizando"?"⚡ Realizando":_stMot}
@@ -2405,7 +2447,7 @@ export default function App(){
                     {a.horario&&<div style={{fontSize:12,color:"#475569"}}>⏰ {a.horario}h</div>}
                     <div style={{fontSize:11,marginTop:8}}>📦 {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     <div style={{fontSize:11,marginTop:24}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
-                    {a.approved_by_supervisor&&<div style={{fontSize:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {a.approved_by_supervisor}</div>}
+                    {(a.approved_by_supervisor||a.supervisor_id)&&(function(){var _supNome=a.approved_by_supervisor||(function(){var _s=listaUsuarios.find(function(u){return u.id===a.supervisor_id;});return _s?_s.nome:null;})();return _supNome?<div style={{fontSize:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {_supNome}</div>:null;})()}
                   </div>
                   <div style={{background:"#ffedd5",border:"1px solid #fed7aa",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:"#c2410c",whiteSpace:"nowrap"}}>⏳ Amanhã</div>
                 </div>
@@ -2430,7 +2472,7 @@ export default function App(){
                     {a.horario&&<div style={{fontSize:12,color:"#475569"}}>⏰ {a.horario}h</div>}
                     <div style={{fontSize:11,marginTop:8}}>📦 {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     <div style={{fontSize:11,marginTop:24}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
-                    {a.approved_by_supervisor&&<div style={{fontSize:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {a.approved_by_supervisor}</div>}
+                    {(a.approved_by_supervisor||a.supervisor_id)&&(function(){var _supNome=a.approved_by_supervisor||(function(){var _s=listaUsuarios.find(function(u){return u.id===a.supervisor_id;});return _s?_s.nome:null;})();return _supNome?<div style={{fontSize:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {_supNome}</div>:null;})()}
                   </div>
                   <div style={{background:"#bfdbfe",border:"1px solid #93c5fd",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:"#1e40af",whiteSpace:"nowrap"}}>{a.data?new Date(a.data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"?"}</div>
                 </div>
@@ -2474,7 +2516,7 @@ export default function App(){
           var _mesAnt=function(){var d=new Date(regMotMes+"-15");d.setMonth(d.getMonth()-1);setRegMotMes(d.toISOString().slice(0,7));};
           var _mesProx=function(){var d=new Date(regMotMes+"-15");d.setMonth(d.getMonth()+1);setRegMotMes(d.toISOString().slice(0,7));};
           var _hj3=new Date().toISOString().slice(0,10);
-          var _mm3=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===regMotMes;});
+          var _mm3=(mudancas||[]).filter(function(m){if(m.deleted_at||!m.data||m.data.slice(0,7)!==regMotMes)return false;if(!usuario||!usuario.id)return false;return m.motorista_van_id===usuario.id||m.motorista_caminhao_id===usuario.id;});
           var _dd3=[...new Set(_mm3.map(function(m){return m.data;}))].sort(function(a,b){return b.localeCompare(a);});
           return(
             <div style={{padding:"0 12px 80px",background:"#f8fafc"}}>
@@ -2835,8 +2877,21 @@ export default function App(){
                           </div>}
                         </div>}
                         {(isAdmin||isSupervisor)&&(function(){var _eqD=equipeDiaList.find(function(e){return e.data===a.data;});var _eqAj=_eqD&&Array.isArray(_eqD.ajudantes)?_eqD.ajudantes:[];return _eqAj.length>0?<div style={{marginBottom:8}}><div style={{display:"flex",flexWrap:"wrap",gap:4}}><span style={{fontSize:11,fontWeight:700,color:"#92400e"}}>👷 Equipe ({_eqAj.length}):</span>{_eqAj.map(function(aj){return <span key={aj.id} style={{background:"#dcfce7",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#15803d"}}>{aj.nome}</span>;})}</div></div>:null;})()}
+                        {a.cancelamento_solicitado&&<div style={{background:"#fef9c3",border:"1.5px solid #fde047",borderRadius:10,padding:"8px 12px",marginBottom:8}}>
+                          <div style={{fontSize:11,fontWeight:800,color:"#92400e"}}>🟡 Cancelamento pendente</div>
+                          <div style={{fontSize:10,color:"#78350f",marginTop:2}}>Solicitado por: {a.cancelamento_por} ({a.cancelamento_perfil})</div>
+                          {a.cancelamento_motivo&&<div style={{fontSize:10,color:"#78350f",marginTop:1}}>Motivo: {a.cancelamento_motivo}</div>}
+                          {isAdmin&&<div style={{display:"flex",gap:6,marginTop:6}}>
+                            <button onClick={function(){handleRecusarCancelamento(a.id);}} style={{padding:"5px 12px",borderRadius:8,border:"1.5px solid #ef4444",background:"#fef2f2",color:"#dc2626",fontSize:10,fontWeight:700,cursor:"pointer"}}>❌ Recusar</button>
+                            <button onClick={function(){handleAutorizarCancelamento(a.id);}} style={{padding:"5px 12px",borderRadius:8,border:"none",background:"#dc2626",color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer"}}>✅ Autorizar Cancelamento</button>
+                          </div>}
+                        </div>}
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
-                          <button onClick={function(){pedirFinalizacao(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>
+                          <div style={{display:"flex",gap:5}}>
+                            <button onClick={function(){pedirFinalizacao(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>
+                            {(isSupervisor||isPromorar||isSocial)&&!a.cancelamento_solicitado&&<button onClick={function(){setCancelModal(a);setCancelMotivo("");}} style={{background:"#fef2f2",border:"1.5px solid #fecaca",color:"#dc2626",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Cancelar</button>}
+                            {isAdmin&&!a.cancelamento_solicitado&&<button onClick={function(){if(confirm("Cancelar mudança de "+a.nome+"?\nEsta ação não pode ser desfeita.")){handleCancelarDireto(a.id);}}} style={{background:"#fef2f2",border:"1.5px solid #fecaca",color:"#dc2626",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Cancelar</button>}
+                          </div>
                           <div style={{display:"flex",gap:5,alignItems:"center"}}>
                             {a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
                             {a.ajudantes&&parseInt(a.ajudantes)>0&&<Badge color="#b45309">👷 {a.ajudantes} {parseInt(a.ajudantes)===1?"ajudante":"ajudantes"}</Badge>}
@@ -3662,6 +3717,18 @@ return(
                 var _sigB64=assinB64;
                 setMudancas(function(prev){return prev.map(function(m){return m.id===_mId?{...m,status:"Concluído",requested_by:usuario?usuario.nome:null,signature_data:_sigB64}:m;});});
                 fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+_mId,{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"Concluído",signature_data:_sigB64})}).catch(function(e){console.warn("sig patch:",e);});
+                // Fix: Also update agenda status if item came from agenda
+                var _isAgenda=agenda.some(function(a){return a.id===_mId;});
+                if(_isAgenda){
+                  setAgenda(function(prev){return prev.map(function(a){return a.id===_mId?{...a,status:"concluida"}:a;});});
+                  fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+_mId,{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"concluida"})}).catch(function(e){console.warn("agenda status patch:",e);});
+                  // Create mudancas record from agenda item for registros
+                  var _agItem=agenda.find(function(a){return a.id===_mId;});
+                  if(_agItem){
+                    var _novaM={nome:_agItem.nome,selo:_agItem.selo||"",comunidade:_agItem.comunidade||"",data:_agItem.data,origem:_agItem.origem||"",destino:_agItem.destino||"",contato:_agItem.contato||null,van:_agItem.van||false,caminhao:_agItem.caminhao||false,medicao:parseFloat(_agItem.medicao)||0,ajudantes:parseInt(_agItem.ajudantes)||0,observacao:_agItem.observacao||"",status:"Concluído",signature_data:_sigB64,motorista_van_id:_agItem.motorista_van_id||null,motorista_caminhao_id:_agItem.motorista_caminhao_id||null,supervisor_id:_agItem.supervisor_id||null,approved_by_admin:_agItem.approved_by_admin||null,approved_by_social:_agItem.approved_by_social||null,approved_by_promorar:_agItem.approved_by_promorar||null,approved_by_supervisor:_agItem.approved_by_supervisor||null};
+                    fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(_novaM)}).then(function(r){return r.json();}).then(function(d){if(Array.isArray(d)&&d[0]){setMudancas(function(prev){return[d[0]].concat(prev);});}}).catch(function(e){console.warn("create mud from agenda:",e);});
+                  }
+                }
                 try{_addNotif("concluida","Mudanca concluida e assinada",mudAssinatura.nome);}catch(e){}
                 await _gerarPDFComAssinatura(mudAssinatura,assinB64,ressalvas);
                 setMudAssinatura(null);
@@ -3845,7 +3912,25 @@ return(
         </div>
       </div>
     )}
-    {/* TeamSelector modal removed — equipe is now per-day via Equipe tab */}
+    {/* ══ MODAL SOLICITAR CANCELAMENTO ══ */}
+    {cancelModal&&(
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setCancelModal(null);setCancelMotivo("");}}>
+        <div style={{background:"#fff",borderRadius:16,padding:"24px 20px",width:"100%",maxWidth:380}} onClick={function(e){e.stopPropagation();}}>
+          <div style={{fontSize:16,fontWeight:900,color:"#dc2626",marginBottom:14}}>⚠️ Solicitar Cancelamento</div>
+          <div style={{fontSize:13,fontWeight:700,color:"#1e293b",marginBottom:4}}>📦 {cancelModal.nome}</div>
+          <div style={{fontSize:11,color:"#64748b",marginBottom:14}}>📅 {cancelModal.data?fmtDate(cancelModal.data):""} · ⏰ {cancelModal.horario||"?"}</div>
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Motivo do cancelamento:</div>
+            <textarea value={cancelMotivo} onChange={function(e){setCancelMotivo(e.target.value);}} rows={3} placeholder="Informe o motivo..." style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:13,resize:"vertical",boxSizing:"border-box"}}/>
+          </div>
+          <div style={{background:"#fef9c3",borderRadius:8,padding:"8px 12px",fontSize:11,color:"#92400e",marginBottom:14}}>O Admin será notificado e precisará autorizar o cancelamento.</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={function(){setCancelModal(null);setCancelMotivo("");}} style={{flex:1,padding:11,borderRadius:10,background:"#f1f5f9",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>Voltar</button>
+            <button onClick={function(){if(!cancelMotivo.trim()){alert("Informe o motivo do cancelamento.");return;}handleSolicitarCancelamento(cancelModal.id,cancelMotivo.trim());}} style={{flex:2,padding:11,borderRadius:10,background:"#dc2626",color:"#fff",fontWeight:900,fontSize:13,border:"none",cursor:"pointer"}}>📩 Solicitar Cancelamento</button>
+          </div>
+        </div>
+      </div>
+    )}
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.55)",zIndex:9998,display:confirmDelete?"flex":"none",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setConfirmDelete(null);}}><div style={{background:"#fff",borderRadius:20,padding:"28px 24px",maxWidth:340,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.2)",textAlign:"center"}} onClick={function(e){e.stopPropagation();}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><div style={{fontWeight:800,fontSize:16,color:"#1e293b",marginBottom:8}}>Tem a certeza?</div><div style={{fontSize:13,color:"#64748b",marginBottom:20}}>Apagar <strong>{confirmDelete&&confirmDelete.nome}</strong>?</div><div style={{display:"flex",gap:10}}><button onClick={function(){setConfirmDelete(null);}} style={{flex:1,padding:"11px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancelar</button><button onClick={function(){if(confirmDelete&&confirmDelete.tipo==="mud")handleDelMud(confirmDelete.id);else if(confirmDelete)handleDelAg(confirmDelete.id);setConfirmDelete(null);}} style={{flex:1,padding:"11px 0",borderRadius:12,border:"none",background:"#ef4444",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>🗑️ Sim, Apagar</button></div></div></div>
     </div>
   );
