@@ -4360,11 +4360,50 @@ return(
                 <div style={{fontSize:15,fontWeight:800,color:"#1e293b"}}>📅 {_mesLabel}</div>
                 <button onClick={_mesProximo} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:14,fontWeight:700}}>▶</button>
               </div>
+              {/* Botões Relatório Semanal */}
+              {_ajFinArr.length>0&&<div style={{display:"flex",gap:8,marginBottom:14}}>
+                <button onClick={function(){
+                  var NL="%0A";var txt="📊 *RELATÓRIO MENSAL — Equipe*"+NL+"📅 "+_mesLabel+NL+NL;
+                  _ajFinArr.forEach(function(aj){
+                    var _tAj=aj.dias.reduce(function(s,d){return s+d.valor;},0);
+                    txt+="👷 *"+aj.nome+"*"+(aj.telefone?" — 📞 "+aj.telefone:"")+NL;
+                    aj.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){
+                      txt+="   📅 "+_fd(d.data)+" · "+d.numMud+" mud · "+_fv(d.valor)+NL;
+                    });
+                    txt+="   💰 Total: "+_fv(_tAj)+NL+NL;
+                  });
+                  txt+="━━━━━━━━━━━━━━━━━━"+NL;
+                  txt+="👷 "+_ajFinArr.length+" ajudante"+(_ajFinArr.length!==1?"s":"")+" · "+_totalGeralDias+" dia"+(_totalGeralDias!==1?"s":"")+NL;
+                  txt+="💰 *TOTAL: "+_fv(_totalGeralValor)+"*"+NL+NL+"— TELEMIM Mudanças";
+                  window.open("https://wa.me/?text="+txt,"_blank");
+                }} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"12px 10px",borderRadius:12,border:"none",background:"#25d366",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>📲 Relatório WhatsApp</button>
+                <button onClick={function(){
+                  var NL="\n";var txt="RELATÓRIO MENSAL — Equipe"+NL+"📅 "+_mesLabel+NL+NL;
+                  _ajFinArr.forEach(function(aj){
+                    var _tAj=aj.dias.reduce(function(s,d){return s+d.valor;},0);
+                    txt+="👷 "+aj.nome+(aj.telefone?" — 📞 "+aj.telefone:"")+NL;
+                    aj.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){
+                      txt+="   📅 "+_fd(d.data)+" · "+d.numMud+" mudança"+(d.numMud!==1?"s":"")+" · "+_fv(d.valor)+NL;
+                    });
+                    txt+="   💰 Total: "+_fv(_tAj)+NL+NL;
+                  });
+                  txt+="━━━━━━━━━━━━━━━━━━"+NL;
+                  txt+="👷 "+_ajFinArr.length+" ajudantes · "+_totalGeralDias+" dias"+NL;
+                  txt+="💰 TOTAL: "+_fv(_totalGeralValor)+NL+NL+"— TELEMIM Mudanças";
+                  var _w=window.open("","_blank");
+                  _w.document.write("<html><head><title>Relatório Equipe - "+_mesLabel+"</title><style>body{font-family:monospace;white-space:pre-wrap;padding:20px;font-size:14px;} @media print{body{font-size:12px;}}</style></head><body>"+txt.replace(/\n/g,"<br>")+"<br><br><button onclick='window.print()' style='padding:12px 24px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:bold;'>🖨️ Imprimir / Salvar PDF</button></body></html>");
+                  _w.document.close();
+                }} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"12px 10px",borderRadius:12,border:"none",background:"#1e40af",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>📄 PDF Relatório</button>
+              </div>}
               {_ajFinArr.length===0?<Card><div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:20}}>Nenhuma equipe escalada neste mês</div></Card>:_ajFinArr.map(function(aj){
                 var _totalAj=aj.dias.reduce(function(s,d){return s+d.valor;},0);
+                // WhatsApp message for individual ajudante
+                var _waMsg=(function(){var NL="%0A";var t="Olá "+aj.nome+"! 👷"+NL+"Segue seu resumo de pagamento:"+NL+NL;aj.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){t+="📅 "+_fd(d.data)+" · "+d.numMud+" mudança"+(d.numMud!==1?"s":"")+" · "+_fv(d.valor)+NL;});t+=NL+"💰 *Total: "+_fv(_totalAj)+"*"+NL+"🗓️ "+aj.dias.length+" dia"+(aj.dias.length!==1?"s":"")+" trabalhado"+(aj.dias.length!==1?"s":"")+NL+NL+"— TELEMIM Mudanças";return t;})();
+                var _waPhone=aj.telefone?(aj.telefone.replace(/\D/g,"").length<=11?"55"+aj.telefone.replace(/\D/g,""):aj.telefone.replace(/\D/g,"")):"";
                 return <Card key={aj.nome} style={{marginBottom:14}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                     <div><div style={{fontWeight:800,fontSize:14,color:"#1e293b"}}>👷 {aj.nome}</div>{aj.telefone&&<div style={{fontSize:11,color:"#64748b"}}>📞 {aj.telefone}</div>}</div>
+                    {_waPhone&&<button onClick={function(){window.open("https://wa.me/"+_waPhone+"?text="+_waMsg,"_blank");}} style={{background:"#25d366",border:"none",borderRadius:10,padding:"8px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:16}}>📲</span><span style={{fontSize:10,fontWeight:700,color:"#fff"}}>Enviar</span></button>}
                   </div>
                   <div style={{borderTop:"1px solid #e2e8f0",paddingTop:8}}>
                     {aj.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).map(function(d,i){
