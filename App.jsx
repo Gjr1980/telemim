@@ -1011,12 +1011,14 @@ export default function App(){
     // Derive real status from vehicle timestamps
     function _deriveStatus(item){
       // Check van progress
-      if(item.chegada_van_em||item.termino_van_em) return "van_concluido";
+      if(item.termino_van_em) return "van_concluido";
+      if(item.chegada_van_em) return "van_descarregando";
       if(item.saiu_destino_van_em) return "van_destino";
       if(item.chegou_origem_van_em) return "van_origem";
       if(item.inicio_van_em||item.van_saiu_em) return "van_deslocamento";
       // Check cam progress
-      if(item.chegada_caminhao_em||item.termino_caminhao_em) return "cam_concluido";
+      if(item.termino_caminhao_em) return "cam_concluido";
+      if(item.chegada_caminhao_em) return "cam_descarregando";
       if(item.saiu_destino_cam_em) return "cam_destino";
       if(item.chegou_origem_cam_em) return "cam_origem";
       if(item.inicio_caminhao_em||item.caminhao_saiu_em) return "cam_deslocamento";
@@ -1025,11 +1027,13 @@ export default function App(){
     }
     function _isActive(item){
       var d=_deriveStatus(item);
-      return d.indexOf("deslocamento")>=0||d.indexOf("origem")>=0||d.indexOf("destino")>=0||d==="Em Deslocamento"||d==="Realizando"||d==="Na Origem"||d==="Deslocamento Destino";
+      return d.indexOf("deslocamento")>=0||d.indexOf("origem")>=0||d.indexOf("destino")>=0||d.indexOf("descarregando")>=0||d==="Em Deslocamento"||d==="Realizando"||d==="Na Origem"||d==="Deslocamento Destino"||d==="Descarregando";
     }
     function _isConcl(item){
       var d=_deriveStatus(item);
-      return d.indexOf("concluido")>=0||["Concluido","Concluído","concluido","concluida","realizado","realizada"].indexOf(item.status)>=0;
+      var _st=item.status;
+      var _terminou=item.termino_em||item.termino_van_em||item.termino_caminhao_em;
+      return d.indexOf("concluido")>=0||_terminou||["Concluido","Concluído","concluido","concluida","realizado","realizada"].indexOf(_st)>=0;
     }
     var _todayAg=(agenda||[]).filter(function(a){return a.data===_hj&&!a.deleted_at&&a.supervisor_id;});
     var _todayMud=(mudancas||[]).filter(function(m){return m.data===_hj&&!m.deleted_at&&m.supervisor_id;});
@@ -2104,11 +2108,17 @@ export default function App(){
       else if(_isCamMot) body.saiu_destino_cam_em=agora;
       gpsStart(ag.id,_veiTipo);
     }
-    // Step 4: Chegou no Destino → GPS para, mudança concluída
+    // Step 4: Chegou no Destino → GPS para, equipe descarregando (NÃO conclui)
+    if(novoStatus==="Descarregando"){
+      if(_isVanMot){body.chegada_van_em=agora;}
+      else if(_isCamMot){body.chegada_caminhao_em=agora;}
+      gpsStop(_veiTipo);
+    }
+    // Step 6: Concluído (set by Finalizar Mudança button)
     if(novoStatus==="Concluido"||novoStatus==="realizado"){
-      if(_isVanMot){body.chegada_van_em=agora;body.termino_van_em=agora;}
-      else if(_isCamMot){body.chegada_caminhao_em=agora;body.termino_caminhao_em=agora;}
-      else{body.status=novoStatus;body.termino_em=agora;}
+      if(_isVanMot){body.termino_van_em=agora;if(!ag.chegada_van_em)body.chegada_van_em=agora;}
+      else if(_isCamMot){body.termino_caminhao_em=agora;if(!ag.chegada_caminhao_em)body.chegada_caminhao_em=agora;}
+      else{body.status="concluida";body.termino_em=agora;}
       gpsStop(_veiTipo);
     }
     // Legacy: Realizando (admin/supervisor/social use)
@@ -2698,13 +2708,15 @@ export default function App(){
               var _isCamMot=usuario&&(usuario.tipo_veiculo==="CAMINHAO"||a.motorista_caminhao_id===usuario.id);
               var _stMot;
               if(_isVanMot){
-                if(a.chegada_van_em||a.termino_van_em) _stMot="Concluido";
+                if(a.termino_van_em) _stMot="Concluido";
+                else if(a.chegada_van_em) _stMot="Descarregando";
                 else if(a.saiu_destino_van_em) _stMot="Deslocamento Destino";
                 else if(a.chegou_origem_van_em) _stMot="Na Origem";
                 else if(a.inicio_van_em||a.van_saiu_em) _stMot="Em Deslocamento";
                 else _stMot="confirmado";
               }else if(_isCamMot){
-                if(a.chegada_caminhao_em||a.termino_caminhao_em) _stMot="Concluido";
+                if(a.termino_caminhao_em) _stMot="Concluido";
+                else if(a.chegada_caminhao_em) _stMot="Descarregando";
                 else if(a.saiu_destino_cam_em) _stMot="Deslocamento Destino";
                 else if(a.chegou_origem_cam_em) _stMot="Na Origem";
                 else if(a.inicio_caminhao_em||a.caminhao_saiu_em) _stMot="Em Deslocamento";
@@ -2725,8 +2737,8 @@ export default function App(){
                     <div style={{fontSize:_dest?13:11,marginTop:24}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     {(a.approved_by_supervisor||a.supervisor_id)&&(function(){var _supNome=a.approved_by_supervisor||(function(){var _s=listaUsuarios.find(function(u){return u.id===a.supervisor_id;});return _s?_s.nome:null;})();return _supNome?<div style={{fontSize:_dest?13:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {_supNome}</div>:null;})()}
                   </div>
-                  <div style={{background:_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#dbeafe":_stMot==="Na Origem"?"#fef9c3":_stMot==="Concluido"?"#dcfce7":"#f1f5f9",border:"1px solid "+(_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#93c5fd":_stMot==="Na Origem"?"#fde047":_stMot==="Concluido"?"#86efac":"#cbd5e1"),borderRadius:20,padding:"3px 10px",fontSize:_dest?11:10,fontWeight:700,color:_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#1d4ed8":_stMot==="Na Origem"?"#854d0e":_stMot==="Concluido"?"#15803d":"#64748b",whiteSpace:"nowrap"}}>
-                    {_stMot==="confirmado"||_stMot==="pendente"?"🟡 Pendente":_stMot==="Em Deslocamento"?"🚚 Rumo à Origem":_stMot==="Na Origem"?"📍 Na Origem":_stMot==="Deslocamento Destino"?"🚚 Rumo ao Destino":_stMot==="Concluido"?"✅ Concluído":_stMot}
+                  <div style={{background:_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#dbeafe":_stMot==="Na Origem"||_stMot==="Descarregando"?"#fef9c3":_stMot==="Concluido"?"#dcfce7":"#f1f5f9",border:"1px solid "+(_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#93c5fd":_stMot==="Na Origem"||_stMot==="Descarregando"?"#fde047":_stMot==="Concluido"?"#86efac":"#cbd5e1"),borderRadius:20,padding:"3px 10px",fontSize:_dest?11:10,fontWeight:700,color:_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#1d4ed8":_stMot==="Na Origem"||_stMot==="Descarregando"?"#854d0e":_stMot==="Concluido"?"#15803d":"#64748b",whiteSpace:"nowrap"}}>
+                    {_stMot==="confirmado"||_stMot==="pendente"?"🟡 Pendente":_stMot==="Em Deslocamento"?"🚚 Rumo à Origem":_stMot==="Na Origem"?"📍 Na Origem":_stMot==="Deslocamento Destino"?"🚚 Rumo ao Destino":_stMot==="Descarregando"?"📦 Descarregando":_stMot==="Concluido"?"✅ Concluído":_stMot}
                   </div>{_stMot==="Em Deslocamento"||_stMot==="Na Origem"||_stMot==="Deslocamento Destino"?
                     <div style={{marginTop:4,fontSize:_dest?11:10,color:_stMot==="Em Deslocamento"?"#1d4ed8":"#854d0e",fontWeight:700,letterSpacing:0.5}}>{(function(){var _ts=_stMot==="Em Deslocamento"?a.inicio_em:a.inicio_mudanca_em;if(!_ts)return null;var _ini=new Date(_ts);var _pad=function(n){return String(n).padStart(2,"0");};var _hora=_pad(_ini.getHours())+":"+_pad(_ini.getMinutes());var _label=_stMot==="Em Deslocamento"?"🚐 Saída: ":"🚛 Início: ";return _label+_hora;})()}</div>:null}
                 </div>
@@ -2780,9 +2792,14 @@ export default function App(){
                         <span style={{width:10,height:10,borderRadius:"50%",background:"#2563eb",animation:"pulse 1.5s infinite"}}></span>
                         <span style={{fontSize:_dest?12:11,fontWeight:700,color:"#1d4ed8"}}>📡 GPS ativo — rumo ao destino</span>
                       </div>
-                      <button onClick={function(){handleStatusMotorista(a,"Concluido");}} style={{width:"100%",background:"#16a34a",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                      <button onClick={function(){handleStatusMotorista(a,"Descarregando");}} style={{width:"100%",background:"#d97706",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                         🏁 Chegou no Destino
                       </button>
+                    </div>
+                  )}
+                  {isMotorista&&_stMot==="Descarregando"&&(
+                    <div style={{display:"flex",alignItems:"center",gap:6,background:"#fef9c3",border:"1.5px solid #fde047",borderRadius:_dest?10:8,padding:_dest?"10px 14px":"8px 12px"}}>
+                      <span style={{fontSize:_dest?12:11,fontWeight:700,color:"#854d0e"}}>📦 Descarregando no destino...</span>
                     </div>
                   )}
                   {/* ── CONCLUÍDA banner ── */}
@@ -3096,10 +3113,12 @@ export default function App(){
     var steps=[
       {key:"deslocamento",label:"Rumo à Origem",icon:"🚐"},
       {key:"origem",label:"Na Origem",icon:"📍"},
+      {key:"carregando",label:"Carregando",icon:"📦"},
       {key:"destino",label:"Rumo ao Destino",icon:"🚚"},
+      {key:"descarregando",label:"Descarregando",icon:"📦"},
       {key:"chegou",label:"Concluído",icon:"🏁"}
     ];
-    var _map={"Em Deslocamento":0,"Na Origem":1,"Deslocamento Destino":2,"Concluido":3,"Concluído":3,"concluido":3,"concluida":3,"realizado":3,"realizada":3,"Realizando":1};
+    var _map={"Em Deslocamento":0,"Na Origem":1,"Carregando":2,"Realizando":2,"Deslocamento Destino":3,"Descarregando":4,"No Destino":4,"Concluido":5,"Concluído":5,"concluido":5,"concluida":5,"realizado":5,"realizada":5};
     var activeIdx=_map[status]!==undefined?_map[status]:-1;
     return(
       <div style={{display:"flex",alignItems:"center",gap:0,padding:"12px 0"}}>
@@ -3336,17 +3355,23 @@ export default function App(){
                       );
                     })()}
 
-                    {/* Step Tracker — derive status from van/cam timestamps */}
+                    {/* Step Tracker — derive status from van/cam timestamps (6 steps) */}
                     {(function(){
                       var _st4="confirmado";
-                      // Check van progress
-                      if(am.chegada_van_em||am.termino_van_em||am.chegada_caminhao_em||am.termino_caminhao_em) _st4="Concluido";
-                      else if(am.saiu_destino_van_em||am.saiu_destino_cam_em) _st4="Deslocamento Destino";
-                      else if(am.chegou_origem_van_em||am.chegou_origem_cam_em) _st4="Na Origem";
-                      else if(am.inicio_van_em||am.van_saiu_em||am.inicio_caminhao_em||am.caminhao_saiu_em) _st4="Em Deslocamento";
-                      // Fallback to general status
-                      else if(am.status==="concluida"||am.status==="realizada") _st4="Concluido";
-                      else if(am.status==="Realizando"||am.status==="em_andamento") _st4="Na Origem";
+                      // Check vehicle timestamps for 6-step flow
+                      var _hasConcl=am.status==="concluida"||am.status==="realizada"||am.termino_em||am.termino_van_em||am.termino_caminhao_em;
+                      var _hasChegDest=am.chegada_van_em||am.chegada_caminhao_em;
+                      var _hasSaiuDest=am.saiu_destino_van_em||am.saiu_destino_cam_em;
+                      var _hasOrigem=am.chegou_origem_van_em||am.chegou_origem_cam_em;
+                      var _hasSaiu=am.inicio_van_em||am.van_saiu_em||am.inicio_caminhao_em||am.caminhao_saiu_em;
+                      if(_hasConcl&&_hasChegDest) _st4="Concluido";
+                      else if(_hasChegDest) _st4="Descarregando";
+                      else if(_hasSaiuDest) _st4="Deslocamento Destino";
+                      else if(_hasOrigem) _st4="Carregando";
+                      else if(_hasSaiu) _st4="Em Deslocamento";
+                      // Fallback to general status (non-vehicle flow)
+                      else if(_hasConcl) _st4="Concluido";
+                      else if(am.status==="Realizando"||am.status==="em_andamento"||am.inicio_mudanca_em) _st4="Carregando";
                       return(
                         <div style={{background:"#f8fafc",borderRadius:12,padding:"8px 12px",marginTop:4,border:"1px solid #e2e8f0"}}>
                           <StepTracker status={_st4}/>
