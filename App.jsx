@@ -869,37 +869,59 @@ export default function App(){
 
   const MAPBOX_TOKEN=["pk.eyJ1IjoidGVsZW1pbSIsImEiOiJjbW9yd","HJzMmcwNW8yMndwdnZ1bDFoOXZ2In0.","4MHg1RPF_jFgiQt4Ax4Psw"].join("");
 
+  // ── GPS: Send position to Supabase ─────────────────────────────────────────
+  function _gpsSendPosition(agendaId,coords){
+    var payload={motorista_id:usuario.id,agenda_id:agendaId,lat:coords.latitude,lng:coords.longitude,heading:coords.heading,speed:coords.speed};
+    fetch(SUPA_URL+"/rest/v1/gps_tracking",{
+      method:"POST",
+      headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),
+      body:JSON.stringify(payload)
+    }).catch(function(){});
+  }
+
   // ── GPS: Start tracking (motorista) — per vehicle type ─────────────────────
   function gpsStart(agendaId,veiTipo){
     var key=veiTipo||"van";
-    if(gpsWatches[key]) return;// already tracking this vehicle
+    if(gpsWatches[key]) return;
     if(!navigator.geolocation) return;
     var _lastSent=0;
+    // watchPosition — fires when position changes (foreground only on mobile)
     var wid=navigator.geolocation.watchPosition(
       function(pos){
         var now=Date.now();
-        if(now-_lastSent<30000) return;// throttle 30s
+        if(now-_lastSent<30000) return;
         _lastSent=now;
-        var payload={motorista_id:usuario.id,agenda_id:agendaId,lat:pos.coords.latitude,lng:pos.coords.longitude,heading:pos.coords.heading,speed:pos.coords.speed};
-        fetch(SUPA_URL+"/rest/v1/gps_tracking",{
-          method:"POST",
-          headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),
-          body:JSON.stringify(payload)
-        }).catch(function(){});
+        _gpsSendPosition(agendaId,pos.coords);
       },
-      function(err){console.warn("[GPS] error:",err.message);},
+      function(err){console.warn("[GPS] watch error:",err.message);},
       {enableHighAccuracy:true,maximumAge:10000,timeout:15000}
     );
-    setGpsWatches(function(prev){var n=Object.assign({},prev);n[key]={id:wid,agendaId:agendaId};return n;});
+    // setInterval fallback — forces getCurrentPosition every 30s even if watchPosition stalls
+    var iid=setInterval(function(){
+      navigator.geolocation.getCurrentPosition(
+        function(pos){_gpsSendPosition(agendaId,pos.coords);},
+        function(){},
+        {enableHighAccuracy:true,maximumAge:5000,timeout:10000}
+      );
+    },30000);
+    // Wake Lock — prevent screen sleep on mobile
+    var wl=null;
+    if(navigator.wakeLock){
+      navigator.wakeLock.request("screen").then(function(lock){wl=lock;}).catch(function(){});
+    }
+    setGpsWatches(function(prev){var n=Object.assign({},prev);n[key]={watchId:wid,intervalId:iid,wakeLock:wl,agendaId:agendaId};return n;});
   }
 
   // ── GPS: Stop tracking (motorista) — per vehicle type ─────────────────────
   function gpsStop(veiTipo){
     var key=veiTipo||"van";
-    if(gpsWatches[key]){
-      navigator.geolocation.clearWatch(gpsWatches[key].id);
-      setGpsWatches(function(prev){var n=Object.assign({},prev);delete n[key];return n;});
-    }
+    setGpsWatches(function(prev){
+      if(!prev[key]) return prev;
+      navigator.geolocation.clearWatch(prev[key].watchId);
+      clearInterval(prev[key].intervalId);
+      if(prev[key].wakeLock){try{prev[key].wakeLock.release();}catch(e){}}
+      var n=Object.assign({},prev);delete n[key];return n;
+    });
   }
 
   // ── GPS: Load latest positions for admin ───────────────────────────────────
@@ -1188,6 +1210,18 @@ export default function App(){
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
   const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social";const isMotorista=perfil==="motorista";const isSupervisor=perfil==="supervisor";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar||isSupervisor;const verMed=isAdmin||isPromorar||isSupervisor;
   useEffect(function(){if(isAdmin)loadNotificacoes();},[usuario]);
+  // ── GPS Map auto-polling — refresh every 15s while modal is open ──────────
+  useEffect(function(){
+    if(!showGpsMap||!gpsMapAgenda) return;
+    function _poll(){
+      gpsLoadPositions(gpsMapAgenda.id).then(function(pos){
+        if(pos){setGpsPositions([pos]);if(gpsMapAgenda.destino){gpsCalcEta(pos.lat,pos.lng,gpsMapAgenda.destino).then(function(eta){if(eta)setGpsEta(eta);});}}
+      });
+    }
+    _poll();// initial
+    var _tid=setInterval(_poll,15000);
+    return function(){clearInterval(_tid);};
+  },[showGpsMap,gpsMapAgenda]);
   function _renderRelatorioMotoristas(_ms,_periodoLabel){
     var _fvR=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
     var _fvN=function(v){return parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
@@ -4135,7 +4169,14 @@ return(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(4px)",zIndex:2000,display:"flex",flexDirection:"column",padding:0}} onClick={function(){setShowGpsMap(false);setGpsMapAgenda(null);setGpsEta(null);setGpsPositions([]);}}>
           <div style={{flex:1,display:"flex",flexDirection:"column"}} onClick={function(e){e.stopPropagation();}}>
             <div style={{background:"#1e293b",padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{color:"#fff",fontWeight:800,fontSize:14}}>📍 GPS — {gpsMapAgenda.nome}</div>
+              <div>
+                <div style={{color:"#fff",fontWeight:800,fontSize:14}}>📍 GPS — {gpsMapAgenda.nome}</div>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}>
+                  <span style={{width:8,height:8,borderRadius:"50%",background:"#22c55e",animation:"pulse 1.5s infinite"}}></span>
+                  <span style={{color:"#4ade80",fontSize:11,fontWeight:600}}>Tempo real — auto-refresh 15s</span>
+                  {gpsPositions.length>0&&gpsPositions[0].created_at&&<span style={{color:"#94a3b8",fontSize:10,marginLeft:4}}>· Última: {(function(){var d=new Date(gpsPositions[0].created_at);var _p=function(n){return String(n).padStart(2,"0");};return _p(d.getHours())+":"+_p(d.getMinutes())+":"+_p(d.getSeconds());})()}</span>}
+                </div>
+              </div>
               <button onClick={function(){setShowGpsMap(false);setGpsMapAgenda(null);setGpsEta(null);setGpsPositions([]);}} style={{background:"#dc2626",color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕ Fechar</button>
             </div>
             {gpsEta&&(
@@ -4146,22 +4187,33 @@ return(
               </div>
             )}
             {gpsPositions.length===0&&!gpsEta&&(
-              <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"#94a3b8",fontSize:14,fontWeight:600}}>
+              <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,color:"#94a3b8",fontSize:14,fontWeight:600}}>
+                <div style={{width:24,height:24,border:"3px solid #64748b",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 1s linear infinite"}}></div>
                 Aguardando dados GPS do motorista...
+                <div style={{fontSize:11,color:"#64748b",maxWidth:260,textAlign:"center"}}>O app do motorista precisa estar aberto com a tela ligada</div>
               </div>
             )}
             {gpsPositions.length>0&&(
               <div style={{flex:1,position:"relative"}} ref={function(el){
                 if(!el||!window.mapboxgl) return;
-                if(el._mapInstance) {el._mapInstance.remove();el._mapInstance=null;}
+                // Create map only once
+                if(el._mapReady){
+                  // Just update marker position
+                  var _pos2=gpsPositions[0];
+                  if(el._marker){el._marker.setLngLat([_pos2.lng,_pos2.lat]);}
+                  if(el._map){el._map.easeTo({center:[_pos2.lng,_pos2.lat],duration:1000});}
+                  return;
+                }
+                el._mapReady=true;
                 var pos=gpsPositions[0];
                 window.mapboxgl.accessToken=MAPBOX_TOKEN;
                 var map=new window.mapboxgl.Map({container:el,style:"mapbox://styles/mapbox/streets-v12",center:[pos.lng,pos.lat],zoom:13});
-                el._mapInstance=map;
+                el._map=map;
                 var markerEl=document.createElement("div");
                 markerEl.innerHTML="🚚";
                 markerEl.style.fontSize="32px";
-                new window.mapboxgl.Marker({element:markerEl}).setLngLat([pos.lng,pos.lat]).addTo(map);
+                var marker=new window.mapboxgl.Marker({element:markerEl}).setLngLat([pos.lng,pos.lat]).addTo(map);
+                el._marker=marker;
                 if(gpsEta&&gpsEta.route){
                   map.on("load",function(){
                     map.addSource("route",{type:"geojson",data:{type:"Feature",geometry:gpsEta.route}});
@@ -4181,10 +4233,9 @@ return(
             <div style={{background:"#1e293b",padding:"10px 16px",display:"flex",gap:8}}>
               <button onClick={function(){
                 gpsLoadPositions(gpsMapAgenda.id).then(function(pos){
-                  if(pos&&gpsMapAgenda.destino){gpsCalcEta(pos.lat,pos.lng,gpsMapAgenda.destino).then(function(eta){setGpsEta(eta);});}
-                  setGpsPositions(pos?[pos]:[]);
+                  if(pos){setGpsPositions([pos]);if(gpsMapAgenda.destino){gpsCalcEta(pos.lat,pos.lng,gpsMapAgenda.destino).then(function(eta){if(eta)setGpsEta(eta);});}}
                 });
-              }} style={{flex:1,background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 0",fontWeight:700,fontSize:13,cursor:"pointer"}}>🔄 Atualizar Posição</button>
+              }} style={{flex:1,background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 0",fontWeight:700,fontSize:13,cursor:"pointer"}}>🔄 Atualizar Agora</button>
             </div>
           </div>
         </div>
