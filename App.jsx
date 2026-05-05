@@ -4211,7 +4211,7 @@ return(
     </div>
   );
 })()}
-{tab==="contas"&&<ResumoSemanal mudancas={mudancas} RULES={RULES} prestadores={prestadores} custosDiarios={custosDiarios} setCustosDiarios={setCustosDiarios} setContasSemana={setContasSemana}/>}
+{tab==="contas"&&<ResumoSemanal mudancas={_allForFiltered} RULES={RULES} prestadores={prestadores} custosDiarios={custosDiarios} setCustosDiarios={setCustosDiarios} setContasSemana={setContasSemana}/>}
 {tab==="contas"&&isAdmin&&(function(){
   var _pc=function(n){return String(n).padStart(2,"0");};
   var _hj=new Date();var _dw=_hj.getDay();var _df=_dw===0?6:_dw-1;
