@@ -9,7 +9,7 @@ const SUPA_URL = "https://netoufukpmmfhzwirogi.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ldG91ZnVrcG1tZmh6d2lyb2dpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTkwOTksImV4cCI6MjA4OTg5NTA5OX0.iapL70SiL_GV4XvmXRNcjlK_Sc-P2-esJzuLQvovdGQ";
 var APPS_SCRIPT_URL="https://script.google.com/macros/s/AKfycbzdcWIsm6LcCM6e7Cpx0699PPw7d3NQTVrIELsxTs_hbACSEEjGCPoUrBzESDhxyoGJ/exec";
 // ── PUSH NOTIFICATIONS ───────────────────────────────────────────────────────
-const VAPID_PUBLIC="BDSrV6DR3T2UHFejPkdxILOhX2642QKjU4FFIepZNt0FF7Zq3FGmYEwFyr3GShvvvBFJSiLvvSHWHij6rFixouk";
+const VAPID_PUBLIC="BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjZEuEguqec8LTygq7UQTqp8-XWo4";
 function urlBase64ToUint8Array(base64String){var padding="=".repeat((4-base64String.length%4)%4);var base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");var rawData=window.atob(base64);var outputArray=new Uint8Array(rawData.length);for(var i=0;i<rawData.length;++i){outputArray[i]=rawData.charCodeAt(i);}return outputArray;}
 async function subscribePush(userId){
   if(!("serviceWorker" in navigator)||!("PushManager" in window))return null;
@@ -17,7 +17,7 @@ async function subscribePush(userId){
     var reg=await navigator.serviceWorker.ready;
     var sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC)});
     var keys=sub.toJSON();
-    await fetch(SUPA_URL+"/rest/v1/push_subscriptions",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({user_id:userId,endpoint:keys.endpoint,p256dh:keys.keys.p256dh,auth:keys.keys.auth})});
+    await fetch(SUPA_URL+"/rest/v1/push_subscriptions",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({usuario_id:userId,endpoint:keys.endpoint,p256dh:keys.keys.p256dh,auth:keys.keys.auth})});
     return sub;
   }catch(e){return null;}
 }
