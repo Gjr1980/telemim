@@ -866,6 +866,7 @@ export default function App(){
   const [showGpsMap,setShowGpsMap]=useState(false);
   const [gpsMapAgenda,setGpsMapAgenda]=useState(null);
   const [gpsEta,setGpsEta]=useState(null);
+  const [monitorFiltro,setMonitorFiltro]=useState("todos");
 
   const MAPBOX_TOKEN=["pk.eyJ1IjoidGVsZW1pbSIsImEiOiJjbW9yd","HJzMmcwNW8yMndwdnZ1bDFoOXZ2In0.","4MHg1RPF_jFgiQt4Ax4Psw"].join("");
 
@@ -2924,16 +2925,60 @@ export default function App(){
         </div>
       </div>
 
+      {/* Filtro por Supervisor / Social */}
+      {(function(){
+        var _sups=listaUsuarios.filter(function(u){return u.perfil==="supervisor"&&u.ativo;});
+        var _socs=listaUsuarios.filter(function(u){return u.perfil==="social"&&u.ativo;});
+        // Collect social names from today's agenda
+        var _socNames=[];
+        var _seenSoc={};
+        (agenda||[]).forEach(function(a){if(a.data===_hjStr&&!a.deleted_at&&a.approved_by_social&&!_seenSoc[a.approved_by_social]){_seenSoc[a.approved_by_social]=true;_socNames.push(a.approved_by_social);}});
+        return(
+          <div style={{padding:"10px 12px 0",display:"flex",gap:6}}>
+            <select value={monitorFiltro} onChange={function(e){setMonitorFiltro(e.target.value);}}
+              style={{flex:1,padding:"10px 12px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#fff",fontSize:12,fontWeight:700,color:"#1e293b",cursor:"pointer"}}>
+              <option value="todos">👁️ Todos</option>
+              <optgroup label="👷 Supervisores">
+                {_sups.map(function(s){return <option key={s.id} value={"sup:"+s.id}>👷 {s.nome}</option>;})}
+                {_sups.length===0&&<option disabled>Nenhum supervisor</option>}
+              </optgroup>
+              <optgroup label="🤝 Social">
+                {_socs.map(function(s){return <option key={s.id} value={"soc:"+s.nome}>🤝 {s.nome}</option>;})}
+                {_socNames.filter(function(n){return !_socs.some(function(s){return s.nome===n;});}).map(function(n){return <option key={n} value={"soc:"+n}>🤝 {n}</option>;})}
+                {_socs.length===0&&_socNames.length===0&&<option disabled>Nenhum social</option>}
+              </optgroup>
+            </select>
+            {monitorFiltro!=="todos"&&(
+              <button onClick={function(){setMonitorFiltro("todos");}} style={{padding:"10px 14px",borderRadius:10,border:"1.5px solid #dc2626",background:"#fef2f2",color:"#dc2626",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>✕ Limpar</button>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Cards por Supervisor */}
       <div style={{padding:"12px 12px 0"}}>
-        {monitorData.length===0&&(
-          <div style={{background:"#fff",borderRadius:16,padding:"40px 20px",textAlign:"center",border:"1.5px solid #e2e8f0"}}>
-            <div style={{fontSize:40,marginBottom:8}}>📡</div>
-            <div style={{fontSize:15,fontWeight:800,color:"#64748b"}}>Nenhuma operação hoje</div>
-            <div style={{fontSize:12,color:"#94a3b8",marginTop:4}}>Agende mudanças com supervisor para monitorar</div>
-          </div>
-        )}
-        {monitorData.map(function(group){
+        {(function(){
+          var _filtered=monitorData;
+          if(monitorFiltro!=="todos"){
+            if(monitorFiltro.startsWith("sup:")){
+              var _sid=monitorFiltro.slice(4);
+              _filtered=monitorData.filter(function(g){return g.supervisorId===_sid;});
+            }else if(monitorFiltro.startsWith("soc:")){
+              var _socNome=monitorFiltro.slice(4);
+              _filtered=monitorData.filter(function(g){
+                var _allMoves=[g.activeMove].concat(g.pendingMoves,g.completedMoves).filter(Boolean);
+                return _allMoves.some(function(m){return m.approved_by_social===_socNome;});
+              });
+            }
+          }
+          if(_filtered.length===0) return(
+            <div style={{background:"#fff",borderRadius:16,padding:"40px 20px",textAlign:"center",border:"1.5px solid #e2e8f0"}}>
+              <div style={{fontSize:40,marginBottom:8}}>📡</div>
+              <div style={{fontSize:15,fontWeight:800,color:"#64748b"}}>{monitorFiltro!=="todos"?"Nenhuma operação para este filtro":"Nenhuma operação hoje"}</div>
+              <div style={{fontSize:12,color:"#94a3b8",marginTop:4}}>{monitorFiltro!=="todos"?"Tente outro filtro ou 'Todos'":"Agende mudanças com supervisor para monitorar"}</div>
+            </div>
+          );
+          return _filtered.map(function(group){
           var sup=listaUsuarios.find(function(u){return u.id===group.supervisorId;});
           var supNome=sup?sup.nome:"Supervisor #"+String(group.supervisorId).slice(0,6);
           var supContato=sup&&sup.contato?sup.contato:"";
@@ -3083,7 +3128,8 @@ export default function App(){
               </div>
             </div>
           );
-        })}
+        });
+        })()}
       </div>
     </div>
   );
