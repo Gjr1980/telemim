@@ -4247,26 +4247,6 @@ return(
   );
 })()}
 {tab==="contas"&&<ResumoSemanal mudancas={_allForFiltered} RULES={RULES} prestadores={prestadores} custosDiarios={custosDiarios} setCustosDiarios={setCustosDiarios} setContasSemana={setContasSemana}/>}
-{tab==="contas"&&isAdmin&&(function(){
-  var _pc=function(n){return String(n).padStart(2,"0");};
-  var _hj=new Date();var _dw=_hj.getDay();var _df=_dw===0?6:_dw-1;
-  var _s0=new Date(_hj.getFullYear(),_hj.getMonth(),_hj.getDate()-_df);
-  var _s1=new Date(_s0.getFullYear(),_s0.getMonth(),_s0.getDate()+6);
-  var _fd=function(d){return d.getFullYear()+"-"+_pc(d.getMonth()+1)+"-"+_pc(d.getDate());};
-  var _fb=function(d){return _pc(d.getDate())+"/"+_pc(d.getMonth()+1)+"/"+d.getFullYear();};
-  var _si=_fd(_s0);var _sf=_fd(_s1);
-  var _periodo=_fb(_s0)+" a "+_fb(_s1);
-  var _ms=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data>=_si&&m.data<=_sf;});
-  return(
-    <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 14px 10px",marginTop:10,marginBottom:10}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-        <div style={{fontWeight:800,fontSize:13,color:"#1e293b"}}>📋 Motoristas da Semana</div>
-        <div style={{fontSize:10,color:"#64748b"}}>{_periodo}</div>
-      </div>
-      {_renderRelatorioMotoristas(_ms,_periodo)}
-    </div>
-  );
-})()}
 {false&&tab==="contas"&&isAdmin&&(function(){
   var _fv2=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
   var _fd2=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]:d;};
