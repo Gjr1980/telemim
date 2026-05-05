@@ -2541,7 +2541,7 @@ export default function App(){
   const _statusRealizados=["realizado","realizada","realizado","executado","executada","concluido","concluida","Realizado","Realizada"];
   // Excluir também itens que já existem em mudancas (foram sincronizados como realizados)
   const _jaEmMudancas=function(a){return mudancas.some(function(m){return m.data===a.data&&(m.nome||"").toLowerCase().trim()===(a.nome||"").toLowerCase().trim();});};
-  const mudancasHoje=agendaOrdenada.filter(a=>a.data===hoje&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a));
+  const mudancasHoje=agendaOrdenada.filter(a=>a.data===hoje&&!_jaEmMudancas(a));
   const mudancasAmanha=agendaOrdenada.filter(a=>a.data===amanha&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a));
   const mudancasFuturas=isMotorista?agendaOrdenada.filter(a=>a.data>amanha&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a)):[];
   const _mesAtual=new Date().getMonth();
@@ -2678,8 +2678,9 @@ export default function App(){
                 _stMot=a.status||"confirmado";
               }
               var _dest=_idx===0;
+              var _isDone=_statusRealizados.includes(a.status)||a.termino_em||_stMot==="Concluido";
               return(
-              <div key={a.id} style={{background:"#dcfce7",border:(_dest?"3px":"2px")+" solid #16a34a",borderRadius:_dest?18:14,padding:_dest?"20px 18px":"14px 15px",boxShadow:_dest?"0 4px 16px rgba(22,163,74,0.25)":"0 2px 8px rgba(22,163,74,0.15)"}}>
+              <div key={a.id} style={{background:_isDone?"#f0fdf4":"#dcfce7",border:(_dest?"3px":"2px")+" solid "+(_isDone?"#86efac":"#16a34a"),borderRadius:_dest?18:14,padding:_dest?"20px 18px":"14px 15px",boxShadow:_dest?"0 4px 16px rgba(22,163,74,0.25)":"0 2px 8px rgba(22,163,74,0.15)",opacity:_isDone?0.85:1}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:_dest?14:10}}>
                   <div style={{flex:1}}>
                     <div style={{color:"#15803d",fontWeight:900,fontSize:_dest?13:11,letterSpacing:1,textTransform:"uppercase",marginBottom:_dest?5:3}}>{_dest?"🚚 PRÓXIMA MUDANÇA":"🚚 MUDANÇA HOJE"}</div>
@@ -2749,9 +2750,12 @@ export default function App(){
                       </button>
                     </div>
                   )}
+                  {/* ── CONCLUÍDA banner ── */}
+                  {(function(){var _done=_statusRealizados.includes(a.status)||a.termino_em||(_stMot==="Concluido");
+                    return _done?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#dcfce7",border:"2px solid #86efac",borderRadius:_dest?12:10,padding:_dest?"12px 0":"9px 0"}}><span style={{fontSize:_dest?18:15}}>✅</span><span style={{fontWeight:800,fontSize:_dest?15:13,color:"#15803d"}}>Mudança Concluída</span></div>:null;})()}
                   {/* ── ADMIN/SUPERVISOR/PROMORAR/SOCIAL: Iniciar / Finalizar ── */}
-                  {!isMotorista&&_stMot!=="Concluido"&&_stMot!=="concluida"&&(function(){
-                    var _isConcl=a.status==="concluida"||a.status==="realizada"||a.termino_em;
+                  {!isMotorista&&(function(){
+                    var _isConcl=_statusRealizados.includes(a.status)||a.termino_em||(_stMot==="Concluido");
                     if(_isConcl) return null;
                     var _isIniciada=a.status==="Realizando"||a.inicio_mudanca_em;
                     return _isIniciada?(
