@@ -2053,23 +2053,36 @@ export default function App(){
     var _isCamMot=usuario&&(usuario.tipo_veiculo==="CAMINHAO"||ag.motorista_caminhao_id===usuario.id);
     var body={};
     var _veiTipo=_isVanMot?"van":"cam";
+    // ── 4-step flow for van/caminhão ──
+    // Step 1: Ajudantes a Bordo → GPS ativo rumo à ORIGEM
     if(novoStatus==="Em Deslocamento"){
       if(_isVanMot){body.inicio_van_em=agora;body.van_saiu_em=agora;}
       else if(_isCamMot){body.inicio_caminhao_em=agora;body.caminhao_saiu_em=agora;}
       else{body.status=novoStatus;body.inicio_em=agora;}
       gpsStart(ag.id,_veiTipo);
     }
-    if(novoStatus==="Realizando"){
-      if(_isVanMot) body.chegada_van_em=agora;
-      else if(_isCamMot) body.chegada_caminhao_em=agora;
-      else{body.status=novoStatus;body.inicio_mudanca_em=agora;}
+    // Step 2: Chegou na Origem → GPS para (carregamento)
+    if(novoStatus==="Na Origem"){
+      if(_isVanMot) body.chegou_origem_van_em=agora;
+      else if(_isCamMot) body.chegou_origem_cam_em=agora;
       gpsStop(_veiTipo);
     }
+    // Step 3: Deslocamento Destino → GPS reativa rumo ao DESTINO
+    if(novoStatus==="Deslocamento Destino"){
+      if(_isVanMot) body.saiu_destino_van_em=agora;
+      else if(_isCamMot) body.saiu_destino_cam_em=agora;
+      gpsStart(ag.id,_veiTipo);
+    }
+    // Step 4: Chegou no Destino → GPS para, mudança concluída
     if(novoStatus==="Concluido"||novoStatus==="realizado"){
-      if(_isVanMot) body.termino_van_em=agora;
-      else if(_isCamMot) body.termino_caminhao_em=agora;
+      if(_isVanMot){body.chegada_van_em=agora;body.termino_van_em=agora;}
+      else if(_isCamMot){body.chegada_caminhao_em=agora;body.termino_caminhao_em=agora;}
       else{body.status=novoStatus;body.termino_em=agora;}
       gpsStop(_veiTipo);
+    }
+    // Legacy: Realizando (admin/supervisor/social use)
+    if(novoStatus==="Realizando"){
+      if(!_isVanMot&&!_isCamMot){body.status=novoStatus;body.inicio_mudanca_em=agora;}
     }
     var prevAgenda=agenda.slice();
     setAgenda(function(prev){return prev.map(function(a){return a.id===ag.id?Object.assign({},a,body):a;});});
@@ -2631,13 +2644,15 @@ export default function App(){
               var _isCamMot=usuario&&(usuario.tipo_veiculo==="CAMINHAO"||a.motorista_caminhao_id===usuario.id);
               var _stMot;
               if(_isVanMot){
-                if(a.termino_van_em) _stMot="Concluido";
-                else if(a.chegada_van_em) _stMot="Realizando";
+                if(a.chegada_van_em||a.termino_van_em) _stMot="Concluido";
+                else if(a.saiu_destino_van_em) _stMot="Deslocamento Destino";
+                else if(a.chegou_origem_van_em) _stMot="Na Origem";
                 else if(a.inicio_van_em||a.van_saiu_em) _stMot="Em Deslocamento";
                 else _stMot="confirmado";
               }else if(_isCamMot){
-                if(a.termino_caminhao_em) _stMot="Concluido";
-                else if(a.chegada_caminhao_em) _stMot="Realizando";
+                if(a.chegada_caminhao_em||a.termino_caminhao_em) _stMot="Concluido";
+                else if(a.saiu_destino_cam_em) _stMot="Deslocamento Destino";
+                else if(a.chegou_origem_cam_em) _stMot="Na Origem";
                 else if(a.inicio_caminhao_em||a.caminhao_saiu_em) _stMot="Em Deslocamento";
                 else _stMot="confirmado";
               }else{
@@ -2655,46 +2670,68 @@ export default function App(){
                     <div style={{fontSize:_dest?13:11,marginTop:24}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     {(a.approved_by_supervisor||a.supervisor_id)&&(function(){var _supNome=a.approved_by_supervisor||(function(){var _s=listaUsuarios.find(function(u){return u.id===a.supervisor_id;});return _s?_s.nome:null;})();return _supNome?<div style={{fontSize:_dest?13:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {_supNome}</div>:null;})()}
                   </div>
-                  <div style={{background:_stMot==="Em Deslocamento"?"#dbeafe":_stMot==="Realizando"?"#fef9c3":"#dcfce7",border:"1px solid "+(_stMot==="Em Deslocamento"?"#93c5fd":_stMot==="Realizando"?"#fde047":"#86efac"),borderRadius:20,padding:"3px 10px",fontSize:_dest?11:10,fontWeight:700,color:_stMot==="Em Deslocamento"?"#1d4ed8":_stMot==="Realizando"?"#854d0e":"#15803d",whiteSpace:"nowrap"}}>
-                    {_stMot==="confirmado"||_stMot==="pendente"?"🟡 Pendente":_stMot==="Em Deslocamento"?"🚚 Em Deslocamento":_stMot==="Realizando"?"⚡ Realizando":_stMot}
-                  </div>{_stMot==="Em Deslocamento"||_stMot==="Realizando"?
+                  <div style={{background:_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#dbeafe":_stMot==="Na Origem"?"#fef9c3":_stMot==="Concluido"?"#dcfce7":"#f1f5f9",border:"1px solid "+(_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#93c5fd":_stMot==="Na Origem"?"#fde047":_stMot==="Concluido"?"#86efac":"#cbd5e1"),borderRadius:20,padding:"3px 10px",fontSize:_dest?11:10,fontWeight:700,color:_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#1d4ed8":_stMot==="Na Origem"?"#854d0e":_stMot==="Concluido"?"#15803d":"#64748b",whiteSpace:"nowrap"}}>
+                    {_stMot==="confirmado"||_stMot==="pendente"?"🟡 Pendente":_stMot==="Em Deslocamento"?"🚚 Rumo à Origem":_stMot==="Na Origem"?"📍 Na Origem":_stMot==="Deslocamento Destino"?"🚚 Rumo ao Destino":_stMot==="Concluido"?"✅ Concluído":_stMot}
+                  </div>{_stMot==="Em Deslocamento"||_stMot==="Na Origem"||_stMot==="Deslocamento Destino"?
                     <div style={{marginTop:4,fontSize:_dest?11:10,color:_stMot==="Em Deslocamento"?"#1d4ed8":"#854d0e",fontWeight:700,letterSpacing:0.5}}>{(function(){var _ts=_stMot==="Em Deslocamento"?a.inicio_em:a.inicio_mudanca_em;if(!_ts)return null;var _ini=new Date(_ts);var _pad=function(n){return String(n).padStart(2,"0");};var _hora=_pad(_ini.getHours())+":"+_pad(_ini.getMinutes());var _label=_stMot==="Em Deslocamento"?"🚐 Saída: ":"🚛 Início: ";return _label+_hora;})()}</div>:null}
                 </div>
                 {(a.inicio_van_em||a.inicio_caminhao_em||a.van_saiu_em||a.caminhao_saiu_em)&&(
                   <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:6}}>
-                    {(a.inicio_van_em||a.van_saiu_em)&&<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      <div style={{fontSize:_dest?12:10,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:8,padding:"4px 10px"}}>🚐 Van saiu — {new Date(a.inicio_van_em||a.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
-                      {a.chegada_van_em&&<div style={{fontSize:_dest?12:10,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:8,padding:"4px 10px"}}>📍 Van chegou — {new Date(a.chegada_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
-                      {a.termino_van_em&&<div style={{fontSize:_dest?12:10,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:8,padding:"4px 10px"}}>🏁 Van fim — {new Date(a.termino_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                    {(a.inicio_van_em||a.van_saiu_em)&&<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                      <div style={{fontSize:_dest?11:9,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:6,padding:"3px 8px"}}>🚐 Saiu {new Date(a.inicio_van_em||a.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
+                      {a.chegou_origem_van_em&&<div style={{fontSize:_dest?11:9,fontWeight:700,color:"#b45309",background:"#fef3c7",borderRadius:6,padding:"3px 8px"}}>📍 Origem {new Date(a.chegou_origem_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.saiu_destino_van_em&&<div style={{fontSize:_dest?11:9,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:6,padding:"3px 8px"}}>🚚 Destino {new Date(a.saiu_destino_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.chegada_van_em&&<div style={{fontSize:_dest?11:9,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:6,padding:"3px 8px"}}>🏁 Chegou {new Date(a.chegada_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
                     </div>}
-                    {(a.inicio_caminhao_em||a.caminhao_saiu_em)&&<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      <div style={{fontSize:_dest?12:10,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:8,padding:"4px 10px"}}>🚚 Caminhão saiu — {new Date(a.inicio_caminhao_em||a.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
-                      {a.chegada_caminhao_em&&<div style={{fontSize:_dest?12:10,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:8,padding:"4px 10px"}}>📍 Caminhão chegou — {new Date(a.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
-                      {a.termino_caminhao_em&&<div style={{fontSize:_dest?12:10,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:8,padding:"4px 10px"}}>🏁 Caminhão fim — {new Date(a.termino_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                    {(a.inicio_caminhao_em||a.caminhao_saiu_em)&&<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                      <div style={{fontSize:_dest?11:9,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:6,padding:"3px 8px"}}>🚚 Saiu {new Date(a.inicio_caminhao_em||a.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
+                      {a.chegou_origem_cam_em&&<div style={{fontSize:_dest?11:9,fontWeight:700,color:"#b45309",background:"#fef3c7",borderRadius:6,padding:"3px 8px"}}>📍 Origem {new Date(a.chegou_origem_cam_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.saiu_destino_cam_em&&<div style={{fontSize:_dest?11:9,fontWeight:700,color:"#7c3aed",background:"#f5f3ff",borderRadius:6,padding:"3px 8px"}}>🚚 Destino {new Date(a.saiu_destino_cam_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.chegada_caminhao_em&&<div style={{fontSize:_dest?11:9,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:6,padding:"3px 8px"}}>🏁 Chegou {new Date(a.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
                     </div>}
                   </div>
                 )}
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {/* Step 1: Ajudantes a Bordo */}
                   {(_stMot==="confirmado"||_stMot==="pendente")&&(
                     <button onClick={function(){handleStatusMotorista(a,"Em Deslocamento");}} style={{width:"100%",background:"#2563eb",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                       👥 Ajudantes a Bordo
                     </button>
                   )}
+                  {/* Step 2: Chegou na Origem */}
                   {_stMot==="Em Deslocamento"&&(
                     <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                      <div style={{display:"flex",alignItems:"center",gap:6,background:"#ecfdf5",border:"1.5px solid #a7f3d0",borderRadius:_dest?10:8,padding:_dest?"10px 14px":"8px 12px"}}>
-                        <span style={{width:10,height:10,borderRadius:"50%",background:"#16a34a",animation:"pulse 1.5s infinite"}}></span>
-                        <span style={{fontSize:_dest?12:11,fontWeight:700,color:"#065f46"}}>📡 GPS ativo — enviando posição</span>
+                      <div style={{display:"flex",alignItems:"center",gap:6,background:"#dbeafe",border:"1.5px solid #93c5fd",borderRadius:_dest?10:8,padding:_dest?"10px 14px":"8px 12px"}}>
+                        <span style={{width:10,height:10,borderRadius:"50%",background:"#2563eb",animation:"pulse 1.5s infinite"}}></span>
+                        <span style={{fontSize:_dest?12:11,fontWeight:700,color:"#1d4ed8"}}>📡 GPS ativo — rumo à origem</span>
                       </div>
-                      <button onClick={function(){handleStatusMotorista(a,"Realizando");}} style={{width:"100%",background:"#7c3aed",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                        🚛 Iniciar Mudança
+                      <button onClick={function(){handleStatusMotorista(a,"Na Origem");}} style={{width:"100%",background:"#f59e0b",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                        📍 Chegou na Origem
                       </button>
                     </div>
                   )}
-                  {_stMot==="Realizando"&&(
-                    <button onClick={function(){gerarPDFMudanca(a);}} style={{width:"100%",background:"#16a34a",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                      ✅ Finalizar Serviço
-                    </button>
+                  {/* Step 3: Deslocamento Destino */}
+                  {_stMot==="Na Origem"&&(
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,background:"#fef9c3",border:"1.5px solid #fde047",borderRadius:_dest?10:8,padding:_dest?"10px 14px":"8px 12px"}}>
+                        <span style={{fontSize:_dest?12:11,fontWeight:700,color:"#854d0e"}}>📦 Carregando na origem...</span>
+                      </div>
+                      <button onClick={function(){handleStatusMotorista(a,"Deslocamento Destino");}} style={{width:"100%",background:"#7c3aed",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                        🚚 Deslocamento Destino
+                      </button>
+                    </div>
+                  )}
+                  {/* Step 4: Chegou no Destino */}
+                  {_stMot==="Deslocamento Destino"&&(
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,background:"#dbeafe",border:"1.5px solid #93c5fd",borderRadius:_dest?10:8,padding:_dest?"10px 14px":"8px 12px"}}>
+                        <span style={{width:10,height:10,borderRadius:"50%",background:"#2563eb",animation:"pulse 1.5s infinite"}}></span>
+                        <span style={{fontSize:_dest?12:11,fontWeight:700,color:"#1d4ed8"}}>📡 GPS ativo — rumo ao destino</span>
+                      </div>
+                      <button onClick={function(){handleStatusMotorista(a,"Concluido");}} style={{width:"100%",background:"#16a34a",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                        🏁 Chegou no Destino
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -2907,28 +2944,30 @@ export default function App(){
                 </div>
                 {(a.van||a.motorista_van_id||a.caminhao||a.motorista_caminhao_id)&&calDiaSel===_hjStr&&(
                   <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:6}}>
-                    {(a.van||a.motorista_van_id)&&(<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                    {(a.van||a.motorista_van_id)&&(<div style={{display:"flex",flexWrap:"wrap",gap:3}}>
                       {(a.inicio_van_em||a.van_saiu_em)?
-                        <div style={{fontSize:10,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:6,padding:"3px 8px"}}>🚐 Van saiu — {new Date(a.inicio_van_em||a.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
+                        <div style={{fontSize:9,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:5,padding:"2px 6px"}}>🚐 Saiu {new Date(a.inicio_van_em||a.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
                         :(isAdmin||isSupervisor)?<button onClick={function(e){e.stopPropagation();handleDeslocamento(a,"van");}} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🚐 Van Saiu</button>:null
                       }
-                      {a.chegada_van_em&&<div style={{fontSize:10,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:6,padding:"3px 8px"}}>📍 Chegou — {new Date(a.chegada_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
-                      {a.termino_van_em&&<div style={{fontSize:10,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:6,padding:"3px 8px"}}>🏁 Fim — {new Date(a.termino_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.chegou_origem_van_em&&<div style={{fontSize:9,fontWeight:700,color:"#b45309",background:"#fef3c7",borderRadius:5,padding:"2px 6px"}}>📍 Origem {new Date(a.chegou_origem_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.saiu_destino_van_em&&<div style={{fontSize:9,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:5,padding:"2px 6px"}}>🚚 Destino {new Date(a.saiu_destino_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.chegada_van_em&&<div style={{fontSize:9,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:5,padding:"2px 6px"}}>🏁 Chegou {new Date(a.chegada_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
                     </div>)}
-                    {(a.caminhao||a.motorista_caminhao_id)&&(<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                    {(a.caminhao||a.motorista_caminhao_id)&&(<div style={{display:"flex",flexWrap:"wrap",gap:3}}>
                       {(a.inicio_caminhao_em||a.caminhao_saiu_em)?
-                        <div style={{fontSize:10,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:6,padding:"3px 8px"}}>🚚 Caminhão saiu — {new Date(a.inicio_caminhao_em||a.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
+                        <div style={{fontSize:9,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:5,padding:"2px 6px"}}>🚚 Saiu {new Date(a.inicio_caminhao_em||a.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
                         :(isAdmin||isSupervisor)?<button onClick={function(e){e.stopPropagation();handleDeslocamento(a,"caminhao");}} style={{background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🚚 Caminhão Saiu</button>:null
                       }
-                      {a.chegada_caminhao_em&&<div style={{fontSize:10,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:6,padding:"3px 8px"}}>📍 Chegou — {new Date(a.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
-                      {a.termino_caminhao_em&&<div style={{fontSize:10,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:6,padding:"3px 8px"}}>🏁 Fim — {new Date(a.termino_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.chegou_origem_cam_em&&<div style={{fontSize:9,fontWeight:700,color:"#b45309",background:"#fef3c7",borderRadius:5,padding:"2px 6px"}}>📍 Origem {new Date(a.chegou_origem_cam_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.saiu_destino_cam_em&&<div style={{fontSize:9,fontWeight:700,color:"#7c3aed",background:"#f5f3ff",borderRadius:5,padding:"2px 6px"}}>🚚 Destino {new Date(a.saiu_destino_cam_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
+                      {a.chegada_caminhao_em&&<div style={{fontSize:9,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:5,padding:"2px 6px"}}>🏁 Chegou {new Date(a.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
                     </div>)}
-                    {(isAdmin||isSupervisor||isPromorar)&&(a.inicio_van_em||a.van_saiu_em)&&!a.chegada_van_em?
+                    {(isAdmin||isSupervisor||isPromorar)&&(((a.inicio_van_em||a.van_saiu_em)&&!a.chegou_origem_van_em)||(a.saiu_destino_van_em&&!a.chegada_van_em))?
                       <button onClick={function(e){e.stopPropagation();var _a=Object.assign({},a,{_trackMotoristaId:a.motorista_van_id,_trackVeiculo:"van"});setGpsMapAgenda(_a);setShowGpsMap(true);setGpsEta(null);
                         gpsLoadPositions(a.id,a.motorista_van_id).then(function(pos){if(pos&&a.destino){gpsCalcEta(pos.lat,pos.lng,a.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
                       }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer",marginTop:4}}>📡 GPS Van</button>
                     :null}
-                    {(isAdmin||isSupervisor||isPromorar)&&(a.inicio_caminhao_em||a.caminhao_saiu_em)&&!a.chegada_caminhao_em?
+                    {(isAdmin||isSupervisor||isPromorar)&&(((a.inicio_caminhao_em||a.caminhao_saiu_em)&&!a.chegou_origem_cam_em)||(a.saiu_destino_cam_em&&!a.chegada_caminhao_em))?
                       <button onClick={function(e){e.stopPropagation();var _a=Object.assign({},a,{_trackMotoristaId:a.motorista_caminhao_id,_trackVeiculo:"cam"});setGpsMapAgenda(_a);setShowGpsMap(true);setGpsEta(null);
                         gpsLoadPositions(a.id,a.motorista_caminhao_id).then(function(pos){if(pos&&a.destino){gpsCalcEta(pos.lat,pos.lng,a.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
                       }} style={{background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer",marginTop:4}}>📡 GPS Caminhão</button>
@@ -2975,12 +3014,12 @@ export default function App(){
   var StepTracker=function(props){
     var status=props.status||"confirmado";
     var steps=[
-      {key:"deslocamento",label:"Em Deslocamento",icon:"🚚"},
-      {key:"inicio",label:"Carregamento",icon:"📦"},
-      {key:"descarregar",label:"Descarregar",icon:"🏠"},
-      {key:"termino",label:"Concluído",icon:"✅"}
+      {key:"deslocamento",label:"Rumo à Origem",icon:"🚐"},
+      {key:"origem",label:"Na Origem",icon:"📍"},
+      {key:"destino",label:"Rumo ao Destino",icon:"🚚"},
+      {key:"chegou",label:"Concluído",icon:"🏁"}
     ];
-    var _map={"Em Deslocamento":0,"Realizando":1,"Descarregar":2,"Concluido":3,"Concluído":3,"concluido":3,"concluida":3,"realizado":3,"realizada":3};
+    var _map={"Em Deslocamento":0,"Na Origem":1,"Deslocamento Destino":2,"Concluido":3,"Concluído":3,"concluido":3,"concluida":3,"realizado":3,"realizada":3,"Realizando":1};
     var activeIdx=_map[status]!==undefined?_map[status]:-1;
     return(
       <div style={{display:"flex",alignItems:"center",gap:0,padding:"12px 0"}}>
@@ -3177,14 +3216,15 @@ export default function App(){
                               <div style={{fontSize:12,fontWeight:800,color:"#1e293b"}}>{_vanMot.nome}</div>
                               {_vanMot.placa_veiculo&&<div style={{fontSize:10,color:"#475569",marginTop:2}}>🔖 {_vanMot.placa_veiculo}</div>}
                               {_vanMot.contato&&<div style={{fontSize:10,color:"#475569",marginTop:1}}>📞 {_vanMot.contato}</div>}
-                              {/* Van timestamps */}
-                              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                                {(am.inicio_van_em||am.van_saiu_em)&&<span style={{fontSize:9,fontWeight:700,color:"#1d4ed8",background:"#eff6ff",borderRadius:4,padding:"2px 6px"}}>🚐 Saiu {new Date(am.inicio_van_em||am.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
-                                {am.chegada_van_em&&<span style={{fontSize:9,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:4,padding:"2px 6px"}}>📍 Chegou {new Date(am.chegada_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
-                                {am.termino_van_em&&<span style={{fontSize:9,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:4,padding:"2px 6px"}}>🏁 Fim {new Date(am.termino_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                              {/* Van timestamps — 4 steps */}
+                              <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:4}}>
+                                {(am.inicio_van_em||am.van_saiu_em)&&<span style={{fontSize:8,fontWeight:700,color:"#1d4ed8",background:"#eff6ff",borderRadius:4,padding:"2px 5px"}}>🚐 Saiu {new Date(am.inicio_van_em||am.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                                {am.chegou_origem_van_em&&<span style={{fontSize:8,fontWeight:700,color:"#b45309",background:"#fef3c7",borderRadius:4,padding:"2px 5px"}}>📍 Origem {new Date(am.chegou_origem_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                                {am.saiu_destino_van_em&&<span style={{fontSize:8,fontWeight:700,color:"#7c3aed",background:"#f5f3ff",borderRadius:4,padding:"2px 5px"}}>🚚 Destino {new Date(am.saiu_destino_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                                {am.chegada_van_em&&<span style={{fontSize:8,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:4,padding:"2px 5px"}}>🏁 Chegou {new Date(am.chegada_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
                               </div>
-                              {/* GPS button for Van */}
-                              {(am.inicio_van_em||am.van_saiu_em)&&!am.chegada_van_em&&(
+                              {/* GPS button for Van — active during step 1 (rumo origem) and step 3 (rumo destino) */}
+                              {(((am.inicio_van_em||am.van_saiu_em)&&!am.chegou_origem_van_em)||(am.saiu_destino_van_em&&!am.chegada_van_em))&&(
                                 <button onClick={function(){var _a=Object.assign({},am,{_trackMotoristaId:am.motorista_van_id,_trackVeiculo:"van"});setGpsMapAgenda(_a);setShowGpsMap(true);setGpsEta(null);
                                   gpsLoadPositions(am.id,am.motorista_van_id).then(function(pos){if(pos&&am.destino){gpsCalcEta(pos.lat,pos.lng,am.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
                                 }} style={{marginTop:6,width:"100%",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 0",fontWeight:700,fontSize:10,cursor:"pointer"}}>📡 Rastrear Van</button>
@@ -3197,14 +3237,15 @@ export default function App(){
                               <div style={{fontSize:12,fontWeight:800,color:"#1e293b"}}>{_camMot.nome}</div>
                               {_camMot.placa_veiculo&&<div style={{fontSize:10,color:"#475569",marginTop:2}}>🔖 {_camMot.placa_veiculo}</div>}
                               {_camMot.contato&&<div style={{fontSize:10,color:"#475569",marginTop:1}}>📞 {_camMot.contato}</div>}
-                              {/* Caminhão timestamps */}
-                              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                                {(am.inicio_caminhao_em||am.caminhao_saiu_em)&&<span style={{fontSize:9,fontWeight:700,color:"#7c3aed",background:"#f5f3ff",borderRadius:4,padding:"2px 6px"}}>🚚 Saiu {new Date(am.inicio_caminhao_em||am.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
-                                {am.chegada_caminhao_em&&<span style={{fontSize:9,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:4,padding:"2px 6px"}}>📍 Chegou {new Date(am.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
-                                {am.termino_caminhao_em&&<span style={{fontSize:9,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:4,padding:"2px 6px"}}>🏁 Fim {new Date(am.termino_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                              {/* Caminhão timestamps — 4 steps */}
+                              <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:4}}>
+                                {(am.inicio_caminhao_em||am.caminhao_saiu_em)&&<span style={{fontSize:8,fontWeight:700,color:"#7c3aed",background:"#f5f3ff",borderRadius:4,padding:"2px 5px"}}>🚚 Saiu {new Date(am.inicio_caminhao_em||am.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                                {am.chegou_origem_cam_em&&<span style={{fontSize:8,fontWeight:700,color:"#b45309",background:"#fef3c7",borderRadius:4,padding:"2px 5px"}}>📍 Origem {new Date(am.chegou_origem_cam_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                                {am.saiu_destino_cam_em&&<span style={{fontSize:8,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:4,padding:"2px 5px"}}>🚚 Destino {new Date(am.saiu_destino_cam_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
+                                {am.chegada_caminhao_em&&<span style={{fontSize:8,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:4,padding:"2px 5px"}}>🏁 Chegou {new Date(am.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</span>}
                               </div>
-                              {/* GPS button for Caminhão */}
-                              {(am.inicio_caminhao_em||am.caminhao_saiu_em)&&!am.chegada_caminhao_em&&(
+                              {/* GPS button for Caminhão — active during step 1 and step 3 */}
+                              {(((am.inicio_caminhao_em||am.caminhao_saiu_em)&&!am.chegou_origem_cam_em)||(am.saiu_destino_cam_em&&!am.chegada_caminhao_em))&&(
                                 <button onClick={function(){var _a=Object.assign({},am,{_trackMotoristaId:am.motorista_caminhao_id,_trackVeiculo:"cam"});setGpsMapAgenda(_a);setShowGpsMap(true);setGpsEta(null);
                                   gpsLoadPositions(am.id,am.motorista_caminhao_id).then(function(pos){if(pos&&am.destino){gpsCalcEta(pos.lat,pos.lng,am.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
                                 }} style={{marginTop:6,width:"100%",background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,padding:"6px 0",fontWeight:700,fontSize:10,cursor:"pointer"}}>📡 Rastrear Caminhão</button>
@@ -3215,10 +3256,23 @@ export default function App(){
                       );
                     })()}
 
-                    {/* Step Tracker */}
-                    <div style={{background:"#f8fafc",borderRadius:12,padding:"8px 12px",marginTop:4,border:"1px solid #e2e8f0"}}>
-                      <StepTracker status={am.status}/>
-                    </div>
+                    {/* Step Tracker — derive status from van/cam timestamps */}
+                    {(function(){
+                      var _st4="confirmado";
+                      // Check van progress
+                      if(am.chegada_van_em||am.termino_van_em||am.chegada_caminhao_em||am.termino_caminhao_em) _st4="Concluido";
+                      else if(am.saiu_destino_van_em||am.saiu_destino_cam_em) _st4="Deslocamento Destino";
+                      else if(am.chegou_origem_van_em||am.chegou_origem_cam_em) _st4="Na Origem";
+                      else if(am.inicio_van_em||am.van_saiu_em||am.inicio_caminhao_em||am.caminhao_saiu_em) _st4="Em Deslocamento";
+                      // Fallback to general status
+                      else if(am.status==="concluida"||am.status==="realizada") _st4="Concluido";
+                      else if(am.status==="Realizando"||am.status==="em_andamento") _st4="Na Origem";
+                      return(
+                        <div style={{background:"#f8fafc",borderRadius:12,padding:"8px 12px",marginTop:4,border:"1px solid #e2e8f0"}}>
+                          <StepTracker status={_st4}/>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ):(
                   <div style={{textAlign:"center",padding:"16px 0",color:"#94a3b8"}}>
