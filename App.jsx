@@ -1550,10 +1550,22 @@ export default function App(){
   }
   async function handleSaveEditMud(){
     if(!editMud) return;
-    var _anterior=mudancas.find(function(m){return m.id===editMud.id;});
-    const updated=mudancas.map(m=>m.id===editMud.id?{...editMud,medicao:parseFloat(editMud.medicao)||0}:m);
-    setMudancas(()=>updated);
-    await saveMud(updated,editMud);
+    var _isFromAgenda=editMud._fromAgenda;
+    var _anterior=_isFromAgenda?(agenda||[]).find(function(a){return a.id===editMud.id;}):mudancas.find(function(m){return m.id===editMud.id;});
+    if(_isFromAgenda){
+      // Save to agenda table directly
+      var _body={medicao:parseFloat(editMud.medicao)||0,nome:editMud.nome||"",selo:editMud.selo||"",comunidade:editMud.comunidade||"",origem:editMud.origem||"",destino:editMud.destino||"",van:editMud.van||false,observacao:editMud.observacao||""};
+      setAgenda(function(prev){return prev.map(function(a){return a.id===editMud.id?Object.assign({},a,_body):a;});});
+      setSyncStatus("🔄 Salvando...");
+      try{
+        await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+editMud.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_body)});
+        setSyncStatus("✅ Sinc");
+      }catch(e){setSyncStatus("⚠️ Erro ao salvar");}
+    }else{
+      const updated=mudancas.map(m=>m.id===editMud.id?{...editMud,medicao:parseFloat(editMud.medicao)||0}:m);
+      setMudancas(()=>updated);
+      await saveMud(updated,editMud);
+    }
     try{if(_anterior){var _nMed=parseFloat(editMud.medicao)||0;var _oMed=parseFloat(_anterior.medicao)||0;if(_nMed!==_oMed){_addNotif("cubagem",(_oMed===0?"Cubagem inserida: ":"Cubagem alterada: ")+_oMed+" > "+_nMed+" m3",editMud.nome);}var _c=[];if((editMud.nome||"")!==(_anterior.nome||""))_c.push("nome");if((editMud.destino||"")!==(_anterior.destino||""))_c.push("destino");if((editMud.origem||"")!==(_anterior.origem||""))_c.push("origem");if((editMud.data||"")!==(_anterior.data||""))_c.push("data");if((editMud.selo||"")!==(_anterior.selo||""))_c.push("selo");if((editMud.comunidade||"")!==(_anterior.comunidade||""))_c.push("comunidade");if((editMud.observacao||"")!==(_anterior.observacao||""))_c.push("obs");if(Boolean(editMud.van)!==Boolean(_anterior.van))_c.push("van");if(_c.length>0)_addNotif("edicao",_c.join(", ")+" alterado(s)",editMud.nome);}}catch(e){}
     // RBAC: campo _qtdAj apenas Admin; nao-admin preserva valor anterior no BD
     if(isAdmin&&editMud._qtdAj!==undefined&&editMud._qtdAj!==""){
@@ -3527,7 +3539,7 @@ export default function App(){
                   {m.signature_data
                     ? <button onClick={function(){setMudViewPDF(m);setShowViewPDF(true);}} style={{background:"#e0f2fe",border:"1.5px solid #0284c7",color:"#0284c7",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:11,fontWeight:700}}>📄 Assinado</button>
                     : <button onClick={()=>gerarPDFMudanca(m)} style={{background:"#fff7ed",border:"1.5px solid #ea580c",color:"#ea580c",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:11,fontWeight:700}}>✍️ Assinar</button>}
-                  <button onClick={()=>setEditMud((function(){var _cd=(custosDiarios||[]).find(function(x){return x.data===m.data;});return {...m,_qtdAj:_cd?parseInt(_cd.ajudantes)||1:1};})())} style={{...btnBlue,borderRadius:8,padding:"6px 10px",fontSize:13}}>✏️</button>
+                  {(isAdmin||isPromorar)&&<button onClick={()=>setEditMud((function(){var _cd=(custosDiarios||[]).find(function(x){return x.data===m.data;});return {...m,_qtdAj:_cd?parseInt(_cd.ajudantes)||1:1};})())} style={{...btnBlue,borderRadius:8,padding:"6px 10px",fontSize:13}}>✏️</button>}
                   {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud"});}} style={{...btnRed,borderRadius:8,padding:"6px 10px",fontSize:13}}>✕</button>}
                   {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===m.data;});setViewEquipeAg({nome:m.nome,data:m.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"1.5px solid #fde047",color:"#92400e",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700}} title="Ver equipe do dia">👷</button>}
                 </div>
