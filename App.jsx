@@ -861,6 +861,9 @@ export default function App(){
 
   // ── GPS TRACKING STATE ─────────────────────────────────────────────────────
   const [gpsWatches,setGpsWatches]=useState({});// {van:{id,agendaId}, cam:{id,agendaId}}
+  const [pwaInstallPrompt,setPwaInstallPrompt]=useState(null);
+  const [showPwaModal,setShowPwaModal]=useState(false);
+  const [pwaGpsPending,setPwaGpsPending]=useState(null);// {agId,veiTipo} — resume after install
   const [gpsPositions,setGpsPositions]=useState([]);// admin: latest positions per motorista
   const [showGpsMap,setShowGpsMap]=useState(false);
   const [gpsMapAgenda,setGpsMapAgenda]=useState(null);
@@ -879,11 +882,22 @@ export default function App(){
     }).catch(function(){});
   }
 
+  // ── GPS: Check if running as installed PWA ─────────────────────────────────
+  function _isPwaInstalled(){
+    return window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;
+  }
+
   // ── GPS: Start tracking (motorista) — per vehicle type ─────────────────────
   function gpsStart(agendaId,veiTipo){
     var key=veiTipo||"van";
     if(gpsWatches[key]) return;
     if(!navigator.geolocation) return;
+    // If NOT running as PWA and first time — show install prompt
+    if(!_isPwaInstalled()&&!localStorage.getItem("tmim_pwa_skip")){
+      setPwaGpsPending({agId:agendaId,veiTipo:veiTipo});
+      setShowPwaModal(true);
+      // Continue GPS anyway — don't block, just inform
+    }
     var _lastSent=0;
     // watchPosition — fires when position changes (foreground only on mobile)
     var wid=navigator.geolocation.watchPosition(
@@ -924,10 +938,11 @@ export default function App(){
     });
   }
 
-  // ── GPS: Load latest positions for admin ───────────────────────────────────
-  async function gpsLoadPositions(agId){
+  // ── GPS: Load latest positions for admin (optionally filter by motorista) ──
+  async function gpsLoadPositions(agId,motoristaId){
     try{
       var url=SUPA_URL+"/rest/v1/gps_tracking?agenda_id=eq."+agId+"&order=created_at.desc&limit=1";
+      if(motoristaId) url+="&motorista_id=eq."+motoristaId;
       var r=await fetch(url,{headers:getH()});
       if(!r.ok) return null;
       var d=await r.json();
@@ -1210,10 +1225,17 @@ export default function App(){
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
   const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social";const isMotorista=perfil==="motorista";const isSupervisor=perfil==="supervisor";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar||isSupervisor;const verMed=isAdmin||isPromorar||isSupervisor;
   useEffect(function(){if(isAdmin)loadNotificacoes();},[usuario]);
-  // ── GPS Map auto-polling — refresh every 15s while modal is open ──────────
+  // ── PWA Install prompt capture ────────────────────────────────────────────
+  useEffect(function(){
+    function _onBIP(e){e.preventDefault();setPwaInstallPrompt(e);}
+    window.addEventListener("beforeinstallprompt",_onBIP);
+    return function(){window.removeEventListener("beforeinstallprompt",_onBIP);};
+  },[]);
+  // ── GPS Map auto-polling — refresh every 10s while modal is open ──────────
   useEffect(function(){
     if(!showGpsMap||!gpsMapAgenda) return;
-    var _mapEl=null;
+    var _cancelled=false;
+    function _getMapEl(){return document.getElementById("gps-map-container");}
     function _drawRoute(map,el,pos,eta){
       if(!eta||!eta.route) return;
       try{
@@ -1235,38 +1257,33 @@ export default function App(){
         map.fitBounds(bounds,{padding:60,duration:1000});
       }catch(e){console.warn("[GPS map] route error:",e);}
     }
-    function _updateMapMarker(pos,eta){
-      _mapEl=_mapEl||document.getElementById("gps-map-container");
-      if(!_mapEl||!_mapEl._map){
-        // Map not ready yet — retry after short delay
-        setTimeout(function(){_updateMapMarker(pos,eta);},1500);
-        return;
-      }
-      var map=_mapEl._map;
-      if(_mapEl._marker){_mapEl._marker.setLngLat([pos.lng,pos.lat]);}
-      map.easeTo({center:[pos.lng,pos.lat],duration:1000});
-      if(eta&&eta.route){
-        if(map.isStyleLoaded()){_drawRoute(map,_mapEl,pos,eta);}
-        else{map.on("load",function(){_drawRoute(map,_mapEl,pos,eta);});}
-      }
+    function _updateMap(pos,eta){
+      var el=_getMapEl();
+      if(!el||!el._map){setTimeout(function(){if(!_cancelled)_updateMap(pos,eta);},1000);return;}
+      var map=el._map;
+      if(el._marker){el._marker.setLngLat([pos.lng,pos.lat]);}
+      if(!eta||!eta.route){map.easeTo({center:[pos.lng,pos.lat],duration:800});return;}
+      if(map.isStyleLoaded()){_drawRoute(map,el,pos,eta);}
+      else{map.on("load",function(){_drawRoute(map,el,pos,eta);});}
     }
     function _poll(){
-      gpsLoadPositions(gpsMapAgenda.id).then(function(pos){
-        if(!pos) return;
+      if(_cancelled) return;
+      gpsLoadPositions(gpsMapAgenda.id,gpsMapAgenda._trackMotoristaId||null).then(function(pos){
+        if(_cancelled||!pos) return;
         setGpsPositions([pos]);
         if(gpsMapAgenda.destino){
           gpsCalcEta(pos.lat,pos.lng,gpsMapAgenda.destino).then(function(eta){
-            if(eta){setGpsEta(eta);_updateMapMarker(pos,eta);}
-            else{_updateMapMarker(pos,null);}
+            if(_cancelled) return;
+            if(eta){setGpsEta(eta);_updateMap(pos,eta);}
+            else{_updateMap(pos,null);}
           });
-        }else{
-          _updateMapMarker(pos,null);
-        }
+        }else{_updateMap(pos,null);}
       });
     }
-    _poll();// initial
-    var _tid=setInterval(_poll,15000);
-    return function(){clearInterval(_tid);};
+    // Initial poll after a small delay to let map render
+    setTimeout(_poll,800);
+    var _tid=setInterval(_poll,10000);
+    return function(){_cancelled=true;clearInterval(_tid);};
   },[showGpsMap,gpsMapAgenda]);
   function _renderRelatorioMotoristas(_ms,_periodoLabel){
     var _fvR=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
@@ -2906,10 +2923,15 @@ export default function App(){
                       {a.chegada_caminhao_em&&<div style={{fontSize:10,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:6,padding:"3px 8px"}}>📍 Chegou — {new Date(a.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
                       {a.termino_caminhao_em&&<div style={{fontSize:10,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:6,padding:"3px 8px"}}>🏁 Fim — {new Date(a.termino_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
                     </div>)}
-                    {(isAdmin||isSupervisor||isPromorar)&&(((a.inicio_van_em||a.van_saiu_em)&&!a.chegada_van_em)||((a.inicio_caminhao_em||a.caminhao_saiu_em)&&!a.chegada_caminhao_em))?
-                      <button onClick={function(e){e.stopPropagation();setGpsMapAgenda(a);setShowGpsMap(true);setGpsEta(null);
-                        gpsLoadPositions(a.id).then(function(pos){if(pos&&a.destino){gpsCalcEta(pos.lat,pos.lng,a.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
-                      }} style={{background:"#059669",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer",marginTop:4}}>📍 Ver Mapa GPS</button>
+                    {(isAdmin||isSupervisor||isPromorar)&&(a.inicio_van_em||a.van_saiu_em)&&!a.chegada_van_em?
+                      <button onClick={function(e){e.stopPropagation();var _a=Object.assign({},a,{_trackMotoristaId:a.motorista_van_id,_trackVeiculo:"van"});setGpsMapAgenda(_a);setShowGpsMap(true);setGpsEta(null);
+                        gpsLoadPositions(a.id,a.motorista_van_id).then(function(pos){if(pos&&a.destino){gpsCalcEta(pos.lat,pos.lng,a.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
+                      }} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer",marginTop:4}}>📡 GPS Van</button>
+                    :null}
+                    {(isAdmin||isSupervisor||isPromorar)&&(a.inicio_caminhao_em||a.caminhao_saiu_em)&&!a.chegada_caminhao_em?
+                      <button onClick={function(e){e.stopPropagation();var _a=Object.assign({},a,{_trackMotoristaId:a.motorista_caminhao_id,_trackVeiculo:"cam"});setGpsMapAgenda(_a);setShowGpsMap(true);setGpsEta(null);
+                        gpsLoadPositions(a.id,a.motorista_caminhao_id).then(function(pos){if(pos&&a.destino){gpsCalcEta(pos.lat,pos.lng,a.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
+                      }} style={{background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer",marginTop:4}}>📡 GPS Caminhão</button>
                     :null}
                   </div>
                 )}
@@ -3147,8 +3169,8 @@ export default function App(){
                               </div>
                               {/* GPS button for Van */}
                               {(am.inicio_van_em||am.van_saiu_em)&&!am.chegada_van_em&&(
-                                <button onClick={function(){setGpsMapAgenda(am);setShowGpsMap(true);setGpsEta(null);
-                                  gpsLoadPositions(am.id).then(function(pos){if(pos&&am.destino){gpsCalcEta(pos.lat,pos.lng,am.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
+                                <button onClick={function(){var _a=Object.assign({},am,{_trackMotoristaId:am.motorista_van_id,_trackVeiculo:"van"});setGpsMapAgenda(_a);setShowGpsMap(true);setGpsEta(null);
+                                  gpsLoadPositions(am.id,am.motorista_van_id).then(function(pos){if(pos&&am.destino){gpsCalcEta(pos.lat,pos.lng,am.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
                                 }} style={{marginTop:6,width:"100%",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"6px 0",fontWeight:700,fontSize:10,cursor:"pointer"}}>📡 Rastrear Van</button>
                               )}
                             </div>
@@ -3167,8 +3189,8 @@ export default function App(){
                               </div>
                               {/* GPS button for Caminhão */}
                               {(am.inicio_caminhao_em||am.caminhao_saiu_em)&&!am.chegada_caminhao_em&&(
-                                <button onClick={function(){setGpsMapAgenda(am);setShowGpsMap(true);setGpsEta(null);
-                                  gpsLoadPositions(am.id).then(function(pos){if(pos&&am.destino){gpsCalcEta(pos.lat,pos.lng,am.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
+                                <button onClick={function(){var _a=Object.assign({},am,{_trackMotoristaId:am.motorista_caminhao_id,_trackVeiculo:"cam"});setGpsMapAgenda(_a);setShowGpsMap(true);setGpsEta(null);
+                                  gpsLoadPositions(am.id,am.motorista_caminhao_id).then(function(pos){if(pos&&am.destino){gpsCalcEta(pos.lat,pos.lng,am.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
                                 }} style={{marginTop:6,width:"100%",background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,padding:"6px 0",fontWeight:700,fontSize:10,cursor:"pointer"}}>📡 Rastrear Caminhão</button>
                               )}
                             </div>
@@ -4216,7 +4238,7 @@ return(
           <div style={{flex:1,display:"flex",flexDirection:"column"}} onClick={function(e){e.stopPropagation();}}>
             <div style={{background:"#1e293b",padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
-                <div style={{color:"#fff",fontWeight:800,fontSize:14}}>📍 GPS — {gpsMapAgenda.nome}</div>
+                <div style={{color:"#fff",fontWeight:800,fontSize:14}}>{gpsMapAgenda._trackVeiculo==="cam"?"🚚":"🚐"} GPS {gpsMapAgenda._trackVeiculo==="cam"?"Caminhão":"Van"} — {gpsMapAgenda.nome}</div>
                 <div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}>
                   <span style={{width:8,height:8,borderRadius:"50%",background:"#22c55e",animation:"pulse 1.5s infinite"}}></span>
                   <span style={{color:"#4ade80",fontSize:11,fontWeight:600}}>Tempo real — auto-refresh 15s</span>
@@ -4248,14 +4270,30 @@ return(
                 var map=new window.mapboxgl.Map({container:el,style:"mapbox://styles/mapbox/streets-v12",center:[pos.lng,pos.lat],zoom:13});
                 el._map=map;
                 var markerEl=document.createElement("div");
-                markerEl.innerHTML="🚚";
+                markerEl.innerHTML=gpsMapAgenda._trackVeiculo==="cam"?"🚚":"🚐";
                 markerEl.style.fontSize="32px";
                 el._marker=new window.mapboxgl.Marker({element:markerEl}).setLngLat([pos.lng,pos.lat]).addTo(map);
+                // Draw route on map load if ETA already available
+                map.on("load",function(){
+                  if(gpsEta&&gpsEta.route){
+                    try{
+                      map.addSource("route",{type:"geojson",data:{type:"Feature",geometry:gpsEta.route}});
+                      map.addLayer({id:"route",type:"line",source:"route",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#2563eb","line-width":4}});
+                      if(gpsEta.destCoords){
+                        var dEl=document.createElement("div");dEl.innerHTML="📍";dEl.style.fontSize="28px";
+                        el._destMarker=new window.mapboxgl.Marker({element:dEl}).setLngLat(gpsEta.destCoords).addTo(map);
+                        var bounds=new window.mapboxgl.LngLatBounds();
+                        bounds.extend([pos.lng,pos.lat]);bounds.extend(gpsEta.destCoords);
+                        map.fitBounds(bounds,{padding:60,duration:1000});
+                      }
+                    }catch(e){}
+                  }
+                });
               }}></div>
             )}
             <div style={{background:"#1e293b",padding:"10px 16px",display:"flex",gap:8}}>
               <button onClick={function(){
-                gpsLoadPositions(gpsMapAgenda.id).then(function(pos){
+                gpsLoadPositions(gpsMapAgenda.id,gpsMapAgenda._trackMotoristaId||null).then(function(pos){
                   if(!pos) return;
                   setGpsPositions([pos]);
                   var _el=document.getElementById("gps-map-container");
@@ -4279,6 +4317,40 @@ return(
                   }
                 });
               }} style={{flex:1,background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 0",fontWeight:700,fontSize:13,cursor:"pointer"}}>🔄 Atualizar Agora</button>
+            </div>
+          </div>
+        </div>
+      )}
+            {/* ══ MODAL PWA INSTALL ══ */}
+      {showPwaModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",zIndex:2500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setShowPwaModal(false);}}>
+          <div style={{background:"#fff",borderRadius:20,padding:"28px 22px",width:"100%",maxWidth:360,textAlign:"center"}} onClick={function(e){e.stopPropagation();}}>
+            <div style={{fontSize:52,marginBottom:12}}>📲</div>
+            <div style={{fontSize:18,fontWeight:900,color:"#1e293b",marginBottom:8}}>Instale o App TELEMIM</div>
+            <div style={{fontSize:13,color:"#475569",marginBottom:16,lineHeight:1.5}}>Para o GPS funcionar com a <b>tela bloqueada</b>, instale o app no seu celular. Assim o rastreamento continua em segundo plano.</div>
+            <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:12,padding:"12px 14px",marginBottom:16,textAlign:"left"}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#166534",marginBottom:6}}>✅ Benefícios do App instalado:</div>
+              <div style={{fontSize:11,color:"#15803d",lineHeight:1.6}}>• GPS ativo com tela apagada<br/>• Notificações de novas mudanças<br/>• Acesso rápido pela tela inicial<br/>• Funciona offline (dados salvos)</div>
+            </div>
+            {pwaInstallPrompt?(
+              <button onClick={function(){
+                pwaInstallPrompt.prompt();
+                pwaInstallPrompt.userChoice.then(function(choice){
+                  if(choice.outcome==="accepted"){setPwaInstallPrompt(null);setShowPwaModal(false);}
+                });
+              }} style={{width:"100%",padding:"14px 0",borderRadius:12,border:"none",background:"#16a34a",color:"#fff",fontWeight:900,fontSize:15,cursor:"pointer",marginBottom:10}}>📲 Instalar App Agora</button>
+            ):(
+              <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:12,padding:"12px 14px",marginBottom:10,textAlign:"left"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#1e40af",marginBottom:6}}>Como instalar manualmente:</div>
+                <div style={{fontSize:11,color:"#1d4ed8",lineHeight:1.6}}>
+                  <b>Android:</b> Menu (⋮) → "Adicionar à tela inicial"<br/>
+                  <b>iPhone:</b> Botão compartilhar (↑) → "Tela de Início"
+                </div>
+              </div>
+            )}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={function(){localStorage.setItem("tmim_pwa_skip","1");setShowPwaModal(false);}} style={{flex:1,padding:"10px 0",borderRadius:10,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:600,fontSize:12,cursor:"pointer"}}>Não mostrar mais</button>
+              <button onClick={function(){setShowPwaModal(false);}} style={{flex:1,padding:"10px 0",borderRadius:10,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#334155",fontWeight:700,fontSize:12,cursor:"pointer"}}>Continuar sem instalar</button>
             </div>
           </div>
         </div>
