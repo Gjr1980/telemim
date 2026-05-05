@@ -1558,7 +1558,7 @@ export default function App(){
     var _anterior=_isFromAgenda?(agenda||[]).find(function(a){return a.id===editMud.id;}):mudancas.find(function(m){return m.id===editMud.id;});
     if(_isFromAgenda){
       // Save to agenda table directly
-      var _body={medicao:parseFloat(editMud.medicao)||0,nome:editMud.nome||"",selo:editMud.selo||"",comunidade:editMud.comunidade||"",origem:editMud.origem||"",destino:editMud.destino||"",van:editMud.van||false,observacao:editMud.observacao||""};
+      var _body={medicao:parseFloat(editMud.medicao)||0,nome:editMud.nome||"",selo:editMud.selo||"",comunidade:editMud.comunidade||"",origem:editMud.origem||"",destino:editMud.destino||"",van:editMud.van||false,caminhao:editMud.caminhao||false,ajudantes:parseInt(editMud.ajudantes)||0,observacao:editMud.observacao||""};
       setAgenda(function(prev){return prev.map(function(a){return a.id===editMud.id?Object.assign({},a,_body):a;});});
       setSyncStatus("🔄 Salvando...");
       try{
@@ -1570,7 +1570,7 @@ export default function App(){
         var _mudSync={nome:editMud.nome||"",selo:editMud.selo||"",comunidade:editMud.comunidade||"",data:editMud.data,origem:editMud.origem||"",destino:editMud.destino||"",contato:editMud.contato||null,van:editMud.van||false,caminhao:editMud.caminhao||false,medicao:parseFloat(editMud.medicao)||0,ajudantes:parseInt(editMud.ajudantes)||0,observacao:editMud.observacao||"",status:editMud.status||"Concluído",motorista_van_id:editMud.motorista_van_id||null,motorista_caminhao_id:editMud.motorista_caminhao_id||null,supervisor_id:editMud.supervisor_id||null};
         if(_existeMud){
           // PATCH existing mudancas record
-          var _patchFields={medicao:parseFloat(editMud.medicao)||0,nome:editMud.nome||"",selo:editMud.selo||"",comunidade:editMud.comunidade||"",origem:editMud.origem||"",destino:editMud.destino||"",van:editMud.van||false,observacao:editMud.observacao||""};
+          var _patchFields={medicao:parseFloat(editMud.medicao)||0,nome:editMud.nome||"",selo:editMud.selo||"",comunidade:editMud.comunidade||"",origem:editMud.origem||"",destino:editMud.destino||"",van:editMud.van||false,caminhao:editMud.caminhao||false,ajudantes:parseInt(editMud.ajudantes)||0,observacao:editMud.observacao||"",motorista_van_id:editMud.motorista_van_id||null,motorista_caminhao_id:editMud.motorista_caminhao_id||null,supervisor_id:editMud.supervisor_id||null};
           setMudancas(function(prev){return prev.map(function(m){return m.id===_existeMud.id?Object.assign({},m,_patchFields):m;});});
           fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+_existeMud.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_patchFields)}).catch(function(){});
         }else{
@@ -4727,6 +4727,7 @@ return(
             <Inp label="Destino" icon="🏠" value={editMud.destino||""} onChange={v=>setEditMud(f=>({...f,destino:v}))} placeholder="Endereço de destino"/>
             <Inp label="Medição (m³)" icon="📐" type="number" value={editMud.medicao} onChange={v=>setEditMud(f=>({...f,medicao:v}))} placeholder="Ex: 27"/>
             <Tog label="🚐 Van" value={editMud.van} onChange={v=>setEditMud(f=>({...f,van:v}))}/>
+            <Tog label="🚚 Caminhão" value={editMud.caminhao} onChange={v=>setEditMud(f=>({...f,caminhao:v}))}/>
             {isAdmin&&<div style={{marginTop:8,padding:"10px 12px",background:"#fefce8",borderRadius:10,border:"1px solid #fef08a"}}>
               <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:6}}>👷 Qtd. Ajudantes <span style={{fontSize:9,background:"#f59e0b",color:"#fff",borderRadius:4,padding:"1px 5px",marginLeft:4}}>ADMIN</span></div>
               <input type="number" min="0" value={editMud._qtdAj===0?"":editMud._qtdAj||""} onChange={function(e){var raw=e.target.value;setEditMud(function(f){return {...f,_qtdAj:raw===""?"":(parseInt(raw)||0)};});}} style={{width:"100%",padding:"6px 10px",borderRadius:8,border:"1px solid #fcd34d",fontSize:13,fontWeight:600,background:"#fffbeb"}} placeholder="Ex: 3"/>
