@@ -2608,7 +2608,7 @@ export default function App(){
   const _mesAtual=new Date().getMonth();
   const _anoAtual=new Date().getFullYear();
   const _mesesNome=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-  const _realizadasMes=isMotorista?(function(){var _hj2=new Date();var _dw2=_hj2.getDay();var _dif2=_dw2===0?6:_dw2-1;var _s0w=new Date(_hj2.getFullYear(),_hj2.getMonth(),_hj2.getDate()-_dif2);var _s1w=new Date(_s0w.getFullYear(),_s0w.getMonth(),_s0w.getDate()+6);var _pad2=function(n){return String(n).padStart(2,"0");};var _siW=_s0w.getFullYear()+"-"+_pad2(_s0w.getMonth()+1)+"-"+_pad2(_s0w.getDate());var _sfW=_s1w.getFullYear()+"-"+_pad2(_s1w.getMonth()+1)+"-"+_pad2(_s1w.getDate());return new Set(mudancas.filter(function(m){return !m.deleted_at&&m.data>=_siW&&m.data<=_sfW;}).map(function(m){return m.data;})).size;})():mudancas.filter(function(m){var d=new Date(m.data+"T12:00:00");return !m.deleted_at&&d.getMonth()===_mesAtual&&d.getFullYear()===_anoAtual;}).length;
+  const _realizadasMes=isMotorista?(function(){var _hj2=new Date();var _dw2=_hj2.getDay();var _dif2=_dw2===0?6:_dw2-1;var _s0w=new Date(_hj2.getFullYear(),_hj2.getMonth(),_hj2.getDate()-_dif2);var _s1w=new Date(_s0w.getFullYear(),_s0w.getMonth(),_s0w.getDate()+6);var _pad2=function(n){return String(n).padStart(2,"0");};var _siW=_s0w.getFullYear()+"-"+_pad2(_s0w.getMonth()+1)+"-"+_pad2(_s0w.getDate());var _sfW=_s1w.getFullYear()+"-"+_pad2(_s1w.getMonth()+1)+"-"+_pad2(_s1w.getDate());return new Set((_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data>=_siW&&m.data<=_sfW;}).map(function(m){return m.data;})).size;})():(_allForFiltered||[]).filter(function(m){var d=new Date(m.data+"T12:00:00");return !m.deleted_at&&d.getMonth()===_mesAtual&&d.getFullYear()===_anoAtual;}).length;
   const _pendentesMes=agenda.filter(a=>{const d=new Date(a.data+"T12:00:00");const hoje=new Date();hoje.setHours(0,0,0,0);return !a.deleted_at&&d>=hoje&&(a.status==="confirmado"||a.status==="pendente");}).length;
   const _mudHoje=agendaOrdenada.filter(a=>a.data===hoje&&a.status!=="realizado");
 
@@ -3469,7 +3469,7 @@ export default function App(){
 
   // Só conta mudanças FINALIZADAS (status Concluído/concluida)
   var _statusFin=["Concluído","concluida","Concluido","concluído"];
-  var _todas=mudancas.filter(function(m){
+  var _todas=(_allForFiltered||[]).filter(function(m){
     if(m.deleted_at||!m.data||m.data<_di||m.data>_df) return false;
     if(!_statusFin.includes(m.status)) return false;
     return m.motorista_van_id===_meuId||m.motorista_caminhao_id===_meuId;
@@ -3988,7 +3988,7 @@ return(
     _sf=_uf.getFullYear()+"-"+_pc(_uf.getMonth()+1)+"-"+_pc(_uf.getDate());
     _periodoLbl="01/"+_pc(_hj.getMonth()+1)+"/"+_hj.getFullYear()+" a "+_pc(_uf.getDate())+"/"+_pc(_uf.getMonth()+1)+"/"+_uf.getFullYear();
   }
-  var _ms=mudancas.filter(function(m){return !m.deleted_at&&m.data>=_si&&m.data<=_sf;});
+  var _ms=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data>=_si&&m.data<=_sf;});
   return(
     <div style={{padding:"0 12px",marginTop:10,marginBottom:10}}>
       <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 14px 10px"}}>
@@ -4221,7 +4221,7 @@ return(
   var _fb=function(d){return _pc(d.getDate())+"/"+_pc(d.getMonth()+1)+"/"+d.getFullYear();};
   var _si=_fd(_s0);var _sf=_fd(_s1);
   var _periodo=_fb(_s0)+" a "+_fb(_s1);
-  var _ms=mudancas.filter(function(m){return !m.deleted_at&&m.data>=_si&&m.data<=_sf;});
+  var _ms=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data>=_si&&m.data<=_sf;});
   return(
     <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 14px 10px",marginTop:10,marginBottom:10}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
