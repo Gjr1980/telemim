@@ -1104,6 +1104,7 @@ export default function App(){
         loadPrestadores();
         loadAjudantes();
         loadEquipeDia();
+        loadPagamentos();
         // SEMPRE executado — garante que o app abre
                 setAuthChecked(true);
         setLoading(false);
@@ -1392,6 +1393,24 @@ export default function App(){
   const [editAjudante,setEditAjudante]=useState(null);
   const [adminRelSup,setAdminRelSup]=useState("");
   const [adminRelMes,setAdminRelMes]=useState(()=>new Date().toISOString().slice(0,7));
+  const [pagamentos,setPagamentos]=useState([]);
+  const [pagMes,setPagMes]=useState(()=>new Date().toISOString().slice(0,7));
+  const [pagSup,setPagSup]=useState("");
+  const [pagFiltro,setPagFiltro]=useState("todos");
+
+  async function loadPagamentos(){
+    try{var r=await fetch(SUPA_URL+"/rest/v1/pagamentos?select=*&order=criado_em.desc",{headers:getH()});var d=await r.json();if(Array.isArray(d))setPagamentos(d);}catch(e){}
+  }
+  async function salvarPagamento(pag){
+    try{
+      var _hd=Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"});
+      var r=await fetch(SUPA_URL+"/rest/v1/pagamentos",{method:"POST",headers:_hd,body:JSON.stringify([pag])});
+      var d=await r.json();
+      if(Array.isArray(d)&&d[0]){
+        setPagamentos(function(prev){var exists=prev.find(function(p){return p.id===d[0].id;});return exists?prev.map(function(p){return p.id===d[0].id?d[0]:p;}):[d[0]].concat(prev);});
+      }
+    }catch(e){}
+  }
 
   async function loadAjudantes(){
     try{var r=await fetch(SUPA_URL+"/rest/v1/ajudantes?select=*&ativo=eq.true&order=nome",{headers:getH()});var d=await r.json();if(Array.isArray(d))setAjudantesList(d);}catch(e){}
@@ -4348,6 +4367,130 @@ return(
           }} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"12px 10px",borderRadius:12,border:"none",background:"#1e40af",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>📄 PDF</button>
         </div>
       </div>}
+    </div>
+  );
+})()}
+{tab==="contas"&&isAdmin&&(function(){
+  var _fvP=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var _fdP=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:d;};
+  var _fdShort=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]:d;};
+  var _sups2=listaUsuarios.filter(function(u){return u.perfil==="supervisor"&&u.ativo;});
+  var _mots2=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo;});
+  var _aj1aP=parseFloat(RULES.aj1a)||80;
+  var _ajAddP=parseFloat(RULES.ajAdd)||20;
+  // Build equipe data for selected supervisor and month
+  var _eqMesP=equipeDiaList.filter(function(e){return e.data&&e.data.slice(0,7)===pagMes&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
+  var _ajMapP={};
+  _eqMesP.forEach(function(ed){
+    var numMud=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data===ed.data;}).length;
+    var valPorAj=numMud>0?_aj1aP+Math.max(0,numMud-1)*_ajAddP:0;
+    ed.ajudantes.forEach(function(aj){
+      if(!_ajMapP[aj.id])_ajMapP[aj.id]={id:aj.id,nome:aj.nome,telefone:aj.telefone||"",dias:[],total:0};
+      _ajMapP[aj.id].dias.push({data:ed.data,numMud:numMud,valor:valPorAj});
+      _ajMapP[aj.id].total+=valPorAj;
+    });
+  });
+  var _ajListP=Object.values(_ajMapP).sort(function(a,b){return a.nome.localeCompare(b.nome);});
+  // Motoristas costs for month
+  var _mudMesP=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===pagMes;});
+  var _camTotal=0;var _vanTotal=0;
+  var _diasMesP=[...new Set(_mudMesP.map(function(m){return m.data;}))];
+  _diasMesP.forEach(function(data){var n=_mudMesP.filter(function(m){return m.data===data;}).length;_camTotal+=(parseFloat(RULES.cam1a)||350)+Math.max(0,n-1)*(parseFloat(RULES.camAdd)||130);_vanTotal+=parseFloat(RULES.vanCusto)||400;});
+  // Get payment status for each item
+  var _getPag=function(tipo,refId){return (pagamentos||[]).find(function(p){return p.tipo===tipo&&p.ref_id===refId&&p.periodo===pagMes;})||null;};
+  var _statusColor=function(s){return s==="pago"?"#16a34a":s==="parcial"?"#f59e0b":"#dc2626";};
+  var _statusBg=function(s){return s==="pago"?"#f0fdf4":s==="parcial"?"#fffbeb":"#fef2f2";};
+  var _statusLabel=function(s){return s==="pago"?"✅ Pago":s==="parcial"?"⚠️ Parcial":"⏳ Pendente";};
+  // Filter
+  var _allItems=[];
+  _ajListP.forEach(function(aj){_allItems.push({tipo:"ajudante",refId:aj.id,nome:aj.nome,telefone:aj.telefone,valor:aj.total,dias:aj.dias});});
+  _mots2.forEach(function(m){var _isCam=m.tipo_veiculo==="CAMINHAO";var _val=_isCam?_camTotal:_vanTotal;if(_val>0)_allItems.push({tipo:_isCam?"caminhao":"van",refId:m.id,nome:m.nome,telefone:m.contato||"",valor:_val,dias:null});});
+  if(pagFiltro!=="todos")_allItems=_allItems.filter(function(it){if(pagFiltro==="pendente"){var p=_getPag(it.tipo,it.refId);return !p||p.status==="pendente";}if(pagFiltro==="pago"){var p2=_getPag(it.tipo,it.refId);return p2&&p2.status==="pago";}return true;});
+  // Month nav
+  var _mesDP=new Date(pagMes+"-15");
+  var _nomesMesP=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var _mesLabelP=_nomesMesP[_mesDP.getMonth()]+"/"+_mesDP.getFullYear();
+  // Totals
+  var _totalPend=0;var _totalPago=0;
+  _allItems.forEach(function(it){var p=_getPag(it.tipo,it.refId);if(p&&p.status==="pago")_totalPago+=it.valor;else _totalPend+=it.valor;});
+  return(
+    <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 14px 16px",marginTop:10,marginBottom:10}}>
+      <div style={{fontWeight:800,fontSize:14,color:"#1e293b",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>💰 Gestão de Pagamentos</div>
+      {/* Month nav */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:12}}>
+        <button onClick={function(){var d=new Date(pagMes+"-15");d.setMonth(d.getMonth()-1);setPagMes(d.toISOString().slice(0,7));}} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:14,fontWeight:700}}>◀</button>
+        <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>📅 {_mesLabelP}</div>
+        <button onClick={function(){var d=new Date(pagMes+"-15");d.setMonth(d.getMonth()+1);setPagMes(d.toISOString().slice(0,7));}} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:14,fontWeight:700}}>▶</button>
+      </div>
+      {/* Summary cards */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+        <div style={{background:"#fef2f2",borderRadius:10,padding:"10px 12px",border:"1px solid #fecaca"}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#dc2626"}}>⏳ PENDENTE</div>
+          <div style={{fontSize:16,fontWeight:900,color:"#dc2626"}}>{_fvP(_totalPend)}</div>
+        </div>
+        <div style={{background:"#f0fdf4",borderRadius:10,padding:"10px 12px",border:"1px solid #bbf7d0"}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#16a34a"}}>✅ PAGO</div>
+          <div style={{fontSize:16,fontWeight:900,color:"#16a34a"}}>{_fvP(_totalPago)}</div>
+        </div>
+      </div>
+      {/* Filters */}
+      <div style={{display:"flex",gap:6,marginBottom:12}}>
+        {[{k:"todos",l:"Todos"},{k:"pendente",l:"⏳ Pendente"},{k:"pago",l:"✅ Pago"}].map(function(f){
+          return <button key={f.k} onClick={function(){setPagFiltro(f.k);}} style={{flex:1,padding:"8px 4px",borderRadius:8,border:"1.5px solid "+(pagFiltro===f.k?"#1e40af":"#e2e8f0"),background:pagFiltro===f.k?"#eff6ff":"#f8fafc",color:pagFiltro===f.k?"#1e40af":"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>{f.l}</button>;
+        })}
+      </div>
+      {/* Items list */}
+      {_allItems.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Nenhum item neste período</div>:
+      _allItems.map(function(it,idx){
+        var _pag=_getPag(it.tipo,it.refId);
+        var _st=_pag?_pag.status:"pendente";
+        var _ico=it.tipo==="ajudante"?"👷":it.tipo==="caminhao"?"🚚":"🚐";
+        var _tipoLabel=it.tipo==="ajudante"?"Ajudante":it.tipo==="caminhao"?"Caminhão":"Van";
+        return <div key={idx} style={{background:_statusBg(_st),borderRadius:10,padding:"12px 14px",marginBottom:8,border:"1px solid "+(_st==="pago"?"#bbf7d0":_st==="parcial"?"#fde68a":"#fecaca")}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>{_ico} {it.nome}</div>
+              <div style={{fontSize:10,color:"#64748b"}}>{_tipoLabel}{it.telefone?" · 📞 "+it.telefone:""}</div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:15,fontWeight:900,color:_statusColor(_st)}}>{_fvP(it.valor)}</div>
+              <div style={{fontSize:10,fontWeight:700,color:_statusColor(_st)}}>{_statusLabel(_st)}</div>
+            </div>
+          </div>
+          {it.dias&&<div style={{marginBottom:8,paddingLeft:8,borderLeft:"2px solid #e2e8f0"}}>
+            {it.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).map(function(d,i){
+              return <div key={i} style={{fontSize:10,color:"#475569",padding:"2px 0"}}>{_fdShort(d.data)} · {d.numMud} mud · {_fvP(d.valor)}</div>;
+            })}
+          </div>}
+          {_pag&&_pag.data_pagamento&&<div style={{fontSize:10,color:"#64748b",marginBottom:6}}>📅 Pago em: {_fdP(_pag.data_pagamento)}{_pag.metodo?" · "+_pag.metodo:""}</div>}
+          {/* Action buttons */}
+          <div style={{display:"flex",gap:6}}>
+            {_st!=="pago"&&<button onClick={function(){
+              var hoje=new Date().toISOString().slice(0,10);
+              salvarPagamento({id:_pag?_pag.id:undefined,tipo:it.tipo,ref_id:it.refId,ref_nome:it.nome,periodo:pagMes,valor:it.valor,status:"pago",data_pagamento:hoje,metodo:"PIX",criado_em:_pag?_pag.criado_em:new Date().toISOString()});
+            }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:"#16a34a",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>✅ Marcar Pago</button>}
+            {_st!=="parcial"&&_st!=="pago"&&<button onClick={function(){
+              var hoje=new Date().toISOString().slice(0,10);
+              salvarPagamento({id:_pag?_pag.id:undefined,tipo:it.tipo,ref_id:it.refId,ref_nome:it.nome,periodo:pagMes,valor:it.valor,status:"parcial",data_pagamento:hoje,metodo:"",criado_em:_pag?_pag.criado_em:new Date().toISOString()});
+            }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:"#f59e0b",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>⚠️ Parcial</button>}
+            {_st==="pago"&&<button onClick={function(){
+              salvarPagamento({id:_pag.id,tipo:it.tipo,ref_id:it.refId,ref_nome:it.nome,periodo:pagMes,valor:it.valor,status:"pendente",data_pagamento:null,metodo:"",criado_em:_pag.criado_em});
+            }} style={{flex:1,padding:"8px",borderRadius:8,border:"1px solid #dc2626",background:"#fef2f2",color:"#dc2626",fontSize:11,fontWeight:700,cursor:"pointer"}}>↩️ Desfazer</button>}
+          </div>
+        </div>;
+      })}
+      {/* Export button */}
+      {_allItems.length>0&&<button onClick={function(){
+        var csv="Nome,Tipo,Periodo,Valor,Status,Data Pagamento,Metodo\n";
+        _allItems.forEach(function(it){
+          var _pag=_getPag(it.tipo,it.refId);
+          var _st=_pag?_pag.status:"pendente";
+          csv+='"'+it.nome+'","'+(it.tipo==="ajudante"?"Ajudante":it.tipo==="caminhao"?"Caminhão":"Van")+'","'+_mesLabelP+'","'+it.valor.toFixed(2)+'","'+_st+'","'+(_pag&&_pag.data_pagamento?_fdP(_pag.data_pagamento):"")+'","'+(_pag&&_pag.metodo?_pag.metodo:"")+'"'+"\n";
+        });
+        var blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
+        var url=URL.createObjectURL(blob);
+        var a=document.createElement("a");a.href=url;a.download="pagamentos_"+pagMes+".csv";a.click();URL.revokeObjectURL(url);
+      }} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"#475569",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",marginTop:10}}>📥 Exportar Excel (CSV)</button>}
     </div>
   );
 })()}
