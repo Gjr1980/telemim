@@ -1213,9 +1213,55 @@ export default function App(){
   // ── GPS Map auto-polling — refresh every 15s while modal is open ──────────
   useEffect(function(){
     if(!showGpsMap||!gpsMapAgenda) return;
+    var _mapEl=null;
+    function _drawRoute(map,el,pos,eta){
+      if(!eta||!eta.route) return;
+      try{
+        if(map.getSource("route")){
+          map.getSource("route").setData({type:"Feature",geometry:eta.route});
+        }else{
+          map.addSource("route",{type:"geojson",data:{type:"Feature",geometry:eta.route}});
+          map.addLayer({id:"route",type:"line",source:"route",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#2563eb","line-width":4}});
+        }
+        if(!el._destMarker&&eta.destCoords){
+          var dEl=document.createElement("div");dEl.innerHTML="📍";dEl.style.fontSize="28px";
+          el._destMarker=new window.mapboxgl.Marker({element:dEl}).setLngLat(eta.destCoords).addTo(map);
+        }else if(el._destMarker&&eta.destCoords){
+          el._destMarker.setLngLat(eta.destCoords);
+        }
+        var bounds=new window.mapboxgl.LngLatBounds();
+        bounds.extend([pos.lng,pos.lat]);
+        if(eta.destCoords) bounds.extend(eta.destCoords);
+        map.fitBounds(bounds,{padding:60,duration:1000});
+      }catch(e){console.warn("[GPS map] route error:",e);}
+    }
+    function _updateMapMarker(pos,eta){
+      _mapEl=_mapEl||document.getElementById("gps-map-container");
+      if(!_mapEl||!_mapEl._map){
+        // Map not ready yet — retry after short delay
+        setTimeout(function(){_updateMapMarker(pos,eta);},1500);
+        return;
+      }
+      var map=_mapEl._map;
+      if(_mapEl._marker){_mapEl._marker.setLngLat([pos.lng,pos.lat]);}
+      map.easeTo({center:[pos.lng,pos.lat],duration:1000});
+      if(eta&&eta.route){
+        if(map.isStyleLoaded()){_drawRoute(map,_mapEl,pos,eta);}
+        else{map.on("load",function(){_drawRoute(map,_mapEl,pos,eta);});}
+      }
+    }
     function _poll(){
       gpsLoadPositions(gpsMapAgenda.id).then(function(pos){
-        if(pos){setGpsPositions([pos]);if(gpsMapAgenda.destino){gpsCalcEta(pos.lat,pos.lng,gpsMapAgenda.destino).then(function(eta){if(eta)setGpsEta(eta);});}}
+        if(!pos) return;
+        setGpsPositions([pos]);
+        if(gpsMapAgenda.destino){
+          gpsCalcEta(pos.lat,pos.lng,gpsMapAgenda.destino).then(function(eta){
+            if(eta){setGpsEta(eta);_updateMapMarker(pos,eta);}
+            else{_updateMapMarker(pos,null);}
+          });
+        }else{
+          _updateMapMarker(pos,null);
+        }
       });
     }
     _poll();// initial
@@ -4194,16 +4240,8 @@ return(
               </div>
             )}
             {gpsPositions.length>0&&(
-              <div style={{flex:1,position:"relative"}} ref={function(el){
-                if(!el||!window.mapboxgl) return;
-                // Create map only once
-                if(el._mapReady){
-                  // Just update marker position
-                  var _pos2=gpsPositions[0];
-                  if(el._marker){el._marker.setLngLat([_pos2.lng,_pos2.lat]);}
-                  if(el._map){el._map.easeTo({center:[_pos2.lng,_pos2.lat],duration:1000});}
-                  return;
-                }
+              <div id="gps-map-container" style={{flex:1,position:"relative"}} ref={function(el){
+                if(!el||!window.mapboxgl||el._mapReady) return;
                 el._mapReady=true;
                 var pos=gpsPositions[0];
                 window.mapboxgl.accessToken=MAPBOX_TOKEN;
@@ -4212,28 +4250,33 @@ return(
                 var markerEl=document.createElement("div");
                 markerEl.innerHTML="🚚";
                 markerEl.style.fontSize="32px";
-                var marker=new window.mapboxgl.Marker({element:markerEl}).setLngLat([pos.lng,pos.lat]).addTo(map);
-                el._marker=marker;
-                if(gpsEta&&gpsEta.route){
-                  map.on("load",function(){
-                    map.addSource("route",{type:"geojson",data:{type:"Feature",geometry:gpsEta.route}});
-                    map.addLayer({id:"route",type:"line",source:"route",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#2563eb","line-width":4}});
-                    var destMarkerEl=document.createElement("div");
-                    destMarkerEl.innerHTML="📍";
-                    destMarkerEl.style.fontSize="28px";
-                    new window.mapboxgl.Marker({element:destMarkerEl}).setLngLat(gpsEta.destCoords).addTo(map);
-                    var bounds=new window.mapboxgl.LngLatBounds();
-                    bounds.extend([pos.lng,pos.lat]);
-                    bounds.extend(gpsEta.destCoords);
-                    map.fitBounds(bounds,{padding:60});
-                  });
-                }
+                el._marker=new window.mapboxgl.Marker({element:markerEl}).setLngLat([pos.lng,pos.lat]).addTo(map);
               }}></div>
             )}
             <div style={{background:"#1e293b",padding:"10px 16px",display:"flex",gap:8}}>
               <button onClick={function(){
                 gpsLoadPositions(gpsMapAgenda.id).then(function(pos){
-                  if(pos){setGpsPositions([pos]);if(gpsMapAgenda.destino){gpsCalcEta(pos.lat,pos.lng,gpsMapAgenda.destino).then(function(eta){if(eta)setGpsEta(eta);});}}
+                  if(!pos) return;
+                  setGpsPositions([pos]);
+                  var _el=document.getElementById("gps-map-container");
+                  if(gpsMapAgenda.destino){
+                    gpsCalcEta(pos.lat,pos.lng,gpsMapAgenda.destino).then(function(eta){
+                      if(eta){setGpsEta(eta);}
+                      if(_el&&_el._map&&_el._marker){
+                        _el._marker.setLngLat([pos.lng,pos.lat]);
+                        _el._map.easeTo({center:[pos.lng,pos.lat],duration:1000});
+                        if(eta&&eta.route&&_el._map.isStyleLoaded()){
+                          if(_el._map.getSource("route")){_el._map.getSource("route").setData({type:"Feature",geometry:eta.route});}
+                          else{_el._map.addSource("route",{type:"geojson",data:{type:"Feature",geometry:eta.route}});_el._map.addLayer({id:"route",type:"line",source:"route",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#2563eb","line-width":4}});}
+                          if(!_el._destMarker&&eta.destCoords){var dEl=document.createElement("div");dEl.innerHTML="📍";dEl.style.fontSize="28px";_el._destMarker=new window.mapboxgl.Marker({element:dEl}).setLngLat(eta.destCoords).addTo(_el._map);}
+                          var b=new window.mapboxgl.LngLatBounds();b.extend([pos.lng,pos.lat]);if(eta.destCoords)b.extend(eta.destCoords);_el._map.fitBounds(b,{padding:60,duration:1000});
+                        }
+                      }
+                    });
+                  }else if(_el&&_el._marker){
+                    _el._marker.setLngLat([pos.lng,pos.lat]);
+                    _el._map.easeTo({center:[pos.lng,pos.lat],duration:1000});
+                  }
                 });
               }} style={{flex:1,background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"10px 0",fontWeight:700,fontSize:13,cursor:"pointer"}}>🔄 Atualizar Agora</button>
             </div>
