@@ -1396,6 +1396,8 @@ export default function App(){
   const [pagamentos,setPagamentos]=useState([]);
   const [pagMes,setPagMes]=useState(()=>new Date().toISOString().slice(0,7));
   const [pagSup,setPagSup]=useState("");
+  const [pagCam,setPagCam]=useState("");
+  const [pagVan,setPagVan]=useState("");
   const [pagFiltro,setPagFiltro]=useState("todos");
 
   async function loadPagamentos(){
@@ -4375,10 +4377,11 @@ return(
   var _fdP=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:d;};
   var _fdShort=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]:d;};
   var _sups2=listaUsuarios.filter(function(u){return u.perfil==="supervisor"&&u.ativo;});
-  var _mots2=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo;});
+  var _motsCam=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="CAMINHAO";});
+  var _motsVan=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="VAN";});
   var _aj1aP=parseFloat(RULES.aj1a)||80;
   var _ajAddP=parseFloat(RULES.ajAdd)||20;
-  // Build equipe data for selected supervisor and month
+  // Build equipe data for month
   var _eqMesP=equipeDiaList.filter(function(e){return e.data&&e.data.slice(0,7)===pagMes&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
   var _ajMapP={};
   _eqMesP.forEach(function(ed){
@@ -4391,28 +4394,66 @@ return(
     });
   });
   var _ajListP=Object.values(_ajMapP).sort(function(a,b){return a.nome.localeCompare(b.nome);});
-  // Motoristas costs for month
+  var _totalEquipe=_ajListP.reduce(function(s,aj){return s+aj.total;},0);
+  var _totalDiasEquipe=_ajListP.reduce(function(s,aj){return s+aj.dias.length;},0);
+  // Motorista costs for month
   var _mudMesP=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===pagMes;});
-  var _camTotal=0;var _vanTotal=0;
   var _diasMesP=[...new Set(_mudMesP.map(function(m){return m.data;}))];
+  var _camTotal=0;var _vanTotal=0;
   _diasMesP.forEach(function(data){var n=_mudMesP.filter(function(m){return m.data===data;}).length;_camTotal+=(parseFloat(RULES.cam1a)||350)+Math.max(0,n-1)*(parseFloat(RULES.camAdd)||130);_vanTotal+=parseFloat(RULES.vanCusto)||400;});
-  // Get payment status for each item
+  // Get payment status
   var _getPag=function(tipo,refId){return (pagamentos||[]).find(function(p){return p.tipo===tipo&&p.ref_id===refId&&p.periodo===pagMes;})||null;};
   var _statusColor=function(s){return s==="pago"?"#16a34a":s==="parcial"?"#f59e0b":"#dc2626";};
   var _statusBg=function(s){return s==="pago"?"#f0fdf4":s==="parcial"?"#fffbeb":"#fef2f2";};
   var _statusLabel=function(s){return s==="pago"?"✅ Pago":s==="parcial"?"⚠️ Parcial":"⏳ Pendente";};
-  // Filter
-  var _allItems=[];
-  _ajListP.forEach(function(aj){_allItems.push({tipo:"ajudante",refId:aj.id,nome:aj.nome,telefone:aj.telefone,valor:aj.total,dias:aj.dias});});
-  _mots2.forEach(function(m){var _isCam=m.tipo_veiculo==="CAMINHAO";var _val=_isCam?_camTotal:_vanTotal;if(_val>0)_allItems.push({tipo:_isCam?"caminhao":"van",refId:m.id,nome:m.nome,telefone:m.contato||"",valor:_val,dias:null});});
-  if(pagFiltro!=="todos")_allItems=_allItems.filter(function(it){if(pagFiltro==="pendente"){var p=_getPag(it.tipo,it.refId);return !p||p.status==="pendente";}if(pagFiltro==="pago"){var p2=_getPag(it.tipo,it.refId);return p2&&p2.status==="pago";}return true;});
-  // Month nav
+  // Month label
   var _mesDP=new Date(pagMes+"-15");
   var _nomesMesP=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   var _mesLabelP=_nomesMesP[_mesDP.getMonth()]+"/"+_mesDP.getFullYear();
   // Totals
-  var _totalPend=0;var _totalPago=0;
-  _allItems.forEach(function(it){var p=_getPag(it.tipo,it.refId);if(p&&p.status==="pago")_totalPago+=it.valor;else _totalPend+=it.valor;});
+  var _totalGeral=_totalEquipe+_camTotal+_vanTotal;
+  var _totalPago=0;
+  _ajListP.forEach(function(aj){var p=_getPag("ajudante",aj.id);if(p&&p.status==="pago")_totalPago+=aj.total;});
+  if(pagCam){var pC=_getPag("caminhao",pagCam);if(pC&&pC.status==="pago")_totalPago+=_camTotal;}
+  if(pagVan){var pV=_getPag("van",pagVan);if(pV&&pV.status==="pago")_totalPago+=_vanTotal;}
+  var _totalPend=_totalGeral-_totalPago;
+  // Render payment item
+  var _renderPagItem=function(tipo,refId,nome,telefone,valor,dias){
+    var _pag=_getPag(tipo,refId);
+    var _st=_pag?_pag.status:"pendente";
+    if(pagFiltro==="pendente"&&_st==="pago")return null;
+    if(pagFiltro==="pago"&&_st!=="pago")return null;
+    return <div key={tipo+"_"+refId} style={{background:_statusBg(_st),borderRadius:10,padding:"12px 14px",marginBottom:8,border:"1px solid "+(_st==="pago"?"#bbf7d0":_st==="parcial"?"#fde68a":"#fecaca")}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        <div>
+          <div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>{nome}</div>
+          {telefone&&<div style={{fontSize:10,color:"#64748b"}}>📞 {telefone}</div>}
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:15,fontWeight:900,color:_statusColor(_st)}}>{_fvP(valor)}</div>
+          <div style={{fontSize:10,fontWeight:700,color:_statusColor(_st)}}>{_statusLabel(_st)}</div>
+        </div>
+      </div>
+      {dias&&<div style={{marginBottom:8,paddingLeft:8,borderLeft:"2px solid #e2e8f0"}}>
+        {dias.sort(function(a,b){return a.data.localeCompare(b.data);}).map(function(d,i){
+          return <div key={i} style={{fontSize:10,color:"#475569",padding:"2px 0"}}>{_fdShort(d.data)} · {d.numMud} mud · {_fvP(d.valor)}</div>;
+        })}
+      </div>}
+      {_pag&&_pag.data_pagamento&&<div style={{fontSize:10,color:"#64748b",marginBottom:6}}>📅 Pago em: {_fdP(_pag.data_pagamento)}{_pag.metodo?" · "+_pag.metodo:""}</div>}
+      <div style={{display:"flex",gap:6}}>
+        {_st!=="pago"&&<button onClick={function(){
+          salvarPagamento({id:_pag?_pag.id:undefined,tipo:tipo,ref_id:refId,ref_nome:nome,periodo:pagMes,valor:valor,status:"pago",data_pagamento:new Date().toISOString().slice(0,10),metodo:"PIX",criado_em:_pag?_pag.criado_em:new Date().toISOString()});
+        }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:"#16a34a",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>✅ Marcar Pago</button>}
+        {_st!=="parcial"&&_st!=="pago"&&<button onClick={function(){
+          salvarPagamento({id:_pag?_pag.id:undefined,tipo:tipo,ref_id:refId,ref_nome:nome,periodo:pagMes,valor:valor,status:"parcial",data_pagamento:new Date().toISOString().slice(0,10),metodo:"",criado_em:_pag?_pag.criado_em:new Date().toISOString()});
+        }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:"#f59e0b",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>⚠️ Parcial</button>}
+        {_st==="pago"&&<button onClick={function(){
+          salvarPagamento({id:_pag.id,tipo:tipo,ref_id:refId,ref_nome:nome,periodo:pagMes,valor:valor,status:"pendente",data_pagamento:null,metodo:"",criado_em:_pag.criado_em});
+        }} style={{flex:1,padding:"8px",borderRadius:8,border:"1px solid #dc2626",background:"#fef2f2",color:"#dc2626",fontSize:11,fontWeight:700,cursor:"pointer"}}>↩️ Desfazer</button>}
+      </div>
+    </div>;
+  };
+  var _supNome2=pagSup?(listaUsuarios.find(function(u){return u.id===pagSup;})||{}).nome||"":"";
   return(
     <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 14px 16px",marginTop:10,marginBottom:10}}>
       <div style={{fontWeight:800,fontSize:14,color:"#1e293b",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>💰 Gestão de Pagamentos</div>
@@ -4434,63 +4475,73 @@ return(
         </div>
       </div>
       {/* Filters */}
-      <div style={{display:"flex",gap:6,marginBottom:12}}>
+      <div style={{display:"flex",gap:6,marginBottom:14}}>
         {[{k:"todos",l:"Todos"},{k:"pendente",l:"⏳ Pendente"},{k:"pago",l:"✅ Pago"}].map(function(f){
           return <button key={f.k} onClick={function(){setPagFiltro(f.k);}} style={{flex:1,padding:"8px 4px",borderRadius:8,border:"1.5px solid "+(pagFiltro===f.k?"#1e40af":"#e2e8f0"),background:pagFiltro===f.k?"#eff6ff":"#f8fafc",color:pagFiltro===f.k?"#1e40af":"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>{f.l}</button>;
         })}
       </div>
-      {/* Items list */}
-      {_allItems.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Nenhum item neste período</div>:
-      _allItems.map(function(it,idx){
-        var _pag=_getPag(it.tipo,it.refId);
-        var _st=_pag?_pag.status:"pendente";
-        var _ico=it.tipo==="ajudante"?"👷":it.tipo==="caminhao"?"🚚":"🚐";
-        var _tipoLabel=it.tipo==="ajudante"?"Ajudante":it.tipo==="caminhao"?"Caminhão":"Van";
-        return <div key={idx} style={{background:_statusBg(_st),borderRadius:10,padding:"12px 14px",marginBottom:8,border:"1px solid "+(_st==="pago"?"#bbf7d0":_st==="parcial"?"#fde68a":"#fecaca")}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div>
-              <div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>{_ico} {it.nome}</div>
-              <div style={{fontSize:10,color:"#64748b"}}>{_tipoLabel}{it.telefone?" · 📞 "+it.telefone:""}</div>
-            </div>
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:15,fontWeight:900,color:_statusColor(_st)}}>{_fvP(it.valor)}</div>
-              <div style={{fontSize:10,fontWeight:700,color:_statusColor(_st)}}>{_statusLabel(_st)}</div>
-            </div>
+
+      {/* ═══ BLOCO 1: EQUIPE SUPERVISOR ═══ */}
+      <div style={{borderTop:"3px solid #065f46",paddingTop:12,marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#065f46",marginBottom:8}}>👷 EQUIPE SUPERVISOR</div>
+        <select value={pagSup} onChange={function(e){setPagSup(e.target.value);}} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:13,fontWeight:600,color:pagSup?"#1e293b":"#94a3b8",background:"#f8fafc",cursor:"pointer",boxSizing:"border-box",marginBottom:10}}>
+          <option value="">Selecione o supervisor...</option>
+          {_sups2.map(function(s){return <option key={s.id} value={s.id}>{s.nome}</option>;})}
+        </select>
+        {pagSup&&_ajListP.length===0&&<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:12}}>Nenhuma equipe escalada neste mês</div>}
+        {pagSup&&_ajListP.map(function(aj){return _renderPagItem("ajudante",aj.id,"👷 "+aj.nome,aj.telefone,aj.total,aj.dias);})}
+        {pagSup&&_ajListP.length>0&&<div style={{background:"#065f46",borderRadius:10,padding:"12px 14px",marginTop:4}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>👷 {_ajListP.length} ajudante{_ajListP.length!==1?"s":""} · {_totalDiasEquipe} dia{_totalDiasEquipe!==1?"s":""}</div>
+            <div style={{color:"#fff",fontSize:15,fontWeight:900}}>TOTAL: {_fvP(_totalEquipe)}</div>
           </div>
-          {it.dias&&<div style={{marginBottom:8,paddingLeft:8,borderLeft:"2px solid #e2e8f0"}}>
-            {it.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).map(function(d,i){
-              return <div key={i} style={{fontSize:10,color:"#475569",padding:"2px 0"}}>{_fdShort(d.data)} · {d.numMud} mud · {_fvP(d.valor)}</div>;
-            })}
-          </div>}
-          {_pag&&_pag.data_pagamento&&<div style={{fontSize:10,color:"#64748b",marginBottom:6}}>📅 Pago em: {_fdP(_pag.data_pagamento)}{_pag.metodo?" · "+_pag.metodo:""}</div>}
-          {/* Action buttons */}
-          <div style={{display:"flex",gap:6}}>
-            {_st!=="pago"&&<button onClick={function(){
-              var hoje=new Date().toISOString().slice(0,10);
-              salvarPagamento({id:_pag?_pag.id:undefined,tipo:it.tipo,ref_id:it.refId,ref_nome:it.nome,periodo:pagMes,valor:it.valor,status:"pago",data_pagamento:hoje,metodo:"PIX",criado_em:_pag?_pag.criado_em:new Date().toISOString()});
-            }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:"#16a34a",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>✅ Marcar Pago</button>}
-            {_st!=="parcial"&&_st!=="pago"&&<button onClick={function(){
-              var hoje=new Date().toISOString().slice(0,10);
-              salvarPagamento({id:_pag?_pag.id:undefined,tipo:it.tipo,ref_id:it.refId,ref_nome:it.nome,periodo:pagMes,valor:it.valor,status:"parcial",data_pagamento:hoje,metodo:"",criado_em:_pag?_pag.criado_em:new Date().toISOString()});
-            }} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:"#f59e0b",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>⚠️ Parcial</button>}
-            {_st==="pago"&&<button onClick={function(){
-              salvarPagamento({id:_pag.id,tipo:it.tipo,ref_id:it.refId,ref_nome:it.nome,periodo:pagMes,valor:it.valor,status:"pendente",data_pagamento:null,metodo:"",criado_em:_pag.criado_em});
-            }} style={{flex:1,padding:"8px",borderRadius:8,border:"1px solid #dc2626",background:"#fef2f2",color:"#dc2626",fontSize:11,fontWeight:700,cursor:"pointer"}}>↩️ Desfazer</button>}
+        </div>}
+      </div>
+
+      {/* ═══ BLOCO 2: CAMINHÃO ═══ */}
+      <div style={{borderTop:"3px solid #92400e",paddingTop:12,marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#92400e",marginBottom:8}}>🚚 CAMINHÃO</div>
+        <select value={pagCam} onChange={function(e){setPagCam(e.target.value);}} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:13,fontWeight:600,color:pagCam?"#1e293b":"#94a3b8",background:"#f8fafc",cursor:"pointer",boxSizing:"border-box",marginBottom:10}}>
+          <option value="">Selecione o motorista...</option>
+          {_motsCam.map(function(m){return <option key={m.id} value={m.id}>{m.nome}{m.placa_veiculo?" · "+m.placa_veiculo:""}</option>;})}
+        </select>
+        {pagCam&&_camTotal>0&&_renderPagItem("caminhao",pagCam,"🚚 "+(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).nome||"",(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).contato||"",_camTotal,[{data:_diasMesP.length+" dias",numMud:_mudMesP.length,valor:_camTotal}])}
+        {pagCam&&_camTotal>0&&<div style={{background:"#92400e",borderRadius:10,padding:"10px 14px",marginTop:4}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>🚚 {_diasMesP.length} dia{_diasMesP.length!==1?"s":""} · {_mudMesP.length} mudança{_mudMesP.length!==1?"s":""}</div>
+            <div style={{color:"#fff",fontSize:15,fontWeight:900}}>TOTAL: {_fvP(_camTotal)}</div>
           </div>
-        </div>;
-      })}
+        </div>}
+        {pagCam&&_camTotal===0&&<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:12}}>Nenhuma mudança neste mês</div>}
+      </div>
+
+      {/* ═══ BLOCO 3: VAN ═══ */}
+      <div style={{borderTop:"3px solid #1e40af",paddingTop:12,marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:800,color:"#1e40af",marginBottom:8}}>🚐 VAN</div>
+        <select value={pagVan} onChange={function(e){setPagVan(e.target.value);}} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:13,fontWeight:600,color:pagVan?"#1e293b":"#94a3b8",background:"#f8fafc",cursor:"pointer",boxSizing:"border-box",marginBottom:10}}>
+          <option value="">Selecione o motorista...</option>
+          {_motsVan.map(function(m){return <option key={m.id} value={m.id}>{m.nome}{m.placa_veiculo?" · "+m.placa_veiculo:""}</option>;})}
+        </select>
+        {pagVan&&_vanTotal>0&&_renderPagItem("van",pagVan,"🚐 "+(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).nome||"",(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).contato||"",_vanTotal,[{data:_diasMesP.length+" dias",numMud:_mudMesP.length,valor:_vanTotal}])}
+        {pagVan&&_vanTotal>0&&<div style={{background:"#1e40af",borderRadius:10,padding:"10px 14px",marginTop:4}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>🚐 {_diasMesP.length} dia{_diasMesP.length!==1?"s":""}</div>
+            <div style={{color:"#fff",fontSize:15,fontWeight:900}}>TOTAL: {_fvP(_vanTotal)}</div>
+          </div>
+        </div>}
+        {pagVan&&_vanTotal===0&&<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:12}}>Nenhuma mudança neste mês</div>}
+      </div>
+
       {/* Export button */}
-      {_allItems.length>0&&<button onClick={function(){
+      <button onClick={function(){
         var csv="Nome,Tipo,Periodo,Valor,Status,Data Pagamento,Metodo\n";
-        _allItems.forEach(function(it){
-          var _pag=_getPag(it.tipo,it.refId);
-          var _st=_pag?_pag.status:"pendente";
-          csv+='"'+it.nome+'","'+(it.tipo==="ajudante"?"Ajudante":it.tipo==="caminhao"?"Caminhão":"Van")+'","'+_mesLabelP+'","'+it.valor.toFixed(2)+'","'+_st+'","'+(_pag&&_pag.data_pagamento?_fdP(_pag.data_pagamento):"")+'","'+(_pag&&_pag.metodo?_pag.metodo:"")+'"'+"\n";
-        });
+        _ajListP.forEach(function(aj){var _pag=_getPag("ajudante",aj.id);var _st=_pag?_pag.status:"pendente";csv+='"'+aj.nome+'","Ajudante","'+_mesLabelP+'","'+aj.total.toFixed(2)+'","'+_st+'","'+(_pag&&_pag.data_pagamento?_fdP(_pag.data_pagamento):"")+'","'+(_pag&&_pag.metodo?_pag.metodo:"")+'"'+"\n";});
+        if(pagCam){var pC2=_getPag("caminhao",pagCam);var nC=(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).nome||"";csv+='"'+nC+'","Caminhão","'+_mesLabelP+'","'+_camTotal.toFixed(2)+'","'+(pC2?pC2.status:"pendente")+'","'+(pC2&&pC2.data_pagamento?_fdP(pC2.data_pagamento):"")+'","'+(pC2&&pC2.metodo?pC2.metodo:"")+'"'+"\n";}
+        if(pagVan){var pV2=_getPag("van",pagVan);var nV=(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).nome||"";csv+='"'+nV+'","Van","'+_mesLabelP+'","'+_vanTotal.toFixed(2)+'","'+(pV2?pV2.status:"pendente")+'","'+(pV2&&pV2.data_pagamento?_fdP(pV2.data_pagamento):"")+'","'+(pV2&&pV2.metodo?pV2.metodo:"")+'"'+"\n";}
         var blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
         var url=URL.createObjectURL(blob);
         var a=document.createElement("a");a.href=url;a.download="pagamentos_"+pagMes+".csv";a.click();URL.revokeObjectURL(url);
-      }} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"#475569",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",marginTop:10}}>📥 Exportar Excel (CSV)</button>}
+      }} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"#475569",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>📥 Exportar Excel (CSV)</button>
     </div>
   );
 })()}
