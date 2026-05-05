@@ -1390,6 +1390,8 @@ export default function App(){
   const [equipeDiaCheck,setEquipeDiaCheck]=useState([]);
   const [equipeFinMes,setEquipeFinMes]=useState(()=>new Date().toISOString().slice(0,7));
   const [editAjudante,setEditAjudante]=useState(null);
+  const [adminRelSup,setAdminRelSup]=useState("");
+  const [adminRelMes,setAdminRelMes]=useState(()=>new Date().toISOString().slice(0,7));
 
   async function loadAjudantes(){
     try{var r=await fetch(SUPA_URL+"/rest/v1/ajudantes?select=*&ativo=eq.true&order=nome",{headers:getH()});var d=await r.json();if(Array.isArray(d))setAjudantesList(d);}catch(e){}
@@ -4241,6 +4243,111 @@ return(
         <div style={{fontSize:10,color:"#64748b"}}>{_periodo}</div>
       </div>
       {_renderRelatorioMotoristas(_ms,_periodo)}
+    </div>
+  );
+})()}
+{tab==="contas"&&isAdmin&&(function(){
+  var _fv2=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var _fd2=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]:d;};
+  var _sups=listaUsuarios.filter(function(u){return u.perfil==="supervisor"&&u.ativo;});
+  var _aj1a2=parseFloat(RULES.aj1a)||80;
+  var _ajAdd2=parseFloat(RULES.ajAdd)||20;
+  // Filter equipe_dia by selected month
+  var _eqMes2=equipeDiaList.filter(function(e){return e.data&&e.data.slice(0,7)===adminRelMes&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
+  // Build ajudantes map
+  var _ajMap2={};
+  _eqMes2.forEach(function(ed){
+    var numMud=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data===ed.data;}).length;
+    var valPorAj=numMud>0?_aj1a2+Math.max(0,numMud-1)*_ajAdd2:0;
+    ed.ajudantes.forEach(function(aj){
+      if(!_ajMap2[aj.id])_ajMap2[aj.id]={nome:aj.nome,telefone:aj.telefone||"",dias:[]};
+      _ajMap2[aj.id].dias.push({data:ed.data,numMud:numMud,valor:valPorAj});
+    });
+  });
+  var _ajFinArr2=Object.values(_ajMap2).sort(function(a,b){return a.nome.localeCompare(b.nome);});
+  var _totalDias2=0;var _totalValor2=0;
+  _ajFinArr2.forEach(function(a){_totalDias2+=a.dias.length;a.dias.forEach(function(d){_totalValor2+=d.valor;});});
+  var _mesD2=new Date(adminRelMes+"-15");
+  var _nomesMes2=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var _mesLabel2=_nomesMes2[_mesD2.getMonth()]+"/"+_mesD2.getFullYear();
+  var _supNome=adminRelSup?(listaUsuarios.find(function(u){return u.id===adminRelSup;})||{}).nome||"":"";
+  return(
+    <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 14px 10px",marginTop:10,marginBottom:10}}>
+      <div style={{fontWeight:800,fontSize:14,color:"#1e293b",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>📊 Relatório por Supervisor</div>
+      {/* Supervisor selector */}
+      <div style={{marginBottom:12}}>
+        <label style={{display:"block",fontSize:10,fontWeight:700,color:"#64748b",marginBottom:4,textTransform:"uppercase"}}>Supervisor</label>
+        <select value={adminRelSup} onChange={function(e){setAdminRelSup(e.target.value);}} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:13,fontWeight:600,color:adminRelSup?"#1e293b":"#94a3b8",background:"#f8fafc",cursor:"pointer",boxSizing:"border-box"}}>
+          <option value="">Selecione um supervisor...</option>
+          {_sups.map(function(s){return <option key={s.id} value={s.id}>{s.nome}</option>;})}
+        </select>
+      </div>
+      {/* Month selector */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:14}}>
+        <button onClick={function(){var d=new Date(adminRelMes+"-15");d.setMonth(d.getMonth()-1);setAdminRelMes(d.toISOString().slice(0,7));}} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:14,fontWeight:700}}>◀</button>
+        <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>📅 {_mesLabel2}</div>
+        <button onClick={function(){var d=new Date(adminRelMes+"-15");d.setMonth(d.getMonth()+1);setAdminRelMes(d.toISOString().slice(0,7));}} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:14,fontWeight:700}}>▶</button>
+      </div>
+      {/* Results */}
+      {!adminRelSup?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Selecione um supervisor para ver o relatório</div>:
+      _ajFinArr2.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Nenhuma equipe escalada neste mês</div>:
+      <div>
+        {_ajFinArr2.map(function(aj){
+          var _tAj=aj.dias.reduce(function(s,d){return s+d.valor;},0);
+          return <div key={aj.nome} style={{background:"#f8fafc",borderRadius:10,padding:"10px 12px",marginBottom:8,border:"1px solid #e2e8f0"}}>
+            <div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>👷 {aj.nome}{aj.telefone&&<span style={{fontSize:11,color:"#64748b",fontWeight:500}}> — 📞 {aj.telefone}</span>}</div>
+            {aj.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).map(function(d,i){
+              return <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0 4px 16px",fontSize:11,color:"#475569"}}>
+                <span>📅 {_fd2(d.data)} · {d.numMud} mud</span>
+                <span style={{fontWeight:700,color:"#065f46"}}>{_fv2(d.valor)}</span>
+              </div>;
+            })}
+            <div style={{textAlign:"right",fontSize:12,fontWeight:800,color:"#065f46",marginTop:4}}>💰 Total: {_fv2(_tAj)}</div>
+          </div>;
+        })}
+        {/* Total */}
+        <div style={{background:"#065f46",borderRadius:10,padding:"12px 14px",marginTop:8}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>👷 {_ajFinArr2.length} ajudante{_ajFinArr2.length!==1?"s":""} · {_totalDias2} dia{_totalDias2!==1?"s":""}</div>
+            <div style={{color:"#fff",fontSize:15,fontWeight:900}}>TOTAL: {_fv2(_totalValor2)}</div>
+          </div>
+        </div>
+        {/* Buttons */}
+        <div style={{display:"flex",gap:8,marginTop:12}}>
+          <button onClick={function(){
+            var NL="%0A";var txt="📊 *RELATÓRIO MENSAL — Equipe: "+(_supNome||"").toUpperCase()+"*"+NL+"📅 "+_mesLabel2+NL+NL;
+            _ajFinArr2.forEach(function(aj){
+              var _tAj=aj.dias.reduce(function(s,d){return s+d.valor;},0);
+              txt+="👷 *"+aj.nome+"*"+(aj.telefone?" — 📞 "+aj.telefone:"")+NL;
+              aj.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){
+                txt+="   📅 "+_fd2(d.data)+" · "+d.numMud+" mud · "+_fv2(d.valor)+NL;
+              });
+              txt+="   💰 Total: "+_fv2(_tAj)+NL+NL;
+            });
+            txt+="━━━━━━━━━━━━━━━━━━"+NL;
+            txt+="👷 "+_ajFinArr2.length+" ajudante"+(_ajFinArr2.length!==1?"s":"")+" · "+_totalDias2+" dia"+(_totalDias2!==1?"s":"")+NL;
+            txt+="💰 *TOTAL: "+_fv2(_totalValor2)+"*"+NL+NL+"— TELEMIM Mudanças";
+            window.open("https://wa.me/?text="+txt,"_blank");
+          }} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"12px 10px",borderRadius:12,border:"none",background:"#25d366",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>📲 WhatsApp</button>
+          <button onClick={function(){
+            var NL="\n";var txt="RELATÓRIO MENSAL — Equipe: "+(_supNome||"").toUpperCase()+NL+"📅 "+_mesLabel2+NL+NL;
+            _ajFinArr2.forEach(function(aj){
+              var _tAj=aj.dias.reduce(function(s,d){return s+d.valor;},0);
+              txt+="👷 "+aj.nome+(aj.telefone?" — 📞 "+aj.telefone:"")+NL;
+              aj.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){
+                txt+="   📅 "+_fd2(d.data)+" · "+d.numMud+" mudança"+(d.numMud!==1?"s":"")+" · "+_fv2(d.valor)+NL;
+              });
+              txt+="   💰 Total: "+_fv2(_tAj)+NL+NL;
+            });
+            txt+="━━━━━━━━━━━━━━━━━━"+NL;
+            txt+="👷 "+_ajFinArr2.length+" ajudantes · "+_totalDias2+" dias"+NL;
+            txt+="💰 TOTAL: "+_fv2(_totalValor2)+NL+NL+"— TELEMIM Mudanças";
+            var _w=window.open("","_blank");
+            _w.document.write("<html><head><title>Relatório Equipe - "+(_supNome||"")+' - '+_mesLabel2+"</title><style>body{font-family:monospace;white-space:pre-wrap;padding:20px;font-size:14px;} @media print{button{display:none!important;}body{font-size:12px;}}</style></head><body>"+txt.replace(/\n/g,"<br>")+"<br><br><button onclick='window.print()' style='padding:12px 24px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:bold;'>🖨️ Imprimir / Salvar PDF</button></body></html>");
+            _w.document.close();
+          }} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"12px 10px",borderRadius:12,border:"none",background:"#1e40af",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>📄 PDF</button>
+        </div>
+      </div>}
     </div>
   );
 })()}
