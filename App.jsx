@@ -26,6 +26,27 @@ async function sendPushNotification(userIds,title,body){
     await fetch(SUPA_URL+"/functions/v1/send-push",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({user_ids:userIds,title:title,body:body})});
   }catch(e){}
 }
+// ── OFFLINE CACHE (IndexedDB) ─────────────────────────────────────────────────
+const IDB_NAME="telemim_offline";const IDB_VER=1;
+function openIDB(){return new Promise(function(resolve,reject){var req=indexedDB.open(IDB_NAME,IDB_VER);req.onupgradeneeded=function(e){var db=e.target.result;if(!db.objectStoreNames.contains("cache"))db.createObjectStore("cache");};req.onsuccess=function(e){resolve(e.target.result);};req.onerror=function(){reject();};});}
+async function idbSet(key,val){try{var db=await openIDB();var tx=db.transaction("cache","readwrite");tx.objectStore("cache").put(val,key);await new Promise(function(r){tx.oncomplete=r;});}catch(e){}}
+async function idbGet(key){try{var db=await openIDB();var tx=db.transaction("cache","readonly");var req=tx.objectStore("cache").get(key);return new Promise(function(r){req.onsuccess=function(){r(req.result||null);};req.onerror=function(){r(null);};});}catch(e){return null;}}
+// ── OFFLINE SYNC QUEUE ────────────────────────────────────────────────────────
+async function addToSyncQueue(op){try{var q=await idbGet("syncQueue")||[];q.push(op);await idbSet("syncQueue",q);}catch(e){}}
+async function processSyncQueue(){
+  var q=await idbGet("syncQueue");if(!q||q.length===0)return;
+  var failed=[];
+  for(var i=0;i<q.length;i++){
+    var op=q[i];
+    try{
+      var r=await fetch(op.url,{method:op.method,headers:op.headers,body:op.body?JSON.stringify(op.body):undefined});
+      if(!r.ok)failed.push(op);
+    }catch(e){failed.push(op);}
+  }
+  await idbSet("syncQueue",failed);
+}
+// Auto-process queue when back online
+if(typeof window!=="undefined"){window.addEventListener("online",function(){setTimeout(processSyncQueue,2000);});}
 // ── Supabase Realtime client ───────────────────────────────
 var _supaRealtime=null
 function getSupaClient(){
@@ -857,6 +878,7 @@ export default function App(){
   const [loading,setLoading]=useState(true);
   const [flash,setFlash]=useState("");
   const [showNotifBanner,setShowNotifBanner]=useState(false);
+  const [isOffline,setIsOffline]=useState(!navigator.onLine);
   const [expand,setExpand]=useState(null);
   const [search,setSearch]=useState("");
   const [filtroMes,setFiltroMes]=useState("semana");
@@ -1145,8 +1167,8 @@ export default function App(){
     document.addEventListener("visibilitychange",onVisible);
     return function(){clearInterval(pollId);document.removeEventListener("visibilitychange",onVisible);if(ws&&ws.readyState===1)ws.close();};
   },[]);
-  async function loadMud(){const r=await dbGet("mudancas","deleted_at=is.null");if(r)setMudancas(r);}
-  async function loadAg(){const r=await dbGet("agenda");if(r)setAgenda(r.map(function(x){return {...x,_dbId:x.id};}));}
+  async function loadMud(){try{const r=await dbGet("mudancas","deleted_at=is.null");if(r){setMudancas(r);idbSet("mudancas",r);}}catch(e){var cached=await idbGet("mudancas");if(cached)setMudancas(cached);}}
+  async function loadAg(){try{const r=await dbGet("agenda");if(r){var mapped=r.map(function(x){return {...x,_dbId:x.id};});setAgenda(mapped);idbSet("agenda",mapped);}}catch(e){var cached=await idbGet("agenda");if(cached)setAgenda(cached);}}
   async function loadCfgWA(){
     try{
       var r=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=in.(admin_whatsapp,supervisor_whatsapp,whatsapp_ativo,evolution_api_url,evolution_api_key,evolution_instance)&select=chave,valor",{headers:getH()});
@@ -1287,6 +1309,22 @@ export default function App(){
     Notification.requestPermission().then(function(perm){if(perm==="granted")subscribePush(usuario.id);});
   }
   function handleNotifDismiss(){setShowNotifBanner(false);localStorage.setItem("tmim_notif_asked_"+usuario.id,"1");}
+  // ── OFFLINE DETECTION ──────────────────────────────────────────────────────
+  useEffect(function(){
+    function goOff(){setIsOffline(true);}
+    function goOn(){setIsOffline(false);}
+    window.addEventListener("offline",goOff);
+    window.addEventListener("online",goOn);
+    return function(){window.removeEventListener("offline",goOff);window.removeEventListener("online",goOn);};
+  },[]);
+  // Load cached data on mount (for offline startup)
+  useEffect(function(){
+    (async function(){
+      var cMud=await idbGet("mudancas");if(cMud&&mudancas.length===0)setMudancas(cMud);
+      var cAg=await idbGet("agenda");if(cAg&&agenda.length===0)setAgenda(cAg);
+      var cUsr=await idbGet("listaUsuarios");if(cUsr&&listaUsuarios.length===0)setListaUsuarios(cUsr);
+    })();
+  },[]);
   // ── PWA Install prompt capture ────────────────────────────────────────────
   useEffect(function(){
     function _onBIP(e){e.preventDefault();setPwaInstallPrompt(e);}
@@ -1406,7 +1444,7 @@ export default function App(){
       );
     });
   }
-  async function carregarUsuarios(){if((!isAdmin&&!isPromorar&&!isSocial&&!isSupervisor)||!usuario?.token)return;if(isAdmin||isSupervisor){const _tk3=await _getValidToken(usuario,SUPA_URL,SUPA_KEY);const r=await fetch(SUPA_URL+"/functions/v1/listar-usuarios",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(_tk3||"")}});const d=await r.json();if(d.ok&&Array.isArray(d.usuarios))setListaUsuarios(d.usuarios);}else{try{var _tk4=await _getValidToken(usuario,SUPA_URL,SUPA_KEY);var r2=await fetch(SUPA_URL+"/rest/v1/usuarios?perfil=eq.motorista&ativo=eq.true&select=id,nome,perfil,tipo_veiculo,placa_veiculo,ativo",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(_tk4||SUPA_KEY)}});if(r2.ok){var d2=await r2.json();if(Array.isArray(d2))setListaUsuarios(d2);}}catch(e){}}}
+  async function carregarUsuarios(){if((!isAdmin&&!isPromorar&&!isSocial&&!isSupervisor)||!usuario?.token)return;try{if(isAdmin||isSupervisor){const _tk3=await _getValidToken(usuario,SUPA_URL,SUPA_KEY);const r=await fetch(SUPA_URL+"/functions/v1/listar-usuarios",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(_tk3||"")}});const d=await r.json();if(d.ok&&Array.isArray(d.usuarios)){setListaUsuarios(d.usuarios);idbSet("listaUsuarios",d.usuarios);}}else{var _tk4=await _getValidToken(usuario,SUPA_URL,SUPA_KEY);var r2=await fetch(SUPA_URL+"/rest/v1/usuarios?perfil=eq.motorista&ativo=eq.true&select=id,nome,perfil,tipo_veiculo,placa_veiculo,ativo",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(_tk4||SUPA_KEY)}});if(r2.ok){var d2=await r2.json();if(Array.isArray(d2)){setListaUsuarios(d2);idbSet("listaUsuarios",d2);}}}}catch(e){var cached=await idbGet("listaUsuarios");if(cached)setListaUsuarios(cached);}}
   async function editarUsuario(){if(!editUser?.id)return;if(editUser.perfil==="motorista"&&!editUser.tipo_veiculo){setEditMsg("⚠️ Selecione o tipo de veículo");return;}setSavingEdit(true);setEditMsg("");try{const bd={id:editUser.id,nome:editUser.nome,email:editUser.email,perfil:editUser.perfil,contato:editUser.contato||null};if(editUser.senha)bd.senha=editUser.senha;if(editUser.perfil==="motorista"){bd.tipo_veiculo=editUser.tipo_veiculo;bd.placa_veiculo=editUser.placa_veiculo?editUser.placa_veiculo.toUpperCase().trim():null;}else{bd.tipo_veiculo=null;bd.placa_veiculo=null;}const _tk=await _getValidToken(usuario,SUPA_URL,SUPA_KEY);const res=await fetch(SUPA_URL+"/functions/v1/editar-usuario",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(_tk||""),"Content-Type":"application/json"},body:JSON.stringify(bd)});const d=await res.json();if(!res.ok){setEditMsg("⚠️ "+(d.error||"Erro"));setSavingEdit(false);return;}setEditMsg("✅ Salvo!");await carregarUsuarios();setTimeout(()=>{setEditUser(null);setEditMsg("");},1500);}catch(e){setEditMsg("⚠️ Erro de conexão.");}setSavingEdit(false);}
   const [prestadores,setPrestadores]=useState([]);
   async function loadPrestadores(){
@@ -2789,6 +2827,14 @@ export default function App(){
           </div>
         </div>
 
+        {/* ══ OFFLINE INDICATOR ══ */}
+        {isOffline&&<div style={{margin:"0 12px 8px",background:"#fef2f2",border:"2px solid #dc2626",borderRadius:10,padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:16}}>📡</span>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:800,fontSize:12,color:"#991b1b"}}>Sem conexão</div>
+            <div style={{fontSize:10,color:"#dc2626"}}>Exibindo dados salvos localmente</div>
+          </div>
+        </div>}
         {/* ══ PUSH NOTIFICATION BANNER ══ */}
         {showNotifBanner&&<div style={{margin:"0 12px 12px",background:"#eff6ff",border:"2px solid #3b82f6",borderRadius:14,padding:"14px 16px",boxShadow:"0 4px 16px rgba(59,130,246,0.15)"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
