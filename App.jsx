@@ -1008,25 +1008,44 @@ export default function App(){
   // ── MONITORAMENTO: agrupamento por supervisor (useMemo) ─────────────
   var monitorData=useMemo(function(){
     var _hj=new Date().toISOString().slice(0,10);
-    var _statusAtivo=function(s){return s==="Em Deslocamento"||s==="Realizando";};
-    var _statusConcl=function(s){return["Concluido","Concluído","concluido","concluida","realizado","realizada"].indexOf(s)>=0;};
-    var _statusPend=function(s){return s==="confirmado"||s==="pendente"||s==="Agendado"||s==="Registrado"||!s;};
-    // Combinar agenda + mudancas de hoje
+    // Derive real status from vehicle timestamps
+    function _deriveStatus(item){
+      // Check van progress
+      if(item.chegada_van_em||item.termino_van_em) return "van_concluido";
+      if(item.saiu_destino_van_em) return "van_destino";
+      if(item.chegou_origem_van_em) return "van_origem";
+      if(item.inicio_van_em||item.van_saiu_em) return "van_deslocamento";
+      // Check cam progress
+      if(item.chegada_caminhao_em||item.termino_caminhao_em) return "cam_concluido";
+      if(item.saiu_destino_cam_em) return "cam_destino";
+      if(item.chegou_origem_cam_em) return "cam_origem";
+      if(item.inicio_caminhao_em||item.caminhao_saiu_em) return "cam_deslocamento";
+      // Fallback to status field
+      return item.status||"confirmado";
+    }
+    function _isActive(item){
+      var d=_deriveStatus(item);
+      return d.indexOf("deslocamento")>=0||d.indexOf("origem")>=0||d.indexOf("destino")>=0||d==="Em Deslocamento"||d==="Realizando"||d==="Na Origem"||d==="Deslocamento Destino";
+    }
+    function _isConcl(item){
+      var d=_deriveStatus(item);
+      return d.indexOf("concluido")>=0||["Concluido","Concluído","concluido","concluida","realizado","realizada"].indexOf(item.status)>=0;
+    }
     var _todayAg=(agenda||[]).filter(function(a){return a.data===_hj&&!a.deleted_at&&a.supervisor_id;});
     var _todayMud=(mudancas||[]).filter(function(m){return m.data===_hj&&!m.deleted_at&&m.supervisor_id;});
-    // Unir, evitando duplicatas (preferir agenda se ambos existem)
     var _seen={};
     var _all=[];
     _todayAg.forEach(function(a){var key=(a.nome||"").toLowerCase().trim()+"|"+a.data;_seen[key]=true;_all.push(a);});
     _todayMud.forEach(function(m){var key=(m.nome||"").toLowerCase().trim()+"|"+m.data;if(!_seen[key]){_seen[key]=true;_all.push(m);}});
-    // Agrupar por supervisor_id
     var _groups={};
     _all.forEach(function(item){
       var sid=item.supervisor_id;
       if(!_groups[sid])_groups[sid]={supervisorId:sid,activeMove:null,pendingMoves:[],completedMoves:[]};
-      var st=item.status||"confirmado";
-      if(_statusAtivo(st)){_groups[sid].activeMove=item;}
-      else if(_statusConcl(st)){_groups[sid].completedMoves.push(item);}
+      if(_isActive(item)){
+        if(!_groups[sid].activeMove) _groups[sid].activeMove=item;
+        else _groups[sid].pendingMoves.unshift(item);// multiple active → show as pending too
+      }
+      else if(_isConcl(item)){_groups[sid].completedMoves.push(item);}
       else{_groups[sid].pendingMoves.push(item);}
     });
     return Object.values(_groups);
@@ -2637,7 +2656,7 @@ export default function App(){
         {(()=>{var _p=usuario&&usuario.perfil||"";var _campoMeu=_p==="admin"?"approved_by_admin":_p==="social"?"approved_by_social":_p==="promorar"?"approved_by_promorar":_p==="supervisor"?"approved_by_supervisor":null;if(!_campoMeu)return null;var _pend=[...agenda].filter(function(x){if(!x.data||x.deleted_at)return false;if(x[_campoMeu])return false;return true;});if(!_pend.length)return null;return(<div style={{margin:"0 12px 16px",background:"#fffbeb",border:"2.5px solid #f59e0b",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(245,158,11,0.25)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🔔</span><div><div style={{fontWeight:800,fontSize:14,color:"#92400e"}}>Notificações ({_pend.length})</div><div style={{fontWeight:600,fontSize:11,color:"#b45309"}}>Confirme o recebimento das mudanças agendadas</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pend.map(function(x){var _quem=x.created_by||x.approved_by_admin||x.approved_by_social||x.approved_by_promorar||"Sistema";var _perfQuem=x.creator_role||"";return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"10px 12px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>👤 {x.nome}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · 🏷️ {x.selo||"—"}</div><div style={{fontSize:10,color:"#64748b",marginTop:1}}>Agendado por: <strong>{_quem}</strong>{_perfQuem?" ("+_perfQuem+")":""}</div></div><button onClick={function(e){e.stopPropagation();handleApproveAgenda(x.id);}} disabled={!!isApproving[x.id]} style={{padding:"7px 14px",background:isApproving[x.id]?"#94a3b8":"#16a34a",color:"#fff",border:"none",borderRadius:999,fontWeight:800,fontSize:11,cursor:isApproving[x.id]?"not-allowed":"pointer",whiteSpace:"nowrap",flexShrink:0,boxShadow:"0 2px 8px rgba(22,163,74,0.3)"}}>{isApproving[x.id]?"⏳":"✅ Confirmar"}</button></div></div>);})}</div></div>);})()}
         {isAdmin&&(function(){var _pendCanc=agenda.filter(function(a){return !a.deleted_at&&a.cancelamento_solicitado;});if(_pendCanc.length===0)return null;return(<div style={{margin:"0 12px 16px",background:"#fef2f2",border:"2.5px solid #dc2626",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(220,38,38,0.15)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🚨</span><div><div style={{fontWeight:800,fontSize:14,color:"#991b1b"}}>Solicitações de Cancelamento ({_pendCanc.length})</div><div style={{fontWeight:600,fontSize:11,color:"#b91c1c"}}>Autorize ou recuse os pedidos abaixo</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pendCanc.map(function(x){return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fecaca",borderRadius:12,padding:"10px 12px"}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",marginBottom:3}}>📦 {x.nome}</div><div style={{fontSize:10,color:"#64748b"}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · ⏰ {x.horario||"?"}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>👤 Solicitado por: <strong>{x.cancelamento_por}</strong> ({x.cancelamento_perfil})</div>{x.cancelamento_motivo&&<div style={{fontSize:10,color:"#991b1b",marginTop:2}}>💬 {x.cancelamento_motivo}</div>}<div style={{display:"flex",gap:6,marginTop:8}}><button onClick={function(){handleRecusarCancelamento(x.id);}} style={{flex:1,padding:"6px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Recusar</button><button onClick={function(){handleAutorizarCancelamento(x.id);}} style={{flex:1,padding:"6px 10px",borderRadius:8,border:"none",background:"#dc2626",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>✅ Autorizar Cancelamento</button></div></div>);})}</div></div>);})()}
         {isMotorista&&mudancasHoje.length===0&&mudancasAmanha.length===0&&mudancasFuturas.length===0&&(<div style={{margin:"12px 0 0",background:"#f0fdf4",border:"2px solid #86efac",borderRadius:14,padding:"20px 16px",textAlign:"center"}}><div style={{fontSize:28,marginBottom:8}}>😊</div><div style={{fontWeight:800,fontSize:15,color:"#15803d",marginBottom:6}}>Nenhuma mudança agendada!</div><div style={{fontSize:13,color:"#16a34a"}}>Bom descanso! ✅</div></div>)}
-        {isMotorista&&mudancasHoje.length>0&&(
+        {mudancasHoje.length>0&&(
           <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
             {mudancasHoje.map(function(a,_idx){
               var _isVanMot=usuario&&(usuario.tipo_veiculo==="VAN"||a.motorista_van_id===usuario.id);
@@ -2692,14 +2711,13 @@ export default function App(){
                   </div>
                 )}
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  {/* Step 1: Ajudantes a Bordo */}
-                  {(_stMot==="confirmado"||_stMot==="pendente")&&(
+                  {/* ── MOTORISTA: 4-step buttons ── */}
+                  {isMotorista&&(_stMot==="confirmado"||_stMot==="pendente")&&(
                     <button onClick={function(){handleStatusMotorista(a,"Em Deslocamento");}} style={{width:"100%",background:"#2563eb",border:"none",borderRadius:_dest?12:10,padding:_dest?"16px 0":"12px 0",fontSize:_dest?16:14,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                       👥 Ajudantes a Bordo
                     </button>
                   )}
-                  {/* Step 2: Chegou na Origem */}
-                  {_stMot==="Em Deslocamento"&&(
+                  {isMotorista&&_stMot==="Em Deslocamento"&&(
                     <div style={{display:"flex",flexDirection:"column",gap:6}}>
                       <div style={{display:"flex",alignItems:"center",gap:6,background:"#dbeafe",border:"1.5px solid #93c5fd",borderRadius:_dest?10:8,padding:_dest?"10px 14px":"8px 12px"}}>
                         <span style={{width:10,height:10,borderRadius:"50%",background:"#2563eb",animation:"pulse 1.5s infinite"}}></span>
@@ -2710,8 +2728,7 @@ export default function App(){
                       </button>
                     </div>
                   )}
-                  {/* Step 3: Deslocamento Destino */}
-                  {_stMot==="Na Origem"&&(
+                  {isMotorista&&_stMot==="Na Origem"&&(
                     <div style={{display:"flex",flexDirection:"column",gap:6}}>
                       <div style={{display:"flex",alignItems:"center",gap:6,background:"#fef9c3",border:"1.5px solid #fde047",borderRadius:_dest?10:8,padding:_dest?"10px 14px":"8px 12px"}}>
                         <span style={{fontSize:_dest?12:11,fontWeight:700,color:"#854d0e"}}>📦 Carregando na origem...</span>
@@ -2721,8 +2738,7 @@ export default function App(){
                       </button>
                     </div>
                   )}
-                  {/* Step 4: Chegou no Destino */}
-                  {_stMot==="Deslocamento Destino"&&(
+                  {isMotorista&&_stMot==="Deslocamento Destino"&&(
                     <div style={{display:"flex",flexDirection:"column",gap:6}}>
                       <div style={{display:"flex",alignItems:"center",gap:6,background:"#dbeafe",border:"1.5px solid #93c5fd",borderRadius:_dest?10:8,padding:_dest?"10px 14px":"8px 12px"}}>
                         <span style={{width:10,height:10,borderRadius:"50%",background:"#2563eb",animation:"pulse 1.5s infinite"}}></span>
@@ -2733,6 +2749,27 @@ export default function App(){
                       </button>
                     </div>
                   )}
+                  {/* ── ADMIN/SUPERVISOR/PROMORAR/SOCIAL: Iniciar / Finalizar ── */}
+                  {!isMotorista&&_stMot!=="Concluido"&&_stMot!=="concluida"&&(function(){
+                    var _isConcl=a.status==="concluida"||a.status==="realizada"||a.termino_em;
+                    if(_isConcl) return null;
+                    var _isIniciada=a.status==="Realizando"||a.inicio_mudanca_em;
+                    return _isIniciada?(
+                      <button onClick={function(){var agora=new Date().toISOString();var body={status:"concluida",termino_em:agora};
+                        setAgenda(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,body):x;});});
+                        fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok)setSyncStatus("✅ Mudança finalizada!");setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);}).catch(function(){setSyncStatus("⚠️ Erro");});
+                      }} style={{width:"100%",background:"#16a34a",border:"none",borderRadius:_dest?12:10,padding:_dest?"14px 0":"10px 0",fontSize:_dest?15:13,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                        ✅ Finalizar Mudança
+                      </button>
+                    ):(
+                      <button onClick={function(){var agora=new Date().toISOString();var body={status:"Realizando",inicio_mudanca_em:agora};
+                        setAgenda(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,body):x;});});
+                        fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok)setSyncStatus("✅ Mudança iniciada!");setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);}).catch(function(){setSyncStatus("⚠️ Erro");});
+                      }} style={{width:"100%",background:"#7c3aed",border:"none",borderRadius:_dest?12:10,padding:_dest?"14px 0":"10px 0",fontSize:_dest?15:13,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                        🔧 Iniciar Mudança
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
               );
