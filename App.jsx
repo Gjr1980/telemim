@@ -223,8 +223,8 @@ function _calcCustos(mudP, cdP, cpP, RULES){
     if(numMud===0) return;
     var cdDia=(cdP||[]).find(function(cd){return cd.data===data;})||{ajudantes:0,custo_almoco:0,despesa_extra:0};
     var numAj=parseInt(cdDia.ajudantes)||0;
-    // Fallback: if no custosDiarios entry, use ajudantes from mudança items
-    if(numAj===0){var _ajFromMud=mudP.filter(function(m){return m.data===data;}).reduce(function(max,m){var a=parseInt(m.ajudantes)||0;return a>max?a:max;},0);if(_ajFromMud>0)numAj=_ajFromMud;}
+    // Fallback: if no custosDiarios entry, use ajudantes from mudança items; default to 1 if mudança exists
+    if(numAj===0){var _ajFromMud=mudP.filter(function(m){return m.data===data;}).reduce(function(max,m){var a=parseInt(m.ajudantes)||0;return a>max?a:max;},0);numAj=_ajFromMud>0?_ajFromMud:1;}
     cCam+=_calcDiario(numMud,0,"caminhao",RULES);
     cVan+=_calcDiario(numMud,0,"van",RULES);
     cAj+=_calcDiario(numMud,numAj,"ajudante",RULES);
