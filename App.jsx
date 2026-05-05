@@ -223,7 +223,7 @@ function _calcCustos(mudP, cdP, cpP, RULES){
     if(numMud===0) return;
     var cdDia=(cdP||[]).find(function(cd){return cd.data===data;})||{ajudantes:0,custo_almoco:0,despesa_extra:0};
     var numAj=parseInt(cdDia.ajudantes)||0;
-    // Fallback: if no custosDiarios entry, use ajudantes from mudança items; default to 1 if mudança exists
+    // Fallback: if no custosDiarios, use ajudantes from mudança items; default 1
     if(numAj===0){var _ajFromMud=mudP.filter(function(m){return m.data===data;}).reduce(function(max,m){var a=parseInt(m.ajudantes)||0;return a>max?a:max;},0);numAj=_ajFromMud>0?_ajFromMud:1;}
     cCam+=_calcDiario(numMud,0,"caminhao",RULES);
     cVan+=_calcDiario(numMud,0,"van",RULES);
@@ -2547,6 +2547,13 @@ export default function App(){
     var _list=[].concat(mudancas);
     var _seenKeys={};
     _list.forEach(function(m){if(m.nome&&m.data)_seenKeys[(m.nome||"").toLowerCase().trim()+"|"+m.data]=true;});
+    // Enrich mudancas with ajudantes from agenda when mudança has 0
+    _list.forEach(function(m,idx){
+      if((parseInt(m.ajudantes)||0)===0&&m.nome&&m.data){
+        var _agMatch=(agenda||[]).find(function(ag){return !ag.deleted_at&&ag.data===m.data&&(ag.nome||"").toLowerCase().trim()===(m.nome||"").toLowerCase().trim()&&(parseInt(ag.ajudantes)||0)>0;});
+        if(_agMatch)_list[idx]=Object.assign({},m,{ajudantes:parseInt(_agMatch.ajudantes)});
+      }
+    });
     var _conclStatuses=["concluida","concluido","realizada","realizado","Concluído","Concluido"];
     (agenda||[]).forEach(function(a){
       if(a.deleted_at||!a.data) return;
@@ -2833,8 +2840,11 @@ export default function App(){
                         setAgenda(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,body):x;});});
                         fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok){setSyncStatus("✅ Mudança finalizada!");
                           // Create mudancas record for Registros tab
-                          var _novaM={nome:a.nome||"",selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,origem:a.origem||"",destino:a.destino||"",contato:a.contato||null,van:a.van||false,caminhao:a.caminhao||false,medicao:parseFloat(a.medicao)||0,ajudantes:parseInt(a.ajudantes)||0,observacao:a.observacao||"",status:"Concluído",termino_em:agora,criado_em:agora,motorista_van_id:a.motorista_van_id||null,motorista_caminhao_id:a.motorista_caminhao_id||null,supervisor_id:a.supervisor_id||null,approved_by_admin:a.approved_by_admin||null,approved_by_social:a.approved_by_social||null,approved_by_promorar:a.approved_by_promorar||null,approved_by_supervisor:a.approved_by_supervisor||null,inicio_van_em:a.inicio_van_em||null,chegou_origem_van_em:a.chegou_origem_van_em||null,saiu_destino_van_em:a.saiu_destino_van_em||null,chegada_van_em:a.chegada_van_em||null,inicio_caminhao_em:a.inicio_caminhao_em||null,chegou_origem_cam_em:a.chegou_origem_cam_em||null,saiu_destino_cam_em:a.saiu_destino_cam_em||null,chegada_caminhao_em:a.chegada_caminhao_em||null};
+                          var _numAj=parseInt(a.ajudantes)||0;
+                          var _novaM={nome:a.nome||"",selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,origem:a.origem||"",destino:a.destino||"",contato:a.contato||null,van:a.van||false,caminhao:a.caminhao||false,medicao:parseFloat(a.medicao)||0,ajudantes:_numAj,observacao:a.observacao||"",status:"Concluído",termino_em:agora,criado_em:agora,motorista_van_id:a.motorista_van_id||null,motorista_caminhao_id:a.motorista_caminhao_id||null,supervisor_id:a.supervisor_id||null,approved_by_admin:a.approved_by_admin||null,approved_by_social:a.approved_by_social||null,approved_by_promorar:a.approved_by_promorar||null,approved_by_supervisor:a.approved_by_supervisor||null,inicio_van_em:a.inicio_van_em||null,chegou_origem_van_em:a.chegou_origem_van_em||null,saiu_destino_van_em:a.saiu_destino_van_em||null,chegada_van_em:a.chegada_van_em||null,inicio_caminhao_em:a.inicio_caminhao_em||null,chegou_origem_cam_em:a.chegou_origem_cam_em||null,saiu_destino_cam_em:a.saiu_destino_cam_em||null,chegada_caminhao_em:a.chegada_caminhao_em||null};
                           fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"}),body:JSON.stringify(_novaM)}).then(function(r2){return r2.json();}).then(function(d){if(Array.isArray(d)&&d[0]){setMudancas(function(prev){return[d[0]].concat(prev);});}}).catch(function(){});
+                          // Auto-create custosDiarios entry for financial calculations
+                          if(_numAj>0&&a.data){var _cdExist=(custosDiarios||[]).find(function(cd){return cd.data===a.data;});if(!_cdExist){saveCustoDia(a.data,_numAj,0);}}
                         }setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);}).catch(function(){setSyncStatus("⚠️ Erro");});
                       }} style={{width:"100%",background:"#16a34a",border:"none",borderRadius:_dest?12:10,padding:_dest?"14px 0":"10px 0",fontSize:_dest?15:13,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                         ✅ Finalizar Mudança
