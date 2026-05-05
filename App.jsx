@@ -8,6 +8,24 @@ const _fmtDate=function(d){return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")
 const SUPA_URL = "https://netoufukpmmfhzwirogi.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ldG91ZnVrcG1tZmh6d2lyb2dpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTkwOTksImV4cCI6MjA4OTg5NTA5OX0.iapL70SiL_GV4XvmXRNcjlK_Sc-P2-esJzuLQvovdGQ";
 var APPS_SCRIPT_URL="https://script.google.com/macros/s/AKfycbzdcWIsm6LcCM6e7Cpx0699PPw7d3NQTVrIELsxTs_hbACSEEjGCPoUrBzESDhxyoGJ/exec";
+// ── PUSH NOTIFICATIONS ───────────────────────────────────────────────────────
+const VAPID_PUBLIC="BDSrV6DR3T2UHFejPkdxILOhX2642QKjU4FFIepZNt0FF7Zq3FGmYEwFyr3GShvvvBFJSiLvvSHWHij6rFixouk";
+function urlBase64ToUint8Array(base64String){var padding="=".repeat((4-base64String.length%4)%4);var base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");var rawData=window.atob(base64);var outputArray=new Uint8Array(rawData.length);for(var i=0;i<rawData.length;++i){outputArray[i]=rawData.charCodeAt(i);}return outputArray;}
+async function subscribePush(userId){
+  if(!("serviceWorker" in navigator)||!("PushManager" in window))return null;
+  try{
+    var reg=await navigator.serviceWorker.ready;
+    var sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC)});
+    var keys=sub.toJSON();
+    await fetch(SUPA_URL+"/rest/v1/push_subscriptions",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({user_id:userId,endpoint:keys.endpoint,p256dh:keys.keys.p256dh,auth:keys.keys.auth})});
+    return sub;
+  }catch(e){return null;}
+}
+async function sendPushNotification(userIds,title,body){
+  try{
+    await fetch(SUPA_URL+"/functions/v1/send-push",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({user_ids:userIds,title:title,body:body})});
+  }catch(e){}
+}
 // ── Supabase Realtime client ───────────────────────────────
 var _supaRealtime=null
 function getSupaClient(){
@@ -838,6 +856,7 @@ export default function App(){
   const [semanaIdx,setSemanaIdx]=useState(0);
   const [loading,setLoading]=useState(true);
   const [flash,setFlash]=useState("");
+  const [showNotifBanner,setShowNotifBanner]=useState(false);
   const [expand,setExpand]=useState(null);
   const [search,setSearch]=useState("");
   const [filtroMes,setFiltroMes]=useState("semana");
@@ -1252,6 +1271,22 @@ export default function App(){
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
   const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social";const isMotorista=perfil==="motorista";const isSupervisor=perfil==="supervisor";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar||isSupervisor;const verMed=isAdmin||isPromorar||isSupervisor;
   useEffect(function(){if(isAdmin)loadNotificacoes();},[usuario]);
+  // ── PUSH NOTIFICATIONS: prompt after login ────────────────────────────────
+  useEffect(function(){
+    if(!usuario||!usuario.id)return;
+    if(!("PushManager" in window)||!("serviceWorker" in navigator))return;
+    var asked=localStorage.getItem("tmim_notif_asked_"+usuario.id);
+    if(asked)return;
+    if(Notification.permission==="granted"){subscribePush(usuario.id);return;}
+    if(Notification.permission==="denied")return;
+    setTimeout(function(){setShowNotifBanner(true);},2000);
+  },[usuario]);
+  function handleNotifAllow(){
+    setShowNotifBanner(false);
+    localStorage.setItem("tmim_notif_asked_"+usuario.id,"1");
+    Notification.requestPermission().then(function(perm){if(perm==="granted")subscribePush(usuario.id);});
+  }
+  function handleNotifDismiss(){setShowNotifBanner(false);localStorage.setItem("tmim_notif_asked_"+usuario.id,"1");}
   // ── PWA Install prompt capture ────────────────────────────────────────────
   useEffect(function(){
     function _onBIP(e){e.preventDefault();setPwaInstallPrompt(e);}
@@ -2180,6 +2215,9 @@ export default function App(){
         var _merged=Object.assign({},ag,body);
         var _novaM={nome:_merged.nome||"",selo:_merged.selo||"",comunidade:_merged.comunidade||"",data:_merged.data,origem:_merged.origem||"",destino:_merged.destino||"",contato:_merged.contato||null,van:_merged.van||false,caminhao:_merged.caminhao||false,medicao:parseFloat(_merged.medicao)||0,ajudantes:parseInt(_merged.ajudantes)||0,observacao:_merged.observacao||"",status:"Concluído",termino_em:agora,criado_em:agora,motorista_van_id:_merged.motorista_van_id||null,motorista_caminhao_id:_merged.motorista_caminhao_id||null,supervisor_id:_merged.supervisor_id||null,approved_by_admin:_merged.approved_by_admin||null,approved_by_social:_merged.approved_by_social||null,approved_by_promorar:_merged.approved_by_promorar||null,approved_by_supervisor:_merged.approved_by_supervisor||null,inicio_van_em:_merged.inicio_van_em||null,chegou_origem_van_em:_merged.chegou_origem_van_em||null,saiu_destino_van_em:_merged.saiu_destino_van_em||null,chegada_van_em:_merged.chegada_van_em||null,inicio_caminhao_em:_merged.inicio_caminhao_em||null,chegou_origem_cam_em:_merged.chegou_origem_cam_em||null,saiu_destino_cam_em:_merged.saiu_destino_cam_em||null,chegada_caminhao_em:_merged.chegada_caminhao_em||null};
         fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"}),body:JSON.stringify(_novaM)}).then(function(r2){return r2.json();}).then(function(d){if(Array.isArray(d)&&d[0]){setMudancas(function(prev){return[d[0]].concat(prev);});}}).catch(function(){});
+        // Push notification: mudança finalizada → admin + supervisor
+        var _fNotifIds=[];var _fAdmins=listaUsuarios.filter(function(u){return u.perfil==="admin"&&u.ativo;});_fAdmins.forEach(function(a){_fNotifIds.push(a.id);});if(ag.supervisor_id)_fNotifIds.push(ag.supervisor_id);
+        if(_fNotifIds.length>0){var _hora=new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});sendPushNotification(_fNotifIds,"✅ Mudança concluída!","👤 "+(ag.nome||"Mudança")+" · 📐 "+(ag.medicao||"0")+" m³ · 🕐 Finalizada às "+_hora);}
       }
       setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);
     }catch(e){
@@ -2199,6 +2237,9 @@ export default function App(){
       var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)});
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Deslocamento registrado!");
+      // Push notification to admin+supervisor: motorista a caminho
+      var _notifIds=[];var _admins=listaUsuarios.filter(function(u){return u.perfil==="admin"&&u.ativo;});_admins.forEach(function(a){_notifIds.push(a.id);});if(ag.supervisor_id)_notifIds.push(ag.supervisor_id);
+      if(_notifIds.length>0){var _motNome=(usuario&&usuario.nome)||"Motorista";sendPushNotification(_notifIds,"🚐 Motorista a caminho!",_motNome+" ("+tipo+") saiu para: 👤 "+(ag.nome||"Mudança")+" · 📍 "+(ag.comunidade||""));}
       setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);
     }catch(e){setAgenda(prevAgenda);setSyncStatus("⚠️ Erro ao registrar deslocamento");}
   }
@@ -2373,6 +2414,8 @@ export default function App(){
       var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)});
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Motorista despachado!");
+      // Push notification to motorista
+      if(mid){var _agItem=agenda.find(function(a){return a.id===agId;});sendPushNotification([mid],"📋 Nova mudança atribuída!","👤 "+(_agItem?_agItem.nome:"Mudança")+" · 📅 "+(_agItem?_agItem.data:"")+" · "+tipo);}
     }catch(e){
       loadAg();
       setSyncStatus("⚠️ Erro ao despachar");
@@ -2398,6 +2441,8 @@ export default function App(){
       var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({supervisor_id:sid})});
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Supervisor designado!");
+      // Push notification to supervisor
+      if(sid&&_ag){sendPushNotification([sid],"📋 Nova mudança atribuída!","👤 "+(_ag.nome||"Mudança")+" · 📅 "+(_ag.data||"")+" · ⏰ "+(_ag.horario||""));}
       if(sid&&_ag){var _sup=listaUsuarios.find(function(u){return u.id===sid;});if(_sup&&_sup.email){try{await fetch(SUPA_URL+"/functions/v1/enviar-email-agendamento",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({to:_sup.email,subject:"📋 Designação de Supervisão — "+(_ag.nome||"Mudança"),html:"<h2>Olá "+(_sup.nome||"Supervisor")+"!</h2><p>Você foi designado(a) para supervisionar a seguinte mudança:</p><p><b>👤 Cliente:</b> "+(_ag.nome||"—")+"</p><p><b>📅 Data:</b> "+(_ag.data||"—")+(_ag.horario?" às "+_ag.horario+"h":"")+"</p><p><b>🏷️ Selo:</b> "+(_ag.selo||"—")+"</p><p><b>📦 Saída:</b> "+(_ag.origem||"—")+"</p><p><b>🏘️ Destino:</b> "+(_ag.destino||"—")+"</p><br><p>Acesse o app para mais detalhes.</p><p><b>TELEMIM — PROMORAR</b></p>"})});} catch(e){}}}
     }catch(e){loadAg();setSyncStatus("⚠️ Erro ao designar");}
   }
@@ -2744,6 +2789,20 @@ export default function App(){
           </div>
         </div>
 
+        {/* ══ PUSH NOTIFICATION BANNER ══ */}
+        {showNotifBanner&&<div style={{margin:"0 12px 12px",background:"#eff6ff",border:"2px solid #3b82f6",borderRadius:14,padding:"14px 16px",boxShadow:"0 4px 16px rgba(59,130,246,0.15)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:24}}>🔔</span>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:800,fontSize:13,color:"#1e40af"}}>Ativar Notificações?</div>
+              <div style={{fontSize:11,color:"#3b82f6",marginTop:2}}>Receba alertas de mudanças atribuídas, motorista a caminho e finalizações</div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:10}}>
+            <button onClick={handleNotifDismiss} style={{flex:1,padding:"9px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:12,cursor:"pointer"}}>Agora não</button>
+            <button onClick={handleNotifAllow} style={{flex:1,padding:"9px",borderRadius:10,border:"none",background:"#2563eb",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>✅ Ativar</button>
+          </div>
+        </div>}
         {/* ══ DASHBOARD ══ */}
         {tab==="dashboard"&&(
         <div style={{paddingBottom:16}}>
