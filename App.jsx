@@ -4267,7 +4267,7 @@ return(
     </div>
   );
 })()}
-{tab==="contas"&&isAdmin&&(function(){
+{false&&tab==="contas"&&isAdmin&&(function(){
   var _fv2=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
   var _fd2=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]:d;};
   var _sups=listaUsuarios.filter(function(u){return u.perfil==="supervisor"&&u.ativo;});
