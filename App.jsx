@@ -860,8 +860,7 @@ export default function App(){
   const [contaEditVal,setContaEditVal]=useState("");
 
   // ── GPS TRACKING STATE ─────────────────────────────────────────────────────
-  const [gpsWatchId,setGpsWatchId]=useState(null);
-  const [gpsAgendaId,setGpsAgendaId]=useState(null);
+  const [gpsWatches,setGpsWatches]=useState({});// {van:{id,agendaId}, cam:{id,agendaId}}
   const [gpsPositions,setGpsPositions]=useState([]);// admin: latest positions per motorista
   const [showGpsMap,setShowGpsMap]=useState(false);
   const [gpsMapAgenda,setGpsMapAgenda]=useState(null);
@@ -870,9 +869,10 @@ export default function App(){
 
   const MAPBOX_TOKEN=["pk.eyJ1IjoidGVsZW1pbSIsImEiOiJjbW9yd","HJzMmcwNW8yMndwdnZ1bDFoOXZ2In0.","4MHg1RPF_jFgiQt4Ax4Psw"].join("");
 
-  // ── GPS: Start tracking (motorista) ────────────────────────────────────────
-  function gpsStart(agendaId){
-    if(gpsWatchId!==null) return;// already tracking
+  // ── GPS: Start tracking (motorista) — per vehicle type ─────────────────────
+  function gpsStart(agendaId,veiTipo){
+    var key=veiTipo||"van";
+    if(gpsWatches[key]) return;// already tracking this vehicle
     if(!navigator.geolocation) return;
     var _lastSent=0;
     var wid=navigator.geolocation.watchPosition(
@@ -890,16 +890,15 @@ export default function App(){
       function(err){console.warn("[GPS] error:",err.message);},
       {enableHighAccuracy:true,maximumAge:10000,timeout:15000}
     );
-    setGpsWatchId(wid);
-    setGpsAgendaId(agendaId);
+    setGpsWatches(function(prev){var n=Object.assign({},prev);n[key]={id:wid,agendaId:agendaId};return n;});
   }
 
-  // ── GPS: Stop tracking (motorista) ─────────────────────────────────────────
-  function gpsStop(){
-    if(gpsWatchId!==null){
-      navigator.geolocation.clearWatch(gpsWatchId);
-      setGpsWatchId(null);
-      setGpsAgendaId(null);
+  // ── GPS: Stop tracking (motorista) — per vehicle type ─────────────────────
+  function gpsStop(veiTipo){
+    var key=veiTipo||"van";
+    if(gpsWatches[key]){
+      navigator.geolocation.clearWatch(gpsWatches[key].id);
+      setGpsWatches(function(prev){var n=Object.assign({},prev);delete n[key];return n;});
     }
   }
 
@@ -1955,24 +1954,25 @@ export default function App(){
     var agora=new Date().toISOString();
     var _isVanMot=usuario&&(usuario.tipo_veiculo==="VAN"||ag.motorista_van_id===usuario.id);
     var _isCamMot=usuario&&(usuario.tipo_veiculo==="CAMINHAO"||ag.motorista_caminhao_id===usuario.id);
-    var body={status:novoStatus};
+    var body={};
+    var _veiTipo=_isVanMot?"van":"cam";
     if(novoStatus==="Em Deslocamento"){
-      body.inicio_em=agora;
-      if(_isVanMot) body.inicio_van_em=agora;
-      if(_isCamMot) body.inicio_caminhao_em=agora;
-      gpsStart(ag.id);
+      if(_isVanMot){body.inicio_van_em=agora;body.van_saiu_em=agora;}
+      else if(_isCamMot){body.inicio_caminhao_em=agora;body.caminhao_saiu_em=agora;}
+      else{body.status=novoStatus;body.inicio_em=agora;}
+      gpsStart(ag.id,_veiTipo);
     }
     if(novoStatus==="Realizando"){
-      body.inicio_mudanca_em=agora;
       if(_isVanMot) body.chegada_van_em=agora;
-      if(_isCamMot) body.chegada_caminhao_em=agora;
-      gpsStop();
+      else if(_isCamMot) body.chegada_caminhao_em=agora;
+      else{body.status=novoStatus;body.inicio_mudanca_em=agora;}
+      gpsStop(_veiTipo);
     }
     if(novoStatus==="Concluido"||novoStatus==="realizado"){
-      body.termino_em=agora;
       if(_isVanMot) body.termino_van_em=agora;
-      if(_isCamMot) body.termino_caminhao_em=agora;
-      gpsStop();
+      else if(_isCamMot) body.termino_caminhao_em=agora;
+      else{body.status=novoStatus;body.termino_em=agora;}
+      gpsStop(_veiTipo);
     }
     var prevAgenda=agenda.slice();
     setAgenda(function(prev){return prev.map(function(a){return a.id===ag.id?Object.assign({},a,body):a;});});
@@ -2530,7 +2530,22 @@ export default function App(){
         {mudancasHoje.length>0&&(
           <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
             {mudancasHoje.map(function(a,_idx){
-              var _stMot=a.status||"confirmado";
+              var _isVanMot=usuario&&(usuario.tipo_veiculo==="VAN"||a.motorista_van_id===usuario.id);
+              var _isCamMot=usuario&&(usuario.tipo_veiculo==="CAMINHAO"||a.motorista_caminhao_id===usuario.id);
+              var _stMot;
+              if(_isVanMot){
+                if(a.termino_van_em) _stMot="Concluido";
+                else if(a.chegada_van_em) _stMot="Realizando";
+                else if(a.inicio_van_em||a.van_saiu_em) _stMot="Em Deslocamento";
+                else _stMot="confirmado";
+              }else if(_isCamMot){
+                if(a.termino_caminhao_em) _stMot="Concluido";
+                else if(a.chegada_caminhao_em) _stMot="Realizando";
+                else if(a.inicio_caminhao_em||a.caminhao_saiu_em) _stMot="Em Deslocamento";
+                else _stMot="confirmado";
+              }else{
+                _stMot=a.status||"confirmado";
+              }
               var _dest=_idx===0;
               return(
               <div key={a.id} style={{background:"#dcfce7",border:(_dest?"3px":"2px")+" solid #16a34a",borderRadius:_dest?18:14,padding:_dest?"20px 18px":"14px 15px",boxShadow:_dest?"0 4px 16px rgba(22,163,74,0.25)":"0 2px 8px rgba(22,163,74,0.15)"}}>
