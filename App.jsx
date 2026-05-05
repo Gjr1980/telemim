@@ -1563,6 +1563,20 @@ export default function App(){
       setSyncStatus("🔄 Salvando...");
       try{
         await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+editMud.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_body)});
+        // Sync to mudancas table for Contas/Financeiro
+        var _mudKey=(editMud.nome||"").toLowerCase().trim();
+        var _mudData=editMud.data;
+        var _existeMud=mudancas.find(function(m){return(m.nome||"").toLowerCase().trim()===_mudKey&&m.data===_mudData;});
+        var _mudSync={nome:editMud.nome||"",selo:editMud.selo||"",comunidade:editMud.comunidade||"",data:editMud.data,origem:editMud.origem||"",destino:editMud.destino||"",contato:editMud.contato||null,van:editMud.van||false,caminhao:editMud.caminhao||false,medicao:parseFloat(editMud.medicao)||0,ajudantes:parseInt(editMud.ajudantes)||0,observacao:editMud.observacao||"",status:editMud.status||"Concluído",motorista_van_id:editMud.motorista_van_id||null,motorista_caminhao_id:editMud.motorista_caminhao_id||null,supervisor_id:editMud.supervisor_id||null};
+        if(_existeMud){
+          // PATCH existing mudancas record
+          var _patchFields={medicao:parseFloat(editMud.medicao)||0,nome:editMud.nome||"",selo:editMud.selo||"",comunidade:editMud.comunidade||"",origem:editMud.origem||"",destino:editMud.destino||"",van:editMud.van||false,observacao:editMud.observacao||""};
+          setMudancas(function(prev){return prev.map(function(m){return m.id===_existeMud.id?Object.assign({},m,_patchFields):m;});});
+          fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+_existeMud.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_patchFields)}).catch(function(){});
+        }else{
+          // CREATE new mudancas record
+          fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"}),body:JSON.stringify(_mudSync)}).then(function(r){return r.json();}).then(function(d){if(Array.isArray(d)&&d[0]){setMudancas(function(prev){return[d[0]].concat(prev);});}}).catch(function(){});
+        }
         setSyncStatus("✅ Sinc");
       }catch(e){setSyncStatus("⚠️ Erro ao salvar");}
     }else{
