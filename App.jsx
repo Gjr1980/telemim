@@ -4249,8 +4249,8 @@ return(
           var _fv=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
           var _fd=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]:d;};
           var _fdFull=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:d;};
-          // Escalar: mudancas do dia selecionado
-          var _mudDia=[...agenda.filter(function(a){return !a.deleted_at&&a.data===equipeDiaSel&&a.status!=="concluida";}), ...mudancas.filter(function(m){return !m.deleted_at&&m.data===equipeDiaSel;})];
+          // Escalar: mudancas do dia selecionado (includes concluded)
+          var _mudDia=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data===equipeDiaSel;});
           var _numMudDia=_mudDia.length;
           var _eqDia=equipeDiaList.find(function(e){return e.data===equipeDiaSel;});
           var _eqAjArr=_eqDia&&Array.isArray(_eqDia.ajudantes)?_eqDia.ajudantes:[];
@@ -4264,7 +4264,7 @@ return(
           var _eqMes=equipeDiaList.filter(function(e){return e.data&&e.data.slice(0,7)===_mesFin&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
           var _ajMap={};
           _eqMes.forEach(function(ed){
-            var numMud=[...agenda.filter(function(a){return !a.deleted_at&&a.data===ed.data&&a.status!=="concluida";}), ...mudancas.filter(function(m){return !m.deleted_at&&m.data===ed.data;})].length;
+            var numMud=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data===ed.data;}).length;
             var valPorAj=numMud>0?_aj1a+Math.max(0,numMud-1)*_ajAdd:0;
             ed.ajudantes.forEach(function(aj){
               if(!_ajMap[aj.id])_ajMap[aj.id]={nome:aj.nome,telefone:aj.telefone||"",dias:[]};
