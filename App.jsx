@@ -4476,6 +4476,38 @@ return(
             <div style={{color:"#fff",fontSize:15,fontWeight:900}}>TOTAL: {_fvP(_totalEquipe)}</div>
           </div>
         </div>}
+        {pagSup&&_ajListP.length>0&&<div style={{display:"flex",gap:6,marginTop:8}}>
+          <button onClick={function(){
+            _ajListP.forEach(function(aj){
+              var _pag=_getPag("ajudante",aj.id);
+              if(!_pag||_pag.status!=="pago"){
+                salvarPagamento({id:_pag?_pag.id:undefined,tipo:"ajudante",ref_id:aj.id,ref_nome:"👷 "+aj.nome,periodo:pagMes,valor:aj.total,status:"pago",data_pagamento:new Date().toISOString().slice(0,10),metodo:"PIX",criado_em:_pag?_pag.criado_em:new Date().toISOString()});
+              }
+            });
+          }} style={{flex:1,padding:"10px 8px",borderRadius:10,border:"none",background:"#16a34a",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>✅ Pagar Todos</button>
+          <button onClick={function(){
+            var NL="%0A";var t="📊 *EQUIPE "+(_supNome2||"").toUpperCase()+"*"+NL+"🗓️ "+_mesLabelP+NL+NL;
+            _ajListP.forEach(function(aj){
+              t+="👷 *"+aj.nome+"*"+NL;
+              aj.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){t+="   📅 "+_fdShort(d.data)+" · "+d.numMud+" mud · "+_fvP(d.valor)+NL;});
+              t+="   💰 Total: "+_fvP(aj.total)+NL+NL;
+            });
+            t+="━━━━━━━━━━━━"+NL+"👷 "+_ajListP.length+" ajudantes · "+_totalDiasEquipe+" dias"+NL+"💰 *TOTAL: "+_fvP(_totalEquipe)+"*"+NL+NL+"— TELEMIM Mudanças";
+            window.open("https://wa.me/?text="+encodeURIComponent(t),"_blank");
+          }} style={{padding:"10px 14px",borderRadius:10,border:"none",background:"#25d366",color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer"}}>📲</button>
+          <button onClick={function(){
+            var NL="\n";var t="📊 EQUIPE "+(_supNome2||"").toUpperCase()+NL+"🗓️ "+_mesLabelP+NL+NL;
+            _ajListP.forEach(function(aj){
+              t+="👷 "+aj.nome+NL;
+              aj.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){t+="   📅 "+_fdShort(d.data)+" · "+d.numMud+" mud · "+_fvP(d.valor)+NL;});
+              t+="   💰 Total: "+_fvP(aj.total)+NL+NL;
+            });
+            t+="━━━━━━━━━━━━━━━━━━"+NL+"👷 "+_ajListP.length+" ajudantes · "+_totalDiasEquipe+" dias"+NL+"💰 TOTAL: "+_fvP(_totalEquipe)+NL+NL+"— TELEMIM Mudanças";
+            var _w=window.open("","_blank");
+            _w.document.write("<html><head><title>Equipe "+(_supNome2||"")+" - "+_mesLabelP+"</title><style>body{font-family:monospace;white-space:pre-wrap;padding:20px;font-size:14px;} @media print{button{display:none!important;}}</style></head><body>"+t.replace(/\n/g,"<br>")+"<br><br><button onclick='window.print()' style='padding:12px 24px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:bold;'>🖨️ Imprimir / Salvar PDF</button></body></html>");
+            _w.document.close();
+          }} style={{padding:"10px 14px",borderRadius:10,border:"none",background:"#1e40af",color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer"}}>📄</button>
+        </div>}
       </div>
 
       {/* ═══ BLOCO 2: CAMINHÃO ═══ */}
@@ -4492,6 +4524,23 @@ return(
             <div style={{color:"#fff",fontSize:15,fontWeight:900}}>TOTAL: {_fvP(_camTotal)}</div>
           </div>
         </div>}
+        {pagCam&&_camTotal>0&&(function(){var _camNome=(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).nome||"";var _camTel=(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).contato||"";return <div style={{display:"flex",gap:6,marginTop:8}}>
+          <button onClick={function(){
+            var NL="%0A";var t="📊 *CAMINHÃO - "+_camNome.toUpperCase()+"*"+NL+"🗓️ "+_mesLabelP+NL+NL;
+            t+="🚚 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+" · "+_mudMesP.length+" mudança"+(_mudMesP.length!==1?"s":"")+NL;
+            t+="💰 *TOTAL: "+_fvP(_camTotal)+"*"+NL+NL+"— TELEMIM Mudanças";
+            var _ph=_camTel?(_camTel.replace(/\D/g,"").length<=11?"55"+_camTel.replace(/\D/g,""):_camTel.replace(/\D/g,"")):"";
+            window.open("https://wa.me/"+_ph+"?text="+encodeURIComponent(t),"_blank");
+          }} style={{flex:1,padding:"10px 14px",borderRadius:10,border:"none",background:"#25d366",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>📲 WhatsApp</button>
+          <button onClick={function(){
+            var NL="\n";var t="📊 CAMINHÃO - "+_camNome.toUpperCase()+NL+"🗓️ "+_mesLabelP+NL+NL;
+            t+="🚚 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+" · "+_mudMesP.length+" mudança"+(_mudMesP.length!==1?"s":"")+NL;
+            t+="💰 TOTAL: "+_fvP(_camTotal)+NL+NL+"— TELEMIM Mudanças";
+            var _w=window.open("","_blank");
+            _w.document.write("<html><head><title>Caminhão - "+_camNome+" - "+_mesLabelP+"</title><style>body{font-family:monospace;white-space:pre-wrap;padding:20px;font-size:14px;} @media print{button{display:none!important;}}</style></head><body>"+t.replace(/\n/g,"<br>")+"<br><br><button onclick='window.print()' style='padding:12px 24px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:bold;'>🖨️ Imprimir / Salvar PDF</button></body></html>");
+            _w.document.close();
+          }} style={{flex:1,padding:"10px 14px",borderRadius:10,border:"none",background:"#1e40af",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>📄 PDF</button>
+        </div>;})()}
         {pagCam&&_camTotal===0&&<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:12}}>Nenhuma mudança neste mês</div>}
       </div>
 
@@ -4509,6 +4558,23 @@ return(
             <div style={{color:"#fff",fontSize:15,fontWeight:900}}>TOTAL: {_fvP(_vanTotal)}</div>
           </div>
         </div>}
+        {pagVan&&_vanTotal>0&&(function(){var _vanNome=(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).nome||"";var _vanTel=(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).contato||"";return <div style={{display:"flex",gap:6,marginTop:8}}>
+          <button onClick={function(){
+            var NL="%0A";var t="📊 *VAN - "+_vanNome.toUpperCase()+"*"+NL+"🗓️ "+_mesLabelP+NL+NL;
+            t+="🚐 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+" · "+_mudMesP.length+" mudança"+(_mudMesP.length!==1?"s":"")+NL;
+            t+="💰 *TOTAL: "+_fvP(_vanTotal)+"*"+NL+NL+"— TELEMIM Mudanças";
+            var _ph=_vanTel?(_vanTel.replace(/\D/g,"").length<=11?"55"+_vanTel.replace(/\D/g,""):_vanTel.replace(/\D/g,"")):"";
+            window.open("https://wa.me/"+_ph+"?text="+encodeURIComponent(t),"_blank");
+          }} style={{flex:1,padding:"10px 14px",borderRadius:10,border:"none",background:"#25d366",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>📲 WhatsApp</button>
+          <button onClick={function(){
+            var NL="\n";var t="📊 VAN - "+_vanNome.toUpperCase()+NL+"🗓️ "+_mesLabelP+NL+NL;
+            t+="🚐 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+" · "+_mudMesP.length+" mudança"+(_mudMesP.length!==1?"s":"")+NL;
+            t+="💰 TOTAL: "+_fvP(_vanTotal)+NL+NL+"— TELEMIM Mudanças";
+            var _w=window.open("","_blank");
+            _w.document.write("<html><head><title>Van - "+_vanNome+" - "+_mesLabelP+"</title><style>body{font-family:monospace;white-space:pre-wrap;padding:20px;font-size:14px;} @media print{button{display:none!important;}}</style></head><body>"+t.replace(/\n/g,"<br>")+"<br><br><button onclick='window.print()' style='padding:12px 24px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:bold;'>🖨️ Imprimir / Salvar PDF</button></body></html>");
+            _w.document.close();
+          }} style={{flex:1,padding:"10px 14px",borderRadius:10,border:"none",background:"#1e40af",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>📄 PDF</button>
+        </div>;})()}
         {pagVan&&_vanTotal===0&&<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:12}}>Nenhuma mudança neste mês</div>}
       </div>
 
