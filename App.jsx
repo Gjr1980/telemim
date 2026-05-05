@@ -2798,7 +2798,7 @@ export default function App(){
                     {(a.van||a.motorista_van_id)&&(<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                       {(a.inicio_van_em||a.van_saiu_em)?
                         <div style={{fontSize:10,fontWeight:700,color:"#1d4ed8",background:"#dbeafe",borderRadius:6,padding:"3px 8px"}}>🚐 Van saiu — {new Date(a.inicio_van_em||a.van_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
-                        :<button onClick={function(e){e.stopPropagation();handleDeslocamento(a,"van");}} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🚐 Van Saiu</button>
+                        :(isAdmin||isSupervisor)?<button onClick={function(e){e.stopPropagation();handleDeslocamento(a,"van");}} style={{background:"#2563eb",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🚐 Van Saiu</button>:null
                       }
                       {a.chegada_van_em&&<div style={{fontSize:10,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:6,padding:"3px 8px"}}>📍 Chegou — {new Date(a.chegada_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
                       {a.termino_van_em&&<div style={{fontSize:10,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:6,padding:"3px 8px"}}>🏁 Fim — {new Date(a.termino_van_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
@@ -2806,12 +2806,12 @@ export default function App(){
                     {(a.caminhao||a.motorista_caminhao_id)&&(<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                       {(a.inicio_caminhao_em||a.caminhao_saiu_em)?
                         <div style={{fontSize:10,fontWeight:700,color:"#7c3aed",background:"#ede9fe",borderRadius:6,padding:"3px 8px"}}>🚚 Caminhão saiu — {new Date(a.inicio_caminhao_em||a.caminhao_saiu_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>
-                        :<button onClick={function(e){e.stopPropagation();handleDeslocamento(a,"caminhao");}} style={{background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🚚 Caminhão Saiu</button>
+                        :(isAdmin||isSupervisor)?<button onClick={function(e){e.stopPropagation();handleDeslocamento(a,"caminhao");}} style={{background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🚚 Caminhão Saiu</button>:null
                       }
                       {a.chegada_caminhao_em&&<div style={{fontSize:10,fontWeight:700,color:"#047857",background:"#ecfdf5",borderRadius:6,padding:"3px 8px"}}>📍 Chegou — {new Date(a.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
                       {a.termino_caminhao_em&&<div style={{fontSize:10,fontWeight:700,color:"#15803d",background:"#dcfce7",borderRadius:6,padding:"3px 8px"}}>🏁 Fim — {new Date(a.termino_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+"h"}</div>}
                     </div>)}
-                    {((a.inicio_van_em||a.van_saiu_em)&&!a.chegada_van_em)||((a.inicio_caminhao_em||a.caminhao_saiu_em)&&!a.chegada_caminhao_em)?
+                    {(isAdmin||isSupervisor)&&(((a.inicio_van_em||a.van_saiu_em)&&!a.chegada_van_em)||((a.inicio_caminhao_em||a.caminhao_saiu_em)&&!a.chegada_caminhao_em))?
                       <button onClick={function(e){e.stopPropagation();setGpsMapAgenda(a);setShowGpsMap(true);setGpsEta(null);
                         gpsLoadPositions(a.id).then(function(pos){if(pos&&a.destino){gpsCalcEta(pos.lat,pos.lng,a.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
                       }} style={{background:"#059669",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer",marginTop:4}}>📍 Ver Mapa GPS</button>
