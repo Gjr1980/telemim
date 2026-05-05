@@ -2517,13 +2517,30 @@ export default function App(){
   const comunidades=[...new Set(mudancas.map(m=>m.comunidade).filter(Boolean))];
   var _hjFilt=new Date();_hjFilt.setHours(0,0,0,0);
   var _am14Filt=new Date(_hjFilt);_am14Filt.setDate(_am14Filt.getDate()-14);
-  const filtered=[...mudancas].filter(function(mx){if(mx.deleted_at)return false;
+  // Merge: mudancas + agenda concluídas que não estão em mudancas
+  var _allForFiltered=(function(){
+    var _list=[].concat(mudancas);
+    var _seenKeys={};
+    _list.forEach(function(m){if(m.nome&&m.data)_seenKeys[(m.nome||"").toLowerCase().trim()+"|"+m.data]=true;});
+    var _conclStatuses=["concluida","concluido","realizada","realizado","Concluído","Concluido"];
+    (agenda||[]).forEach(function(a){
+      if(a.deleted_at||!a.data) return;
+      var _done=_conclStatuses.indexOf(a.status)>=0||a.termino_em||a.chegada_van_em||a.chegada_caminhao_em||a.termino_van_em||a.termino_caminhao_em;
+      if(!_done) return;
+      var key=(a.nome||"").toLowerCase().trim()+"|"+a.data;
+      if(_seenKeys[key]) return;
+      _seenKeys[key]=true;
+      _list.push(Object.assign({},a,{status:"Concluído",_fromAgenda:true,termino_em:a.termino_em||a.chegada_van_em||a.chegada_caminhao_em||a.termino_van_em||a.termino_caminhao_em||null,criado_em:a.criado_em||a.termino_em||null}));
+    });
+    return _list;
+  })();
+  const filtered=[...(_allForFiltered)].filter(function(mx){if(mx.deleted_at)return false;
     if(isMotorista){var _dMx=new Date(mx.data+"T12:00:00");_dMx.setHours(0,0,0,0);return _dMx>=_am14Filt;}
-    
+
     var tx=search.toLowerCase();
-    var okS=!search||mx.nome.toLowerCase().includes(tx)||mx.selo.toLowerCase().includes(tx)||(mx.comunidade||"").toLowerCase().includes(tx);
+    var okS=!search||(mx.nome||"").toLowerCase().includes(tx)||(mx.selo||"").toLowerCase().includes(tx)||(mx.comunidade||"").toLowerCase().includes(tx);
     var dtOk=(function(){if(filtroMes==="semana"){var hj2=new Date();var dw=hj2.getDay();var _dif=dw===0?6:dw-1;var s0=new Date(hj2.getFullYear(),hj2.getMonth(),hj2.getDate()-_dif);var _pad=function(n){return String(n).padStart(2,"0");};var dias7=Array.from({length:7},function(_,ii){var d=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+ii);return d.getFullYear()+"-"+_pad(d.getMonth()+1)+"-"+_pad(d.getDate());});return dias7.includes(mx.data);}if(filtroMes==="mes_atual"){return mx.data&&mx.data.slice(0,7)===new Date().toISOString().slice(0,7);}if(filtroDataIni&&filtroDataFim){return mx.data>=filtroDataIni&&mx.data<=filtroDataFim;}if(filtroDataIni){return mx.data>=filtroDataIni;}if(filtroDataFim){return mx.data<=filtroDataFim;}return true;})();return okS&&dtOk;
-  }).sort((a,b)=>b.data.localeCompare(a.data));
+  }).sort((a,b)=>(b.data||"").localeCompare(a.data||""));
 
   var _d0=new Date();_d0.setDate(1);
   var _d1=new Date();_d1.setDate(1);_d1.setMonth(_d1.getMonth()-1);
