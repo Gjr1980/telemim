@@ -2113,6 +2113,12 @@ export default function App(){
       });
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Status actualizado!");
+      // If concluded, create mudancas record for Registros tab
+      if(novoStatus==="Concluido"||novoStatus==="realizado"){
+        var _merged=Object.assign({},ag,body);
+        var _novaM={nome:_merged.nome||"",selo:_merged.selo||"",comunidade:_merged.comunidade||"",data:_merged.data,origem:_merged.origem||"",destino:_merged.destino||"",contato:_merged.contato||null,van:_merged.van||false,caminhao:_merged.caminhao||false,medicao:parseFloat(_merged.medicao)||0,ajudantes:parseInt(_merged.ajudantes)||0,observacao:_merged.observacao||"",status:"Concluído",termino_em:agora,criado_em:agora,motorista_van_id:_merged.motorista_van_id||null,motorista_caminhao_id:_merged.motorista_caminhao_id||null,supervisor_id:_merged.supervisor_id||null,approved_by_admin:_merged.approved_by_admin||null,approved_by_social:_merged.approved_by_social||null,approved_by_promorar:_merged.approved_by_promorar||null,approved_by_supervisor:_merged.approved_by_supervisor||null,inicio_van_em:_merged.inicio_van_em||null,chegou_origem_van_em:_merged.chegou_origem_van_em||null,saiu_destino_van_em:_merged.saiu_destino_van_em||null,chegada_van_em:_merged.chegada_van_em||null,inicio_caminhao_em:_merged.inicio_caminhao_em||null,chegou_origem_cam_em:_merged.chegou_origem_cam_em||null,saiu_destino_cam_em:_merged.saiu_destino_cam_em||null,chegada_caminhao_em:_merged.chegada_caminhao_em||null};
+        fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"}),body:JSON.stringify(_novaM)}).then(function(r2){return r2.json();}).then(function(d){if(Array.isArray(d)&&d[0]){setMudancas(function(prev){return[d[0]].concat(prev);});}}).catch(function(){});
+      }
       setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);
     }catch(e){
       setAgenda(prevAgenda);
@@ -2761,7 +2767,11 @@ export default function App(){
                     return _isIniciada?(
                       <button onClick={function(){var agora=new Date().toISOString();var body={status:"concluida",termino_em:agora};
                         setAgenda(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,body):x;});});
-                        fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok)setSyncStatus("✅ Mudança finalizada!");setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);}).catch(function(){setSyncStatus("⚠️ Erro");});
+                        fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok){setSyncStatus("✅ Mudança finalizada!");
+                          // Create mudancas record for Registros tab
+                          var _novaM={nome:a.nome||"",selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,origem:a.origem||"",destino:a.destino||"",contato:a.contato||null,van:a.van||false,caminhao:a.caminhao||false,medicao:parseFloat(a.medicao)||0,ajudantes:parseInt(a.ajudantes)||0,observacao:a.observacao||"",status:"Concluído",termino_em:agora,criado_em:agora,motorista_van_id:a.motorista_van_id||null,motorista_caminhao_id:a.motorista_caminhao_id||null,supervisor_id:a.supervisor_id||null,approved_by_admin:a.approved_by_admin||null,approved_by_social:a.approved_by_social||null,approved_by_promorar:a.approved_by_promorar||null,approved_by_supervisor:a.approved_by_supervisor||null,inicio_van_em:a.inicio_van_em||null,chegou_origem_van_em:a.chegou_origem_van_em||null,saiu_destino_van_em:a.saiu_destino_van_em||null,chegada_van_em:a.chegada_van_em||null,inicio_caminhao_em:a.inicio_caminhao_em||null,chegou_origem_cam_em:a.chegou_origem_cam_em||null,saiu_destino_cam_em:a.saiu_destino_cam_em||null,chegada_caminhao_em:a.chegada_caminhao_em||null};
+                          fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"}),body:JSON.stringify(_novaM)}).then(function(r2){return r2.json();}).then(function(d){if(Array.isArray(d)&&d[0]){setMudancas(function(prev){return[d[0]].concat(prev);});}}).catch(function(){});
+                        }setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);}).catch(function(){setSyncStatus("⚠️ Erro");});
                       }} style={{width:"100%",background:"#16a34a",border:"none",borderRadius:_dest?12:10,padding:_dest?"14px 0":"10px 0",fontSize:_dest?15:13,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                         ✅ Finalizar Mudança
                       </button>
