@@ -2539,6 +2539,25 @@ export default function App(){
   }
 
   // ── COMPUTED ───────────────────────────────────────────────────────────────
+  // Merge: mudancas + agenda items (concluídas OU em andamento) que não estão em mudancas
+  // Usado para Registros, Contas e Financeiro
+  var _allForFiltered=(function(){
+    var _list=[].concat(mudancas);
+    var _seenKeys={};
+    _list.forEach(function(m){if(m.nome&&m.data)_seenKeys[(m.nome||"").toLowerCase().trim()+"|"+m.data]=true;});
+    var _conclStatuses=["concluida","concluido","realizada","realizado","Concluído","Concluido"];
+    (agenda||[]).forEach(function(a){
+      if(a.deleted_at||!a.data) return;
+      var _done=_conclStatuses.indexOf(a.status)>=0||a.termino_em||a.chegada_van_em||a.chegada_caminhao_em||a.termino_van_em||a.termino_caminhao_em;
+      var _active=a.inicio_van_em||a.van_saiu_em||a.inicio_caminhao_em||a.caminhao_saiu_em||a.chegou_origem_van_em||a.chegou_origem_cam_em||a.saiu_destino_van_em||a.saiu_destino_cam_em||a.status==="Realizando"||a.inicio_mudanca_em;
+      if(!_done&&!_active) return;
+      var key=(a.nome||"").toLowerCase().trim()+"|"+a.data;
+      if(_seenKeys[key]) return;
+      _seenKeys[key]=true;
+      _list.push(Object.assign({},a,{_fromAgenda:true,status:_done?"Concluído":(a.status||"confirmado"),termino_em:a.termino_em||a.termino_van_em||a.termino_caminhao_em||null,criado_em:a.criado_em||a.termino_em||null}));
+    });
+    return _list;
+  })();
   const semanas=(()=>{
     const map={};
     mudancas.forEach(m=>{
@@ -2549,27 +2568,10 @@ export default function App(){
     return Object.values(map).sort((a,b)=>b.key.localeCompare(a.key));
   })();
 
-  const totalM3=mudancas.filter(m=>!m.deleted_at).reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
+  const totalM3=_allForFiltered.filter(m=>!m.deleted_at).reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
   const comunidades=[...new Set(mudancas.map(m=>m.comunidade).filter(Boolean))];
   var _hjFilt=new Date();_hjFilt.setHours(0,0,0,0);
   var _am14Filt=new Date(_hjFilt);_am14Filt.setDate(_am14Filt.getDate()-14);
-  // Merge: mudancas + agenda concluídas que não estão em mudancas
-  var _allForFiltered=(function(){
-    var _list=[].concat(mudancas);
-    var _seenKeys={};
-    _list.forEach(function(m){if(m.nome&&m.data)_seenKeys[(m.nome||"").toLowerCase().trim()+"|"+m.data]=true;});
-    var _conclStatuses=["concluida","concluido","realizada","realizado","Concluído","Concluido"];
-    (agenda||[]).forEach(function(a){
-      if(a.deleted_at||!a.data) return;
-      var _done=_conclStatuses.indexOf(a.status)>=0||a.termino_em||a.chegada_van_em||a.chegada_caminhao_em||a.termino_van_em||a.termino_caminhao_em;
-      if(!_done) return;
-      var key=(a.nome||"").toLowerCase().trim()+"|"+a.data;
-      if(_seenKeys[key]) return;
-      _seenKeys[key]=true;
-      _list.push(Object.assign({},a,{status:"Concluído",_fromAgenda:true,termino_em:a.termino_em||a.chegada_van_em||a.chegada_caminhao_em||a.termino_van_em||a.termino_caminhao_em||null,criado_em:a.criado_em||a.termino_em||null}));
-    });
-    return _list;
-  })();
   const filtered=[...(_allForFiltered)].filter(function(mx){if(mx.deleted_at)return false;
     if(isMotorista){var _dMx=new Date(mx.data+"T12:00:00");_dMx.setHours(0,0,0,0);return _dMx>=_am14Filt;}
 
@@ -3767,7 +3769,7 @@ export default function App(){
           var _fvs=function(v){return new Intl.NumberFormat("pt-BR",{minimumFractionDigits:0,maximumFractionDigits:0}).format(v||0);};
           var _nm=new Date().toLocaleDateString("pt-BR",{month:"long",year:"numeric"}).replace(/^./,function(s){return s.toUpperCase();});
           // Filtrar dados do mês — usar slice(0,7) === _am (formato ISO YYYY-MM)
-          var _mudM=(mudancas||[]).filter(function(m){return m.data&&m.data.slice(0,7)===_am;});
+          var _mudM=(_allForFiltered||[]).filter(function(m){return m.data&&m.data.slice(0,7)===_am;});
           var _cdM=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===_am;});
           var _cpM=(contasPagar||[]).filter(function(cp){return cp.data&&cp.data.slice(0,7)===_am;});
           // Usar função centralizada — MESMA lógica que aba Contas
@@ -3790,7 +3792,7 @@ export default function App(){
   var _p2=function(n){return String(n).padStart(2,"0");};
   var _si2=_s0w.getFullYear()+"-"+_p2(_s0w.getMonth()+1)+"-"+_p2(_s0w.getDate());
   var _sf2=_s1w.getFullYear()+"-"+_p2(_s1w.getMonth()+1)+"-"+_p2(_s1w.getDate());
-  var _mudSem=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data>=_si2&&m.data<=_sf2;});
+  var _mudSem=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data>=_si2&&m.data<=_sf2;});
   var _rSem=_calcCustos(_mudSem,(custosDiarios||[]).filter(function(cd){return cd.data>=_si2&&cd.data<=_sf2;}),(contasPagar||[]).filter(function(cp){return cp.data&&cp.data>=_si2&&cp.data<=_sf2;}),RULES);
   var _fatSem=_rSem.fatBruto;
   var _diasSem=[...new Set(_mudSem.map(function(m){return m.data;}))].length;
@@ -3801,7 +3803,7 @@ export default function App(){
         var _hj3=new Date();
         var _p3=function(n){return String(n).padStart(2,"0");};
         var _hoje3=_hj3.getFullYear()+"-"+_p3(_hj3.getMonth()+1)+"-"+_p3(_hj3.getDate());
-        var _mudHj=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data===_hoje3;});
+        var _mudHj=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data===_hoje3;});
         var _m3Hj=_mudHj.reduce(function(s,m){return s+(parseFloat(m.medicao)||0);},0);
         var _valMud=_m3Hj*(parseFloat(RULES.medicaoPorM3)||150);
         var _valVan=_mudHj.some(function(m){return m.van;})?( parseFloat(RULES.vanGanho)||1000):0;
@@ -3928,7 +3930,7 @@ return(
     {_semFin.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:24,fontSize:13}}>Nenhuma semana neste período</div>}
     {_semFin.map(function(_sem2){
       var _its2=contasSemana.filter(function(x){return x.semana_inicio===_sem2.si&&["caminhao","van","ajudante","almoco"].includes(x.tipo);});
-      var _mudSem2=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data>=_sem2.si&&m.data<=_sem2.sf;});
+      var _mudSem2=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data>=_sem2.si&&m.data<=_sem2.sf;});
       var _cdSem2=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data>=_sem2.si&&cd.data<=_sem2.sf;});
       var _rSem2=_calcCustos(_mudSem2,_cdSem2,[],RULES);
       var _calcMap2={caminhao:_rSem2.cCam,van:_rSem2.cVan,ajudante:_rSem2.cAj,almoco:_rSem2.cAlm};
@@ -4013,7 +4015,7 @@ return(
     _meses.push({ym:ym,lbl:lbl});
   }
   var _rows=_meses.map(function(mes){
-    var _mudM=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===mes.ym;});
+    var _mudM=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===mes.ym;});
     var _cdM=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===mes.ym;});
     var _cpM=(contasPagar||[]).filter(function(cp){return cp.data&&cp.data.slice(0,7)===mes.ym;});
     var r=_calcCustos(_mudM,_cdM,_cpM,RULES);
@@ -4111,7 +4113,7 @@ return(
     _meses.push({ym:ym,lbl:lbl});
   }
   var _dados=_meses.map(function(mes){
-    var _mudM=(mudancas||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===mes.ym;});
+    var _mudM=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===mes.ym;});
     var _cdM=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===mes.ym;});
     var _cpM=(contasPagar||[]).filter(function(cp){return cp.data&&cp.data.slice(0,7)===mes.ym;});
     var r=_calcCustos(_mudM,_cdM,_cpM,RULES);
