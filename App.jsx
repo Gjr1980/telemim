@@ -817,8 +817,8 @@ export default function App(){
   const [showImport,setShowImport]=useState(false);
   const [cfgWA,setCfgWA]=useState({admin_whatsapp:"",supervisor_whatsapp:"",whatsapp_ativo:"false",evolution_api_url:"",evolution_api_key:"",evolution_instance:""});
   const [cfgWAauto,setCfgWAauto]=useState({
-    atribuida_motorista:{ativo:false,msg:"\uD83D\uDE9A Nova mudanca atribuida!\nCliente: {cliente}\nData: {data}\nOrigem: {origem}\nDestino: {destino}"},
-    atribuida_supervisor:{ativo:false,msg:"\uD83D\uDCCB Mudanca atribuida ao motorista {motorista}\nCliente: {cliente}\nData: {data}"},
+    atribuida_motorista:{ativo:false,msg:"\uD83D\uDE9A Nova mudanca atribuida!\nCliente: {cliente}\nData: {data}\nHora: {hora}\nOrigem: {origem}\nDestino: {destino}\nSupervisor: {supervisor}"},
+    atribuida_supervisor:{ativo:false,msg:"Cliente: {cliente}\nData: {data}\nHora: {hora}\nOrigem: {origem}\nDestino: {destino}\nCaminhao: {caminhao}\nVan: {van}"},
     deslocamento_admin:{ativo:false,msg:"\uD83D\uDCCD {motorista} iniciou deslocamento\nCliente: {cliente}"},
     deslocamento_cliente:{ativo:false,msg:"\uD83D\uDCCD Seu motorista esta a caminho!\nEquipe TELEMIM"},
     deslocamento_supervisor:{ativo:false,msg:"\uD83D\uDCCD {motorista} iniciou deslocamento\nCliente: {cliente}"},
@@ -2496,7 +2496,7 @@ export default function App(){
         // WA auto: atribuida_motorista
         if(cfgWA.whatsapp_ativo==="true"&&cfgWAauto.atribuida_motorista&&cfgWAauto.atribuida_motorista.ativo){
           var _mot=listaUsuarios.find(function(u){return u.id===mid;});
-          if(_mot&&_mot.contato){var _vars={cliente:(_agItem||{}).nome||"",data:(_agItem||{}).data||"",origem:(_agItem||{}).origem||"",destino:(_agItem||{}).destino||"",motorista:_mot.nome||"",metragem:(_agItem||{}).metragem||""};enviarWA(_mot.contato,substituirVarsWA(cfgWAauto.atribuida_motorista.msg,_vars));}
+          if(_mot&&_mot.contato){var _supNome="";if((_agItem||{}).supervisor_id){var _sU=listaUsuarios.find(function(u){return u.id===_agItem.supervisor_id;});if(_sU)_supNome=_sU.nome||"";}var _vars={cliente:(_agItem||{}).nome||"",data:(_agItem||{}).data||"",hora:(_agItem||{}).horario||"",origem:(_agItem||{}).origem||"",destino:(_agItem||{}).destino||"",motorista:_mot.nome||"",metragem:(_agItem||{}).metragem||"",supervisor:_supNome};enviarWA(_mot.contato,substituirVarsWA(cfgWAauto.atribuida_motorista.msg,_vars));}
         }
       }
     }catch(e){
@@ -2529,7 +2529,7 @@ export default function App(){
         // WA auto: atribuida_supervisor
         if(cfgWA.whatsapp_ativo==="true"&&cfgWAauto.atribuida_supervisor&&cfgWAauto.atribuida_supervisor.ativo){
           var _supU=listaUsuarios.find(function(u){return u.id===sid;});
-          if(_supU&&_supU.contato){var _vars2={cliente:_ag.nome||"",data:_ag.data||"",origem:_ag.origem||"",destino:_ag.destino||"",motorista:"",supervisor:_supU.nome||"",metragem:_ag.metragem||""};enviarWA(_supU.contato,substituirVarsWA(cfgWAauto.atribuida_supervisor.msg,_vars2));}
+          if(_supU&&_supU.contato){var _motVanNome="";var _motCamNome="";if(_ag.motorista_van_id){var _mvU=listaUsuarios.find(function(u){return u.id===_ag.motorista_van_id;});if(_mvU)_motVanNome=_mvU.nome||"";}if(_ag.motorista_caminhao_id){var _mcU=listaUsuarios.find(function(u){return u.id===_ag.motorista_caminhao_id;});if(_mcU)_motCamNome=_mcU.nome||"";}var _vars2={cliente:_ag.nome||"",data:_ag.data||"",hora:_ag.horario||"",origem:_ag.origem||"",destino:_ag.destino||"",motorista:"",supervisor:_supU.nome||"",metragem:_ag.metragem||"",caminhao:_motCamNome,van:_motVanNome};enviarWA(_supU.contato,substituirVarsWA(cfgWAauto.atribuida_supervisor.msg,_vars2));}
         }}
       if(sid&&_ag){var _sup=listaUsuarios.find(function(u){return u.id===sid;});if(_sup&&_sup.email){try{await fetch(SUPA_URL+"/functions/v1/enviar-email-agendamento",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({to:_sup.email,subject:"📋 Designação de Supervisão — "+(_ag.nome||"Mudança"),html:"<h2>Olá "+(_sup.nome||"Supervisor")+"!</h2><p>Você foi designado(a) para supervisionar a seguinte mudança:</p><p><b>👤 Cliente:</b> "+(_ag.nome||"—")+"</p><p><b>📅 Data:</b> "+(_ag.data||"—")+(_ag.horario?" às "+_ag.horario+"h":"")+"</p><p><b>🏷️ Selo:</b> "+(_ag.selo||"—")+"</p><p><b>📦 Saída:</b> "+(_ag.origem||"—")+"</p><p><b>🏘️ Destino:</b> "+(_ag.destino||"—")+"</p><br><p>Acesse o app para mais detalhes.</p><p><b>TELEMIM — PROMORAR</b></p>"})});} catch(e){}}}
     }catch(e){loadAg();setSyncStatus("⚠️ Erro ao designar");}
