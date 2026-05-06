@@ -816,6 +816,16 @@ export default function App(){
   const [custosDiarios,setCustosDiarios]=useState([]);
   const [showImport,setShowImport]=useState(false);
   const [cfgWA,setCfgWA]=useState({admin_whatsapp:"",supervisor_whatsapp:"",whatsapp_ativo:"false",evolution_api_url:"",evolution_api_key:"",evolution_instance:""});
+  const [cfgWAauto,setCfgWAauto]=useState({
+    atribuida_motorista:{ativo:false,msg:"\uD83D\uDE9A Nova mudanca atribuida!\nCliente: {cliente}\nData: {data}\nOrigem: {origem}\nDestino: {destino}"},
+    atribuida_supervisor:{ativo:false,msg:"\uD83D\uDCCB Mudanca atribuida ao motorista {motorista}\nCliente: {cliente}\nData: {data}"},
+    deslocamento_admin:{ativo:false,msg:"\uD83D\uDCCD {motorista} iniciou deslocamento\nCliente: {cliente}"},
+    deslocamento_cliente:{ativo:false,msg:"\uD83D\uDCCD Seu motorista esta a caminho!\nEquipe TELEMIM"},
+    deslocamento_supervisor:{ativo:false,msg:"\uD83D\uDCCD {motorista} iniciou deslocamento\nCliente: {cliente}"},
+    finalizada_admin:{ativo:false,msg:"\u2705 Mudanca finalizada!\nCliente: {cliente}\nMotorista: {motorista}"},
+    finalizada_cliente:{ativo:false,msg:"\u2705 Sua mudanca foi concluida!\nObrigado por escolher a TELEMIM."},
+    finalizada_supervisor:{ativo:false,msg:"\u2705 Finalizada: {cliente}\nMotorista: {motorista}"}
+  });
   const [isUploading,setIsUploading]=useState(false);
   const [isApproving,setIsApproving]=useState({});
   const [waLoading,setWaLoading]=useState(false);
@@ -1171,14 +1181,29 @@ export default function App(){
   async function loadAg(){try{const r=await dbGet("agenda");if(r){var mapped=r.map(function(x){return {...x,_dbId:x.id};});setAgenda(mapped);idbSet("agenda",mapped);}}catch(e){var cached=await idbGet("agenda");if(cached)setAgenda(cached);}}
   async function loadCfgWA(){
     try{
-      var r=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=in.(admin_whatsapp,supervisor_whatsapp,whatsapp_ativo,evolution_api_url,evolution_api_key,evolution_instance)&select=chave,valor",{headers:getH()});
+      var r=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=in.(admin_whatsapp,supervisor_whatsapp,whatsapp_ativo,evolution_api_url,evolution_api_key,evolution_instance,wa_auto_config)&select=chave,valor",{headers:getH()});
       if(!r.ok) return;
       var rows=await r.json();
       if(!Array.isArray(rows)) return;
       var obj={};
       rows.forEach(function(row){obj[row.chave]=row.valor||"";});
       setCfgWA(function(prev){return {...prev,...obj};});
+      if(obj.wa_auto_config){try{setCfgWAauto(JSON.parse(obj.wa_auto_config));}catch(e){}}
     }catch(e){console.warn("loadCfgWA:",e);}
+  }
+  // ── ENVIAR WHATSAPP VIA EVOLUTION API ─────────────────────────────────────────
+  async function enviarWA(numero,mensagem){
+    if(!numero||!mensagem)return;
+    var clean=numero.replace(/\D/g,"");
+    if(!clean)return;
+    try{
+      await fetch(SUPA_URL+"/functions/v1/enviar-whatsapp",{method:"POST",headers:{...getH(),"Content-Type":"application/json"},body:JSON.stringify({numero:clean,mensagem:mensagem})});
+    }catch(e){console.warn("[WA] envio falhou:",e);}
+  }
+  function substituirVarsWA(template,vars){
+    var msg=template;
+    Object.keys(vars).forEach(function(k){msg=msg.replace(new RegExp("\\{"+k+"\\}","g"),vars[k]||"");});
+    return msg;
   }
 
 
@@ -2256,6 +2281,13 @@ export default function App(){
         // Push notification: mudança finalizada → admin + supervisor
         var _fNotifIds=[];var _fAdmins=listaUsuarios.filter(function(u){return u.perfil==="admin"&&u.ativo;});_fAdmins.forEach(function(a){_fNotifIds.push(a.id);});if(ag.supervisor_id)_fNotifIds.push(ag.supervisor_id);
         if(_fNotifIds.length>0){var _hora=new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});sendPushNotification(_fNotifIds,"✅ Mudança concluída!","👤 "+(ag.nome||"Mudança")+" · 📐 "+(ag.medicao||"0")+" m³ · 🕐 Finalizada às "+_hora);}
+        // WA auto: finalizada
+        if(cfgWA.whatsapp_ativo==="true"){
+          var _fVars={cliente:ag.nome||"",data:ag.data||"",origem:ag.origem||"",destino:ag.destino||"",motorista:(usuario&&usuario.nome)||"Motorista",metragem:ag.medicao||""};
+          if(cfgWAauto.finalizada_admin&&cfgWAauto.finalizada_admin.ativo&&cfgWA.admin_whatsapp){enviarWA(cfgWA.admin_whatsapp,substituirVarsWA(cfgWAauto.finalizada_admin.msg,_fVars));}
+          if(cfgWAauto.finalizada_supervisor&&cfgWAauto.finalizada_supervisor.ativo&&ag.supervisor_id){var _fSup=listaUsuarios.find(function(u){return u.id===ag.supervisor_id;});if(_fSup&&_fSup.contato)enviarWA(_fSup.contato,substituirVarsWA(cfgWAauto.finalizada_supervisor.msg,_fVars));}
+          if(cfgWAauto.finalizada_cliente&&cfgWAauto.finalizada_cliente.ativo&&ag.contato){enviarWA(ag.contato,substituirVarsWA(cfgWAauto.finalizada_cliente.msg,_fVars));}
+        }
       }
       setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);
     }catch(e){
@@ -2278,6 +2310,13 @@ export default function App(){
       // Push notification to admin+supervisor: motorista a caminho
       var _notifIds=[];var _admins=listaUsuarios.filter(function(u){return u.perfil==="admin"&&u.ativo;});_admins.forEach(function(a){_notifIds.push(a.id);});if(ag.supervisor_id)_notifIds.push(ag.supervisor_id);
       if(_notifIds.length>0){var _motNome=(usuario&&usuario.nome)||"Motorista";sendPushNotification(_notifIds,"🚐 Motorista a caminho!",_motNome+" ("+tipo+") saiu para: 👤 "+(ag.nome||"Mudança")+" · 📍 "+(ag.comunidade||""));}
+      // WA auto: deslocamento
+      if(cfgWA.whatsapp_ativo==="true"){
+        var _dVars={cliente:ag.nome||"",data:ag.data||"",origem:ag.origem||"",destino:ag.destino||"",motorista:(usuario&&usuario.nome)||"Motorista",metragem:ag.medicao||""};
+        if(cfgWAauto.deslocamento_admin&&cfgWAauto.deslocamento_admin.ativo&&cfgWA.admin_whatsapp){enviarWA(cfgWA.admin_whatsapp,substituirVarsWA(cfgWAauto.deslocamento_admin.msg,_dVars));}
+        if(cfgWAauto.deslocamento_supervisor&&cfgWAauto.deslocamento_supervisor.ativo&&ag.supervisor_id){var _dSup=listaUsuarios.find(function(u){return u.id===ag.supervisor_id;});if(_dSup&&_dSup.contato)enviarWA(_dSup.contato,substituirVarsWA(cfgWAauto.deslocamento_supervisor.msg,_dVars));}
+        if(cfgWAauto.deslocamento_cliente&&cfgWAauto.deslocamento_cliente.ativo&&ag.contato){enviarWA(ag.contato,substituirVarsWA(cfgWAauto.deslocamento_cliente.msg,_dVars));}
+      }
       setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);
     }catch(e){setAgenda(prevAgenda);setSyncStatus("⚠️ Erro ao registrar deslocamento");}
   }
@@ -2453,7 +2492,13 @@ export default function App(){
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Motorista despachado!");
       // Push notification to motorista
-      if(mid){var _agItem=agenda.find(function(a){return a.id===agId;});sendPushNotification([mid],"📋 Nova mudança atribuída!","👤 "+(_agItem?_agItem.nome:"Mudança")+" · 📅 "+(_agItem?_agItem.data:"")+" · "+tipo);}
+      if(mid){var _agItem=agenda.find(function(a){return a.id===agId;});sendPushNotification([mid],"📋 Nova mudança atribuída!","👤 "+(_agItem?_agItem.nome:"Mudança")+" · 📅 "+(_agItem?_agItem.data:"")+" · "+tipo);
+        // WA auto: atribuida_motorista
+        if(cfgWA.whatsapp_ativo==="true"&&cfgWAauto.atribuida_motorista&&cfgWAauto.atribuida_motorista.ativo){
+          var _mot=listaUsuarios.find(function(u){return u.id===mid;});
+          if(_mot&&_mot.contato){var _vars={cliente:(_agItem||{}).nome||"",data:(_agItem||{}).data||"",origem:(_agItem||{}).origem||"",destino:(_agItem||{}).destino||"",motorista:_mot.nome||"",metragem:(_agItem||{}).metragem||""};enviarWA(_mot.contato,substituirVarsWA(cfgWAauto.atribuida_motorista.msg,_vars));}
+        }
+      }
     }catch(e){
       loadAg();
       setSyncStatus("⚠️ Erro ao despachar");
@@ -2480,7 +2525,12 @@ export default function App(){
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Supervisor designado!");
       // Push notification to supervisor
-      if(sid&&_ag){sendPushNotification([sid],"📋 Nova mudança atribuída!","👤 "+(_ag.nome||"Mudança")+" · 📅 "+(_ag.data||"")+" · ⏰ "+(_ag.horario||""));}
+      if(sid&&_ag){sendPushNotification([sid],"📋 Nova mudança atribuída!","👤 "+(_ag.nome||"Mudança")+" · 📅 "+(_ag.data||"")+" · ⏰ "+(_ag.horario||""));
+        // WA auto: atribuida_supervisor
+        if(cfgWA.whatsapp_ativo==="true"&&cfgWAauto.atribuida_supervisor&&cfgWAauto.atribuida_supervisor.ativo){
+          var _supU=listaUsuarios.find(function(u){return u.id===sid;});
+          if(_supU&&_supU.contato){var _vars2={cliente:_ag.nome||"",data:_ag.data||"",origem:_ag.origem||"",destino:_ag.destino||"",motorista:"",supervisor:_supU.nome||"",metragem:_ag.metragem||""};enviarWA(_supU.contato,substituirVarsWA(cfgWAauto.atribuida_supervisor.msg,_vars2));}
+        }}
       if(sid&&_ag){var _sup=listaUsuarios.find(function(u){return u.id===sid;});if(_sup&&_sup.email){try{await fetch(SUPA_URL+"/functions/v1/enviar-email-agendamento",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({to:_sup.email,subject:"📋 Designação de Supervisão — "+(_ag.nome||"Mudança"),html:"<h2>Olá "+(_sup.nome||"Supervisor")+"!</h2><p>Você foi designado(a) para supervisionar a seguinte mudança:</p><p><b>👤 Cliente:</b> "+(_ag.nome||"—")+"</p><p><b>📅 Data:</b> "+(_ag.data||"—")+(_ag.horario?" às "+_ag.horario+"h":"")+"</p><p><b>🏷️ Selo:</b> "+(_ag.selo||"—")+"</p><p><b>📦 Saída:</b> "+(_ag.origem||"—")+"</p><p><b>🏘️ Destino:</b> "+(_ag.destino||"—")+"</p><br><p>Acesse o app para mais detalhes.</p><p><b>TELEMIM — PROMORAR</b></p>"})});} catch(e){}}}
     }catch(e){loadAg();setSyncStatus("⚠️ Erro ao designar");}
   }
@@ -4888,10 +4938,10 @@ return(
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                 <div style={{fontSize:13,fontWeight:800,color:"#15803d"}}>📲 Automação WhatsApp</div>
                 <button onClick={function(){var v=cfgWA.whatsapp_ativo==="true"?"false":"true";setCfgWA(function(p){return {...p,whatsapp_ativo:v};});fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.whatsapp_ativo",{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:v})}).catch(function(e){console.warn(e);});}} style={{padding:"4px 12px",borderRadius:20,border:"none",background:cfgWA.whatsapp_ativo==="true"?"#16a34a":"#e2e8f0",color:cfgWA.whatsapp_ativo==="true"?"#fff":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>
-                  {cfgWA.whatsapp_ativo==="true"?"✅ Activo":"⭕ Inactivo"}
+                  {cfgWA.whatsapp_ativo==="true"?"✅ Ativo":"⭕ Inativo"}
                 </button>
               </div>
-              <div style={{fontSize:11,color:"#374151",marginBottom:10,background:"#fff",borderRadius:8,padding:"6px 10px",border:"1px solid #d1fae5"}}>Ao finalizar OS com assinatura, envia o canhoto PDF automaticamente para cliente, admin e supervisor.</div>
+              <div style={{fontSize:11,color:"#374151",marginBottom:10,background:"#fff",borderRadius:8,padding:"6px 10px",border:"1px solid #d1fae5"}}>Configure quais notificações enviar automaticamente por evento e destinatário.</div>
               <div style={{marginBottom:8}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:3}}>👑 Telefone Admin</div>
                 <input type="tel" value={cfgWA.admin_whatsapp} onChange={function(e){setCfgWA(function(p){return {...p,admin_whatsapp:e.target.value};});}} placeholder="Ex: 81999990000" style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid #d1fae5",fontSize:12,boxSizing:"border-box"}}/>
@@ -4900,11 +4950,48 @@ return(
                 <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:3}}>👥 Telefone Supervisor</div>
                 <input type="tel" value={cfgWA.supervisor_whatsapp} onChange={function(e){setCfgWA(function(p){return {...p,supervisor_whatsapp:e.target.value};});}} placeholder="Ex: 81988880000" style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid #d1fae5",fontSize:12,boxSizing:"border-box"}}/>
               </div>
+              {/* ── NOTIFICAÇÕES POR EVENTO ── */}
+              <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid #d1fae5"}}>
+                <div style={{fontSize:12,fontWeight:800,color:"#15803d",marginBottom:12}}>📋 Notificações por Evento</div>
+                {[
+                  {grupo:"Mudança Atribuída",items:[
+                    {key:"atribuida_motorista",label:"🚚 Motorista"},
+                    {key:"atribuida_supervisor",label:"👷 Supervisor"}
+                  ]},
+                  {grupo:"Motorista em Deslocamento",items:[
+                    {key:"deslocamento_admin",label:"👑 Admin"},
+                    {key:"deslocamento_cliente",label:"👤 Cliente"},
+                    {key:"deslocamento_supervisor",label:"👷 Supervisor"}
+                  ]},
+                  {grupo:"Mudança Finalizada",items:[
+                    {key:"finalizada_admin",label:"👑 Admin"},
+                    {key:"finalizada_cliente",label:"👤 Cliente"},
+                    {key:"finalizada_supervisor",label:"👷 Supervisor"}
+                  ]}
+                ].map(function(g){return <div key={g.grupo} style={{marginBottom:14}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:6}}>{g.grupo}</div>
+                  <div style={{background:"#fff",borderRadius:8,border:"1px solid #d1fae5",padding:"8px 10px"}}>
+                    {g.items.map(function(item){
+                      var cfg=cfgWAauto[item.key]||{ativo:false,msg:""};
+                      return <div key={item.key} style={{marginBottom:8}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                          <input type="checkbox" checked={cfg.ativo} onChange={function(){setCfgWAauto(function(p){var n=Object.assign({},p);n[item.key]=Object.assign({},n[item.key],{ativo:!cfg.ativo});return n;});}} style={{width:16,height:16,cursor:"pointer"}}/>
+                          <span style={{fontSize:11,fontWeight:600,color:cfg.ativo?"#15803d":"#64748b"}}>{item.label}</span>
+                        </div>
+                        {cfg.ativo&&<textarea value={cfg.msg} onChange={function(e){setCfgWAauto(function(p){var n=Object.assign({},p);n[item.key]=Object.assign({},n[item.key],{msg:e.target.value});return n;});}} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #d1fae5",fontSize:11,minHeight:50,resize:"vertical",boxSizing:"border-box",fontFamily:"monospace"}}/>}
+                      </div>;
+                    })}
+                  </div>
+                </div>;})}
+                <div style={{fontSize:10,color:"#64748b",background:"#f8fafc",borderRadius:6,padding:"6px 8px",marginBottom:10}}>
+                  Variáveis: {"{cliente}"} {"{motorista}"} {"{data}"} {"{origem}"} {"{destino}"} {"{metragem}"} {"{supervisor}"}
+                </div>
+              </div>
               <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid #d1fae5"}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:8}}>🤖 Evolution API (envio automático)</div>
                 <div style={{marginBottom:6}}>
                   <div style={{fontSize:10,color:"#64748b",marginBottom:2}}>URL da API</div>
-                  <input type="text" value={cfgWA.evolution_api_url} onChange={function(e){setCfgWA(function(p){return {...p,evolution_api_url:e.target.value};});}} placeholder="https://seu-servidor.com" style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid #d1fae5",fontSize:12,boxSizing:"border-box"}}/>
+                  <input type="text" value={cfgWA.evolution_api_url} onChange={function(e){setCfgWA(function(p){return {...p,evolution_api_url:e.target.value};});}} placeholder="http://64.181.190.173:8080" style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid #d1fae5",fontSize:12,boxSizing:"border-box"}}/>
                 </div>
                 <div style={{marginBottom:6}}>
                   <div style={{fontSize:10,color:"#64748b",marginBottom:2}}>API Key</div>
@@ -4912,14 +4999,14 @@ return(
                 </div>
                 <div style={{marginBottom:6}}>
                   <div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Nome da Instância</div>
-                  <input type="text" value={cfgWA.evolution_instance} onChange={function(e){setCfgWA(function(p){return {...p,evolution_instance:e.target.value};});}} placeholder="Ex: telemim" style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid #d1fae5",fontSize:12,boxSizing:"border-box"}}/>
+                  <input type="text" value={cfgWA.evolution_instance} onChange={function(e){setCfgWA(function(p){return {...p,evolution_instance:e.target.value};});}} placeholder="telemim" style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid #d1fae5",fontSize:12,boxSizing:"border-box"}}/>
                 </div>
               </div>
               <button onClick={async function(){
                 setWaLoading(true);
                 try{
-                  var pairs=[["admin_whatsapp",cfgWA.admin_whatsapp||""],["supervisor_whatsapp",cfgWA.supervisor_whatsapp||""],["whatsapp_ativo",cfgWA.whatsapp_ativo||"false"],["evolution_api_url",cfgWA.evolution_api_url||""],["evolution_api_key",cfgWA.evolution_api_key||""],["evolution_instance",cfgWA.evolution_instance||""]];
-                  for(var i=0;i<pairs.length;i++){await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq."+pairs[i][0],{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:pairs[i][1]})}).catch(function(e){console.warn("WA save:",e);});}
+                  var pairs=[["admin_whatsapp",cfgWA.admin_whatsapp||""],["supervisor_whatsapp",cfgWA.supervisor_whatsapp||""],["whatsapp_ativo",cfgWA.whatsapp_ativo||"false"],["evolution_api_url",cfgWA.evolution_api_url||""],["evolution_api_key",cfgWA.evolution_api_key||""],["evolution_instance",cfgWA.evolution_instance||""],["wa_auto_config",JSON.stringify(cfgWAauto)]];
+                  for(var i=0;i<pairs.length;i++){await fetch(SUPA_URL+"/rest/v1/configuracoes",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({chave:pairs[i][0],valor:pairs[i][1]})}).catch(function(e){console.warn("WA save:",e);});}
                   setSyncStatus("📲 Configurações WhatsApp salvas!");
                   setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);
                 }catch(e){setSyncStatus("⚠️ Erro: "+e.message);}
