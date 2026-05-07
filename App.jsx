@@ -5287,6 +5287,9 @@ return(
               {_row("Caminhão",v.caminhao?"Sim":"Não","🚚")}
               {_row("Status",v.status,"📌")}
               {_row("Observação",v.observacao,"📝")}
+              {(function(){var _sup=v.supervisor_id?listaUsuarios.find(function(u){return u.id===v.supervisor_id;}):null;return _row("Supervisor",_sup?_sup.nome:null,"👷");})()}
+              {(function(){var _mv=v.motorista_van_id?listaUsuarios.find(function(u){return u.id===v.motorista_van_id;}):null;return _row("Motorista Van",_mv?_mv.nome+(_mv.placa_veiculo?" · "+_mv.placa_veiculo:""):null,"🚐");})()}
+              {(function(){var _mc=v.motorista_caminhao_id?listaUsuarios.find(function(u){return u.id===v.motorista_caminhao_id;}):null;return _row("Motorista Caminhão",_mc?_mc.nome+(_mc.placa_veiculo?" · "+_mc.placa_veiculo:""):null,"🚚");})()}
               {_row("Criado por",v.created_by,"✍️")}
               {_row("Perfil criador",v.creator_role,"🔑")}
               {_row("Criado em",v.criado_em?new Date(v.criado_em).toLocaleString("pt-BR"):null,"🕐")}
