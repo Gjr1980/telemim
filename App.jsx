@@ -820,8 +820,11 @@ export default function App(){
   const [cfgWA,setCfgWA]=useState({admin_whatsapp:"",supervisor_whatsapp:"",whatsapp_ativo:"false",evolution_api_url:"",evolution_api_key:"",evolution_instance:""});
   const [cfgWAauto,setCfgWAauto]=useState({
     atribuida:{ativo:false,dest:["mot_van","mot_caminhao","supervisor"],msg:"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDE9B *MUDAN\u00C7A ATRIBU\u00CDDA*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDC64 Cliente: *{cliente}*\n\uD83D\uDCC5 Data: *{data}*\n\u23F0 Hora: *{hora}*\n\n\uD83D\uDCCD *Origem:*\n{origem}\n\n\uD83D\uDCCD *Destino:*\n{destino}\n\n\uD83D\uDC77 *Supervisor:* {supervisor}\n\uD83D\uDD27 TELEMIM - PROMORAR - *VERIFIQUE O APP!*"},
+    iniciada:{ativo:false,dest:["admin","supervisor","cliente"],msg:"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDE80 *MUDAN\u00C7A INICIADA*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDC64 Cliente: *{cliente}*\n\uD83D\uDCC5 Data: *{data}*\n\uD83D\uDE9A Motorista: *{motorista}*\n\uD83D\uDD27 TELEMIM - PROMORAR"},
     deslocamento:{ativo:false,dest:["admin","supervisor","cliente"],msg:"\uD83D\uDCCD {motorista} iniciou deslocamento\nCliente: {cliente}\n\uD83D\uDD27 TELEMIM - PROMORAR"},
-    finalizada:{ativo:false,dest:["admin","supervisor","cliente"],msg:"\u2705 Mudanca finalizada!\nCliente: {cliente}\nMotorista: {motorista}\n\uD83D\uDD27 TELEMIM - PROMORAR"}
+    no_destino:{ativo:false,dest:["admin","supervisor","cliente"],msg:"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDCCD *MOTORISTA NO DESTINO*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDC64 Cliente: *{cliente}*\n\uD83D\uDE9A Motorista: *{motorista}*\n\uD83D\uDD27 TELEMIM - PROMORAR"},
+    finalizada:{ativo:false,dest:["admin","supervisor","cliente"],msg:"\u2705 Mudanca finalizada!\nCliente: {cliente}\nMotorista: {motorista}\n\uD83D\uDD27 TELEMIM - PROMORAR"},
+    lembrete:{ativo:false,dest:["mot_van","mot_caminhao","supervisor","cliente"],msg:"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u23F0 *LEMBRETE DE MUDAN\u00C7A*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDC64 Cliente: *{cliente}*\n\uD83D\uDCC5 Amanh\u00E3: *{data}*\n\u23F0 Hora: *{hora}*\n\uD83D\uDCCD Origem: {origem}\n\uD83D\uDCCD Destino: {destino}\n\uD83D\uDC77 Supervisor: {supervisor}\n\uD83D\uDD27 TELEMIM - PROMORAR - *VERIFIQUE O APP!*"}
   });
   const [isUploading,setIsUploading]=useState(false);
   const [isApproving,setIsApproving]=useState({});
@@ -2315,6 +2318,22 @@ export default function App(){
       });
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Status actualizado!");
+      // WA auto: iniciada (motorista começou)
+      if(novoStatus==="Em Deslocamento"&&cfgWA.whatsapp_ativo==="true"){
+        var _evI=cfgWAauto.iniciada;if(_evI&&_evI.ativo){
+          var _iVars={cliente:ag.nome||"",data:ag.data||"",hora:ag.horario||"",origem:ag.origem||"",destino:ag.destino||"",motorista:(usuario&&usuario.nome)||"Motorista",metragem:ag.medicao||"",supervisor:(function(){if(ag.supervisor_id){var s=listaUsuarios.find(function(u){return u.id===ag.supervisor_id;});return s?s.nome:"";}return "";})()};
+          var _iNums=resolverDestinatariosWA(_evI.dest,ag);
+          _iNums.forEach(function(n){enviarWA(n,substituirVarsWA(_evI.msg,_iVars));});
+        }
+      }
+      // WA auto: no_destino (motorista chegou ao destino)
+      if(novoStatus==="Descarregando"&&cfgWA.whatsapp_ativo==="true"){
+        var _evND=cfgWAauto.no_destino;if(_evND&&_evND.ativo){
+          var _ndVars={cliente:ag.nome||"",data:ag.data||"",hora:ag.horario||"",origem:ag.origem||"",destino:ag.destino||"",motorista:(usuario&&usuario.nome)||"Motorista",metragem:ag.medicao||"",supervisor:(function(){if(ag.supervisor_id){var s=listaUsuarios.find(function(u){return u.id===ag.supervisor_id;});return s?s.nome:"";}return "";})()};
+          var _ndNums=resolverDestinatariosWA(_evND.dest,ag);
+          _ndNums.forEach(function(n){enviarWA(n,substituirVarsWA(_evND.msg,_ndVars));});
+        }
+      }
       // If concluded, create mudancas record for Registros tab
       if(novoStatus==="Concluido"||novoStatus==="realizado"){
         var _merged=Object.assign({},ag,body);
@@ -5012,8 +5031,11 @@ return(
                 <div style={{fontSize:12,fontWeight:800,color:"#15803d",marginBottom:12}}>📋 Notificações por Evento</div>
                 {[
                   {key:"atribuida",label:"Mudança Atribuída"},
+                  {key:"iniciada",label:"Mudança Iniciada"},
                   {key:"deslocamento",label:"Motorista em Deslocamento"},
-                  {key:"finalizada",label:"Mudança Finalizada"}
+                  {key:"no_destino",label:"Motorista no Destino"},
+                  {key:"finalizada",label:"Mudança Finalizada"},
+                  {key:"lembrete",label:"Lembrete 1 dia antes"}
                 ].map(function(ev){
                   var cfg=cfgWAauto[ev.key]||{ativo:false,dest:[],msg:""};
                   var _dest=cfg.dest||[];
