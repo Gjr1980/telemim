@@ -5540,6 +5540,8 @@ return(
           var _mySols=solicitacoesFin.filter(function(s){return s.supervisor_id===usuario.id;});
           var _pendentes=_mySols.filter(function(s){return s.status==="pendente";});
           var _historico=_mySols.filter(function(s){return s.status!=="pendente";}).slice(0,10);
+          function _temSolPendente(ajNome,data){return _pendentes.some(function(s){return(s.tipo==="editar_valor"&&s.prestador_nome===ajNome&&s.data_ref===data)||(s.tipo==="remover_ajudante"&&s.ajudante_nome===ajNome);});}
+          function _temRemPendente(ajNome){return _pendentes.some(function(s){return s.tipo==="remover_ajudante"&&s.ajudante_nome===ajNome;});}
           var _editM=supFinEditMode;
           function _supSolicitarEditAj(aj,diaIdx){
             var d=aj.dias[diaIdx];
@@ -5598,11 +5600,11 @@ return(
                         <div style={{padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}>
                           <div style={{fontSize:22}}>👷</div>
                           <div style={{flex:1}}>
-                            <div style={{fontWeight:700,fontSize:13,color:"#065f46"}}>{aj.nome}</div>
-                            <div style={{fontSize:10,color:"#64748b"}}>{aj.dias.length} dia(s) trabalhado(s){aj.telefone?" · 📞 "+aj.telefone:""}</div>
+                            <div style={{fontWeight:700,fontSize:13,color:_temRemPendente(aj.nome)?"#dc2626":"#065f46"}}>{aj.nome}</div>
+                            <div style={{fontSize:10,color:_temRemPendente(aj.nome)?"#dc2626":"#64748b"}}>{aj.dias.length} dia(s) trabalhado(s){aj.telefone?" · 📞 "+aj.telefone:""}</div>
                           </div>
                           <div style={{display:"flex",alignItems:"center",gap:6}}>
-                            <div style={{fontWeight:800,fontSize:14,color:"#065f46"}}>{_fv2(ajTotal)}</div>
+                            <div style={{fontWeight:800,fontSize:14,color:_temRemPendente(aj.nome)?"#dc2626":"#065f46"}}>{_fv2(ajTotal)}</div>
                             <button onClick={function(){_supSolicitarRemAj(aj.nome);}} style={{background:"#fef2f2",color:"#dc2626",border:"none",borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🗑️</button>
                           </div>
                         </div>
@@ -5629,11 +5631,12 @@ return(
                                   </tr>
                                 );
                               }
+                              var _pend=_temSolPendente(aj.nome,d.data);
                               return(
-                                <tr key={i} style={{borderBottom:"1px solid #f1f5f9"}}>
-                                  <td style={{padding:"5px 6px",fontWeight:500,color:"#334155"}}>{dfmt}</td>
-                                  <td style={{padding:"5px 4px",textAlign:"center",color:"#475569"}}>{d.numMud}</td>
-                                  <td style={{padding:"5px 6px",textAlign:"right",fontWeight:600,color:"#065f46"}}>{_fv2(d.valor)}</td>
+                                <tr key={i} style={{borderBottom:"1px solid #f1f5f9",background:_pend?"#fef2f2":"transparent"}}>
+                                  <td style={{padding:"5px 6px",fontWeight:500,color:_pend?"#dc2626":"#334155"}}>{dfmt}</td>
+                                  <td style={{padding:"5px 4px",textAlign:"center",color:_pend?"#dc2626":"#475569"}}>{d.numMud}</td>
+                                  <td style={{padding:"5px 6px",textAlign:"right",fontWeight:600,color:_pend?"#dc2626":"#065f46"}}>{_fv2(d.valor)}</td>
                                   <td style={{padding:"5px 4px",textAlign:"center"}}>
                                     <button onClick={function(){setSupFinEditMode({pId:aj.id,idx:i,data:d.data,numMud:d.numMud,val:d.valor,cargo:"ajudante"});setSupFinMotivo("");}} style={{background:"#eff6ff",color:"#2563eb",border:"none",borderRadius:6,padding:"3px 6px",fontSize:10,fontWeight:700,cursor:"pointer"}}>✏️</button>
                                   </td>
