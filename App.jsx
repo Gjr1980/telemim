@@ -994,6 +994,22 @@ export default function App(){
 
   // ── GPS: Load latest positions for admin (optionally filter by motorista) ──
   async function gpsLoadPositions(agId,motoristaId){
+    // Try Traccar first (background GPS)
+    try{
+      var _ag=agenda.find(function(a){return a.id===agId;});
+      var _veiTipo=null;
+      if(_ag&&motoristaId){
+        if(_ag.motorista_van_id===motoristaId)_veiTipo="VAN";
+        else if(_ag.motorista_caminhao_id===motoristaId)_veiTipo="CAMINHAO";
+      }
+      var _devId=_veiTipo==="VAN"?"VAN001":"CAM001";
+      var tr=await fetch(SUPA_URL+"/functions/v1/traccar-position",{method:"POST",headers:{...getH(),"Content-Type":"application/json"},body:JSON.stringify({deviceId:_devId})});
+      if(tr.ok){
+        var td=await tr.json();
+        if(td.ok&&td.position){return {lat:td.position.lat,lng:td.position.lng,speed:td.position.speed,battery:td.position.battery,created_at:td.position.time,source:"traccar"};}
+      }
+    }catch(e){}
+    // Fallback to Supabase gps_tracking (PWA GPS)
     try{
       var url=SUPA_URL+"/rest/v1/gps_tracking?agenda_id=eq."+agId+"&order=created_at.desc&limit=1";
       if(motoristaId) url+="&motorista_id=eq."+motoristaId;
