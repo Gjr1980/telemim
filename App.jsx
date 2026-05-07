@@ -1156,7 +1156,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}if((tab==="financeiro_sup"||tab==="financeiro")&&!solicitacoesLoaded)loadSolicitacoesFin();},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}if((tab==="financeiro_sup"||tab==="financeiro")&&!solicitacoesLoaded)loadSolicitacoesFin();if(tab==="financeiro_sup"){loadAjudantes();loadEquipeDia();}},[tab]);
   useEffect(()=>{
     async function load(){
       try{
@@ -5514,74 +5514,43 @@ return(
         })()}
         {/* ══ SUPERVISOR FINANCEIRO ══ */}
         {tab==="financeiro_sup"&&isSupervisor&&(function(){
-          var _pc2=function(n){return String(n).padStart(2,"0");};
-          var _hj2=new Date();var _dw2=_hj2.getDay();var _dif2=_dw2===0?6:_dw2-1;
-          var _s02=new Date(_hj2.getFullYear(),_hj2.getMonth(),_hj2.getDate()-_dif2);
-          var _s12=new Date(_s02.getFullYear(),_s02.getMonth(),_s02.getDate()+6);
-          var _fc2=function(d){return d.getFullYear()+"-"+_pc2(d.getMonth()+1)+"-"+_pc2(d.getDate());};
-          var _fb2=function(d){return _pc2(d.getDate())+"/"+_pc2(d.getMonth()+1)+"/"+d.getFullYear();};
-          var _sic2=_fc2(_s02);var _sfc2=_fc2(_s12);
-          var _periodo2=_fb2(_s02)+" a "+_fb2(_s12);
-          var _ms2=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data>=_sic2&&m.data<=_sfc2;});
-          var _cd2=(custosDiarios||[]).filter(function(x){return x.data>=_sic2&&x.data<=_sfc2;});
           var _fv2=function(v){return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);};
-          var _fvs2=function(v){return new Intl.NumberFormat("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);};
-          var _ico2={"caminhao":"🚚","van":"🚐","ajudante":"👷"};
-          var _lbl2={"caminhao":"Caminhão","van":"Van","ajudante":"Ajudante"};
-          var _cor2={"caminhao":"#92400e","van":"#1e40af","ajudante":"#065f46"};
-          var _bg2={"caminhao":"#fff7ed","van":"#eff6ff","ajudante":"#f0fdf4"};
-          var _aj2=(prestadores||[]).filter(function(p){return p.cargo==="ajudante";});
-          var _vei2=(prestadores||[]).filter(function(p){return p.cargo!=="ajudante";});
-          var _teamAj2=_aj2.length>0?{id:"__equipa_aj__",nome:"Equipa de Ajudantes",cargo:"ajudante",_numAj:_aj2.length}:null;
-          var _prestR2=_teamAj2?[..._vei2,_teamAj2]:_vei2;
-          function _calcDetP2(p){
-            var det=[];
-            var _dias2=[...new Set(_ms2.map(function(m){return m.data;}))].sort();
-            if(p.id==="__equipa_aj__"){
-              _dias2.forEach(function(data){
-                var mDia=_ms2.filter(function(m){return m.data===data;});
-                var numMud=mDia.length;if(numMud===0) return;
-                var cdDia=_cd2.find(function(cd){return cd.data===data;})||{ajudantes:1};
-                var numAj=parseInt(cdDia.ajudantes)||1;
-                var val=_calcDiario(numMud,numAj,"ajudante",RULES);
-                det.push({data:data,numMud:numMud,numAj:numAj,val:val});
-              });
-            }else if(p.cargo==="caminhao"||p.cargo==="van"){
-              _dias2.forEach(function(data){
-                var mDia=_ms2.filter(function(m){return m.data===data;});
-                var numMud=mDia.length;if(numMud===0) return;
-                var val=_calcDiario(numMud,0,p.cargo,RULES);
-                det.push({data:data,numMud:numMud,val:val});
-              });
-            }
-            return det;
-          }
+          var _aj1a=parseFloat(RULES.aj1a)||80;
+          var _ajAdd=parseFloat(RULES.ajAdd)||20;
+          // Use equipe_dia data — same logic as equipe tab financeiro
+          var _mesFin=equipeFinMes;
+          var _mesD=new Date(_mesFin+"-15");
+          var _nomesMes=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+          var _mesLabel=_nomesMes[_mesD.getMonth()]+" "+_mesD.getFullYear();
+          var _mesAnterior=function(){var d=new Date(_mesFin+"-15");d.setMonth(d.getMonth()-1);setEquipeFinMes(d.toISOString().slice(0,7));};
+          var _mesProximo=function(){var d=new Date(_mesFin+"-15");d.setMonth(d.getMonth()+1);setEquipeFinMes(d.toISOString().slice(0,7));};
+          var _eqMes=equipeDiaList.filter(function(e){return e.data&&e.data.slice(0,7)===_mesFin&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
+          var _ajMap={};
+          _eqMes.forEach(function(ed){
+            var numMud=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data===ed.data;}).length;
+            var valPorAj=numMud>0?_aj1a+Math.max(0,numMud-1)*_ajAdd:0;
+            ed.ajudantes.forEach(function(aj){
+              if(!_ajMap[aj.id])_ajMap[aj.id]={id:aj.id,nome:aj.nome,telefone:aj.telefone||"",dias:[]};
+              _ajMap[aj.id].dias.push({data:ed.data,numMud:numMud,valor:valPorAj});
+            });
+          });
+          var _ajFinArr=Object.values(_ajMap).sort(function(a,b){return a.nome.localeCompare(b.nome);});
+          var _totalGeralDias=0;var _totalGeralValor=0;
+          _ajFinArr.forEach(function(a){_totalGeralDias+=a.dias.length;a.dias.forEach(function(d){_totalGeralValor+=d.valor;});});
           var _mySols=solicitacoesFin.filter(function(s){return s.supervisor_id===usuario.id;});
           var _pendentes=_mySols.filter(function(s){return s.status==="pendente";});
           var _historico=_mySols.filter(function(s){return s.status!=="pendente";}).slice(0,10);
           var _editM=supFinEditMode;
-          function _supSolicitarEdit(p,det,idx){
-            var d=det[idx];
+          function _supSolicitarEditAj(aj,diaIdx){
+            var d=aj.dias[diaIdx];
             var motivo=supFinMotivo.trim();
             if(!motivo){alert("Informe o motivo da alteração.");return;}
             var sol={
-              supervisor_id:usuario.id,
-              supervisor_nome:usuario.nome,
-              tipo:"editar_valor",
-              semana_inicio:_sic2,
-              semana_fim:_sfc2,
-              data_ref:d.data,
-              prestador_id:p.id,
-              prestador_nome:p.nome,
-              cargo:p.id==="__equipa_aj__"?"ajudante":p.cargo,
-              valor_antigo:parseFloat(d.val)||0,
-              valor_novo:parseFloat(_editM.val)||0,
-              num_mud_antigo:parseInt(d.numMud)||0,
-              num_mud_novo:parseInt(_editM.numMud)||0,
-              num_aj_antigo:d.numAj!==undefined?parseInt(d.numAj):null,
-              num_aj_novo:_editM.numAj!==undefined?parseInt(_editM.numAj):null,
-              motivo:motivo,
-              status:"pendente"
+              supervisor_id:usuario.id,supervisor_nome:usuario.nome,tipo:"editar_valor",
+              data_ref:d.data,prestador_nome:aj.nome,cargo:"ajudante",
+              valor_antigo:parseFloat(d.valor)||0,valor_novo:parseFloat(_editM.val)||0,
+              num_mud_antigo:parseInt(d.numMud)||0,num_mud_novo:parseInt(_editM.numMud)||0,
+              motivo:motivo,status:"pendente"
             };
             criarSolicitacao(sol).then(function(ok){
               if(ok){setSupFinEditMode(null);setSupFinMotivo("");alert("Solicitação enviada! Aguarde aprovação do admin.");}
@@ -5591,28 +5560,21 @@ return(
           function _supSolicitarRemAj(ajNome){
             var motivo=prompt("Motivo para remover "+ajNome+":");
             if(!motivo||!motivo.trim())return;
-            var sol={
-              supervisor_id:usuario.id,
-              supervisor_nome:usuario.nome,
-              tipo:"remover_ajudante",
-              semana_inicio:_sic2,
-              semana_fim:_sfc2,
-              ajudante_nome:ajNome,
-              motivo:motivo.trim(),
-              status:"pendente"
-            };
-            criarSolicitacao(sol).then(function(ok){
-              if(ok)alert("Solicitação enviada!");
-              else alert("Erro ao enviar.");
-            });
+            criarSolicitacao({
+              supervisor_id:usuario.id,supervisor_nome:usuario.nome,tipo:"remover_ajudante",
+              ajudante_nome:ajNome,motivo:motivo.trim(),status:"pendente"
+            }).then(function(ok){if(ok)alert("Solicitação enviada!");else alert("Erro ao enviar.");});
           }
-          var _cSem2=_calcCustos(_ms2,_cd2,[],RULES);
           return(
             <div style={{paddingBottom:80}}>
-              <div style={{background:"linear-gradient(135deg,#1e3a5f,#1e40af)",padding:"20px 16px 24px"}}>
+              <div style={{background:"linear-gradient(135deg,#065f46,#047857)",padding:"20px 16px 24px"}}>
                 <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>FINANCEIRO</div>
-                <div style={{fontSize:20,fontWeight:900,color:"#fff"}}>Fechamento Semanal</div>
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginTop:4}}>{_periodo2}</div>
+                <div style={{fontSize:20,fontWeight:900,color:"#fff"}}>👷 Ajudantes</div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginTop:10}}>
+                  <button onClick={_mesAnterior} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.15)",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>◀</button>
+                  <div style={{fontSize:14,fontWeight:800,color:"#fff"}}>{_mesLabel}</div>
+                  <button onClick={_mesProximo} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.15)",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>▶</button>
+                </div>
               </div>
               {_pendentes.length>0&&<div style={{margin:"8px 12px",background:"#fffbeb",border:"2px solid #fcd34d",borderRadius:12,padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
                 <span style={{fontSize:18}}>⏳</span>
@@ -5621,91 +5583,78 @@ return(
                   <div style={{fontSize:10,color:"#a16207"}}>Aguardando aprovação do administrador</div>
                 </div>
               </div>}
+              {/* Total banner */}
+              {_ajFinArr.length>0&&<div style={{margin:"8px 12px",background:"linear-gradient(135deg,#065f46,#047857)",borderRadius:12,padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div><div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>TOTAL MÊS</div><div style={{fontSize:11,color:"rgba(255,255,255,0.8)"}}>{_ajFinArr.length} ajudante(s) · {_totalGeralDias} dia(s)</div></div>
+                <div style={{fontSize:20,fontWeight:900,color:"#fff"}}>{_fv2(_totalGeralValor)}</div>
+              </div>}
               <div style={{padding:"12px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                  <div style={{fontWeight:800,fontSize:13,color:"#1e293b"}}>📊 Custos por Prestador</div>
-                  <div style={{fontWeight:800,fontSize:14,color:"#c2410c"}}>{_fv2(_cSem2.despTotal)}</div>
-                </div>
-                {_prestR2.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:"#94a3b8",fontSize:12}}>Nenhum prestador cadastrado.</div>}
+                {_ajFinArr.length===0&&<div style={{textAlign:"center",padding:"30px 0",color:"#94a3b8",fontSize:12}}>Nenhum ajudante escalado neste mês.<br/>Use a aba Equipe → Escalar para registrar.</div>}
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {_prestR2.map(function(p){
-                    var det=_calcDetP2(p);
-                    var totVal=det.reduce(function(s,d){return s+(parseFloat(d.val)||0);},0);
-                    var totMud=det.reduce(function(s,d){return s+(parseInt(d.numMud)||0);},0);
-                    var isAj=p.id==="__equipa_aj__"||p.cargo==="ajudante";
+                  {_ajFinArr.map(function(aj){
+                    var ajTotal=aj.dias.reduce(function(s,d){return s+d.valor;},0);
                     return(
-                      <div key={p.id} style={{background:_bg2[p.cargo]||"#f8fafc",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden"}}>
+                      <div key={aj.id} style={{background:"#f0fdf4",borderRadius:12,border:"1px solid #bbf7d0",overflow:"hidden"}}>
                         <div style={{padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}>
-                          <div style={{fontSize:22}}>{_ico2[p.cargo]||"📋"}</div>
+                          <div style={{fontSize:22}}>👷</div>
                           <div style={{flex:1}}>
-                            <div style={{fontWeight:700,fontSize:13,color:_cor2[p.cargo]||"#334155"}}>{p.nome}</div>
-                            <div style={{fontSize:10,color:"#64748b"}}>{_lbl2[p.cargo]||p.cargo} · {det.length} dia(s) · {totMud} mud.</div>
+                            <div style={{fontWeight:700,fontSize:13,color:"#065f46"}}>{aj.nome}</div>
+                            <div style={{fontSize:10,color:"#64748b"}}>{aj.dias.length} dia(s) trabalhado(s){aj.telefone?" · 📞 "+aj.telefone:""}</div>
                           </div>
-                          <div style={{fontWeight:800,fontSize:14,color:_cor2[p.cargo]||"#334155"}}>{_fv2(totVal)}</div>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <div style={{fontWeight:800,fontSize:14,color:"#065f46"}}>{_fv2(ajTotal)}</div>
+                            <button onClick={function(){_supSolicitarRemAj(aj.nome);}} style={{background:"#fef2f2",color:"#dc2626",border:"none",borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🗑️</button>
+                          </div>
                         </div>
-                        <div style={{borderTop:"1px solid #e2e8f0",background:"#fff",padding:"8px 12px"}}>
+                        <div style={{borderTop:"1px solid #d1fae5",background:"#fff",padding:"8px 12px"}}>
                           <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                             <thead><tr style={{background:"#f8fafc"}}>
                               <th style={{padding:"5px 6px",textAlign:"left",color:"#64748b",fontWeight:600}}>Data</th>
-                              {p.cargo!=="van"&&<th style={{padding:"5px 4px",textAlign:"center",color:"#64748b",fontWeight:600}}>Mud.</th>}
-                              {isAj&&<th style={{padding:"5px 4px",textAlign:"center",color:"#64748b",fontWeight:600}}>Aj.</th>}
+                              <th style={{padding:"5px 4px",textAlign:"center",color:"#64748b",fontWeight:600}}>Mud.</th>
                               <th style={{padding:"5px 6px",textAlign:"right",color:"#64748b",fontWeight:600}}>Valor</th>
-                              <th style={{padding:"5px 4px",textAlign:"center",width:60}}></th>
+                              <th style={{padding:"5px 4px",textAlign:"center",width:40}}></th>
                             </tr></thead>
                             <tbody>
-                            {det.map(function(d,i){
+                            {aj.dias.map(function(d,i){
                               var pts=String(d.data).split("-");
                               var dfmt=pts[2]+"/"+pts[1];
-                              var isEditing=_editM&&_editM.pId===p.id&&_editM.idx===i;
+                              var isEditing=_editM&&_editM.pId===aj.id&&_editM.idx===i;
                               if(isEditing){
                                 return(
                                   <tr key={i} style={{background:"#eff6ff"}}>
                                     <td style={{padding:"6px"}}><span style={{fontWeight:600}}>{dfmt}</span></td>
-                                    {p.cargo!=="van"&&<td style={{padding:"4px"}}><input type="number" min="0" value={_editM.numMud} onChange={function(e){var nm=parseInt(e.target.value)||0;var na=parseInt(_editM.numAj)||1;setSupFinEditMode(function(v){return{...v,numMud:nm,val:_calcDiario(nm,na,p.id==="__equipa_aj__"?"ajudante":p.cargo,RULES)};});}} style={{width:40,padding:"4px",border:"1.5px solid #93c5fd",borderRadius:6,fontSize:12,textAlign:"center"}}/></td>}
-                                    {isAj&&<td style={{padding:"4px"}}><input type="number" min="1" value={_editM.numAj} onChange={function(e){var na=parseInt(e.target.value)||1;var nm=parseInt(_editM.numMud)||0;setSupFinEditMode(function(v){return{...v,numAj:na,val:_calcDiario(nm,na,"ajudante",RULES)};});}} style={{width:36,padding:"4px",border:"1.5px solid #93c5fd",borderRadius:6,fontSize:12,textAlign:"center"}}/></td>}
+                                    <td style={{padding:"4px",textAlign:"center"}}><input type="number" min="0" value={_editM.numMud} onChange={function(e){var nm=parseInt(e.target.value)||0;setSupFinEditMode(function(v){return{...v,numMud:nm,val:nm>0?_aj1a+Math.max(0,nm-1)*_ajAdd:0};});}} style={{width:40,padding:"4px",border:"1.5px solid #93c5fd",borderRadius:6,fontSize:12,textAlign:"center"}}/></td>
                                     <td style={{padding:"4px 6px",textAlign:"right"}}><input type="number" step="0.01" value={_editM.val} onChange={function(e){setSupFinEditMode(function(v){return{...v,val:e.target.value};});}} style={{width:70,padding:"4px",border:"1.5px solid #93c5fd",borderRadius:6,fontSize:12,textAlign:"right"}}/></td>
-                                    <td style={{padding:"4px",textAlign:"center"}}></td>
+                                    <td></td>
                                   </tr>
                                 );
                               }
                               return(
                                 <tr key={i} style={{borderBottom:"1px solid #f1f5f9"}}>
                                   <td style={{padding:"5px 6px",fontWeight:500,color:"#334155"}}>{dfmt}</td>
-                                  {p.cargo!=="van"&&<td style={{padding:"5px 4px",textAlign:"center",color:"#475569"}}>{d.numMud}</td>}
-                                  {isAj&&<td style={{padding:"5px 4px",textAlign:"center",color:"#475569"}}>{d.numAj||1}</td>}
-                                  <td style={{padding:"5px 6px",textAlign:"right",fontWeight:600,color:_cor2[p.cargo]||"#334155"}}>R$ {_fvs2(d.val)}</td>
+                                  <td style={{padding:"5px 4px",textAlign:"center",color:"#475569"}}>{d.numMud}</td>
+                                  <td style={{padding:"5px 6px",textAlign:"right",fontWeight:600,color:"#065f46"}}>{_fv2(d.valor)}</td>
                                   <td style={{padding:"5px 4px",textAlign:"center"}}>
-                                    <button onClick={function(){setSupFinEditMode({pId:p.id,idx:i,data:d.data,numMud:d.numMud||0,numAj:d.numAj||1,val:d.val||0,cargo:p.id==="__equipa_aj__"?"ajudante":p.cargo});setSupFinMotivo("");}} style={{background:"#eff6ff",color:"#2563eb",border:"none",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>✏️</button>
+                                    <button onClick={function(){setSupFinEditMode({pId:aj.id,idx:i,data:d.data,numMud:d.numMud,val:d.valor,cargo:"ajudante"});setSupFinMotivo("");}} style={{background:"#eff6ff",color:"#2563eb",border:"none",borderRadius:6,padding:"3px 6px",fontSize:10,fontWeight:700,cursor:"pointer"}}>✏️</button>
                                   </td>
                                 </tr>
                               );
                             })}
                             </tbody>
-                            <tfoot><tr style={{borderTop:"2px solid #e2e8f0",background:"#f8fafc"}}>
-                              <td colSpan={isAj?3:p.cargo==="van"?1:2} style={{padding:"6px",fontWeight:800,fontSize:11}}>TOTAL</td>
-                              <td style={{padding:"6px",textAlign:"right",fontWeight:800,fontSize:13,color:_cor2[p.cargo]||"#334155"}}>{_fv2(totVal)}</td>
+                            <tfoot><tr style={{borderTop:"2px solid #d1fae5",background:"#f0fdf4"}}>
+                              <td colSpan={2} style={{padding:"6px",fontWeight:800,fontSize:11}}>TOTAL</td>
+                              <td style={{padding:"6px",textAlign:"right",fontWeight:800,fontSize:13,color:"#065f46"}}>{_fv2(ajTotal)}</td>
                               <td></td>
                             </tr></tfoot>
                           </table>
-                          {_editM&&_editM.pId===p.id&&(
+                          {_editM&&_editM.pId===aj.id&&(
                             <div style={{marginTop:8,background:"#eff6ff",border:"2px solid #93c5fd",borderRadius:10,padding:"10px 12px"}}>
                               <div style={{fontSize:10,fontWeight:700,color:"#2563eb",marginBottom:6}}>Motivo da alteração *</div>
                               <input type="text" value={supFinMotivo} onChange={function(e){setSupFinMotivo(e.target.value);}} placeholder="Ex: ajudante faltou, valor incorreto..." style={{width:"100%",padding:"8px 10px",border:"1.5px solid #93c5fd",borderRadius:8,fontSize:12,boxSizing:"border-box",marginBottom:8}}/>
                               <div style={{display:"flex",gap:6}}>
-                                <button onClick={function(){_supSolicitarEdit(p,det,_editM.idx);}} style={{flex:2,padding:"8px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,fontWeight:800,fontSize:12,cursor:"pointer"}}>📩 Solicitar Alteração</button>
+                                <button onClick={function(){_supSolicitarEditAj(aj,_editM.idx);}} style={{flex:2,padding:"8px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,fontWeight:800,fontSize:12,cursor:"pointer"}}>📩 Solicitar Alteração</button>
                                 <button onClick={function(){setSupFinEditMode(null);setSupFinMotivo("");}} style={{flex:1,padding:"8px",background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>Cancelar</button>
                               </div>
-                            </div>
-                          )}
-                          {isAj&&_aj2.length>0&&(
-                            <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #e2e8f0"}}>
-                              <div style={{fontSize:10,fontWeight:700,color:"#065f46",marginBottom:6}}>👷 Ajudantes da Equipe</div>
-                              {_aj2.map(function(aj){
-                                return <div key={aj.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",borderBottom:"1px solid #f1f5f9"}}>
-                                  <span style={{fontSize:11,color:"#334155"}}>{aj.nome}</span>
-                                  <button onClick={function(){_supSolicitarRemAj(aj.nome);}} style={{background:"#fef2f2",color:"#dc2626",border:"none",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🗑️</button>
-                                </div>;
-                              })}
                             </div>
                           )}
                         </div>
@@ -5713,6 +5662,10 @@ return(
                     );
                   })}
                 </div>
+              </div>
+              {/* Regra info */}
+              <div style={{margin:"0 12px 12px",background:"#f1f5f9",borderRadius:10,padding:"10px 14px"}}>
+                <div style={{fontSize:10,color:"#64748b"}}>Regra: 1ª mud R${_aj1a} + R${_ajAdd} por mud adicional</div>
               </div>
               {/* Minhas Solicitações */}
               {(_pendentes.length>0||_historico.length>0)&&<div style={{padding:"0 12px",marginBottom:16}}>
@@ -5725,7 +5678,7 @@ return(
                     </div>
                     <div style={{fontSize:10,color:"#a16207",marginTop:4}}>Motivo: {s.motivo}</div>
                     {s.data_ref&&<div style={{fontSize:10,color:"#a16207"}}>Data: {String(s.data_ref).split("-").reverse().join("/")}</div>}
-                    {s.valor_antigo!=null&&<div style={{fontSize:10,color:"#a16207"}}>R$ {parseFloat(s.valor_antigo).toFixed(2)} → R$ {parseFloat(s.valor_novo).toFixed(2)}</div>}
+                    {s.valor_antigo!=null&&<div style={{fontSize:10,color:"#a16207"}}>{_fv2(s.valor_antigo)} → {_fv2(s.valor_novo)}</div>}
                   </div>;
                 })}
                 {_historico.map(function(s){
