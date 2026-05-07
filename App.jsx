@@ -817,14 +817,14 @@ export default function App(){
   const [showImport,setShowImport]=useState(false);
   const [cfgWA,setCfgWA]=useState({admin_whatsapp:"",supervisor_whatsapp:"",whatsapp_ativo:"false",evolution_api_url:"",evolution_api_key:"",evolution_instance:""});
   const [cfgWAauto,setCfgWAauto]=useState({
-    atribuida_motorista:{ativo:false,msg:"\uD83D\uDE9A Nova mudanca atribuida!\nCliente: {cliente}\nData: {data}\nHora: {hora}\nOrigem: {origem}\nDestino: {destino}\nSupervisor: {supervisor}"},
-    atribuida_supervisor:{ativo:false,msg:"Cliente: {cliente}\nData: {data}\nHora: {hora}\nOrigem: {origem}\nDestino: {destino}\nCaminhao: {caminhao}\nVan: {van}"},
-    deslocamento_admin:{ativo:false,msg:"\uD83D\uDCCD {motorista} iniciou deslocamento\nCliente: {cliente}"},
-    deslocamento_cliente:{ativo:false,msg:"\uD83D\uDCCD Seu motorista esta a caminho!\nEquipe TELEMIM"},
-    deslocamento_supervisor:{ativo:false,msg:"\uD83D\uDCCD {motorista} iniciou deslocamento\nCliente: {cliente}"},
-    finalizada_admin:{ativo:false,msg:"\u2705 Mudanca finalizada!\nCliente: {cliente}\nMotorista: {motorista}"},
-    finalizada_cliente:{ativo:false,msg:"\u2705 Sua mudanca foi concluida!\nObrigado por escolher a TELEMIM."},
-    finalizada_supervisor:{ativo:false,msg:"\u2705 Finalizada: {cliente}\nMotorista: {motorista}"}
+    atribuida_motorista:{ativo:false,dest:["mot_van","mot_caminhao"],msg:"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDE9B *MUDAN\u00C7A ATRIBU\u00CDDA*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDC64 Cliente: *{cliente}*\n\uD83D\uDCC5 Data: *{data}*\n\u23F0 Hora: *{hora}*\n\n\uD83D\uDCCD *Origem:*\n{origem}\n\n\uD83D\uDCCD *Destino:*\n{destino}\n\n\uD83D\uDC77 *Supervisor:* {supervisor}\n\uD83D\uDD27 TELEMIM - PROMORAR - *VERIFIQUE O APP!*"},
+    atribuida_supervisor:{ativo:false,dest:["supervisor"],msg:"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDE9B *MUDAN\u00C7A ATRIBU\u00CDDA*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDC64 Cliente: *{cliente}*\n\uD83D\uDCC5 Data: *{data}*\n\u23F0 Hora: *{hora}*\n\n\uD83D\uDCCD *Origem:*\n{origem}\n\n\uD83D\uDCCD *Destino:*\n{destino}\n\n\uD83D\uDE9A *Caminh\u00E3o:* {caminhao}\n\uD83D\uDE90 *Van:* {van}\n\uD83D\uDD27 TELEMIM - PROMORAR - *VERIFIQUE O APP!*"},
+    deslocamento_admin:{ativo:false,dest:["admin"],msg:"\uD83D\uDCCD {motorista} iniciou deslocamento\nCliente: {cliente}"},
+    deslocamento_cliente:{ativo:false,dest:["cliente"],msg:"\uD83D\uDCCD Seu motorista esta a caminho!\nEquipe TELEMIM"},
+    deslocamento_supervisor:{ativo:false,dest:["supervisor"],msg:"\uD83D\uDCCD {motorista} iniciou deslocamento\nCliente: {cliente}"},
+    finalizada_admin:{ativo:false,dest:["admin"],msg:"\u2705 Mudanca finalizada!\nCliente: {cliente}\nMotorista: {motorista}"},
+    finalizada_cliente:{ativo:false,dest:["cliente"],msg:"\u2705 Sua mudanca foi concluida!\nObrigado por escolher a TELEMIM."},
+    finalizada_supervisor:{ativo:false,dest:["supervisor"],msg:"\u2705 Finalizada: {cliente}\nMotorista: {motorista}"}
   });
   const [isUploading,setIsUploading]=useState(false);
   const [isApproving,setIsApproving]=useState({});
@@ -1221,7 +1221,19 @@ export default function App(){
     Object.keys(vars).forEach(function(k){msg=msg.replace(new RegExp("\\{"+k+"\\}","g"),vars[k]||"");});
     return msg;
   }
-
+  function resolverDestinatariosWA(destArray,ag){
+    var nums=[];
+    (destArray||[]).forEach(function(d){
+      if(d==="mot_van"&&ag.motorista_van_id){var u=listaUsuarios.find(function(x){return x.id===ag.motorista_van_id;});if(u&&u.contato)nums.push(u.contato);}
+      if(d==="mot_caminhao"&&ag.motorista_caminhao_id){var u=listaUsuarios.find(function(x){return x.id===ag.motorista_caminhao_id;});if(u&&u.contato)nums.push(u.contato);}
+      if(d==="admin"&&cfgWA.admin_whatsapp){nums.push(cfgWA.admin_whatsapp);}
+      if(d==="supervisor"&&ag.supervisor_id){var u=listaUsuarios.find(function(x){return x.id===ag.supervisor_id;});if(u&&u.contato)nums.push(u.contato);}
+      if(d==="promorar"){listaUsuarios.filter(function(x){return x.perfil==="promorar"&&x.ativo&&x.contato;}).forEach(function(x){nums.push(x.contato);});}
+      if(d==="social"){listaUsuarios.filter(function(x){return x.perfil==="social"&&x.ativo&&x.contato;}).forEach(function(x){nums.push(x.contato);});}
+      if(d==="cliente"&&ag.contato){nums.push(ag.contato);}
+    });
+    return[...new Set(nums)];
+  }
 
   // ── SYNC HELPERS ───────────────────────────────────────────────────────────
   function parseImport(txt){
@@ -2300,9 +2312,11 @@ export default function App(){
         // WA auto: finalizada
         if(cfgWA.whatsapp_ativo==="true"){
           var _fVars={cliente:ag.nome||"",data:ag.data||"",origem:ag.origem||"",destino:ag.destino||"",motorista:(usuario&&usuario.nome)||"Motorista",metragem:ag.medicao||""};
-          if(cfgWAauto.finalizada_admin&&cfgWAauto.finalizada_admin.ativo&&cfgWA.admin_whatsapp){enviarWA(cfgWA.admin_whatsapp,substituirVarsWA(cfgWAauto.finalizada_admin.msg,_fVars));}
-          if(cfgWAauto.finalizada_supervisor&&cfgWAauto.finalizada_supervisor.ativo&&ag.supervisor_id){var _fSup=listaUsuarios.find(function(u){return u.id===ag.supervisor_id;});if(_fSup&&_fSup.contato)enviarWA(_fSup.contato,substituirVarsWA(cfgWAauto.finalizada_supervisor.msg,_fVars));}
-          if(cfgWAauto.finalizada_cliente&&cfgWAauto.finalizada_cliente.ativo&&ag.contato){enviarWA(ag.contato,substituirVarsWA(cfgWAauto.finalizada_cliente.msg,_fVars));}
+          ["finalizada_admin","finalizada_supervisor","finalizada_cliente"].forEach(function(evKey){
+            var ev=cfgWAauto[evKey];if(!ev||!ev.ativo)return;
+            var _nums=resolverDestinatariosWA(ev.dest,ag);
+            _nums.forEach(function(n){enviarWA(n,substituirVarsWA(ev.msg,_fVars));});
+          });
         }
       }
       setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);
@@ -2329,9 +2343,11 @@ export default function App(){
       // WA auto: deslocamento
       if(cfgWA.whatsapp_ativo==="true"){
         var _dVars={cliente:ag.nome||"",data:ag.data||"",origem:ag.origem||"",destino:ag.destino||"",motorista:(usuario&&usuario.nome)||"Motorista",metragem:ag.medicao||""};
-        if(cfgWAauto.deslocamento_admin&&cfgWAauto.deslocamento_admin.ativo&&cfgWA.admin_whatsapp){enviarWA(cfgWA.admin_whatsapp,substituirVarsWA(cfgWAauto.deslocamento_admin.msg,_dVars));}
-        if(cfgWAauto.deslocamento_supervisor&&cfgWAauto.deslocamento_supervisor.ativo&&ag.supervisor_id){var _dSup=listaUsuarios.find(function(u){return u.id===ag.supervisor_id;});if(_dSup&&_dSup.contato)enviarWA(_dSup.contato,substituirVarsWA(cfgWAauto.deslocamento_supervisor.msg,_dVars));}
-        if(cfgWAauto.deslocamento_cliente&&cfgWAauto.deslocamento_cliente.ativo&&ag.contato){enviarWA(ag.contato,substituirVarsWA(cfgWAauto.deslocamento_cliente.msg,_dVars));}
+        ["deslocamento_admin","deslocamento_supervisor","deslocamento_cliente"].forEach(function(evKey){
+          var ev=cfgWAauto[evKey];if(!ev||!ev.ativo)return;
+          var _nums=resolverDestinatariosWA(ev.dest,ag);
+          _nums.forEach(function(n){enviarWA(n,substituirVarsWA(ev.msg,_dVars));});
+        });
       }
       setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);
     }catch(e){setAgenda(prevAgenda);setSyncStatus("⚠️ Erro ao registrar deslocamento");}
@@ -2512,7 +2528,12 @@ export default function App(){
         // WA auto: atribuida_motorista
         if(cfgWA.whatsapp_ativo==="true"&&cfgWAauto.atribuida_motorista&&cfgWAauto.atribuida_motorista.ativo){
           var _mot=listaUsuarios.find(function(u){return u.id===mid;});
-          if(_mot&&_mot.contato){var _supNome="";if((_agItem||{}).supervisor_id){var _sU=listaUsuarios.find(function(u){return u.id===_agItem.supervisor_id;});if(_sU)_supNome=_sU.nome||"";}var _vars={cliente:(_agItem||{}).nome||"",data:(_agItem||{}).data||"",hora:(_agItem||{}).horario||"",origem:(_agItem||{}).origem||"",destino:(_agItem||{}).destino||"",motorista:_mot.nome||"",metragem:(_agItem||{}).metragem||"",supervisor:_supNome};enviarWA(_mot.contato,substituirVarsWA(cfgWAauto.atribuida_motorista.msg,_vars));}
+          var _supNome="";if((_agItem||{}).supervisor_id){var _sU=listaUsuarios.find(function(u){return u.id===_agItem.supervisor_id;});if(_sU)_supNome=_sU.nome||"";}
+          var _motVanN="";if((_agItem||{}).motorista_van_id){var _mv=listaUsuarios.find(function(u){return u.id===_agItem.motorista_van_id;});if(_mv)_motVanN=_mv.nome||"";}
+          var _motCamN="";if((_agItem||{}).motorista_caminhao_id){var _mc=listaUsuarios.find(function(u){return u.id===_agItem.motorista_caminhao_id;});if(_mc)_motCamN=_mc.nome||"";}
+          var _vars={cliente:(_agItem||{}).nome||"",data:(_agItem||{}).data||"",hora:(_agItem||{}).horario||"",origem:(_agItem||{}).origem||"",destino:(_agItem||{}).destino||"",motorista:(_mot&&_mot.nome)||"",metragem:(_agItem||{}).metragem||"",supervisor:_supNome,caminhao:_motCamN,van:_motVanN};
+          var _nums=resolverDestinatariosWA(cfgWAauto.atribuida_motorista.dest,_agItem||{});
+          _nums.forEach(function(n){enviarWA(n,substituirVarsWA(cfgWAauto.atribuida_motorista.msg,_vars));});
         }
       }
     }catch(e){
@@ -2545,7 +2566,10 @@ export default function App(){
         // WA auto: atribuida_supervisor
         if(cfgWA.whatsapp_ativo==="true"&&cfgWAauto.atribuida_supervisor&&cfgWAauto.atribuida_supervisor.ativo){
           var _supU=listaUsuarios.find(function(u){return u.id===sid;});
-          if(_supU&&_supU.contato){var _motVanNome="";var _motCamNome="";if(_ag.motorista_van_id){var _mvU=listaUsuarios.find(function(u){return u.id===_ag.motorista_van_id;});if(_mvU)_motVanNome=_mvU.nome||"";}if(_ag.motorista_caminhao_id){var _mcU=listaUsuarios.find(function(u){return u.id===_ag.motorista_caminhao_id;});if(_mcU)_motCamNome=_mcU.nome||"";}var _vars2={cliente:_ag.nome||"",data:_ag.data||"",hora:_ag.horario||"",origem:_ag.origem||"",destino:_ag.destino||"",motorista:"",supervisor:_supU.nome||"",metragem:_ag.metragem||"",caminhao:_motCamNome,van:_motVanNome};enviarWA(_supU.contato,substituirVarsWA(cfgWAauto.atribuida_supervisor.msg,_vars2));}
+          var _motVanNome="";var _motCamNome="";if(_ag.motorista_van_id){var _mvU=listaUsuarios.find(function(u){return u.id===_ag.motorista_van_id;});if(_mvU)_motVanNome=_mvU.nome||"";}if(_ag.motorista_caminhao_id){var _mcU=listaUsuarios.find(function(u){return u.id===_ag.motorista_caminhao_id;});if(_mcU)_motCamNome=_mcU.nome||"";}
+          var _vars2={cliente:_ag.nome||"",data:_ag.data||"",hora:_ag.horario||"",origem:_ag.origem||"",destino:_ag.destino||"",motorista:"",supervisor:(_supU&&_supU.nome)||"",metragem:_ag.metragem||"",caminhao:_motCamNome,van:_motVanNome};
+          var _nums2=resolverDestinatariosWA(cfgWAauto.atribuida_supervisor.dest,Object.assign({},_ag,{supervisor_id:sid}));
+          _nums2.forEach(function(n){enviarWA(n,substituirVarsWA(cfgWAauto.atribuida_supervisor.msg,_vars2));});
         }}
       if(sid&&_ag){var _sup=listaUsuarios.find(function(u){return u.id===sid;});if(_sup&&_sup.email){try{await fetch(SUPA_URL+"/functions/v1/enviar-email-agendamento",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({to:_sup.email,subject:"📋 Designação de Supervisão — "+(_ag.nome||"Mudança"),html:"<h2>Olá "+(_sup.nome||"Supervisor")+"!</h2><p>Você foi designado(a) para supervisionar a seguinte mudança:</p><p><b>👤 Cliente:</b> "+(_ag.nome||"—")+"</p><p><b>📅 Data:</b> "+(_ag.data||"—")+(_ag.horario?" às "+_ag.horario+"h":"")+"</p><p><b>🏷️ Selo:</b> "+(_ag.selo||"—")+"</p><p><b>📦 Saída:</b> "+(_ag.origem||"—")+"</p><p><b>🏘️ Destino:</b> "+(_ag.destino||"—")+"</p><br><p>Acesse o app para mais detalhes.</p><p><b>TELEMIM — PROMORAR</b></p>"})});} catch(e){}}}
     }catch(e){loadAg();setSyncStatus("⚠️ Erro ao designar");}
@@ -4988,13 +5012,21 @@ return(
                   <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:6}}>{g.grupo}</div>
                   <div style={{background:"#fff",borderRadius:8,border:"1px solid #d1fae5",padding:"8px 10px"}}>
                     {g.items.map(function(item){
-                      var cfg=cfgWAauto[item.key]||{ativo:false,msg:""};
-                      return <div key={item.key} style={{marginBottom:8}}>
+                      var cfg=cfgWAauto[item.key]||{ativo:false,dest:[],msg:""};
+                      var _dest=cfg.dest||[];
+                      var _chips=[{id:"mot_van",label:"\uD83D\uDE90 Mot. Van"},{id:"mot_caminhao",label:"\uD83D\uDE9A Mot. Caminh\u00E3o"},{id:"admin",label:"\uD83D\uDC51 Admin"},{id:"supervisor",label:"\uD83D\uDC77 Supervisor"},{id:"promorar",label:"\uD83D\uDCCB Promorar"},{id:"social",label:"\uD83C\uDFDB Social"},{id:"cliente",label:"\uD83D\uDC64 Cliente"}];
+                      return <div key={item.key} style={{marginBottom:10}}>
                         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
                           <input type="checkbox" checked={cfg.ativo} onChange={function(){setCfgWAauto(function(p){var n=Object.assign({},p);n[item.key]=Object.assign({},n[item.key],{ativo:!cfg.ativo});return n;});}} style={{width:16,height:16,cursor:"pointer"}}/>
                           <span style={{fontSize:11,fontWeight:600,color:cfg.ativo?"#15803d":"#64748b"}}>{item.label}</span>
                         </div>
-                        {cfg.ativo&&<textarea value={cfg.msg} onChange={function(e){setCfgWAauto(function(p){var n=Object.assign({},p);n[item.key]=Object.assign({},n[item.key],{msg:e.target.value});return n;});}} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #d1fae5",fontSize:11,minHeight:50,resize:"vertical",boxSizing:"border-box",fontFamily:"monospace"}}/>}
+                        {cfg.ativo&&<div>
+                          <div style={{fontSize:10,color:"#64748b",marginBottom:4}}>Enviar para:</div>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
+                            {_chips.map(function(ch){var sel=_dest.indexOf(ch.id)!==-1;return <button key={ch.id} type="button" onClick={function(){setCfgWAauto(function(p){var n=Object.assign({},p);var cur=(n[item.key]&&n[item.key].dest)||[];var nDest=sel?cur.filter(function(x){return x!==ch.id;}):cur.concat([ch.id]);n[item.key]=Object.assign({},n[item.key],{dest:nDest});return n;});}} style={{padding:"3px 8px",borderRadius:12,border:sel?"1px solid #16a34a":"1px solid #d1d5db",background:sel?"#dcfce7":"#f9fafb",color:sel?"#15803d":"#6b7280",fontSize:10,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{ch.label}</button>;})}
+                          </div>
+                          <textarea value={cfg.msg} onChange={function(e){setCfgWAauto(function(p){var n=Object.assign({},p);n[item.key]=Object.assign({},n[item.key],{msg:e.target.value});return n;});}} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #d1fae5",fontSize:11,minHeight:50,resize:"vertical",boxSizing:"border-box",fontFamily:"monospace"}}/>
+                        </div>}
                       </div>;
                     })}
                   </div>
