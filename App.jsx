@@ -946,8 +946,8 @@ export default function App(){
     var key=veiTipo||"van";
     if(gpsWatches[key]) return;
     if(!navigator.geolocation) return;
-    // If NOT running as PWA and first time — show install prompt
-    if(!_isPwaInstalled()&&!localStorage.getItem("tmim_pwa_skip")){
+    // If first time — show Traccar install prompt
+    if(!localStorage.getItem("tmim_traccar_skip")){
       setPwaGpsPending({agId:agendaId,veiTipo:veiTipo});
       setShowPwaModal(true);
       // Continue GPS anyway — don't block, just inform
@@ -5103,37 +5103,25 @@ return(
           </div>
         </div>
       )}
-            {/* ══ MODAL PWA INSTALL ══ */}
+            {/* ══ MODAL TRACCAR INSTALL ══ */}
       {showPwaModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",zIndex:2500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setShowPwaModal(false);}}>
           <div style={{background:"#fff",borderRadius:20,padding:"28px 22px",width:"100%",maxWidth:360,textAlign:"center"}} onClick={function(e){e.stopPropagation();}}>
-            <div style={{fontSize:52,marginBottom:12}}>📲</div>
-            <div style={{fontSize:18,fontWeight:900,color:"#1e293b",marginBottom:8}}>Instale o App TELEMIM</div>
-            <div style={{fontSize:13,color:"#475569",marginBottom:16,lineHeight:1.5}}>Para o GPS funcionar com a <b>tela bloqueada</b>, instale o app no seu celular. Assim o rastreamento continua em segundo plano.</div>
+            <div style={{fontSize:52,marginBottom:12}}>📡</div>
+            <div style={{fontSize:18,fontWeight:900,color:"#1e293b",marginBottom:8}}>Instale o Traccar Client</div>
+            <div style={{fontSize:13,color:"#475569",marginBottom:16,lineHeight:1.5}}>Para o GPS funcionar com a <b>tela bloqueada</b>, instale o app <b>Traccar Client</b> no seu celular.</div>
             <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:12,padding:"12px 14px",marginBottom:16,textAlign:"left"}}>
-              <div style={{fontSize:12,fontWeight:700,color:"#166534",marginBottom:6}}>✅ Benefícios do App instalado:</div>
-              <div style={{fontSize:11,color:"#15803d",lineHeight:1.6}}>• GPS ativo com tela apagada<br/>• Notificações de novas mudanças<br/>• Acesso rápido pela tela inicial<br/>• Funciona offline (dados salvos)</div>
-            </div>
-            {pwaInstallPrompt?(
-              <button onClick={function(){
-                pwaInstallPrompt.prompt();
-                pwaInstallPrompt.userChoice.then(function(choice){
-                  if(choice.outcome==="accepted"){setPwaInstallPrompt(null);setShowPwaModal(false);}
-                });
-              }} style={{width:"100%",padding:"14px 0",borderRadius:12,border:"none",background:"#16a34a",color:"#fff",fontWeight:900,fontSize:15,cursor:"pointer",marginBottom:10}}>📲 Instalar App Agora</button>
-            ):(
-              <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:12,padding:"12px 14px",marginBottom:10,textAlign:"left"}}>
-                <div style={{fontSize:12,fontWeight:700,color:"#1e40af",marginBottom:6}}>Como instalar manualmente:</div>
-                <div style={{fontSize:11,color:"#1d4ed8",lineHeight:1.6}}>
-                  <b>Android:</b> Menu (⋮) → "Adicionar à tela inicial"<br/>
-                  <b>iPhone:</b> Botão compartilhar (↑) → "Tela de Início"
-                </div>
+              <div style={{fontSize:12,fontWeight:700,color:"#166534",marginBottom:8}}>Apos instalar, configure:</div>
+              <div style={{fontSize:12,color:"#15803d",lineHeight:1.8}}>
+                <b>Device ID:</b> {usuario&&usuario.tipo_veiculo==="VAN"?"VAN001":"CAM001"}<br/>
+                <b>Server URL:</b> http://64.181.190.173:5055
               </div>
-            )}
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={function(){localStorage.setItem("tmim_pwa_skip","1");setShowPwaModal(false);}} style={{flex:1,padding:"10px 0",borderRadius:10,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:600,fontSize:12,cursor:"pointer"}}>Não mostrar mais</button>
-              <button onClick={function(){setShowPwaModal(false);}} style={{flex:1,padding:"10px 0",borderRadius:10,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#334155",fontWeight:700,fontSize:12,cursor:"pointer"}}>Continuar sem instalar</button>
             </div>
+            <div style={{display:"flex",gap:8,marginBottom:12}}>
+              <button onClick={function(){window.open("https://play.google.com/store/apps/details?id=org.traccar.client","_blank");}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"none",background:"#16a34a",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>Android</button>
+              <button onClick={function(){window.open("https://apps.apple.com/app/traccar-client/id843156974","_blank");}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"none",background:"#1e293b",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>iPhone</button>
+            </div>
+            <button onClick={function(){localStorage.setItem("tmim_traccar_skip","1");setShowPwaModal(false);}} style={{width:"100%",padding:"12px 0",borderRadius:10,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#334155",fontWeight:700,fontSize:13,cursor:"pointer"}}>Fechar</button>
           </div>
         </div>
       )}
