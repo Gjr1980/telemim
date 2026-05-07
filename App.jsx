@@ -798,6 +798,8 @@ export default function App(){
   const [editMsg,setEditMsg]=useState("");
   const [userMsg,setUserMsg]=useState("");
   const [tab,setTab]=useState("dashboard");
+  const [isDesktop,setIsDesktop]=useState(typeof window!=="undefined"&&window.innerWidth>=1024);
+  useEffect(function(){function _onResize(){setIsDesktop(window.innerWidth>=1024);}window.addEventListener("resize",_onResize);return function(){window.removeEventListener("resize",_onResize);};},[]);
   const [periodoFin,setPeriodoFin]=useState("semana");
   const [periodoFinMot,setPeriodoFinMot]=useState("semana");
   const [despPend,setDespPend]=useState({});
@@ -2883,7 +2885,7 @@ export default function App(){
 
       {/* Header */}
       <div style={{background:COLORS.headerBg,padding:"16px 16px 12px",boxShadow:"0 2px 16px rgba(0,0,0,0.15)"}}>
-        <div style={{maxWidth:640,margin:"0 auto"}}>
+        <div style={{maxWidth:isDesktop?1200:640,margin:"0 auto"}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
             <div style={{background:COLORS.accent,borderRadius:12,width:40,height:40,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🚛</div>
             <div>
@@ -2899,13 +2901,17 @@ export default function App(){
         </div>
       </div>
 
-      <div style={{maxWidth:640,margin:"0 auto",padding:"0 12px"}}>
+      <div style={{maxWidth:isDesktop?1200:640,margin:"0 auto",padding:isDesktop?"0 24px":"0 12px"}}>
 
         {/* Alertas */}
        
         {/* Tabs */}
         <div style={{marginTop:8,marginBottom:0}}>
-          <div style={{display:"flex",gap:6,marginBottom:6}}>
+          {isDesktop?<div style={{display:"flex",gap:8}}>
+            {TABS.map(t=>(
+              <button key={t.id} onClick={()=>t.id==="importar_mud"?(setTab("novaAgenda"),setShowImportAg(true)):(setTab(t.id),t.id==="registros_mot"&&setAbaMotorista('registros'))} style={{flex:1,padding:"11px 8px",borderRadius:12,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:12,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
+            ))}
+          </div>:<><div style={{display:"flex",gap:6,marginBottom:6}}>
             {TABS.slice(0,4).map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"10px 2px",borderRadius:12,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
             ))}
@@ -2914,7 +2920,7 @@ export default function App(){
             {TABS.slice(4).map(t=>(
               <button key={t.id} onClick={()=>t.id==="importar_mud"?(setTab("novaAgenda"),setShowImportAg(true)):(setTab(t.id),t.id==="registros_mot"&&setAbaMotorista('registros'))} style={{flex:1,padding:"10px 2px",borderRadius:12,border:`1.5px solid ${tab===t.id?COLORS.accent:COLORS.cardBorder}`,background:tab===t.id?COLORS.accent:"#fff",color:tab===t.id?"#fff":COLORS.muted,fontWeight:800,fontSize:11,cursor:"pointer",transition:"all 0.2s",boxShadow:tab===t.id?"0 2px 8px rgba(230,126,34,0.25)":"none"}}>{t.label}</button>
             ))}
-          </div>
+          </div></>}
         </div>
 
         {/* ══ OFFLINE INDICATOR ══ */}
@@ -3774,8 +3780,9 @@ export default function App(){
           <div>
             <div style={{padding:'8px 12px 0'}}><div style={{display:'flex',gap:6,marginBottom:8}}><button onClick={()=>{setFiltroMes('semana');setFiltroDataIni('');setFiltroDataFim('');}} style={{padding:'6px 14px',borderRadius:16,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,background:filtroMes==='semana'&&!filtroDataIni?'#1e40af':'#e2e8f0',color:filtroMes==='semana'&&!filtroDataIni?'#fff':'#475569'}}>Semana</button><button onClick={()=>{setFiltroMes('mes_atual');setFiltroDataIni('');setFiltroDataFim('');}} style={{padding:'6px 14px',borderRadius:16,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,background:filtroMes==='mes_atual'&&!filtroDataIni?'#1e40af':'#e2e8f0',color:filtroMes==='mes_atual'&&!filtroDataIni?'#fff':'#475569'}}>Mês Atual</button><button onClick={()=>{setFiltroMes('');setFiltroDataIni('');setFiltroDataFim('');}} style={{padding:'6px 14px',borderRadius:16,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,background:filtroMes===''&&!filtroDataIni?'#1e40af':'#e2e8f0',color:filtroMes===''&&!filtroDataIni?'#fff':'#475569'}}>Todos</button></div><div style={{display:'flex',gap:6,alignItems:'center',marginBottom:4}}><input type='date' value={filtroDataIni} onChange={e=>{setFiltroDataIni(e.target.value);setFiltroMes('datas');}} style={{flex:1,padding:'5px 8px',borderRadius:8,border:'1px solid #e2e8f0',fontSize:12,color:'#334155'}} /><span style={{fontSize:11,color:'#94a3b8',whiteSpace:'nowrap'}}>até</span><input type='date' value={filtroDataFim} onChange={e=>{setFiltroDataFim(e.target.value);setFiltroMes('datas');}} style={{flex:1,padding:'5px 8px',borderRadius:8,border:'1px solid #e2e8f0',fontSize:12,color:'#334155'}} /></div>{isAdmin&&<div style={{display:'flex',gap:6,alignItems:'center',marginBottom:6,marginTop:6}}><select value={filtroSup} onChange={function(e){setFiltroSup(e.target.value);}} style={{flex:1,padding:'7px 10px',borderRadius:8,border:'1.5px solid '+(filtroSup?'#b45309':'#e2e8f0'),background:filtroSup?'#fef3c7':'#f8fafc',fontSize:12,fontWeight:600,color:filtroSup?'#92400e':'#64748b',cursor:'pointer'}}><option value="">👷 Supervisor: Todos</option>{listaUsuarios.filter(function(u){return u.perfil==="supervisor"&&u.ativo;}).map(function(s){return <option key={s.id} value={s.id}>{s.nome}</option>;})}</select><button onClick={function(){var _fList=filtered;var _supNm=filtroSup?(listaUsuarios.find(function(u){return u.id===filtroSup;})||{}).nome||"":"Todos";var NL="%0A";var t="📊 *REGISTROS"+(filtroSup?" - "+_supNm.toUpperCase():"")+("*"+NL+"🗓️ "+(_fList.length)+" mudança"+(_fList.length!==1?"s":"")+NL+NL);var _byDate={};_fList.forEach(function(m){var d=m.data||"sem-data";if(!_byDate[d])_byDate[d]=[];_byDate[d].push(m);});Object.keys(_byDate).sort(function(a,b){return b.localeCompare(a);}).forEach(function(d){var p=d.split("-");t+="📅 "+(p.length===3?p[2]+"/"+p[1]+"/"+p[0]:d)+NL;_byDate[d].forEach(function(m){t+="  👤 "+(m.nome||"—")+" · ⏰ "+(m.horario||"—")+"h · 📐 "+(m.medicao||"0")+" m³"+NL;});t+=NL;});t+="━━━━━━━━━━━━"+NL+"Total: "+_fList.length+" mudança"+(_fList.length!==1?"s":"")+NL+"— TELEMIM Mudanças";window.open("https://wa.me/?text="+encodeURIComponent(t),"_blank");}} style={{padding:'7px 10px',borderRadius:8,border:'none',background:'#25d366',color:'#fff',fontWeight:800,fontSize:13,cursor:'pointer'}}>📲</button><button onClick={function(){var _fList=filtered;var _supNm=filtroSup?(listaUsuarios.find(function(u){return u.id===filtroSup;})||{}).nome||"":"Todos";var NL="\n";var t="📊 REGISTROS"+(filtroSup?" - "+_supNm.toUpperCase():"")+NL+"Total: "+_fList.length+" mudança"+(_fList.length!==1?"s":"")+NL+NL;var _byDate={};_fList.forEach(function(m){var d=m.data||"sem-data";if(!_byDate[d])_byDate[d]=[];_byDate[d].push(m);});Object.keys(_byDate).sort(function(a,b){return b.localeCompare(a);}).forEach(function(d){var p=d.split("-");t+="📅 "+(p.length===3?p[2]+"/"+p[1]+"/"+p[0]:d)+NL;_byDate[d].forEach(function(m){t+="  👤 "+(m.nome||"—")+" · ⏰ "+(m.horario||"—")+"h · 📐 "+(m.medicao||"0")+" m³"+NL;});t+=NL;});t+="━━━━━━━━━━━━━━━━━━"+NL+"Total: "+_fList.length+" mudança"+(_fList.length!==1?"s":"")+NL+NL+"— TELEMIM Mudanças";var _w=window.open("","_blank");_w.document.write("<html><head><title>Registros"+(filtroSup?" - "+_supNm:"")+"</title><style>body{font-family:monospace;white-space:pre-wrap;padding:20px;font-size:14px;} @media print{button{display:none!important;}}</style></head><body>"+t.replace(/\n/g,"<br>")+"<br><br><button onclick='window.print()' style='padding:12px 24px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:bold;'>🖨️ Imprimir / Salvar PDF</button></body></html>");_w.document.close();}} style={{padding:'7px 10px',borderRadius:8,border:'none',background:'#1e40af',color:'#fff',fontWeight:800,fontSize:13,cursor:'pointer'}}>📄</button></div>}</div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar nome, selo ou comunidade..."
               style={{width:"100%",background:"#fff",border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:12,color:COLORS.text,padding:"10px 14px",fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:12,boxShadow:COLORS.shadow}}/>
+            <div style={isDesktop?{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}:{}}>
             {filtered.map(m=>(
-              <Card key={m.id} style={{marginBottom:10,padding:0,overflow:"hidden"}}>
+              <Card key={m.id} style={{marginBottom:isDesktop?0:10,padding:0,overflow:"hidden"}}>
                 {/* ── Header azul ── */}
                 <div style={{background:"linear-gradient(135deg,#1e3a8a,#1e40af)",padding:"14px 16px 12px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -3816,6 +3823,7 @@ export default function App(){
                 </div>
               </Card>
             ))}
+            </div>
             {filtered.length===0&&<div style={{textAlign:"center",color:COLORS.muted,padding:40,fontSize:14}}>Nenhum resultado.</div>}
           </div>
         )}
@@ -3840,9 +3848,9 @@ export default function App(){
               </div>
             </div>
             {proximas.length>0&&(
-              <div style={{marginBottom:16}}>
+              <div style={isDesktop?{marginBottom:16,display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14}:{marginBottom:16}}>
                 {proximas.map(a=>(
-                  <div id={"move-card-"+a.id}><Card key={a.id} style={{marginBottom:9,padding:"14px 16px",border:`1.5px solid ${statusColor[a.status]||COLORS.cardBorder}33`}}>
+                  <div id={"move-card-"+a.id}><Card key={a.id} style={{marginBottom:isDesktop?0:9,padding:"14px 16px",border:`1.5px solid ${statusColor[a.status]||COLORS.cardBorder}33`}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                       <div style={{flex:1}}>
                         <div style={{fontWeight:900,fontSize:24,color:COLORS.text,marginBottom:8}}>👤 {a.nome}</div>
