@@ -923,6 +923,8 @@ export default function App(){
   const [gpsMapAgenda,setGpsMapAgenda]=useState(null);
   const [gpsEta,setGpsEta]=useState(null);
   const [monitorFiltro,setMonitorFiltro]=useState("todos");
+  const [liveMapOpen,setLiveMapOpen]=useState(true);
+  const [liveMapVehicles,setLiveMapVehicles]=useState([]);// [{motId,nome,veiculo,lat,lng,speed,clienteNome,origem,destino,eta,route,destCoords}]
 
   const MAPBOX_TOKEN=["pk.eyJ1IjoidGVsZW1pbSIsImEiOiJjbW9yd","HJzMmcwNW8yMndwdnZ1bDFoOXZ2In0.","4MHg1RPF_jFgiQt4Ax4Psw"].join("");
 
@@ -1455,6 +1457,112 @@ export default function App(){
     var _tid=setInterval(_poll,10000);
     return function(){_cancelled=true;clearInterval(_tid);};
   },[showGpsMap,gpsMapAgenda]);
+
+  // ── LIVE MAP: Auto-poll all active vehicles every 10s ──────────────────────
+  useEffect(function(){
+    if(tab!=="monitoramento"||!liveMapOpen) return;
+    var _cancelled=false;
+    function _getActiveVehicles(){
+      var _hj3=new Date().toISOString().slice(0,10);
+      var _all3=[...(agenda||[]).filter(function(a){return a.data===_hj3&&!a.deleted_at;}),
+        ...(mudancas||[]).filter(function(m){return m.data===_hj3&&!m.deleted_at;})];
+      var _seen3={};var _vehs=[];
+      _all3.forEach(function(am){
+        var k3=(am.nome||"").toLowerCase().trim()+"|"+am.data;if(_seen3[k3])return;_seen3[k3]=true;
+        if((am.inicio_van_em||am.van_saiu_em)&&!am.chegada_van_em&&am.motorista_van_id){
+          _vehs.push({agId:am.id,motId:am.motorista_van_id,veiculo:"van",devId:"VAN001",destino:am.destino||""});
+        }
+        if((am.inicio_caminhao_em||am.caminhao_saiu_em)&&!am.chegada_caminhao_em&&am.motorista_caminhao_id){
+          _vehs.push({agId:am.id,motId:am.motorista_caminhao_id,veiculo:"cam",devId:"CAM001",destino:am.destino||""});
+        }
+      });
+      return _vehs;
+    }
+    function _updateMapMarkers(vehicles){
+      var el=document.getElementById("live-map-container");
+      if(!el||!el._liveMap) return;
+      var map=el._liveMap;
+      vehicles.forEach(function(v){
+        if(!v.lat||!v.lng) return;
+        var key=v.motId+"_"+v.veiculo;
+        // Update or create marker
+        if(el._liveMarkers[key]){
+          el._liveMarkers[key].setLngLat([v.lng,v.lat]);
+          // Update popup
+          el._liveMarkers[key].getPopup().setHTML(
+            "<div style='font-family:sans-serif;padding:4px 2px;'><div style='font-weight:800;font-size:13px;'>"+(v.veiculo==="van"?"🚐":"🚚")+" "+(v.nome||"Motorista")+"</div>"+
+            (v.eta?"<div style='font-size:12px;font-weight:700;color:#059669;margin-top:4px;'>⏱️ ETA: "+v.eta.etaStr+" ("+v.eta.durMin+"min)</div>":"")+
+            (v.speed?"<div style='font-size:10px;color:#94a3b8;'>🏎️ "+Math.round(v.speed)+" km/h</div>":"")+
+            "</div>"
+          );
+        }else{
+          var mEl=document.createElement("div");
+          mEl.style.cssText="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,0.3);cursor:pointer;background:"+(v.veiculo==="van"?"#2563eb":"#7c3aed")+";";
+          mEl.innerHTML=v.veiculo==="van"?"🚐":"🚚";
+          var popup=new window.mapboxgl.Popup({offset:25,closeButton:false}).setHTML("<div style='font-family:sans-serif;'><b>"+(v.nome||"")+"</b></div>");
+          el._liveMarkers[key]=new window.mapboxgl.Marker({element:mEl}).setLngLat([v.lng,v.lat]).setPopup(popup).addTo(map);
+        }
+        // Update route
+        if(v.route&&map.isStyleLoaded()){
+          var srcId="liveRoute_"+key;
+          if(map.getSource(srcId)){map.getSource(srcId).setData({type:"Feature",geometry:v.route});}
+          else{
+            try{
+              map.addSource(srcId,{type:"geojson",data:{type:"Feature",geometry:v.route}});
+              map.addLayer({id:srcId,type:"line",source:srcId,layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":v.veiculo==="van"?"#2563eb":"#7c3aed","line-width":4,"line-opacity":0.7,"line-dasharray":[2,1]}});
+            }catch(e){}
+          }
+        }
+        // Dest marker
+        if(v.destCoords&&!el._liveDestMarkers[key]){
+          var dEl=document.createElement("div");dEl.innerHTML="📍";dEl.style.fontSize="28px";
+          el._liveDestMarkers[key]=new window.mapboxgl.Marker({element:dEl}).setLngLat(v.destCoords).addTo(map);
+        }else if(v.destCoords&&el._liveDestMarkers[key]){
+          el._liveDestMarkers[key].setLngLat(v.destCoords);
+        }
+      });
+      // Fit bounds
+      var _allWithPos=vehicles.filter(function(v){return v.lat&&v.lng;});
+      if(_allWithPos.length>1){
+        var bounds=new window.mapboxgl.LngLatBounds();
+        _allWithPos.forEach(function(v){bounds.extend([v.lng,v.lat]);if(v.destCoords)bounds.extend(v.destCoords);});
+        map.fitBounds(bounds,{padding:50,duration:800,maxZoom:15});
+      }else if(_allWithPos.length===1){
+        map.easeTo({center:[_allWithPos[0].lng,_allWithPos[0].lat],duration:800});
+      }
+    }
+    async function _pollAll(){
+      if(_cancelled) return;
+      var vehs=_getActiveVehicles();
+      if(vehs.length===0){setLiveMapVehicles([]);return;}
+      var results=[];
+      for(var i=0;i<vehs.length;i++){
+        var v=vehs[i];
+        try{
+          var pos=await gpsLoadPositions(v.agId,v.motId);
+          var entry={motId:v.motId,veiculo:v.veiculo,lat:pos?pos.lat:null,lng:pos?pos.lng:null,speed:pos?pos.speed:null,nome:v.nome||"",eta:null,route:null,destCoords:null};
+          if(pos&&v.destino){
+            var eta=await gpsCalcEta(pos.lat,pos.lng,v.destino);
+            if(eta){entry.eta=eta;entry.route=eta.route;entry.destCoords=eta.destCoords;}
+          }
+          results.push(entry);
+        }catch(e){results.push({motId:v.motId,veiculo:v.veiculo,lat:null,lng:null});}
+      }
+      if(!_cancelled){
+        // Merge names from listaUsuarios
+        results.forEach(function(r){
+          var u=listaUsuarios.find(function(x){return x.id===r.motId;});
+          if(u) r.nome=u.nome;
+        });
+        setLiveMapVehicles(results);
+        _updateMapMarkers(results);
+      }
+    }
+    setTimeout(_pollAll,1200);
+    var _tid2=setInterval(_pollAll,10000);
+    return function(){_cancelled=true;clearInterval(_tid2);};
+  },[tab,liveMapOpen,agenda,mudancas]);
+
   function _renderRelatorioMotoristas(_ms,_periodoLabel){
     var _fvR=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
     var _fvN=function(v){return parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
@@ -3469,6 +3577,151 @@ export default function App(){
           </div>
         </div>
       </div>
+
+      {/* ══ MAPA AO VIVO ══ */}
+      {(function(){
+        var _activeVehicles=[];
+        var _hj2=new Date().toISOString().slice(0,10);
+        var _allToday2=[...(agenda||[]).filter(function(a){return a.data===_hj2&&!a.deleted_at;}),
+          ...(mudancas||[]).filter(function(m){return m.data===_hj2&&!m.deleted_at;})];
+        var _seen2={};
+        _allToday2.forEach(function(am){
+          var key2=(am.nome||"").toLowerCase().trim()+"|"+am.data;
+          if(_seen2[key2])return;_seen2[key2]=true;
+          // Van in transit?
+          var _vanTransit=((am.inicio_van_em||am.van_saiu_em)&&!am.chegada_van_em);
+          var _camTransit=((am.inicio_caminhao_em||am.caminhao_saiu_em)&&!am.chegada_caminhao_em);
+          if(_vanTransit&&am.motorista_van_id){
+            var _vm=listaUsuarios.find(function(u){return u.id===am.motorista_van_id;});
+            _activeVehicles.push({agId:am.id,motId:am.motorista_van_id,nome:_vm?_vm.nome:"Motorista",veiculo:"van",clienteNome:am.nome||"",origem:am.origem||"",destino:am.destino||"",devId:"VAN001"});
+          }
+          if(_camTransit&&am.motorista_caminhao_id){
+            var _cm=listaUsuarios.find(function(u){return u.id===am.motorista_caminhao_id;});
+            _activeVehicles.push({agId:am.id,motId:am.motorista_caminhao_id,nome:_cm?_cm.nome:"Motorista",veiculo:"cam",clienteNome:am.nome||"",origem:am.origem||"",destino:am.destino||"",devId:"CAM001"});
+          }
+        });
+        var _hasActive2=_activeVehicles.length>0;
+        // Merge live positions from liveMapVehicles state
+        var _merged=_activeVehicles.map(function(v){
+          var lv=liveMapVehicles.find(function(x){return x.motId===v.motId&&x.veiculo===v.veiculo;});
+          if(lv) return Object.assign({},v,{lat:lv.lat,lng:lv.lng,speed:lv.speed,eta:lv.eta,route:lv.route,destCoords:lv.destCoords});
+          return v;
+        });
+        var _withPos=_merged.filter(function(v){return v.lat&&v.lng;});
+        return(
+          <div style={{margin:"12px 12px 0",borderRadius:16,overflow:"hidden",border:_hasActive2?"2px solid #2563eb":"1.5px solid #e2e8f0",boxShadow:_hasActive2?"0 4px 20px rgba(37,99,235,0.15)":"none",background:"#fff"}}>
+            <div style={{background:"linear-gradient(135deg,#1e3a5f,#1e40af)",padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}} onClick={function(){setLiveMapOpen(!liveMapOpen);}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                {_hasActive2&&<div style={{width:8,height:8,borderRadius:"50%",background:"#22c55e",animation:"pulse 1.5s infinite"}}></div>}
+                <div>
+                  <div style={{fontSize:13,fontWeight:800,color:"#fff"}}>🗺️ Mapa ao Vivo</div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>{_hasActive2?_activeVehicles.length+" veículo"+((_activeVehicles.length>1?"s":""))+" ativo"+((_activeVehicles.length>1?"s":""))+" • atualiza 10s":"Nenhum veículo em trânsito"}</div>
+                </div>
+              </div>
+              <div style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",color:"#fff",borderRadius:8,padding:"5px 10px",fontSize:10,fontWeight:700}}>{liveMapOpen?"▲ Recolher":"▼ Expandir"}</div>
+            </div>
+            {liveMapOpen&&(
+              <div>
+                <div id="live-map-container" style={{width:"100%",height:isDesktop?320:220,background:"#e2e8f0",position:"relative"}} ref={function(el){
+                  if(!el||!window.mapboxgl||el._liveMapReady) return;
+                  el._liveMapReady=true;
+                  window.mapboxgl.accessToken=MAPBOX_TOKEN;
+                  var _center=_withPos.length>0?[_withPos[0].lng,_withPos[0].lat]:[-34.87,-8.05];// Recife default
+                  var map=new window.mapboxgl.Map({container:el,style:"mapbox://styles/mapbox/streets-v12",center:_center,zoom:12});
+                  map.addControl(new window.mapboxgl.NavigationControl(),"top-right");
+                  el._liveMap=map;
+                  el._liveMarkers={};
+                  el._liveRoutes={};
+                  el._liveDestMarkers={};
+                  // Render initial markers
+                  _withPos.forEach(function(v){
+                    var mEl=document.createElement("div");
+                    mEl.style.cssText="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,0.3);cursor:pointer;background:"+(v.veiculo==="van"?"#2563eb":"#7c3aed")+";";
+                    mEl.innerHTML=v.veiculo==="van"?"🚐":"🚚";
+                    var popup=new window.mapboxgl.Popup({offset:25,closeButton:false}).setHTML(
+                      "<div style='font-family:sans-serif;padding:4px 2px;'><div style='font-weight:800;font-size:13px;'>"+(v.veiculo==="van"?"🚐":"🚚")+" "+v.nome+"</div>"+
+                      "<div style='font-size:11px;color:#475569;margin-top:3px;'>👤 "+v.clienteNome+"</div>"+
+                      "<div style='font-size:11px;color:#475569;'>📍 "+v.origem+" → "+v.destino+"</div>"+
+                      (v.eta?"<div style='font-size:12px;font-weight:700;color:#059669;margin-top:4px;'>⏱️ ETA: "+v.eta.etaStr+" ("+v.eta.durMin+"min)</div>":"")+
+                      (v.speed?"<div style='font-size:10px;color:#94a3b8;'>🏎️ "+Math.round(v.speed)+" km/h</div>":"")+
+                      "</div>"
+                    );
+                    var marker=new window.mapboxgl.Marker({element:mEl}).setLngLat([v.lng,v.lat]).setPopup(popup).addTo(map);
+                    el._liveMarkers[v.motId+"_"+v.veiculo]=marker;
+                  });
+                  // Fit bounds if multiple
+                  if(_withPos.length>1){
+                    var bounds=new window.mapboxgl.LngLatBounds();
+                    _withPos.forEach(function(v){bounds.extend([v.lng,v.lat]);if(v.destCoords)bounds.extend(v.destCoords);});
+                    map.fitBounds(bounds,{padding:50,duration:1000});
+                  }
+                  // Draw routes
+                  map.on("load",function(){
+                    _withPos.forEach(function(v){
+                      if(v.route){
+                        var srcId="liveRoute_"+v.motId+"_"+v.veiculo;
+                        map.addSource(srcId,{type:"geojson",data:{type:"Feature",geometry:v.route}});
+                        map.addLayer({id:srcId,type:"line",source:srcId,layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":v.veiculo==="van"?"#2563eb":"#7c3aed","line-width":4,"line-opacity":0.7,"line-dasharray":[2,1]}});
+                        el._liveRoutes[srcId]=true;
+                      }
+                      if(v.destCoords){
+                        var dEl=document.createElement("div");dEl.innerHTML="📍";dEl.style.fontSize="28px";
+                        el._liveDestMarkers[v.motId+"_"+v.veiculo]=new window.mapboxgl.Marker({element:dEl}).setLngLat(v.destCoords).addTo(map);
+                      }
+                    });
+                  });
+                }}></div>
+                {/* Legend */}
+                <div style={{display:"flex",gap:10,padding:"8px 14px",background:"#f8fafc",borderTop:"1px solid #e2e8f0",alignItems:"center",justifyContent:"center"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,color:"#475569"}}><div style={{width:10,height:10,borderRadius:"50%",background:"#2563eb"}}></div>Van</div>
+                  <div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,color:"#475569"}}><div style={{width:10,height:10,borderRadius:"50%",background:"#7c3aed"}}></div>Caminhão</div>
+                  <div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,color:"#475569"}}><div style={{width:10,height:10,borderRadius:"50%",background:"#22c55e"}}></div>Em trânsito</div>
+                  <div style={{fontSize:14}}>📍 <span style={{fontSize:10,fontWeight:700,color:"#475569"}}>Destino</span></div>
+                </div>
+                {/* Vehicle chips */}
+                {_merged.length>0&&(
+                  <div style={{display:"flex",gap:6,padding:"8px 14px 10px",overflowX:"auto"}}>
+                    {_merged.map(function(v,idx){
+                      var _isVan2=v.veiculo==="van";
+                      return(
+                        <div key={idx} onClick={function(){
+                          // Click chip → center map on vehicle or open GPS modal
+                          var el=document.getElementById("live-map-container");
+                          if(el&&el._liveMap&&v.lat&&v.lng){
+                            el._liveMap.easeTo({center:[v.lng,v.lat],zoom:14,duration:800});
+                            var mk=el._liveMarkers[v.motId+"_"+v.veiculo];
+                            if(mk&&!mk.getPopup().isOpen()) mk.togglePopup();
+                          }else{
+                            // No position yet — open individual GPS modal
+                            var _ag2=(agenda||[]).find(function(a){return a.id===v.agId;});
+                            if(_ag2){
+                              var _a2=Object.assign({},_ag2,{_trackMotoristaId:v.motId,_trackVeiculo:v.veiculo});
+                              setGpsMapAgenda(_a2);setShowGpsMap(true);setGpsEta(null);
+                              gpsLoadPositions(v.agId,v.motId).then(function(pos){if(pos&&_ag2.destino){gpsCalcEta(pos.lat,pos.lng,_ag2.destino).then(function(eta){setGpsEta(eta);});}setGpsPositions(pos?[pos]:[]);});
+                            }
+                          }
+                        }} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:10,fontSize:11,fontWeight:700,whiteSpace:"nowrap",cursor:"pointer",flexShrink:0,
+                          background:_isVan2?"#dbeafe":"#ede9fe",border:"1.5px solid "+(_isVan2?"#93c5fd":"#c4b5fd"),color:_isVan2?"#1d4ed8":"#7c3aed"}}>
+                          <div style={{width:8,height:8,borderRadius:"50%",background:v.lat?"#22c55e":"#94a3b8",animation:v.lat?"pulse 1.5s infinite":"none"}}></div>
+                          {_isVan2?"🚐":"🚚"} {v.nome} — {v.origem||"?"} → {v.destino||"?"}
+                          {v.eta&&<span style={{fontSize:9,color:_isVan2?"#60a5fa":"#a78bfa"}}>{v.eta.durMin}min</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {!_hasActive2&&(
+                  <div style={{padding:"20px 16px",textAlign:"center",color:"#94a3b8"}}>
+                    <div style={{fontSize:28,marginBottom:4}}>🗺️</div>
+                    <div style={{fontSize:12,fontWeight:600}}>Nenhum veículo em trânsito agora</div>
+                    <div style={{fontSize:11,color:"#cbd5e1",marginTop:2}}>Os veículos aparecerão aqui quando estiverem em deslocamento</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Filtro por Supervisor / Social */}
       {(function(){
