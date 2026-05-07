@@ -908,6 +908,10 @@ export default function App(){
   const [custosSemana,setCustosSemana]=useState([]);
   const [contasFilter,setContasFilter]=useState("todas");
   const [contaEditId,setContaEditId]=useState(null);const [totalEditId,setTotalEditId]=useState(null);const [totalEditVal,setTotalEditVal]=useState("");
+  const [solicitacoesFin,setSolicitacoesFin]=useState([]);
+  const [solicitacoesLoaded,setSolicitacoesLoaded]=useState(false);
+  const [supFinEditMode,setSupFinEditMode]=useState(null);// {pId,idx,data,numMud,numAj,val,cargo}
+  const [supFinMotivo,setSupFinMotivo]=useState("");
   const [backupCfg,setBackupCfg]=useState({ativo:false,clientId:"",clientSecret:"",refreshToken:""});
   const [backupHist,setBackupHist]=useState([]);
   const [backupLoading,setBackupLoading]=useState(false);
@@ -1054,6 +1058,29 @@ export default function App(){
       if(dados&&Array.isArray(dados))setContasSemana(dados);
     }catch(e){}
   }
+  // ── SOLICITAÇÕES FINANCEIRAS ───────────────────────────────────────────
+  async function loadSolicitacoesFin(){
+    try{
+      var res=await fetch(SUPA_URL+"/rest/v1/solicitacoes_financeiras?order=criado_em.desc&limit=100",{headers:getH()});
+      if(!res.ok)return;
+      var dados=await res.json();
+      if(dados&&Array.isArray(dados)){setSolicitacoesFin(dados);setSolicitacoesLoaded(true);}
+    }catch(e){}
+  }
+  async function criarSolicitacao(sol){
+    try{
+      var res=await fetch(SUPA_URL+"/rest/v1/solicitacoes_financeiras",{method:"POST",headers:{...getH(),"Prefer":"return=representation"},body:JSON.stringify([sol])});
+      if(res.ok){var d=await res.json();if(d&&d[0])setSolicitacoesFin(function(p){return [d[0],...p];});return true;}
+    }catch(e){}
+    return false;
+  }
+  async function responderSolicitacao(id,status,adminId,adminNome){
+    try{
+      var body={status:status,admin_id:adminId,admin_nome:adminNome,respondido_em:new Date().toISOString()};
+      await fetch(SUPA_URL+"/rest/v1/solicitacoes_financeiras?id=eq."+id,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify(body)});
+      setSolicitacoesFin(function(p){return p.map(function(s){return s.id===id?{...s,...body}:s;});});
+    }catch(e){}
+  }
 
   // ── DERIVED STATE: useMemo reactivos ─────────────────────────────────
   var custoSemanal=useMemo(function(){
@@ -1129,7 +1156,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}if((tab==="financeiro_sup"||tab==="financeiro")&&!solicitacoesLoaded)loadSolicitacoesFin();},[tab]);
   useEffect(()=>{
     async function load(){
       try{
@@ -3122,6 +3149,7 @@ export default function App(){
     {id:"agenda",label:"📅 Agenda"},
     {id:"lista",label:"📋 Registros"},
     {id:"equipe",label:"👷 Equipe"},
+    {id:"financeiro_sup",label:"💰 Financeiro"},
     {id:"config",label:"⚙️ Config"},
   ]:[
     {id:"dashboard",label:"📊 Dashboard"},
@@ -4434,6 +4462,76 @@ export default function App(){
           </Card>
         )}
 
+        {/* ══ ADMIN: SOLICITAÇÕES FINANCEIRAS PENDENTES ══ */}
+        {tab==="financeiro"&&isAdmin&&(function(){
+          var _pend=solicitacoesFin.filter(function(s){return s.status==="pendente";});
+          if(_pend.length===0) return null;
+          var _fvA=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2});};
+          return(
+            <div style={{margin:"0 12px 12px",background:"#fffbeb",border:"2px solid #f59e0b",borderRadius:14,overflow:"hidden"}}>
+              <div style={{background:"#fef3c7",padding:"10px 14px",display:"flex",alignItems:"center",gap:8,borderBottom:"1px solid #fcd34d"}}>
+                <span style={{fontSize:18}}>🔔</span>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:800,fontSize:13,color:"#92400e"}}>{_pend.length} Solicitação(ões) Pendente(s)</div>
+                  <div style={{fontSize:10,color:"#a16207"}}>Supervisores solicitaram alterações financeiras</div>
+                </div>
+              </div>
+              <div style={{padding:"8px 12px"}}>
+                {_pend.map(function(s){
+                  return <div key={s.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"12px",marginBottom:8,boxShadow:"0 2px 8px rgba(245,158,11,0.1)"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                      <div>
+                        <div style={{fontWeight:800,fontSize:12,color:"#1e293b"}}>{s.tipo==="editar_valor"?"✏️ Edição de Valor":"🗑️ Remoção de Ajudante"}</div>
+                        <div style={{fontSize:11,color:"#64748b",marginTop:2}}>Por: <strong>{s.supervisor_nome}</strong></div>
+                      </div>
+                      <span style={{background:"#fef3c7",border:"1px solid #fcd34d",borderRadius:6,padding:"2px 8px",fontSize:9,fontWeight:700,color:"#92400e"}}>⏳ Pendente</span>
+                    </div>
+                    {s.tipo==="editar_valor"&&<div style={{background:"#f8fafc",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
+                      <div style={{fontSize:11,color:"#475569"}}><strong>{s.prestador_nome}</strong> · {s.data_ref?String(s.data_ref).split("-").reverse().join("/"):""}</div>
+                      <div style={{display:"flex",gap:8,marginTop:4,alignItems:"center"}}>
+                        <span style={{background:"#fef2f2",borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:700,color:"#dc2626"}}>{_fvA(s.valor_antigo)}</span>
+                        <span style={{color:"#94a3b8",fontSize:12}}>→</span>
+                        <span style={{background:"#f0fdf4",borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:700,color:"#16a34a"}}>{_fvA(s.valor_novo)}</span>
+                      </div>
+                      {s.num_aj_antigo!=null&&s.num_aj_novo!=null&&<div style={{fontSize:10,color:"#64748b",marginTop:4}}>Ajudantes: {s.num_aj_antigo} → {s.num_aj_novo}</div>}
+                    </div>}
+                    {s.tipo==="remover_ajudante"&&<div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
+                      <div style={{fontSize:11,color:"#dc2626",fontWeight:700}}>Remover: {s.ajudante_nome}</div>
+                    </div>}
+                    <div style={{fontSize:10,color:"#64748b",marginBottom:8}}>💬 Motivo: {s.motivo}</div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button onClick={function(){
+                        if(!confirm("Aprovar esta solicitação?"))return;
+                        responderSolicitacao(s.id,"aprovado",usuario.id,usuario.nome);
+                        if(s.tipo==="editar_valor"&&s.data_ref){
+                          var _hd2={...getH(),"Content-Type":"application/json","Prefer":"return=minimal"};
+                          var _numAj=s.num_aj_novo!=null?parseInt(s.num_aj_novo):undefined;
+                          if(_numAj!==undefined){
+                            setCustosDiarios(function(prev){
+                              var e=prev.some(function(cd){return cd.data===s.data_ref;});
+                              if(e)return prev.map(function(cd){return cd.data===s.data_ref?{...cd,ajudantes:_numAj}:cd;});
+                              return [...prev,{data:s.data_ref,ajudantes:_numAj,custo_almoco:0}];
+                            });
+                            fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+s.data_ref+"&select=id",{headers:getH()})
+                              .then(function(r){return r.json();})
+                              .then(function(rows){
+                                if(rows&&rows.length>0)return fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+s.data_ref,{method:"PATCH",headers:_hd2,body:JSON.stringify({ajudantes:_numAj})});
+                                else return fetch(SUPA_URL+"/rest/v1/custos_diarios",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({data:s.data_ref,ajudantes:_numAj})});
+                              }).catch(function(){});
+                          }
+                        }
+                      }} style={{flex:1,padding:"10px",borderRadius:10,border:"none",background:"#16a34a",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>✅ Aprovar</button>
+                      <button onClick={function(){
+                        if(!confirm("Rejeitar esta solicitação?"))return;
+                        responderSolicitacao(s.id,"rejeitado",usuario.id,usuario.nome);
+                      }} style={{flex:1,padding:"10px",borderRadius:10,border:"none",background:"#dc2626",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>❌ Rejeitar</button>
+                    </div>
+                  </div>;
+                })}
+              </div>
+            </div>
+          );
+        })()}
         {/* ══ RELATÓRIO ══ */}
         {tab==="financeiro"&&isAdmin&&periodoFin!=="simples"&&periodoFin!=="completo"&&(function(){
           var _now=new Date();
@@ -5413,6 +5511,236 @@ return(
               </div>}
             </div>}
           </div>;
+        })()}
+        {/* ══ SUPERVISOR FINANCEIRO ══ */}
+        {tab==="financeiro_sup"&&isSupervisor&&(function(){
+          var _pc2=function(n){return String(n).padStart(2,"0");};
+          var _hj2=new Date();var _dw2=_hj2.getDay();var _dif2=_dw2===0?6:_dw2-1;
+          var _s02=new Date(_hj2.getFullYear(),_hj2.getMonth(),_hj2.getDate()-_dif2);
+          var _s12=new Date(_s02.getFullYear(),_s02.getMonth(),_s02.getDate()+6);
+          var _fc2=function(d){return d.getFullYear()+"-"+_pc2(d.getMonth()+1)+"-"+_pc2(d.getDate());};
+          var _fb2=function(d){return _pc2(d.getDate())+"/"+_pc2(d.getMonth()+1)+"/"+d.getFullYear();};
+          var _sic2=_fc2(_s02);var _sfc2=_fc2(_s12);
+          var _periodo2=_fb2(_s02)+" a "+_fb2(_s12);
+          var _ms2=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data>=_sic2&&m.data<=_sfc2;});
+          var _cd2=(custosDiarios||[]).filter(function(x){return x.data>=_sic2&&x.data<=_sfc2;});
+          var _fv2=function(v){return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);};
+          var _fvs2=function(v){return new Intl.NumberFormat("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);};
+          var _ico2={"caminhao":"🚚","van":"🚐","ajudante":"👷"};
+          var _lbl2={"caminhao":"Caminhão","van":"Van","ajudante":"Ajudante"};
+          var _cor2={"caminhao":"#92400e","van":"#1e40af","ajudante":"#065f46"};
+          var _bg2={"caminhao":"#fff7ed","van":"#eff6ff","ajudante":"#f0fdf4"};
+          var _aj2=(prestadores||[]).filter(function(p){return p.cargo==="ajudante";});
+          var _vei2=(prestadores||[]).filter(function(p){return p.cargo!=="ajudante";});
+          var _teamAj2=_aj2.length>0?{id:"__equipa_aj__",nome:"Equipa de Ajudantes",cargo:"ajudante",_numAj:_aj2.length}:null;
+          var _prestR2=_teamAj2?[..._vei2,_teamAj2]:_vei2;
+          function _calcDetP2(p){
+            var det=[];
+            var _dias2=[...new Set(_ms2.map(function(m){return m.data;}))].sort();
+            if(p.id==="__equipa_aj__"){
+              _dias2.forEach(function(data){
+                var mDia=_ms2.filter(function(m){return m.data===data;});
+                var numMud=mDia.length;if(numMud===0) return;
+                var cdDia=_cd2.find(function(cd){return cd.data===data;})||{ajudantes:1};
+                var numAj=parseInt(cdDia.ajudantes)||1;
+                var val=_calcDiario(numMud,numAj,"ajudante",RULES);
+                det.push({data:data,numMud:numMud,numAj:numAj,val:val});
+              });
+            }else if(p.cargo==="caminhao"||p.cargo==="van"){
+              _dias2.forEach(function(data){
+                var mDia=_ms2.filter(function(m){return m.data===data;});
+                var numMud=mDia.length;if(numMud===0) return;
+                var val=_calcDiario(numMud,0,p.cargo,RULES);
+                det.push({data:data,numMud:numMud,val:val});
+              });
+            }
+            return det;
+          }
+          var _mySols=solicitacoesFin.filter(function(s){return s.supervisor_id===usuario.id;});
+          var _pendentes=_mySols.filter(function(s){return s.status==="pendente";});
+          var _historico=_mySols.filter(function(s){return s.status!=="pendente";}).slice(0,10);
+          var _editM=supFinEditMode;
+          function _supSolicitarEdit(p,det,idx){
+            var d=det[idx];
+            var motivo=supFinMotivo.trim();
+            if(!motivo){alert("Informe o motivo da alteração.");return;}
+            var sol={
+              supervisor_id:usuario.id,
+              supervisor_nome:usuario.nome,
+              tipo:"editar_valor",
+              semana_inicio:_sic2,
+              semana_fim:_sfc2,
+              data_ref:d.data,
+              prestador_id:p.id,
+              prestador_nome:p.nome,
+              cargo:p.id==="__equipa_aj__"?"ajudante":p.cargo,
+              valor_antigo:parseFloat(d.val)||0,
+              valor_novo:parseFloat(_editM.val)||0,
+              num_mud_antigo:parseInt(d.numMud)||0,
+              num_mud_novo:parseInt(_editM.numMud)||0,
+              num_aj_antigo:d.numAj!==undefined?parseInt(d.numAj):null,
+              num_aj_novo:_editM.numAj!==undefined?parseInt(_editM.numAj):null,
+              motivo:motivo,
+              status:"pendente"
+            };
+            criarSolicitacao(sol).then(function(ok){
+              if(ok){setSupFinEditMode(null);setSupFinMotivo("");alert("Solicitação enviada! Aguarde aprovação do admin.");}
+              else{alert("Erro ao enviar solicitação.");}
+            });
+          }
+          function _supSolicitarRemAj(ajNome){
+            var motivo=prompt("Motivo para remover "+ajNome+":");
+            if(!motivo||!motivo.trim())return;
+            var sol={
+              supervisor_id:usuario.id,
+              supervisor_nome:usuario.nome,
+              tipo:"remover_ajudante",
+              semana_inicio:_sic2,
+              semana_fim:_sfc2,
+              ajudante_nome:ajNome,
+              motivo:motivo.trim(),
+              status:"pendente"
+            };
+            criarSolicitacao(sol).then(function(ok){
+              if(ok)alert("Solicitação enviada!");
+              else alert("Erro ao enviar.");
+            });
+          }
+          var _cSem2=_calcCustos(_ms2,_cd2,[],RULES);
+          return(
+            <div style={{paddingBottom:80}}>
+              <div style={{background:"linear-gradient(135deg,#1e3a5f,#1e40af)",padding:"20px 16px 24px"}}>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>FINANCEIRO</div>
+                <div style={{fontSize:20,fontWeight:900,color:"#fff"}}>Fechamento Semanal</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginTop:4}}>{_periodo2}</div>
+              </div>
+              {_pendentes.length>0&&<div style={{margin:"8px 12px",background:"#fffbeb",border:"2px solid #fcd34d",borderRadius:12,padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:18}}>⏳</span>
+                <div>
+                  <div style={{fontWeight:800,fontSize:12,color:"#92400e"}}>{_pendentes.length} solicitação(ões) pendente(s)</div>
+                  <div style={{fontSize:10,color:"#a16207"}}>Aguardando aprovação do administrador</div>
+                </div>
+              </div>}
+              <div style={{padding:"12px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <div style={{fontWeight:800,fontSize:13,color:"#1e293b"}}>📊 Custos por Prestador</div>
+                  <div style={{fontWeight:800,fontSize:14,color:"#c2410c"}}>{_fv2(_cSem2.despTotal)}</div>
+                </div>
+                {_prestR2.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:"#94a3b8",fontSize:12}}>Nenhum prestador cadastrado.</div>}
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {_prestR2.map(function(p){
+                    var det=_calcDetP2(p);
+                    var totVal=det.reduce(function(s,d){return s+(parseFloat(d.val)||0);},0);
+                    var totMud=det.reduce(function(s,d){return s+(parseInt(d.numMud)||0);},0);
+                    var isAj=p.id==="__equipa_aj__"||p.cargo==="ajudante";
+                    return(
+                      <div key={p.id} style={{background:_bg2[p.cargo]||"#f8fafc",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden"}}>
+                        <div style={{padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}>
+                          <div style={{fontSize:22}}>{_ico2[p.cargo]||"📋"}</div>
+                          <div style={{flex:1}}>
+                            <div style={{fontWeight:700,fontSize:13,color:_cor2[p.cargo]||"#334155"}}>{p.nome}</div>
+                            <div style={{fontSize:10,color:"#64748b"}}>{_lbl2[p.cargo]||p.cargo} · {det.length} dia(s) · {totMud} mud.</div>
+                          </div>
+                          <div style={{fontWeight:800,fontSize:14,color:_cor2[p.cargo]||"#334155"}}>{_fv2(totVal)}</div>
+                        </div>
+                        <div style={{borderTop:"1px solid #e2e8f0",background:"#fff",padding:"8px 12px"}}>
+                          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                            <thead><tr style={{background:"#f8fafc"}}>
+                              <th style={{padding:"5px 6px",textAlign:"left",color:"#64748b",fontWeight:600}}>Data</th>
+                              {p.cargo!=="van"&&<th style={{padding:"5px 4px",textAlign:"center",color:"#64748b",fontWeight:600}}>Mud.</th>}
+                              {isAj&&<th style={{padding:"5px 4px",textAlign:"center",color:"#64748b",fontWeight:600}}>Aj.</th>}
+                              <th style={{padding:"5px 6px",textAlign:"right",color:"#64748b",fontWeight:600}}>Valor</th>
+                              <th style={{padding:"5px 4px",textAlign:"center",width:60}}></th>
+                            </tr></thead>
+                            <tbody>
+                            {det.map(function(d,i){
+                              var pts=String(d.data).split("-");
+                              var dfmt=pts[2]+"/"+pts[1];
+                              var isEditing=_editM&&_editM.pId===p.id&&_editM.idx===i;
+                              if(isEditing){
+                                return(
+                                  <tr key={i} style={{background:"#eff6ff"}}>
+                                    <td style={{padding:"6px"}}><span style={{fontWeight:600}}>{dfmt}</span></td>
+                                    {p.cargo!=="van"&&<td style={{padding:"4px"}}><input type="number" min="0" value={_editM.numMud} onChange={function(e){var nm=parseInt(e.target.value)||0;var na=parseInt(_editM.numAj)||1;setSupFinEditMode(function(v){return{...v,numMud:nm,val:_calcDiario(nm,na,p.id==="__equipa_aj__"?"ajudante":p.cargo,RULES)};});}} style={{width:40,padding:"4px",border:"1.5px solid #93c5fd",borderRadius:6,fontSize:12,textAlign:"center"}}/></td>}
+                                    {isAj&&<td style={{padding:"4px"}}><input type="number" min="1" value={_editM.numAj} onChange={function(e){var na=parseInt(e.target.value)||1;var nm=parseInt(_editM.numMud)||0;setSupFinEditMode(function(v){return{...v,numAj:na,val:_calcDiario(nm,na,"ajudante",RULES)};});}} style={{width:36,padding:"4px",border:"1.5px solid #93c5fd",borderRadius:6,fontSize:12,textAlign:"center"}}/></td>}
+                                    <td style={{padding:"4px 6px",textAlign:"right"}}><input type="number" step="0.01" value={_editM.val} onChange={function(e){setSupFinEditMode(function(v){return{...v,val:e.target.value};});}} style={{width:70,padding:"4px",border:"1.5px solid #93c5fd",borderRadius:6,fontSize:12,textAlign:"right"}}/></td>
+                                    <td style={{padding:"4px",textAlign:"center"}}></td>
+                                  </tr>
+                                );
+                              }
+                              return(
+                                <tr key={i} style={{borderBottom:"1px solid #f1f5f9"}}>
+                                  <td style={{padding:"5px 6px",fontWeight:500,color:"#334155"}}>{dfmt}</td>
+                                  {p.cargo!=="van"&&<td style={{padding:"5px 4px",textAlign:"center",color:"#475569"}}>{d.numMud}</td>}
+                                  {isAj&&<td style={{padding:"5px 4px",textAlign:"center",color:"#475569"}}>{d.numAj||1}</td>}
+                                  <td style={{padding:"5px 6px",textAlign:"right",fontWeight:600,color:_cor2[p.cargo]||"#334155"}}>R$ {_fvs2(d.val)}</td>
+                                  <td style={{padding:"5px 4px",textAlign:"center"}}>
+                                    <button onClick={function(){setSupFinEditMode({pId:p.id,idx:i,data:d.data,numMud:d.numMud||0,numAj:d.numAj||1,val:d.val||0,cargo:p.id==="__equipa_aj__"?"ajudante":p.cargo});setSupFinMotivo("");}} style={{background:"#eff6ff",color:"#2563eb",border:"none",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>✏️</button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            </tbody>
+                            <tfoot><tr style={{borderTop:"2px solid #e2e8f0",background:"#f8fafc"}}>
+                              <td colSpan={isAj?3:p.cargo==="van"?1:2} style={{padding:"6px",fontWeight:800,fontSize:11}}>TOTAL</td>
+                              <td style={{padding:"6px",textAlign:"right",fontWeight:800,fontSize:13,color:_cor2[p.cargo]||"#334155"}}>{_fv2(totVal)}</td>
+                              <td></td>
+                            </tr></tfoot>
+                          </table>
+                          {_editM&&_editM.pId===p.id&&(
+                            <div style={{marginTop:8,background:"#eff6ff",border:"2px solid #93c5fd",borderRadius:10,padding:"10px 12px"}}>
+                              <div style={{fontSize:10,fontWeight:700,color:"#2563eb",marginBottom:6}}>Motivo da alteração *</div>
+                              <input type="text" value={supFinMotivo} onChange={function(e){setSupFinMotivo(e.target.value);}} placeholder="Ex: ajudante faltou, valor incorreto..." style={{width:"100%",padding:"8px 10px",border:"1.5px solid #93c5fd",borderRadius:8,fontSize:12,boxSizing:"border-box",marginBottom:8}}/>
+                              <div style={{display:"flex",gap:6}}>
+                                <button onClick={function(){_supSolicitarEdit(p,det,_editM.idx);}} style={{flex:2,padding:"8px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,fontWeight:800,fontSize:12,cursor:"pointer"}}>📩 Solicitar Alteração</button>
+                                <button onClick={function(){setSupFinEditMode(null);setSupFinMotivo("");}} style={{flex:1,padding:"8px",background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>Cancelar</button>
+                              </div>
+                            </div>
+                          )}
+                          {isAj&&_aj2.length>0&&(
+                            <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid #e2e8f0"}}>
+                              <div style={{fontSize:10,fontWeight:700,color:"#065f46",marginBottom:6}}>👷 Ajudantes da Equipe</div>
+                              {_aj2.map(function(aj){
+                                return <div key={aj.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",borderBottom:"1px solid #f1f5f9"}}>
+                                  <span style={{fontSize:11,color:"#334155"}}>{aj.nome}</span>
+                                  <button onClick={function(){_supSolicitarRemAj(aj.nome);}} style={{background:"#fef2f2",color:"#dc2626",border:"none",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🗑️</button>
+                                </div>;
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Minhas Solicitações */}
+              {(_pendentes.length>0||_historico.length>0)&&<div style={{padding:"0 12px",marginBottom:16}}>
+                <div style={{fontWeight:800,fontSize:13,color:"#1e293b",marginBottom:8}}>📋 Minhas Solicitações</div>
+                {_pendentes.map(function(s){
+                  return <div key={s.id} style={{background:"#fffbeb",border:"1.5px solid #fcd34d",borderRadius:10,padding:"10px 12px",marginBottom:6}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:11,fontWeight:700,color:"#92400e"}}>{s.tipo==="editar_valor"?"✏️ Edição":"🗑️ Remoção"} — {s.prestador_nome||s.ajudante_nome||""}</span>
+                      <span style={{background:"#fef3c7",border:"1px solid #fcd34d",borderRadius:6,padding:"2px 8px",fontSize:9,fontWeight:700,color:"#92400e"}}>⏳ Pendente</span>
+                    </div>
+                    <div style={{fontSize:10,color:"#a16207",marginTop:4}}>Motivo: {s.motivo}</div>
+                    {s.data_ref&&<div style={{fontSize:10,color:"#a16207"}}>Data: {String(s.data_ref).split("-").reverse().join("/")}</div>}
+                    {s.valor_antigo!=null&&<div style={{fontSize:10,color:"#a16207"}}>R$ {parseFloat(s.valor_antigo).toFixed(2)} → R$ {parseFloat(s.valor_novo).toFixed(2)}</div>}
+                  </div>;
+                })}
+                {_historico.map(function(s){
+                  var isAprov=s.status==="aprovado";
+                  return <div key={s.id} style={{background:isAprov?"#f0fdf4":"#fef2f2",border:"1px solid "+(isAprov?"#bbf7d0":"#fecaca"),borderRadius:10,padding:"10px 12px",marginBottom:6}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:11,fontWeight:700,color:isAprov?"#15803d":"#dc2626"}}>{s.tipo==="editar_valor"?"✏️ Edição":"🗑️ Remoção"} — {s.prestador_nome||s.ajudante_nome||""}</span>
+                      <span style={{fontSize:9,fontWeight:700,color:isAprov?"#15803d":"#dc2626"}}>{isAprov?"✅ Aprovado":"❌ Rejeitado"}</span>
+                    </div>
+                    <div style={{fontSize:10,color:"#64748b",marginTop:2}}>Por: {s.admin_nome||"Admin"} · {s.respondido_em?new Date(s.respondido_em).toLocaleDateString("pt-BR"):""}</div>
+                  </div>;
+                })}
+              </div>}
+            </div>
+          );
         })()}
         {tab==="config"&&<div style={{paddingBottom:80}}><div style={{background:"#1e293b",padding:"20px 16px 14px"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginBottom:2}}>Sistema</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>⚙️ Configuração</div></div><div style={{display:"flex",background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}><button onClick={()=>setSubConfig("usuarios")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="usuarios"?700:500,background:"transparent",borderBottom:subConfig==="usuarios"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="usuarios"?"#1e40af":"#64748b"}}>👥 Usuários</button>{isAdmin&&<button onClick={()=>setSubConfig("regras")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="regras"?700:500,background:"transparent",borderBottom:subConfig==="regras"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="regras"?"#1e40af":"#64748b"}}>📊 Regras</button>}</div>{isAdmin&&<button onClick={()=>setSubConfig("backup")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="backup"?700:500,background:"transparent",borderBottom:subConfig==="backup"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="backup"?"#1e40af":"#64748b"}}>💾 Backup</button>}{subConfig==="usuarios"&&(isAdmin||isSupervisor)&&(<div style={{paddingBottom:80}} onMouseEnter={()=>listaUsuarios.length===0&&carregarUsuarios()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:900}}>👥 Gerenciar Usuários</div><button onClick={carregarUsuarios} style={{background:"#eff6ff",border:"1px solid #3b82f6",color:"#3b82f6",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔄 Atualizar</button></div><Card style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>USUÁRIOS ({listaUsuarios.length})</div>{listaUsuarios.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Clique em Atualizar</div>:listaUsuarios.map(u=>(<div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}><div><div style={{fontWeight:700,fontSize:13}}>{u.nome}</div><div style={{fontSize:11,color:"#94a3b8"}}>{u.email}{u.contato?" · 📞 "+u.contato:""}</div><span style={{display:"inline-block",marginTop:3,background:u.perfil==="admin"?"#dbeafe":u.perfil==="promorar"?"#dcfce7":u.perfil==="motorista"?"#ede9fe":"#fef9c3",borderRadius:12,padding:"2px 8px",fontSize:10,fontWeight:800,color:u.perfil==="admin"?"#1d4ed8":u.perfil==="promorar"?"#15803d":u.perfil==="motorista"?"#7c3aed":"#a16207"}}>{u.perfil==="admin"?"👑 Admin":u.perfil==="promorar"?"🏢 Promorar":u.perfil==="supervisor"?"👷 Supervisor":u.perfil==="motorista"?"🚚 Motorista":"🤝 Social"}</span>{u.perfil==="motorista"&&(u.tipo_veiculo||u.placa_veiculo)&&<span style={{display:"inline-block",marginTop:3,marginLeft:4,background:"#f5f3ff",border:"1px solid #c4b5fd",borderRadius:12,padding:"2px 8px",fontSize:10,fontWeight:600,color:"#6d28d9"}}>{u.tipo_veiculo==="VAN"?"🚐 Van":u.tipo_veiculo==="CAMINHAO"?"🚛 Caminhão":u.tipo_veiculo||""}{u.placa_veiculo?" · "+u.placa_veiculo:""}</span>}</div><button onClick={function(){setEditUser({id:u.id,nome:u.nome,email:u.email,senha:"",perfil:u.perfil,ativo:u.ativo,tipo_veiculo:u.tipo_veiculo||"",placa_veiculo:u.placa_veiculo||"",contato:u.contato||""});setEditMsg("");}} style={{padding:"6px 12px",borderRadius:8,border:"1.5px solid #3b82f6",background:"#eff6ff",color:"#1e40af",fontSize:11,fontWeight:700,cursor:"pointer",marginRight:6}}>✏️ Editar</button>{isAdmin&&<button onClick={()=>toggleAtivoUser(u)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid "+(u.ativo?"#ef4444":"#22c55e"),background:u.ativo?"#fef2f2":"#f0fdf4",color:u.ativo?"#ef4444":"#22c55e",fontSize:11,fontWeight:700,cursor:"pointer"}}>{u.ativo?"🚫 Desativar":"✅ Ativar"}</button>}</div>))}</Card><Card><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>+ NOVO USUÁRIO</div><Inp label="Nome" icon="👤" value={novoUser.nome} onChange={v=>setNovoUser(f=>({...f,nome:v}))}/><Inp label="Email" icon="📧" value={novoUser.email} onChange={v=>setNovoUser(f=>({...f,email:v}))}/><Inp label="Senha" icon="🔒" value={novoUser.senha} onChange={v=>setNovoUser(f=>({...f,senha:v}))}/><Inp label="Contato (telefone)" icon="📞" value={novoUser.contato} onChange={v=>setNovoUser(f=>({...f,contato:v}))}/><div style={{marginBottom:12}}><label style={{display:"block",color:"#94a3b8",fontSize:11,fontWeight:700,marginBottom:5}}>PERFIL</label><div style={{display:"flex",gap:8}}>{(isAdmin?[["admin","👑 Admin"],["promorar","🏢 Promorar"],["social","🤝 Social"],["motorista","🚚 Motorista"],["supervisor","👷 Supervisor"]]:[["motorista","🚚 Motorista"],["supervisor","👷 Supervisor"],["social","🤝 Social"]]).map(([val,lab])=>(<button key={val} onClick={()=>setNovoUser(f=>({...f,perfil:val,tipo_veiculo:val!=="motorista"?"":f.tipo_veiculo,placa_veiculo:val!=="motorista"?"":f.placa_veiculo}))} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"1.5px solid "+(novoUser.perfil===val?"#f97316":"#e2e8f0"),background:novoUser.perfil===val?"#fff7ed":"#f8fafc",color:novoUser.perfil===val?"#f97316":"#94a3b8",fontWeight:800,fontSize:11,cursor:"pointer"}}>{lab}</button>))}</div></div>{novoUser.perfil==="motorista"&&<div style={{marginBottom:12,padding:"12px 14px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12}}><div style={{fontSize:11,fontWeight:800,color:"#64748b",letterSpacing:0.5,marginBottom:10}}>🚗 DADOS DO VEÍCULO</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Tipo de Veículo *</label><select value={novoUser.tipo_veiculo} onChange={function(e){setNovoUser(function(f){return Object.assign({},f,{tipo_veiculo:e.target.value});});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid "+(novoUser.tipo_veiculo?"#7c3aed":"#e2e8f0"),borderRadius:9,fontSize:13,fontWeight:700,color:novoUser.tipo_veiculo?"#7c3aed":"#94a3b8",background:novoUser.tipo_veiculo?"#f5f3ff":"#fff",cursor:"pointer",boxSizing:"border-box"}}><option value="">Selecione...</option><option value="VAN">Van</option><option value="CAMINHAO">Caminhão</option></select></div><div><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Placa (Opcional)</label><input type="text" placeholder="Ex: ABC-1D23" value={novoUser.placa_veiculo} onChange={function(e){setNovoUser(function(f){return Object.assign({},f,{placa_veiculo:e.target.value});});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:9,fontSize:13,fontWeight:600,color:"#1e293b",textTransform:"uppercase",boxSizing:"border-box"}}/></div></div></div>}{userMsg&&<div style={{background:userMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:userMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{userMsg}</div>}<button onClick={criarUsuario} disabled={savingUser} style={{width:"100%",padding:13,borderRadius:12,background:savingUser?"#94a3b8":"#f97316",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:savingUser?"not-allowed":"pointer"}}>{savingUser?"⏳ Criando...":"➕ Criar Usuário"}</button></Card></div>)}{editUser&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setEditUser(null);}}><div style={{background:"#fff",borderRadius:16,padding:"20px 16px 24px",width:"100%",maxWidth:420}} onClick={function(e){e.stopPropagation();}}><div style={{fontSize:15,fontWeight:800,color:"#1e293b",marginBottom:14}}>✏️ Editar Usuário</div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>👤 NOME</div><input value={editUser.nome} onChange={function(e){setEditUser(function(p){return {...p,nome:e.target.value};});}} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Nome"/></div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>📧 EMAIL</div><input value={editUser.email} onChange={function(e){setEditUser(function(p){return {...p,email:e.target.value};});}} type="email" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Email"/></div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>📞 CONTATO</div><input value={editUser.contato||""} onChange={function(e){setEditUser(function(p){return {...p,contato:e.target.value};});}} type="tel" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Ex: 81999990000"/></div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>🔒 NOVA SENHA <span style={{fontSize:10,color:"#94a3b8"}}>(vazio = manter)</span></div><input value={editUser.senha||""} onChange={function(e){setEditUser(function(p){return {...p,senha:e.target.value};});}} type="password" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Nova senha (opcional)"/></div><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6}}>PERFIL</div><div style={{display:"flex",gap:8}}>{[{v:"admin",l:"👑 Admin"},{v:"promorar",l:"🏢 Promorar"},{v:"social",l:"🤝 Social"},{v:"motorista",l:"🚚 Motorista"},{v:"supervisor",l:"👷 Sup."}].map(function(p){return <button key={p.v} onClick={function(){setEditUser(function(u){return {...u,perfil:p.v,tipo_veiculo:p.v!=="motorista"?"":u.tipo_veiculo,placa_veiculo:p.v!=="motorista"?"":u.placa_veiculo};});}} style={{flex:1,padding:"8px 4px",borderRadius:10,border:"2px solid "+(editUser.perfil===p.v?"#1e40af":"#e2e8f0"),background:editUser.perfil===p.v?"#eff6ff":"#f8fafc",color:editUser.perfil===p.v?"#1e40af":"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>{p.l}</button>;})}</div></div>{editUser.perfil==="motorista"&&<div style={{marginBottom:14,padding:"12px 14px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12}}><div style={{fontSize:11,fontWeight:800,color:"#64748b",letterSpacing:0.5,marginBottom:10}}>🚗 DADOS DO VEÍCULO</div><div style={{marginBottom:8}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Tipo de Veículo *</div><select value={editUser.tipo_veiculo||""} onChange={function(e){setEditUser(function(u){return {...u,tipo_veiculo:e.target.value};});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid "+(editUser.tipo_veiculo?"#7c3aed":"#e2e8f0"),borderRadius:9,fontSize:13,fontWeight:700,color:editUser.tipo_veiculo?"#7c3aed":"#94a3b8",background:editUser.tipo_veiculo?"#f5f3ff":"#fff",cursor:"pointer",boxSizing:"border-box"}}><option value="">Selecione...</option><option value="VAN">Van</option><option value="CAMINHAO">Caminhão</option></select></div><div><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Placa (Opcional)</div><input type="text" placeholder="Ex: ABC-1D23" value={editUser.placa_veiculo||""} onChange={function(e){setEditUser(function(u){return {...u,placa_veiculo:e.target.value};});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:9,fontSize:13,fontWeight:600,color:"#1e293b",textTransform:"uppercase",boxSizing:"border-box"}}/></div></div>}{editMsg&&<div style={{background:editMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:editMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{editMsg}</div>}<div style={{display:"flex",gap:8}}><button onClick={function(){setEditUser(null);setEditMsg("");}} style={{flex:1,padding:11,borderRadius:10,background:"#f1f5f9",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>Cancelar</button><button onClick={editarUsuario} disabled={savingEdit} style={{flex:2,padding:11,borderRadius:10,background:savingEdit?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:13,border:"none",cursor:savingEdit?"not-allowed":"pointer"}}>{savingEdit?"⏳ Salvando...":"✅ Salvar"}</button></div></div></div>}{subConfig==="backup"&&<div style={{padding:16,paddingBottom:16}}><div style={{fontSize:13,fontWeight:800,color:"#1e293b",marginBottom:12}}>💾 Backup Automático → Google Drive</div><div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:12,fontWeight:600,color:"#1e293b"}}>Backup Ativado</div><div style={{fontSize:10,color:"#64748b"}}>Semanal (seg) + Mensal (dia 1)</div></div><button onClick={async function(){const nv=!backupCfg.ativo;await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.backup_ativo",{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor:nv?"true":"false"})});setBackupCfg(function(p){return{...p,ativo:nv};});}} style={{padding:"6px 16px",borderRadius:20,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:backupCfg.ativo?"#16a34a":"#e2e8f0",color:backupCfg.ativo?"#fff":"#64748b"}}>{backupCfg.ativo?"✅ Ativo":"❌ Inativo"}</button></div><div style={{background:"#eff6ff",borderRadius:10,padding:"12px 14px",marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#1e40af",marginBottom:8}}>🔗 Google OAuth2</div><div style={{marginBottom:6}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Client ID</div><input type="text" value={backupCfg.clientId} onChange={function(e){setBackupCfg(function(p){return{...p,clientId:e.target.value};});}} placeholder="xxxxxx.apps.googleusercontent.com" style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #bfdbfe",fontSize:11,boxSizing:"border-box"}} /></div><div style={{marginBottom:6}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Client Secret</div><input type="password" value={backupCfg.clientSecret} onChange={function(e){setBackupCfg(function(p){return{...p,clientSecret:e.target.value};});}} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #bfdbfe",fontSize:11,boxSizing:"border-box"}} /></div><div style={{marginBottom:8}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Refresh Token</div><input type="password" value={backupCfg.refreshToken} onChange={function(e){setBackupCfg(function(p){return{...p,refreshToken:e.target.value};});}} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #bfdbfe",fontSize:11,boxSizing:"border-box"}} /></div><button onClick={async function(){const pairs=[["backup_gdrive_client_id",backupCfg.clientId],["backup_gdrive_client_secret",backupCfg.clientSecret],["backup_gdrive_refresh_token",backupCfg.refreshToken]];for(const [k,v] of pairs){await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq."+k,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor:v})});}alert("✅ Credenciais salvas!");}} style={{width:"100%",padding:"8px",background:"#1e40af",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Salvar Credenciais</button></div><div style={{background:"#f0fdf4",borderRadius:10,padding:"10px 14px",marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#16a34a",marginBottom:4}}>📅 Agendamento Automático</div><div style={{fontSize:11,color:"#475569",marginBottom:2}}>🔁 Semanal: toda segunda-feira às 06:00h</div><div style={{fontSize:11,color:"#475569",marginBottom:2}}>📆 Mensal: dia 1º de cada mês às 06:00h</div><div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>Pasta: APP Telemim → [Ano] → Semanal / Mensal</div></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}><button onClick={async function(){setBackupLoading(true);try{const res=await fetch("https://netoufukpmmfhzwirogi.supabase.co/functions/v1/backup-gdrive?tipo=semanal&force=1",{method:"POST",headers:{"Content-Type":"application/json"}});const j=await res.json();alert(j.ok?"✅ Backup semanal!\n"+j.arquivo:"❌ "+(j.erro||j.msg));}catch(e){alert("❌ "+e.message);}setBackupLoading(false);}} disabled={backupLoading} style={{padding:"10px",background:backupLoading?"#94a3b8":"#059669",color:"#fff",border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>{backupLoading?"⏳...":"🚀 Rodar Semanal"}</button><button onClick={async function(){setBackupLoading(true);try{const res=await fetch("https://netoufukpmmfhzwirogi.supabase.co/functions/v1/backup-gdrive?tipo=mensal&force=1",{method:"POST",headers:{"Content-Type":"application/json"}});const j=await res.json();alert(j.ok?"✅ Backup mensal!\n"+j.arquivo:"❌ "+(j.erro||j.msg));}catch(e){alert("❌ "+e.message);}setBackupLoading(false);}} disabled={backupLoading} style={{padding:"10px",background:backupLoading?"#94a3b8":"#1e40af",color:"#fff",border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>{backupLoading?"⏳...":"🚀 Rodar Mensal"}</button></div><div style={{fontSize:12,fontWeight:700,color:"#1e293b",marginBottom:6}}>Histórico de Backups</div>{backupHist.length===0?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:16}}>Nenhum backup realizado ainda</div>:backupHist.map(function(h){return <div key={h.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",marginBottom:8,background:h.status==="ok"?"#f0fdf4":"#fef2f2",borderRadius:8,border:"1px solid "+(h.status==="ok"?"#bbf7d0":"#fecaca")}}><div><div style={{fontSize:11,fontWeight:600,color:"#1e293b"}}>{h.tipo==="semanal"?"🔁":"📆"} {h.periodo_ref}</div><div style={{fontSize:10,color:"#64748b"}}>{h.arquivo_nome||h.erro_msg}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:9,color:"#94a3b8"}}>{h.executado_em?new Date(h.executado_em).toLocaleString("pt-BR"):""}</div>{h.gdrive_link&&<a href={h.gdrive_link} target="_blank" style={{fontSize:10,color:"#1e40af"}}>🔗 Ver</a>}</div></div>;})}</div>}{subConfig==="regras"&&<div style={{padding:"12px 12px 80px"}}><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🚛 Caminhão</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>1ª Mudança (R$)</label><input type="number" value={cfgEdit.cam1a||350} onChange={e=>setCfgEdit(p=>({...p,cam1a:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>+ Acréscimo (R$)</label><input type="number" value={cfgEdit.camAdd||130} onChange={e=>setCfgEdit(p=>({...p,camAdd:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div></div></div></div><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>👷 Ajudante</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>1º Ajudante (R$)</label><input type="number" value={cfgEdit.aj1a||80} onChange={e=>setCfgEdit(p=>({...p,aj1a:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>+ Acréscimo (R$)</label><input type="number" value={cfgEdit.ajAdd||20} onChange={e=>setCfgEdit(p=>({...p,ajAdd:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div></div></div></div><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🚐 Van</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Custo Operacional (R$)</label><input type="number" value={cfgEdit.vanCusto||400} onChange={e=>setCfgEdit(p=>({...p,vanCusto:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Valor Cobrado (R$)</label><input type="number" value={cfgEdit.van1a||1000} onChange={e=>setCfgEdit(p=>({...p,van1a:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div></div></div></div><div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🮾 Imposto e Vigência</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Imposto (%)</label><input type="number" value={Math.round((cfgEdit.imposto||0.16)*100)} onChange={e=>setCfgEdit(p=>({...p,imposto:Number(e.target.value)/100}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>📅 Data Início</label><input type="date" value={cfgEdit.dataInicioRegra||""} onChange={e=>setCfgEdit(p=>({...p,dataInicioRegra:e.target.value}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box",color:"#334155"}}/></div></div></div></div>{(()=>{const _c1=cfgEdit.cam1a||350;const _cA=cfgEdit.camAdd||130;const _a1=cfgEdit.aj1a||80;const _aA=cfgEdit.ajAdd||20;const _v1=cfgEdit.van1a||1000;const _vC=cfgEdit.vanCusto||400;return <div style={{background:"#f1f5f9",borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:12,color:"#475569"}}><div style={{fontWeight:700,marginBottom:6}}>Simulação:</div><div>🚛 1 mud: R${_c1} | 2 mud: R${_c1+_cA} | 3 mud: R${_c1+2*_cA}</div><div>👷 1 aj/1 mud: R${_a1} | 1 aj/2 mud: R${_a1+_aA}</div><div>🚐 Van cobra R${_v1} | custa R${_vC}</div></div>;})()}<button onClick={async()=>{try{const rows=[{chave:"cam_1a_mudanca",valor:String(cfgEdit.cam1a||350)},{chave:"cam_adicional",valor:String(cfgEdit.camAdd||130)},{chave:"ajudante_1a_mudanca",valor:String(cfgEdit.aj1a||80)},{chave:"ajudante_adicional",valor:String(cfgEdit.ajAdd||20)},{chave:"custo_van_dia",valor:String(cfgEdit.vanCusto||400)},{chave:"ganho_van_dia",valor:String(cfgEdit.van1a||1000)},{chave:"van_1a_mudanca",valor:String(cfgEdit.van1a||1000)},{chave:"imposto_pct",valor:String(Math.round((cfgEdit.imposto||0.16)*100))},{chave:"data_inicio_regra",valor:cfgEdit.dataInicioRegra||""}];let ok2=true;for(const row of rows){const res=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq."+row.chave,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor:row.valor})});if(!res.ok){ok2=false;}}if(ok2){alert("Regras salvas!");}else{alert("Erro ao salvar.");}}catch(e){alert("Erro: "+e.message);}}} style={{width:"100%",padding:"14px",background:"#1e40af",color:"#fff",border:"none",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer"}}>💾 Salvar Regras</button></div>}</div>}
           {isAdmin&&subConfig==="regras"&&(
