@@ -2107,20 +2107,9 @@ export default function App(){
       await salvarCanhotoNoDrive(ag.id,pdfFinal,nm);
     }catch(err){console.warn("[assinatura-pdf]",err);}
   }
-  async function converterEmMudanca(ag){
+  function converterEmMudanca(ag){
     if(!ag.medicao){alert('Informe a medição (m³) antes de finalizar.');return;}
-    setMudancaCanhoto(ag);
-    setModalAssinatura(true);
-    return;
-    const nova={nome:ag.nome,selo:ag.selo||'',comunidade:ag.comunidade||'',data:ag.data,origem:ag.origem||'',destino:ag.destino||'',contato:ag.contato||null,van:ag.van||false,caminhao:ag.caminhao||false,medicao:ag.medicao||0,ajudantes:ag.ajudantes||0,observacao:ag.observacao||'',status:'concluida',registrado_por:usuario.email};
-    const{error:errM}=await supabase.from('mudancas').insert([nova]);
-    if(!errM)setMudancas(prev=>[nova,...prev]);
-    if(!errM)setMudancas(prev=>[nova,...prev]);
-    if(errM){alert('Erro: '+errM.message);return;}
-    await supabase.from('agenda').update({status:'concluida'}).eq('id',ag.id);
-    setMudancas(prev=>[...prev,{...nova,id:Date.now()}]);
-    setAgenda(prev=>prev.filter(a=>a.id!==ag.id));
-    setFlash('✅ Mudança finalizada!');
+    pedirFinalizacao(ag);
   }
 
   async function confirmarConversao(ag, medicao){
