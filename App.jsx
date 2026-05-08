@@ -3094,14 +3094,14 @@ export default function App(){
     (agenda||[]).forEach(function(a){
       if(a.deleted_at||!a.data) return;
       var _done=_conclStatuses.indexOf(a.status)>=0||a.termino_em||a.chegada_van_em||a.chegada_caminhao_em||a.termino_van_em||a.termino_caminhao_em;
-      var _active=a.inicio_van_em||a.van_saiu_em||a.inicio_caminhao_em||a.caminhao_saiu_em||a.chegou_origem_van_em||a.chegou_origem_cam_em||a.saiu_destino_van_em||a.saiu_destino_cam_em||a.status==="Realizando"||a.inicio_mudanca_em;
-      // Pendentes/backdatados NÃO entram em Registros — só aparecem na aba Agenda/Pendente
-      // Somente itens concluídos ou em andamento vão para _allForFiltered (Registros/Financeiro)
-      if(!_done&&!_active) return;
+      // PROTOCOLO: Somente itens CONCLUÍDOS vão para Registros/Financeiro.
+      // Itens "ativos" (caminhão saiu, em andamento) mas NÃO concluídos ficam na Agenda.
+      // Isso evita que mudanças em progresso apareçam como realizadas em Registros.
+      if(!_done) return;
       var key=(a.nome||"").toLowerCase().trim()+"|"+a.data;
       if(_seenKeys[key]) return;
       _seenKeys[key]=true;
-      _list.push(Object.assign({},a,{_fromAgenda:true,status:_done?"Concluído":(a.status||"confirmado"),termino_em:a.termino_em||a.termino_van_em||a.termino_caminhao_em||null,criado_em:a.criado_em||a.termino_em||null}));
+      _list.push(Object.assign({},a,{_fromAgenda:true,status:"Concluído",termino_em:a.termino_em||a.termino_van_em||a.termino_caminhao_em||null,criado_em:a.criado_em||a.termino_em||null}));
     });
     return _list;
   })();
