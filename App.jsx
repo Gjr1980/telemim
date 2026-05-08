@@ -1125,6 +1125,9 @@ export default function App(){
       return item.status||"confirmado";
     }
     function _isActive(item){
+      // PROTOCOLO: Cancelada ou Pendente NUNCA são ativas no monitoramento
+      var _st=item.status;
+      if(_st==="cancelada"||_st==="pendente") return false;
       var d=_deriveStatus(item);
       return d.indexOf("deslocamento")>=0||d.indexOf("origem")>=0||d.indexOf("destino")>=0||d.indexOf("descarregando")>=0||d==="Em Deslocamento"||d==="Realizando"||d==="Na Origem"||d==="Deslocamento Destino"||d==="Descarregando";
     }
@@ -1143,6 +1146,8 @@ export default function App(){
     var _groups={};
     _all.forEach(function(item){
       var sid=item.supervisor_id;
+      // PROTOCOLO: Itens cancelados não aparecem no monitoramento
+      if(item.status==="cancelada") return;
       if(!_groups[sid])_groups[sid]={supervisorId:sid,activeMove:null,pendingMoves:[],completedMoves:[]};
       if(_isActive(item)){
         if(!_groups[sid].activeMove) _groups[sid].activeMove=item;
@@ -2818,20 +2823,24 @@ export default function App(){
     }catch(e){setSyncStatus("⚠️ Erro ao solicitar cancelamento");}
     setCancelModal(null);setCancelMotivo("");
   }
+  // PROTOCOLO: Campos de monitoramento limpos ao cancelar/pendenciar
+  var _monitorClearFields={inicio_van_em:null,van_saiu_em:null,chegada_van_em:null,termino_van_em:null,chegou_origem_van_em:null,saiu_destino_van_em:null,inicio_caminhao_em:null,caminhao_saiu_em:null,chegada_caminhao_em:null,termino_caminhao_em:null,chegou_origem_cam_em:null,saiu_destino_cam_em:null};
   async function handleCancelarDireto(agId){
     await _ensureAuth();
-    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,{status:"cancelada",cancelamento_solicitado:false}):a;});});
+    var _clearPayload=Object.assign({status:"cancelada",cancelamento_solicitado:false},_monitorClearFields);
+    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,_clearPayload):a;});});
     try{
-      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({status:"cancelada",cancelamento_solicitado:false})});
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_clearPayload)});
       try{_addNotif("cancelamento","Mudança cancelada pelo admin",(agenda.find(function(a){return a.id===agId;})||{}).nome||"");}catch(e){}
       setSyncStatus("✅ Mudança cancelada!");
     }catch(e){setSyncStatus("⚠️ Erro ao cancelar");}
   }
   async function handleAutorizarCancelamento(agId){
     await _ensureAuth();
-    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,{status:"cancelada",cancelamento_solicitado:false}):a;});});
+    var _clearPayload=Object.assign({status:"cancelada",cancelamento_solicitado:false},_monitorClearFields);
+    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,_clearPayload):a;});});
     try{
-      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({status:"cancelada",cancelamento_solicitado:false})});
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_clearPayload)});
       setSyncStatus("✅ Cancelamento autorizado!");
     }catch(e){setSyncStatus("⚠️ Erro ao autorizar");}
   }
@@ -2842,6 +2851,16 @@ export default function App(){
       await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({cancelamento_solicitado:false,cancelamento_motivo:null,cancelamento_por:null,cancelamento_perfil:null})});
       setSyncStatus("✅ Cancelamento recusado!");
     }catch(e){setSyncStatus("⚠️ Erro ao recusar");}
+  }
+  // PROTOCOLO: Mover para Pendente encerra monitoramento (limpa timestamps)
+  async function handleMoverPendente(agId){
+    await _ensureAuth();
+    var _clearPayload=Object.assign({status:"pendente"},_monitorClearFields);
+    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,_clearPayload):a;});});
+    try{
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_clearPayload)});
+      setSyncStatus("✅ Movida para Pendente — monitoramento encerrado.");
+    }catch(e){setSyncStatus("⚠️ Erro ao mover para pendente");}
   }
   async function handleDespachar(agId,motoristaId,tipo){
     await _ensureAuth();
@@ -3733,13 +3752,16 @@ export default function App(){
     );
   };
   // Totais gerais do dia
-  var _allToday=[...(agenda||[]).filter(function(a){return a.data===_hjStr&&!a.deleted_at;}),
-    ...(mudancas||[]).filter(function(m){return m.data===_hjStr&&!m.deleted_at;})];
+  var _allToday=[...(agenda||[]).filter(function(a){return a.data===_hjStr&&!a.deleted_at&&a.status!=="cancelada";}),
+    ...(mudancas||[]).filter(function(m){return m.data===_hjStr&&!m.deleted_at&&m.status!=="cancelada";})];
   var _statusAtivo2=function(s){return s==="Em Deslocamento"||s==="Realizando";};
   var _statusConcl2=function(s){return["Concluido","Concluído","concluido","concluida","realizado","realizada"].indexOf(s)>=0;};
-  var _totalAtivas=_allToday.filter(function(x){return _statusAtivo2(x.status);}).length;
-  var _totalConcl=_allToday.filter(function(x){return _statusConcl2(x.status);}).length;
-  var _totalPend=_allToday.filter(function(x){return !_statusAtivo2(x.status)&&!_statusConcl2(x.status);}).length;
+  // PROTOCOLO: Pendente não conta como ativo mesmo com timestamps
+  var _isAtivo2=function(x){return x.status!=="pendente"&&x.status!=="cancelada"&&(_statusAtivo2(x.status)||(x.inicio_van_em||x.van_saiu_em||x.inicio_caminhao_em||x.caminhao_saiu_em)&&!(x.termino_em||x.termino_van_em||x.termino_caminhao_em));};
+  var _totalAtivas=_allToday.filter(function(x){return _isAtivo2(x);}).length;
+  var _isConcl2=function(x){return !_isAtivo2(x)&&(_statusConcl2(x.status)||x.termino_em||x.termino_van_em||x.termino_caminhao_em);};
+  var _totalConcl=_allToday.filter(function(x){return _isConcl2(x);}).length;
+  var _totalPend=_allToday.filter(function(x){return !_isAtivo2(x)&&!_isConcl2(x);}).length;
 
   return(
     <div style={{padding:"0 0 80px"}}>
@@ -3782,6 +3804,8 @@ export default function App(){
         _allToday2.forEach(function(am){
           var key2=(am.nome||"").toLowerCase().trim()+"|"+am.data;
           if(_seen2[key2])return;_seen2[key2]=true;
+          // PROTOCOLO: Cancelada ou Pendente não rastreia veículos
+          if(am.status==="cancelada"||am.status==="pendente") return;
           // Van in transit?
           var _vanTransit=((am.inicio_van_em||am.van_saiu_em)&&!am.chegada_van_em);
           var _camTransit=((am.inicio_caminhao_em||am.caminhao_saiu_em)&&!am.chegada_caminhao_em);
@@ -4388,7 +4412,7 @@ export default function App(){
                       </div>
                       <div style={{display:"flex",flexDirection:"column",gap:5,marginLeft:9}}>
                         <button onClick={()=>converterEmMudanca(a)} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>
-                        <button onClick={function(){updateAgField(a.id,"status","pendente");}} style={{background:"#fffbeb",border:"none",color:"#b45309",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Mover para Pendente">⏳</button>
+                        <button onClick={function(){handleMoverPendente(a.id);}} style={{background:"#fffbeb",border:"none",color:"#b45309",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Mover para Pendente">⏳</button>
                         <button onClick={()=>setEditAg({...a})} style={btnBlue}>✏️</button>
                         {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={btnRed}>✕</button>}
                         {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===a.data;});setViewEquipeAg({nome:a.nome,data:a.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"none",color:"#92400e",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Ver equipe do dia">👷</button>}
