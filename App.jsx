@@ -4528,6 +4528,9 @@ export default function App(){
           var _cpM=(contasPagar||[]).filter(function(cp){return cp.data&&cp.data.slice(0,7)===_am;});
           // Usar função centralizada — MESMA lógica que aba Contas
           var _r=_calcCustos(_mudM,_cdM,_cpM,RULES);var _csM=(contasSemana||[]).filter(function(x){return x.semana_inicio&&x.semana_inicio.slice(0,7)===_am&&["caminhao","van","ajudante","almoco"].includes(x.tipo)&&x.tipo_conta!=="receber";});if(_csM.length>0){var _getEdited=function(tp){var _items=_csM.filter(function(x){return x.tipo===tp&&x.valor_editado;});return _items.length>0?_items.reduce(function(s,x){return s+(parseFloat(x.valor_editado)||0);},0):null;};var _eCam=_getEdited("caminhao");var _eVan=_getEdited("van");var _eAj=_getEdited("ajudante");var _eAlm=_getEdited("almoco");_r=Object.assign({},_r,{cCam:_eCam!==null?_eCam:_r.cCam,cVan:_eVan!==null?_eVan:_r.cVan,cAj:_eAj!==null?_eAj:_r.cAj,cAlm:_eAlm!==null?_eAlm:_r.cAlm});_r.despTotal=_r.cCam+_r.cVan+_r.cAj+_r.cAlm+_r.cDesp+_r.cExtra;}
+          // Apply approved solicitacao overrides to cAj
+          var _aprovFin=solicitacoesFin.filter(function(s){return s.status==="aprovado"&&s.tipo==="editar_valor"&&s.data_ref&&s.data_ref.slice(0,7)===_am;});
+          if(_aprovFin.length>0){var _ajDiff=0;_aprovFin.forEach(function(s){var _nv=parseFloat(s.valor_novo);var _ov=parseFloat(s.valor_antigo);if(!isNaN(_nv)&&!isNaN(_ov))_ajDiff+=_nv-_ov;});_r=Object.assign({},_r,{cAj:_r.cAj+_ajDiff});_r.despTotal=_r.cCam+_r.cVan+_r.cAj+_r.cAlm+_r.cDesp+_r.cExtra;}
           return (
             <div style={{padding:"12px 12px 0"}}>
               <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>
@@ -4687,6 +4690,9 @@ return(
       var _mudSem2=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data>=_sem2.si&&m.data<=_sem2.sf;});
       var _cdSem2=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data>=_sem2.si&&cd.data<=_sem2.sf;});
       var _rSem2=_calcCustos(_mudSem2,_cdSem2,[],RULES);
+      // Apply approved overrides to ajudante cost for this week
+      var _aprovSem2=solicitacoesFin.filter(function(s){return s.status==="aprovado"&&s.tipo==="editar_valor"&&s.data_ref&&s.data_ref>=_sem2.si&&s.data_ref<=_sem2.sf;});
+      if(_aprovSem2.length>0){var _dSem2=0;_aprovSem2.forEach(function(s){var _nv=parseFloat(s.valor_novo);var _ov=parseFloat(s.valor_antigo);if(!isNaN(_nv)&&!isNaN(_ov))_dSem2+=_nv-_ov;});_rSem2=Object.assign({},_rSem2,{cAj:_rSem2.cAj+_dSem2});_rSem2.despTotal=_rSem2.cCam+_rSem2.cVan+_rSem2.cAj+_rSem2.cAlm+_rSem2.cDesp+(_rSem2.cExtra||0);}
       var _calcMap2={caminhao:_rSem2.cCam,van:_rSem2.cVan,ajudante:_rSem2.cAj,almoco:_rSem2.cAlm};
       var _totalSem2=_tipos2.reduce(function(s,t){var _it=_its2.find(function(x){return x.tipo===t.tp;});return s+((_it&&_it.valor_editado)?parseFloat(_it.valor_editado):(_calcMap2[t.tp]||0));},0);
       return(
@@ -5091,6 +5097,16 @@ return(
       _ajMapP[aj.id].dias.push({data:ed.data,numMud:numMud,valor:valPorAj});
       _ajMapP[aj.id].total+=valPorAj;
     });
+  });
+  // Apply approved overrides from solicitacoes_financeiras
+  var _aprovP=solicitacoesFin.filter(function(s){return s.status==="aprovado"&&s.tipo==="editar_valor";});
+  Object.values(_ajMapP).forEach(function(aj){
+    var diff=0;
+    aj.dias.forEach(function(d){
+      var aprov=_aprovP.find(function(s){return s.prestador_nome===aj.nome&&s.data_ref===d.data;});
+      if(aprov){var _nv=parseFloat(aprov.valor_novo);if(!isNaN(_nv)){diff+=_nv-d.valor;d.valor=_nv;}if(aprov.num_mud_novo!=null)d.numMud=parseInt(aprov.num_mud_novo);}
+    });
+    aj.total+=diff;
   });
   var _ajListP=Object.values(_ajMapP).sort(function(a,b){return a.nome.localeCompare(b.nome);});
   var _totalEquipe=_ajListP.reduce(function(s,aj){return s+aj.total;},0);
