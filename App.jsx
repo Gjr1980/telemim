@@ -4440,27 +4440,65 @@ export default function App(){
                 </div>
                 <div style={isDesktop?{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14}:{}}>
                   {passadas.map(function(a){return(
-                    <Card key={a.id} style={{marginBottom:isDesktop?0:9,padding:"14px 16px",border:"2px solid #fbbf24",background:"#fffbeb"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                        <div style={{flex:1}}>
-                          <div style={{fontWeight:900,fontSize:16,color:"#1e293b",marginBottom:4}}>👤 {a.nome}</div>
-                          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
-                            <TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/><TagCom v={a.comunidade}/>
-                          </div>
-                          <div style={{fontSize:11,lineHeight:1.7,marginBottom:6}}>
-                            <div>📦 <strong>Saída:</strong> {a.origem||"—"}</div>
-                            <div>🏠 <strong>Chegada:</strong> {a.destino||"—"}</div>
-                            {a.contato&&<div>📞 {a.contato}</div>}
-                          </div>
-                          {a.data<hoje&&<div style={{fontSize:10,color:"#b45309",fontWeight:700}}>Adicionada em {a.criado_em?new Date(a.criado_em).toLocaleDateString("pt-BR"):""} para data {a.data?new Date(a.data+"T12:00:00").toLocaleDateString("pt-BR"):""}</div>}
+                    <div key={a.id} id={"move-card-"+a.id}><Card style={{marginBottom:isDesktop?0:9,padding:"14px 16px",border:"2px solid #fbbf24",background:"#fffbeb"}}>
+                    {a.data<hoje&&<div style={{background:"#fef3c7",border:"1px solid #fbbf24",borderRadius:8,padding:"6px 10px",marginBottom:10,fontSize:10,fontWeight:700,color:"#92400e"}}>⏳ Adicionada em {a.criado_em?new Date(a.criado_em).toLocaleDateString("pt-BR"):""} para data {a.data?new Date(a.data+"T12:00:00").toLocaleDateString("pt-BR"):""}</div>}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:900,fontSize:24,color:COLORS.text,marginBottom:8}}>👤 {a.nome}</div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+                          <TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/><TagCom v={a.comunidade}/>
                         </div>
-                        <div style={{display:"flex",flexDirection:"column",gap:5,marginLeft:9}}>
-                          <button onClick={function(){converterEmMudanca(a);}} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Marcar como concluída">✅</button>
-                          <button onClick={function(){setEditAg({...a});}} style={{background:"#eff6ff",border:"1px solid #3b82f6",color:"#3b82f6",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}}>✏️</button>
-                          {isAdmin&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={{background:"#fef2f2",border:"1px solid #ef4444",color:"#ef4444",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}}>✕</button>}
+                        <div style={{fontSize:12,lineHeight:1.9,background:"#fff",borderRadius:10,padding:"8px 12px",marginBottom:10}}>
+                          <div>📦 <strong>Saída:</strong> {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
+                          <div>🏠 <strong>Chegada:</strong> {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
+                          {a.contato&&<div>📞 <strong>Contato:</strong> <a href={"tel:"+a.contato.replace(/\D/g,"")} style={{color:COLORS.green,textDecoration:"none",fontWeight:700}}>{a.contato} 📲</a></div>}
+                        </div>
+                        <div style={{marginBottom:10}}>
+                          <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>🚗 Veículos</div>
+                          <div style={{display:"flex",gap:8}}>
+                            <button onClick={function(){toggleAgField(a.id,"van");}} style={{padding:"7px 14px",borderRadius:10,border:"2px solid "+(a.van?COLORS.blue:"#e2e8f0"),background:a.van?"#eff6ff":"#f8fafc",color:a.van?COLORS.blue:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer"}}>🚐 Van {a.van?"✓":"✗"}</button>
+                            <button onClick={function(){toggleAgField(a.id,"caminhao");}} style={{padding:"7px 14px",borderRadius:10,border:"2px solid "+(a.caminhao?COLORS.accent:"#e2e8f0"),background:a.caminhao?"#fff7ed":"#f8fafc",color:a.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer"}}>🚚 Caminhão {a.caminhao?"✓":"✗"}</button>
+                          </div>
+                        </div>
+                        {(isAdmin||isSupervisor)&&(function(){var _motsV=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="VAN";});var _motsC=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="CAMINHAO";});var _selStyle={flex:1,padding:"8px 10px",borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer"};var _okStyle={padding:"8px 12px",borderRadius:9,border:"none",fontWeight:800,fontSize:12,cursor:"pointer",color:"#fff",whiteSpace:"nowrap"};var _kV=a.id+"_VAN";var _kC=a.id+"_CAM";var _valV=despPend[_kV]!==undefined?despPend[_kV]:(a.motorista_van_id||"");var _valC=despPend[_kC]!==undefined?despPend[_kC]:(a.motorista_caminhao_id||"");var _changedV=despPend[_kV]!==undefined&&despPend[_kV]!==(a.motorista_van_id||"");var _changedC=despPend[_kC]!==undefined&&despPend[_kC]!==(a.motorista_caminhao_id||"");return(<div style={{marginBottom:10}}><div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🚚 Despachar Motoristas</div>{a.van&&_motsV.length>0&&<div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6}}><select value={_valV} onChange={function(e){setDespPend(function(p){var n=Object.assign({},p);n[_kV]=e.target.value;return n;});}} style={Object.assign({},_selStyle,{border:"1.5px solid "+(_valV?"#2563eb":"#e2e8f0"),background:_valV?"#eff6ff":"#fff",color:_valV?"#2563eb":"#64748b"})}><option value="">🚐 Sem motorista Van</option>{_motsV.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}{mt.placa_veiculo?" · "+mt.placa_veiculo:""}</option>);})}</select><button onClick={function(){handleDespachar(a.id,_valV||null,"VAN");setDespPend(function(p){var n=Object.assign({},p);delete n[_kV];return n;});}} disabled={!_changedV} style={Object.assign({},_okStyle,{background:_changedV?"#2563eb":"#94a3b8",cursor:_changedV?"pointer":"not-allowed"})}>{_changedV?"✓ OK":"✓"}</button></div>}{a.caminhao&&_motsC.length>0&&<div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6}}><select value={_valC} onChange={function(e){setDespPend(function(p){var n=Object.assign({},p);n[_kC]=e.target.value;return n;});}} style={Object.assign({},_selStyle,{border:"1.5px solid "+(_valC?"#7c3aed":"#e2e8f0"),background:_valC?"#f5f3ff":"#fff",color:_valC?"#7c3aed":"#64748b"})}><option value="">🚚 Sem motorista Caminhão</option>{_motsC.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}{mt.placa_veiculo?" · "+mt.placa_veiculo:""}</option>);})}</select><button onClick={function(){handleDespachar(a.id,_valC||null,"CAMINHAO");setDespPend(function(p){var n=Object.assign({},p);delete n[_kC];return n;});}} disabled={!_changedC} style={Object.assign({},_okStyle,{background:_changedC?"#7c3aed":"#94a3b8",cursor:_changedC?"pointer":"not-allowed"})}>{_changedC?"✓ OK":"✓"}</button></div>}{(function(){var _sups=listaUsuarios.filter(function(u){return u.perfil==="supervisor"&&u.ativo;});if(_sups.length===0)return null;var _kS=a.id+"_SUP";var _valS=despPend[_kS]!==undefined?despPend[_kS]:(a.supervisor_id||"");var _changedS=despPend[_kS]!==undefined&&despPend[_kS]!==(a.supervisor_id||"");return(<div style={{display:"flex",gap:6,alignItems:"center"}}><select value={_valS} onChange={function(e){setDespPend(function(p){var n=Object.assign({},p);n[_kS]=e.target.value;return n;});}} style={Object.assign({},_selStyle,{border:"1.5px solid "+(_valS?"#b45309":"#e2e8f0"),background:_valS?"#fef3c7":"#fff",color:_valS?"#92400e":"#64748b"})}><option value="">👷 Sem supervisor</option>{_sups.map(function(s){return(<option key={s.id} value={s.id}>{s.nome}</option>);})}</select><button onClick={function(){handleDespacharSup(a.id,_valS||null);setDespPend(function(p){var n=Object.assign({},p);delete n[_kS];return n;});}} disabled={!_changedS} style={Object.assign({},_okStyle,{background:_changedS?"#b45309":"#94a3b8",cursor:_changedS?"pointer":"not-allowed"})}>{_changedS?"✓ OK":"✓"}</button></div>);})()}</div>);})()}
+                        {(usuario&&usuario.perfil!=="social")&&<div style={{display:"grid",gridTemplateColumns:(usuario&&(usuario.perfil==="admin"||usuario.perfil==="supervisor"))?"1fr 1fr":"1fr",gap:8,marginBottom:10}}>{(usuario&&usuario.perfil!=="social")&&<div>
+                            <label style={{display:"block",color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>📐 Medição (m³)</label>
+                            <input type="number" placeholder="Ex: 27" value={a.medicao||""} onChange={function(e){updateAgField(a.id,"medicao",e.target.value);}}
+                              style={{width:"100%",background:"#fff",border:"1.5px solid "+(a.medicao?COLORS.green:COLORS.cardBorder),borderRadius:9,color:COLORS.text,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+                          </div>}
+                          {(usuario&&(usuario.perfil==="admin"||usuario.perfil==="supervisor"))&&<div>
+                            <label style={{display:"block",color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>👷 Ajudantes</label>
+                            <input type="number" placeholder="Ex: 3" value={a.ajudantes||""} onChange={function(e){updateAgField(a.id,"ajudantes",e.target.value);}}
+                              style={{width:"100%",background:"#fff",border:"1.5px solid "+(a.ajudantes?COLORS.green:COLORS.cardBorder),borderRadius:9,color:COLORS.text,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+                          </div>}
+                        </div>}
+                        {(isAdmin||isSupervisor)&&(function(){var _eqD=equipeDiaList.find(function(e){return e.data===a.data;});var _eqAj=_eqD&&Array.isArray(_eqD.ajudantes)?_eqD.ajudantes:[];return _eqAj.length>0?<div style={{marginBottom:8}}><div style={{display:"flex",flexWrap:"wrap",gap:4}}><span style={{fontSize:11,fontWeight:700,color:"#92400e"}}>👷 Equipe ({_eqAj.length}):</span>{_eqAj.map(function(aj){return <span key={aj.id} style={{background:"#dcfce7",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#15803d"}}>{aj.nome}</span>;})}</div></div>:null;})()}
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
+                          <div style={{display:"flex",gap:5}}>
+                            <button onClick={function(){pedirFinalizacao(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>
+                            {isAdmin&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={{background:"#fef2f2",border:"1.5px solid #fecaca",color:"#dc2626",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Cancelar</button>}
+                          </div>
+                          <div style={{display:"flex",gap:5,alignItems:"center"}}>
+                            {a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
+                            {a.ajudantes&&parseInt(a.ajudantes)>0&&<Badge color="#b45309">👷 {a.ajudantes} {parseInt(a.ajudantes)===1?"ajudante":"ajudantes"}</Badge>}
+                            <button onClick={function(){compartilharWhatsApp(a);}} style={{...btnGreen,fontSize:14,padding:"6px 10px"}}>📲</button>
+                          </div>
                         </div>
                       </div>
-                    </Card>
+                      <div style={{display:"flex",flexDirection:"column",gap:5,marginLeft:9}}>
+                        <button onClick={function(){converterEmMudanca(a);}} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>
+                        <button onClick={function(){setEditAg({...a});}} style={btnBlue}>✏️</button>
+                        {isAdmin&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={btnRed}>✕</button>}
+                        {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===a.data;});setViewEquipeAg({nome:a.nome,data:a.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"none",color:"#92400e",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Ver equipe do dia">👷</button>}
+                      </div>
+                    </div>
+                    {(a.approved_by_admin||a.approved_by_social||a.approved_by_promorar||a.approved_by_supervisor||a.requested_by||(usuario&&['admin','social','promorar','supervisor'].includes(usuario.perfil)))&&(
+                    <div style={{borderTop:"1px solid #e2e8f0",marginTop:6,paddingTop:5,fontSize:11,color:"#475569"}}>
+                      <div style={{marginBottom:3}}>📝 <b>Solicitado por:</b> {a.created_by||a.requested_by||"Sistema"}{a.criado_em?" · "+new Date(a.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
+                      <div style={{marginBottom:2}}><span>Promorar: {a.approved_by_promorar?<b style={{color:"#16a34a"}}>✅ {a.approved_by_promorar}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span></div>
+                      <div style={{marginBottom:2}}><span>Admin: {a.approved_by_admin?<b style={{color:"#16a34a"}}>✅ {a.approved_by_admin}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span></div>
+                    </div>)}
+                    </Card></div>
                   );})}
                 </div>
               </div>
