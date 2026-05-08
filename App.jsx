@@ -1380,7 +1380,7 @@ export default function App(){
     setSyncStatus("🔄 Salvando...");
     try{
       var ts=changed?[changed]:list;
-      for(var i=0;i<ts.length;i++){var m=ts[i];var row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,contato:m.contato||"",observacao:m.observacao||"",confirmed_promorar:m.confirmed_promorar||false,confirmed_telemim:m.confirmed_telemim||false,adm_approved:m.adm_approved||false,promorar_approved:m.promorar_approved||false,social_approved:m.social_approved||false,status:m.status||"Registrado",signature_data:(m.signature_data!=null&&m.signature_data!="")?m.signature_data:null};row.created_by=m.created_by||(usuario&&(usuario.nome||usuario.email))||null;row.creator_role=m.creator_role||(usuario&&usuario.perfil)||null;await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...getH(),"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
+      for(var i=0;i<ts.length;i++){var m=ts[i];var row={id:m.id,nome:m.nome,selo:m.selo||"",comunidade:m.comunidade||"",data:m.data,origem:m.origem||"",destino:m.destino||"",medicao:m.medicao||0,van:m.van||false,contato:m.contato||"",observacao:m.observacao||"",confirmed_promorar:m.confirmed_promorar||false,confirmed_telemim:m.confirmed_telemim||false,adm_approved:m.adm_approved||false,promorar_approved:m.promorar_approved||false,social_approved:m.social_approved||false,status:m.status||"Registrado",signature_data:(m.signature_data!=null&&m.signature_data!="")?m.signature_data:null,assinado_em:m.assinado_em||null};row.created_by=m.created_by||(usuario&&(usuario.nome||usuario.email))||null;row.creator_role=m.creator_role||(usuario&&usuario.perfil)||null;await fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...getH(),"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(row)});}
       setSyncStatus("✅ Sinc");window.__mudancas=list;
     }catch(e){
       setMudancas(_prevMud); // Rollback optimista
@@ -3095,10 +3095,9 @@ export default function App(){
       if(a.deleted_at||!a.data) return;
       var _done=_conclStatuses.indexOf(a.status)>=0||a.termino_em||a.chegada_van_em||a.chegada_caminhao_em||a.termino_van_em||a.termino_caminhao_em;
       var _active=a.inicio_van_em||a.van_saiu_em||a.inicio_caminhao_em||a.caminhao_saiu_em||a.chegou_origem_van_em||a.chegou_origem_cam_em||a.saiu_destino_van_em||a.saiu_destino_cam_em||a.status==="Realizando"||a.inicio_mudanca_em;
-      // Incluir backdatados (data passada, ainda não concluídos) para não ficarem no limbo
-      var _hj=(function(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");})();
-      var _backdated=!_done&&!_active&&a.data<_hj;
-      if(!_done&&!_active&&!_backdated) return;
+      // Pendentes/backdatados NÃO entram em Registros — só aparecem na aba Agenda/Pendente
+      // Somente itens concluídos ou em andamento vão para _allForFiltered (Registros/Financeiro)
+      if(!_done&&!_active) return;
       var key=(a.nome||"").toLowerCase().trim()+"|"+a.data;
       if(_seenKeys[key]) return;
       _seenKeys[key]=true;
@@ -6058,19 +6057,21 @@ return(
                 setShowAssinatura(false);
                 var _mId=mudAssinatura.id;
                 var _sigB64=assinB64;
-                setMudancas(function(prev){return prev.map(function(m){return m.id===_mId?{...m,status:"Concluído",requested_by:usuario?usuario.nome:null,signature_data:_sigB64}:m;});});
-                fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+_mId,{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"Concluído",signature_data:_sigB64})}).catch(function(e){console.warn("sig patch:",e);});
-                // Fix: Also update agenda status if item came from agenda
+                var _agora=new Date().toISOString();
                 var _isAgenda=agenda.some(function(a){return a.id===_mId;});
                 if(_isAgenda){
+                  // Item veio da agenda: marcar agenda como concluída + criar registro em mudancas
                   setAgenda(function(prev){return prev.map(function(a){return a.id===_mId?{...a,status:"concluida"}:a;});});
                   fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+_mId,{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"concluida"})}).catch(function(e){console.warn("agenda status patch:",e);});
-                  // Create mudancas record from agenda item for registros
                   var _agItem=agenda.find(function(a){return a.id===_mId;});
                   if(_agItem){
-                    var _novaM={nome:_agItem.nome,selo:_agItem.selo||"",comunidade:_agItem.comunidade||"",data:_agItem.data,origem:_agItem.origem||"",destino:_agItem.destino||"",contato:_agItem.contato||null,van:_agItem.van||false,caminhao:_agItem.caminhao||false,medicao:parseFloat(_agItem.medicao)||0,ajudantes:parseInt(_agItem.ajudantes)||0,observacao:_agItem.observacao||"",status:"Concluído",signature_data:_sigB64,motorista_van_id:_agItem.motorista_van_id||null,motorista_caminhao_id:_agItem.motorista_caminhao_id||null,supervisor_id:_agItem.supervisor_id||null,approved_by_admin:_agItem.approved_by_admin||null,approved_by_social:_agItem.approved_by_social||null,approved_by_promorar:_agItem.approved_by_promorar||null,approved_by_supervisor:_agItem.approved_by_supervisor||null};
+                    var _novaM={nome:_agItem.nome,selo:_agItem.selo||"",comunidade:_agItem.comunidade||"",data:_agItem.data,origem:_agItem.origem||"",destino:_agItem.destino||"",contato:_agItem.contato||null,van:_agItem.van||false,caminhao:_agItem.caminhao||false,medicao:parseFloat(_agItem.medicao)||0,ajudantes:parseInt(_agItem.ajudantes)||0,observacao:_agItem.observacao||"",status:"Concluído",signature_data:_sigB64,assinado_em:_agora,motorista_van_id:_agItem.motorista_van_id||null,motorista_caminhao_id:_agItem.motorista_caminhao_id||null,supervisor_id:_agItem.supervisor_id||null,approved_by_admin:_agItem.approved_by_admin||null,approved_by_social:_agItem.approved_by_social||null,approved_by_promorar:_agItem.approved_by_promorar||null,approved_by_supervisor:_agItem.approved_by_supervisor||null};
                     fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(_novaM)}).then(function(r){return r.json();}).then(function(d){if(Array.isArray(d)&&d[0]){setMudancas(function(prev){return[d[0]].concat(prev);});}}).catch(function(e){console.warn("create mud from agenda:",e);});
                   }
+                } else {
+                  // Item já existe em mudancas: PATCH direto com signature_data + assinado_em
+                  setMudancas(function(prev){return prev.map(function(m){return m.id===_mId?{...m,status:"Concluído",signature_data:_sigB64,assinado_em:_agora}:m;});});
+                  fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+_mId,{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"Concluído",signature_data:_sigB64,assinado_em:_agora})}).catch(function(e){console.warn("sig patch:",e);});
                 }
                 try{_addNotif("concluida","Mudanca concluida e assinada",mudAssinatura.nome);}catch(e){}
                 await _gerarPDFComAssinatura(mudAssinatura,assinB64,ressalvas);
