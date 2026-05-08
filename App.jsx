@@ -3159,8 +3159,9 @@ export default function App(){
   const _statusRealizados=["realizado","realizada","realizado","executado","executada","concluido","concluida","Realizado","Realizada"];
   // Excluir também itens que já existem em mudancas (foram sincronizados como realizados)
   const _jaEmMudancas=function(a){return mudancas.some(function(m){return m.data===a.data&&(m.nome||"").toLowerCase().trim()===(a.nome||"").toLowerCase().trim();});};
-  const mudancasHoje=agendaOrdenada.filter(a=>a.data===hoje&&!_jaEmMudancas(a));
-  const mudancasAmanha=agendaOrdenada.filter(a=>a.data===amanha&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a));
+  // PROTOCOLO: Cancelada/Pendente não aparece no card do Dashboard
+  const mudancasHoje=agendaOrdenada.filter(a=>a.data===hoje&&a.status!=="cancelada"&&a.status!=="pendente"&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a));
+  const mudancasAmanha=agendaOrdenada.filter(a=>a.data===amanha&&a.status!=="cancelada"&&a.status!=="pendente"&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a));
   const mudancasFuturas=isMotorista?agendaOrdenada.filter(a=>a.data>amanha&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a)):[];
   const _mesAtual=new Date().getMonth();
   const _anoAtual=new Date().getFullYear();
