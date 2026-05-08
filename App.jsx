@@ -1272,7 +1272,7 @@ export default function App(){
     (destArray||[]).forEach(function(d){
       if(d==="mot_van"&&ag.motorista_van_id){var u=listaUsuarios.find(function(x){return x.id===ag.motorista_van_id;});if(u&&u.contato)nums.push(u.contato);}
       if(d==="mot_caminhao"&&ag.motorista_caminhao_id){var u=listaUsuarios.find(function(x){return x.id===ag.motorista_caminhao_id;});if(u&&u.contato)nums.push(u.contato);}
-      if(d==="admin"&&cfgWA.admin_whatsapp){nums.push(cfgWA.admin_whatsapp);}
+      if(d==="admin"){var _aw=cfgWA.admin_whatsapp;if(!_aw){var _au=listaUsuarios.find(function(x){return x.perfil==="admin"&&x.ativo&&x.contato;});if(_au)_aw=_au.contato;}if(_aw)nums.push(_aw);}
       if(d==="supervisor"&&ag.supervisor_id){var u=listaUsuarios.find(function(x){return x.id===ag.supervisor_id;});if(u&&u.contato)nums.push(u.contato);}
       if(d==="promorar"){listaUsuarios.filter(function(x){return x.perfil==="promorar"&&x.ativo&&x.contato;}).forEach(function(x){nums.push(x.contato);});}
       if(d==="social"){listaUsuarios.filter(function(x){return x.perfil==="social"&&x.ativo&&x.contato;}).forEach(function(x){nums.push(x.contato);});}
