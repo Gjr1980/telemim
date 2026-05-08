@@ -5522,7 +5522,7 @@ return(
           Object.values(_ajMap).forEach(function(aj){
             aj.dias.forEach(function(d){
               var aprov=_aprovadas.find(function(s){return s.prestador_nome===aj.nome&&s.data_ref===d.data;});
-              if(aprov){d.valor=parseFloat(aprov.valor_novo)||d.valor;d.numMud=aprov.num_mud_novo!=null?parseInt(aprov.num_mud_novo):d.numMud;}
+              if(aprov){var _nv=parseFloat(aprov.valor_novo);d.valor=isNaN(_nv)?d.valor:_nv;d.numMud=aprov.num_mud_novo!=null?parseInt(aprov.num_mud_novo):d.numMud;}
             });
           });
           var _ajFinArr=Object.values(_ajMap).sort(function(a,b){return a.nome.localeCompare(b.nome);});
