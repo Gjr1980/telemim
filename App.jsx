@@ -1156,7 +1156,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}if((tab==="financeiro_sup"||tab==="financeiro")&&!solicitacoesLoaded)loadSolicitacoesFin();if(tab==="financeiro_sup"){loadAjudantes();loadEquipeDia();}},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}if((tab==="financeiro_sup"||tab==="financeiro"||tab==="contas")&&!solicitacoesLoaded)loadSolicitacoesFin();if(tab==="financeiro_sup"){loadAjudantes();loadEquipeDia();}},[tab]);
   useEffect(()=>{
     async function load(){
       try{
