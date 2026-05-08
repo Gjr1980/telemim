@@ -4503,23 +4503,6 @@ export default function App(){
                       <button onClick={function(){
                         if(!confirm("Aprovar esta solicitação?"))return;
                         responderSolicitacao(s.id,"aprovado",usuario.id,usuario.nome);
-                        if(s.tipo==="editar_valor"&&s.data_ref){
-                          var _hd2={...getH(),"Content-Type":"application/json","Prefer":"return=minimal"};
-                          var _numAj=s.num_aj_novo!=null?parseInt(s.num_aj_novo):undefined;
-                          if(_numAj!==undefined){
-                            setCustosDiarios(function(prev){
-                              var e=prev.some(function(cd){return cd.data===s.data_ref;});
-                              if(e)return prev.map(function(cd){return cd.data===s.data_ref?{...cd,ajudantes:_numAj}:cd;});
-                              return [...prev,{data:s.data_ref,ajudantes:_numAj,custo_almoco:0}];
-                            });
-                            fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+s.data_ref+"&select=id",{headers:getH()})
-                              .then(function(r){return r.json();})
-                              .then(function(rows){
-                                if(rows&&rows.length>0)return fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+s.data_ref,{method:"PATCH",headers:_hd2,body:JSON.stringify({ajudantes:_numAj})});
-                                else return fetch(SUPA_URL+"/rest/v1/custos_diarios",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({data:s.data_ref,ajudantes:_numAj})});
-                              }).catch(function(){});
-                          }
-                        }
                       }} style={{flex:1,padding:"10px",borderRadius:10,border:"none",background:"#16a34a",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>✅ Aprovar</button>
                       <button onClick={function(){
                         if(!confirm("Rejeitar esta solicitação?"))return;
@@ -5532,6 +5515,14 @@ return(
             ed.ajudantes.forEach(function(aj){
               if(!_ajMap[aj.id])_ajMap[aj.id]={id:aj.id,nome:aj.nome,telefone:aj.telefone||"",dias:[]};
               _ajMap[aj.id].dias.push({data:ed.data,numMud:numMud,valor:valPorAj});
+            });
+          });
+          // Apply approved overrides from solicitacoes_financeiras
+          var _aprovadas=solicitacoesFin.filter(function(s){return s.status==="aprovado"&&s.tipo==="editar_valor";});
+          Object.values(_ajMap).forEach(function(aj){
+            aj.dias.forEach(function(d){
+              var aprov=_aprovadas.find(function(s){return s.prestador_nome===aj.nome&&s.data_ref===d.data;});
+              if(aprov){d.valor=parseFloat(aprov.valor_novo)||d.valor;d.numMud=aprov.num_mud_novo!=null?parseInt(aprov.num_mud_novo):d.numMud;}
             });
           });
           var _ajFinArr=Object.values(_ajMap).sort(function(a,b){return a.nome.localeCompare(b.nome);});
