@@ -1951,40 +1951,60 @@ export default function App(){
       return;
     }
     var _pa=usuario&&usuario.perfil||"";var _na=usuario&&(usuario.nome||usuario.email)||"";const nova={...agForm,id:Date.now(),requires_validation:true,social_approved:_pa==="social",social_approved_by:_pa==="social"?_na:null,promorar_approved:_pa==="promorar",promorar_approved_by:_pa==="promorar"?_na:null,adm_approved:_pa==="admin"||_pa==="telemim",adm_approved_by:(_pa==="admin"||_pa==="telemim")?_na:null};
-    // POST directo para nova agenda
+    // POST directo para nova agenda — email + flash SÓ após confirmação do banco
+    setSyncStatus("⏳ Salvando...");
     (async function(){
-      try{
-        await _ensureAuth();
-        var _nomeLog=usuario&&(usuario.nome||usuario.email)||"";var _perfilLog=usuario&&usuario.perfil||"";
-        var rowNova={nome:nova.nome,selo:nova.selo||"",comunidade:nova.comunidade||"",data:nova.data,horario:nova.horario||"",origem:nova.origem||"",destino:nova.destino||"",contato:nova.contato||"",van:nova.van||false,caminhao:nova.caminhao||false,medicao:nova.medicao||0,ajudantes:nova.ajudantes||0,status:nova.status||"confirmado",observacao:nova.observacao||"",social_approved:nova.social_approved||false,promorar_approved:nova.promorar_approved||false,adm_approved:nova.adm_approved||false,requires_validation:nova.requires_validation||false,created_by:_nomeLog,creator_role:_perfilLog};
-        setSyncStatus("⏳ Salvando...");
-        var rNova=await fetch(SUPA_URL+"/rest/v1/agenda",{
-          method:"POST",
-          headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"}),
-          body:JSON.stringify(rowNova)
-        });
-        if(!rNova.ok) throw new Error("POST nova agenda HTTP "+rNova.status);
-        var rData=await rNova.json();
-        var _bdId=rData&&rData[0]&&rData[0].id;
-        setAgenda(function(prev){
-          var sem=prev.filter(function(x){return x.id!==nova.id;});
-          return [{...nova,id:_bdId||nova.id},...sem];
-        });
-        setSyncStatus("✅ Sinc");
-        // Não chamar loadAg() aqui - evita race condition que apaga a nova agenda
-      }catch(eN){setSyncStatus("⚠️ Erro ao agendar");console.error("[novaAgenda]",eN);}
+      var _maxRetries=2;var _tentativa=0;var _saved=false;
+      while(_tentativa<=_maxRetries&&!_saved){
+        try{
+          await _ensureAuth();
+          // Validar token antes do POST
+          var _hTest=getH();
+          if(_hTest.Authorization==="Bearer "+SUPA_KEY){
+            // Token expirado mesmo após refresh — forçar re-login
+            throw new Error("TOKEN_EXPIRED");
+          }
+          var _nomeLog=usuario&&(usuario.nome||usuario.email)||"";var _perfilLog=usuario&&usuario.perfil||"";
+          var rowNova={nome:nova.nome,selo:nova.selo||"",comunidade:nova.comunidade||"",data:nova.data,horario:nova.horario||"",origem:nova.origem||"",destino:nova.destino||"",contato:nova.contato||"",van:nova.van||false,caminhao:nova.caminhao||false,medicao:nova.medicao||0,ajudantes:nova.ajudantes||0,status:nova.status||"confirmado",observacao:nova.observacao||"",social_approved:nova.social_approved||false,promorar_approved:nova.promorar_approved||false,adm_approved:nova.adm_approved||false,requires_validation:nova.requires_validation||false,created_by:_nomeLog,creator_role:_perfilLog};
+          var rNova=await fetch(SUPA_URL+"/rest/v1/agenda",{
+            method:"POST",
+            headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"}),
+            body:JSON.stringify(rowNova)
+          });
+          if(!rNova.ok){var _errBody="";try{_errBody=await rNova.text();}catch(e){}throw new Error("POST agenda HTTP "+rNova.status+" "+_errBody);}
+          var rData=await rNova.json();
+          var _bdId=rData&&rData[0]&&rData[0].id;
+          setAgenda(function(prev){
+            var sem=prev.filter(function(x){return x.id!==nova.id;});
+            return [{...nova,id:_bdId||nova.id},...sem];
+          });
+          _saved=true;
+          // Email SÓ após POST confirmado no banco
+          try{
+            fetch(SUPA_URL+'/functions/v1/enviar-email-agendamento',{
+              method:'POST',
+              headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY},
+              body:JSON.stringify({agenda:{...nova,id:_bdId||nova.id},agendadoPor:{nome:usuario&&usuario.nome,email:usuario&&usuario.email,perfil:usuario&&usuario.perfil}})
+            }).catch(function(e){console.warn('[email agendamento]',e);});
+          }catch(eE){}
+          setAgForm({...initForm,status:"confirmado"});
+          setFlash("✅ Agendado!");setTimeout(function(){setFlash("");},1800);
+          setTab("agenda");
+          setSyncStatus("✅ Sinc");
+        }catch(eN){
+          _tentativa++;
+          if(eN.message==="TOKEN_EXPIRED"&&_tentativa<=_maxRetries){
+            // Tentar forçar refresh do token
+            try{var _su2=JSON.parse(localStorage.getItem('tmim_u')||'{}');if(_su2.refresh_token){var _res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:_su2.refresh_token})});var _rd=await _res.json();if(_rd.access_token){_su2.token=_rd.access_token;_su2.refresh_token=_rd.refresh_token||_su2.refresh_token;localStorage.setItem('tmim_u',JSON.stringify(_su2));setUsuario(function(p){return{...p,token:_su2.token};});continue;}}}catch(eR){}
+          }
+          if(_tentativa>_maxRetries){
+            setSyncStatus("❌ Erro ao agendar! Verifique sua conexão e tente novamente.");
+            setFlash("❌ Falha ao salvar. Faça logout/login e tente novamente.");setTimeout(function(){setFlash("");},5000);
+            console.error("[novaAgenda] FALHA DEFINITIVA após "+_maxRetries+" tentativas:",eN);
+          }
+        }
+      }
     })();
-    
-    // Notificação por e-mail (admin + promorar)
-    (function(){
-      var _supaBase=SUPA_URL.split('/rest/v1')[0];
-      fetch(_supaBase+'/functions/v1/enviar-email-agendamento',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY},
-        body:JSON.stringify({agenda:nova,agendadoPor:{nome:usuario&&usuario.nome,email:usuario&&usuario.email,perfil:usuario&&usuario.perfil}})
-      }).catch(function(e){console.warn('[email agendamento]',e);});
-    })();
-    setAgForm({...initForm,status:"confirmado"}); setFlash("✅ Agendado!"); setTimeout(()=>setFlash(""),1800); setTab("agenda");
   }
   async function handleDelAg(id){
     if(!usuario||usuario.perfil!=="admin"){setSyncStatus("⛔ Apenas o administrador pode excluir agendas.");return;}
