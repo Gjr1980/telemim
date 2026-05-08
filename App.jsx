@@ -3145,8 +3145,8 @@ export default function App(){
     var _dd=String(_a.getDate()).padStart(2,"0");
     return _y+"-"+_m+"-"+_dd;
   })();
-  const proximas=agendaOrdenada.filter(a=>a.data>=hoje);
-  const passadas=agendaOrdenada.filter(a=>a.data<hoje);
+  const proximas=agendaOrdenada.filter(a=>a.data>=hoje&&a.status!=="pendente");
+  const passadas=agendaOrdenada.filter(a=>a.status==="pendente"||a.data<hoje);
   const _statusRealizados=["realizado","realizada","realizado","executado","executada","concluido","concluida","Realizado","Realizada"];
   // Excluir também itens que já existem em mudancas (foram sincronizados como realizados)
   const _jaEmMudancas=function(a){return mudancas.some(function(m){return m.data===a.data&&(m.nome||"").toLowerCase().trim()===(a.nome||"").toLowerCase().trim();});};
@@ -4398,6 +4398,7 @@ export default function App(){
                       </div>
                       <div style={{display:"flex",flexDirection:"column",gap:5,marginLeft:9}}>
                         <button onClick={()=>converterEmMudanca(a)} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>
+                        <button onClick={function(){updateAgField(a.id,"status","pendente");}} style={{background:"#fffbeb",border:"none",color:"#b45309",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Mover para Pendente">⏳</button>
                         <button onClick={()=>setEditAg({...a})} style={btnBlue}>✏️</button>
                         {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={btnRed}>✕</button>}
                         {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===a.data;});setViewEquipeAg({nome:a.nome,data:a.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"none",color:"#92400e",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Ver equipe do dia">👷</button>}
@@ -4434,12 +4435,12 @@ export default function App(){
             {passadas.length>0&&(
               <div style={{marginTop:16}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-                  <div style={{fontSize:14,fontWeight:900,color:"#dc2626"}}>⚠️ Atrasadas ({passadas.length})</div>
-                  <div style={{fontSize:10,color:"#94a3b8",fontStyle:"italic"}}>Data já passou — confirme se foram realizadas</div>
+                  <div style={{fontSize:14,fontWeight:900,color:"#b45309"}}>⏳ Pendente ({passadas.length})</div>
+                  <div style={{fontSize:10,color:"#94a3b8",fontStyle:"italic"}}>Aguardando confirmação de conclusão</div>
                 </div>
                 <div style={isDesktop?{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14}:{}}>
                   {passadas.map(function(a){return(
-                    <Card key={a.id} style={{marginBottom:isDesktop?0:9,padding:"14px 16px",border:"2px solid #fca5a5",background:"#fef2f2"}}>
+                    <Card key={a.id} style={{marginBottom:isDesktop?0:9,padding:"14px 16px",border:"2px solid #fbbf24",background:"#fffbeb"}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                         <div style={{flex:1}}>
                           <div style={{fontWeight:900,fontSize:16,color:"#1e293b",marginBottom:4}}>👤 {a.nome}</div>
@@ -4451,10 +4452,10 @@ export default function App(){
                             <div>🏠 <strong>Chegada:</strong> {a.destino||"—"}</div>
                             {a.contato&&<div>📞 {a.contato}</div>}
                           </div>
-                          <div style={{fontSize:10,color:"#dc2626",fontWeight:700}}>Adicionada em {a.criado_em?new Date(a.criado_em).toLocaleDateString("pt-BR"):""} para data {a.data?new Date(a.data+"T12:00:00").toLocaleDateString("pt-BR"):""}</div>
+                          {a.data<hoje&&<div style={{fontSize:10,color:"#b45309",fontWeight:700}}>Adicionada em {a.criado_em?new Date(a.criado_em).toLocaleDateString("pt-BR"):""} para data {a.data?new Date(a.data+"T12:00:00").toLocaleDateString("pt-BR"):""}</div>}
                         </div>
                         <div style={{display:"flex",flexDirection:"column",gap:5,marginLeft:9}}>
-                          <button onClick={function(){converterEmMudanca(a);}} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Marcar como realizada">✅</button>
+                          <button onClick={function(){converterEmMudanca(a);}} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Marcar como concluída">✅</button>
                           <button onClick={function(){setEditAg({...a});}} style={{background:"#eff6ff",border:"1px solid #3b82f6",color:"#3b82f6",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}}>✏️</button>
                           {isAdmin&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={{background:"#fef2f2",border:"1px solid #ef4444",color:"#ef4444",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}}>✕</button>}
                         </div>
