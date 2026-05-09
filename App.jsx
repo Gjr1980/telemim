@@ -5267,6 +5267,8 @@ return(
   // Motorista costs: consumir detCamDias/detVanDias do _calcCustos
   var _camTotal=_rPag.cCam;var _vanTotal=_rPag.cVan;
   var _camDias=_rPag.detCamDias;var _vanDias=_rPag.detVanDias;
+  var _numMudCamP=_camDias.reduce(function(s,d){return s+d.numMud;},0);
+  var _numMudVanP=_vanDias.reduce(function(s,d){return s+d.numMud;},0);
   // Get payment status
   var _getPag=function(tipo,refId){return (pagamentos||[]).find(function(p){return p.tipo===tipo&&p.ref_id===refId&&p.periodo===pagMes;})||null;};
   var _statusColor=function(s){return s==="pago"?"#16a34a":s==="parcial"?"#f59e0b":"#dc2626";};
@@ -5406,7 +5408,7 @@ return(
         {pagCam&&_camTotal>0&&_renderPagItem("caminhao",pagCam,"🚚 "+(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).nome||"",(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).contato||"",_camTotal,_camDias)}
         {pagCam&&_camTotal>0&&<div style={{background:"#92400e",borderRadius:10,padding:"10px 14px",marginTop:4}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>🚚 {_diasMesP.length} dia{_diasMesP.length!==1?"s":""} · {_mudMesP.length} mudança{_mudMesP.length!==1?"s":""}</div>
+            <div style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>🚚 {_camDias.length} dia{_camDias.length!==1?"s":""} · {_numMudCamP} mudança{_numMudCamP!==1?"s":""}</div>
             <div style={{color:"#fff",fontSize:15,fontWeight:900}}>TOTAL: {_fvP(_camTotal)}</div>
           </div>
         </div>}
@@ -5414,7 +5416,7 @@ return(
           <button onClick={function(){
             var NL="%0A";var t="📊 *CAMINHÃO - "+_camNome.toUpperCase()+"*"+NL+"🗓️ "+_mesLabelP+NL+NL;
             _camDias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){t+="   📅 "+_fdShort(d.data)+" · "+d.numMud+" mud · "+_fvP(d.valor)+NL;});
-            t+=NL+"🚚 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+" · "+_mudMesP.length+" mudança"+(_mudMesP.length!==1?"s":"")+NL;
+            t+=NL+"🚚 "+_camDias.length+" dia"+(_camDias.length!==1?"s":"")+" · "+_numMudCamP+" mudança"+(_numMudCamP!==1?"s":"")+NL;
             t+="💰 *TOTAL: "+_fvP(_camTotal)+"*"+NL+NL+"— TELEMIM Mudanças";
             var _ph=_camTel?(_camTel.replace(/\D/g,"").length<=11?"55"+_camTel.replace(/\D/g,""):_camTel.replace(/\D/g,"")):"";
             window.open("https://wa.me/"+_ph+"?text="+encodeURIComponent(t),"_blank");
@@ -5422,7 +5424,7 @@ return(
           <button onClick={function(){
             var NL="\n";var t="📊 CAMINHÃO - "+_camNome.toUpperCase()+NL+"🗓️ "+_mesLabelP+NL+NL;
             _camDias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){t+="   📅 "+_fdShort(d.data)+" · "+d.numMud+" mud · "+_fvP(d.valor)+NL;});
-            t+=NL+"🚚 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+" · "+_mudMesP.length+" mudança"+(_mudMesP.length!==1?"s":"")+NL;
+            t+=NL+"🚚 "+_camDias.length+" dia"+(_camDias.length!==1?"s":"")+" · "+_numMudCamP+" mudança"+(_numMudCamP!==1?"s":"")+NL;
             t+="💰 TOTAL: "+_fvP(_camTotal)+NL+NL+"— TELEMIM Mudanças";
             var _w=window.open("","_blank");
             _w.document.write("<html><head><title>Caminhão - "+_camNome+" - "+_mesLabelP+"</title><style>body{font-family:monospace;white-space:pre-wrap;padding:20px;font-size:14px;} @media print{button{display:none!important;}}</style></head><body>"+t.replace(/\n/g,"<br>")+"<br><br><button onclick='window.print()' style='padding:12px 24px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:bold;'>🖨️ Imprimir / Salvar PDF</button></body></html>");
@@ -5442,7 +5444,7 @@ return(
         {pagVan&&_vanTotal>0&&_renderPagItem("van",pagVan,"🚐 "+(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).nome||"",(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).contato||"",_vanTotal,_vanDias)}
         {pagVan&&_vanTotal>0&&<div style={{background:"#1e40af",borderRadius:10,padding:"10px 14px",marginTop:4}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>🚐 {_diasMesP.length} dia{_diasMesP.length!==1?"s":""}</div>
+            <div style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>🚐 {_vanDias.length} dia{_vanDias.length!==1?"s":""}</div>
             <div style={{color:"#fff",fontSize:15,fontWeight:900}}>TOTAL: {_fvP(_vanTotal)}</div>
           </div>
         </div>}
@@ -5450,7 +5452,7 @@ return(
           <button onClick={function(){
             var NL="%0A";var t="📊 *VAN - "+_vanNome.toUpperCase()+"*"+NL+"🗓️ "+_mesLabelP+NL+NL;
             _vanDias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){t+="   📅 "+_fdShort(d.data)+" · "+_fvP(d.valor)+NL;});
-            t+=NL+"🚐 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+NL;
+            t+=NL+"🚐 "+_vanDias.length+" dia"+(_vanDias.length!==1?"s":"")+NL;
             t+="💰 *TOTAL: "+_fvP(_vanTotal)+"*"+NL+NL+"— TELEMIM Mudanças";
             var _ph=_vanTel?(_vanTel.replace(/\D/g,"").length<=11?"55"+_vanTel.replace(/\D/g,""):_vanTel.replace(/\D/g,"")):"";
             window.open("https://wa.me/"+_ph+"?text="+encodeURIComponent(t),"_blank");
@@ -5458,7 +5460,7 @@ return(
           <button onClick={function(){
             var NL="\n";var t="📊 VAN - "+_vanNome.toUpperCase()+NL+"🗓️ "+_mesLabelP+NL+NL;
             _vanDias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){t+="   📅 "+_fdShort(d.data)+" · "+_fvP(d.valor)+NL;});
-            t+=NL+"🚐 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+NL;
+            t+=NL+"🚐 "+_vanDias.length+" dia"+(_vanDias.length!==1?"s":"")+NL;
             t+="💰 TOTAL: "+_fvP(_vanTotal)+NL+NL+"— TELEMIM Mudanças";
             var _w=window.open("","_blank");
             _w.document.write("<html><head><title>Van - "+_vanNome+" - "+_mesLabelP+"</title><style>body{font-family:monospace;white-space:pre-wrap;padding:20px;font-size:14px;} @media print{button{display:none!important;}}</style></head><body>"+t.replace(/\n/g,"<br>")+"<br><br><button onclick='window.print()' style='padding:12px 24px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:bold;'>🖨️ Imprimir / Salvar PDF</button></body></html>");
