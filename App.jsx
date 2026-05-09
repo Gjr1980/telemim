@@ -942,6 +942,11 @@ export default function App(){
     }).catch(function(){});
   }
 
+  // ── GPS: Traccar device ID — unique per motorista ─────────────────────────
+  function _traccarDevId(userId){
+    return userId?userId.substring(0,8).toUpperCase():"UNKNOWN";
+  }
+
   // ── GPS: Check if running as installed PWA ─────────────────────────────────
   function _isPwaInstalled(){
     return window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;
@@ -1002,13 +1007,7 @@ export default function App(){
   async function gpsLoadPositions(agId,motoristaId){
     // Try Traccar first (background GPS)
     try{
-      var _ag=agenda.find(function(a){return a.id===agId;});
-      var _veiTipo=null;
-      if(_ag&&motoristaId){
-        if(_ag.motorista_van_id===motoristaId)_veiTipo="VAN";
-        else if(_ag.motorista_caminhao_id===motoristaId)_veiTipo="CAMINHAO";
-      }
-      var _devId=_veiTipo==="VAN"?"VAN001":"CAM001";
+      var _devId=_traccarDevId(motoristaId||(usuario&&usuario.id));
       var tr=await fetch(SUPA_URL+"/functions/v1/traccar-position",{method:"POST",headers:{...getH(),"Content-Type":"application/json"},body:JSON.stringify({deviceId:_devId})});
       if(tr.ok){
         var td=await tr.json();
@@ -1502,10 +1501,10 @@ export default function App(){
       _all3.forEach(function(am){
         var k3=(am.nome||"").toLowerCase().trim()+"|"+am.data;if(_seen3[k3])return;_seen3[k3]=true;
         if((am.inicio_van_em||am.van_saiu_em)&&!am.chegada_van_em&&am.motorista_van_id){
-          _vehs.push({agId:am.id,motId:am.motorista_van_id,veiculo:"van",devId:"VAN001",destino:am.destino||""});
+          _vehs.push({agId:am.id,motId:am.motorista_van_id,veiculo:"van",devId:_traccarDevId(am.motorista_van_id),destino:am.destino||""});
         }
         if((am.inicio_caminhao_em||am.caminhao_saiu_em)&&!am.chegada_caminhao_em&&am.motorista_caminhao_id){
-          _vehs.push({agId:am.id,motId:am.motorista_caminhao_id,veiculo:"cam",devId:"CAM001",destino:am.destino||""});
+          _vehs.push({agId:am.id,motId:am.motorista_caminhao_id,veiculo:"cam",devId:_traccarDevId(am.motorista_caminhao_id),destino:am.destino||""});
         }
       });
       return _vehs;
@@ -3821,11 +3820,11 @@ export default function App(){
           var _camTransit=((am.inicio_caminhao_em||am.caminhao_saiu_em)&&!am.chegada_caminhao_em);
           if(_vanTransit&&am.motorista_van_id){
             var _vm=listaUsuarios.find(function(u){return u.id===am.motorista_van_id;});
-            _activeVehicles.push({agId:am.id,motId:am.motorista_van_id,nome:_vm?_vm.nome:"Motorista",veiculo:"van",clienteNome:am.nome||"",origem:am.origem||"",destino:am.destino||"",devId:"VAN001"});
+            _activeVehicles.push({agId:am.id,motId:am.motorista_van_id,nome:_vm?_vm.nome:"Motorista",veiculo:"van",clienteNome:am.nome||"",origem:am.origem||"",destino:am.destino||"",devId:_traccarDevId(am.motorista_van_id)});
           }
           if(_camTransit&&am.motorista_caminhao_id){
             var _cm=listaUsuarios.find(function(u){return u.id===am.motorista_caminhao_id;});
-            _activeVehicles.push({agId:am.id,motId:am.motorista_caminhao_id,nome:_cm?_cm.nome:"Motorista",veiculo:"cam",clienteNome:am.nome||"",origem:am.origem||"",destino:am.destino||"",devId:"CAM001"});
+            _activeVehicles.push({agId:am.id,motId:am.motorista_caminhao_id,nome:_cm?_cm.nome:"Motorista",veiculo:"cam",clienteNome:am.nome||"",origem:am.origem||"",destino:am.destino||"",devId:_traccarDevId(am.motorista_caminhao_id)});
           }
         });
         var _hasActive2=_activeVehicles.length>0;
@@ -6007,7 +6006,7 @@ return(
             <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:12,padding:"12px 14px",marginBottom:16,textAlign:"left"}}>
               <div style={{fontSize:12,fontWeight:700,color:"#166534",marginBottom:8}}>Apos instalar, configure:</div>
               <div style={{fontSize:12,color:"#15803d",lineHeight:1.8}}>
-                <b>Device ID:</b> {usuario&&usuario.tipo_veiculo==="VAN"?"VAN001":"CAM001"}<br/>
+                <b>Device ID:</b> <span style={{userSelect:"all",background:"#dcfce7",padding:"1px 6px",borderRadius:4,fontFamily:"monospace",letterSpacing:1}}>{_traccarDevId(usuario&&usuario.id)}</span><br/>
                 <b>Server URL:</b> http://64.181.190.173:5055
               </div>
             </div>

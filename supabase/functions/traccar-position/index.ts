@@ -32,8 +32,15 @@ serve(async (req) => {
     });
     const devices = await devResp.json();
     if (!devices || devices.length === 0) {
-      return new Response(JSON.stringify({ error: "Dispositivo nao encontrado" }), {
-        status: 404,
+      // Auto-create device in Traccar
+      try {
+        await fetch(`${TRACCAR_URL}/api/devices`, {
+          method: "POST",
+          headers: { "Authorization": AUTH, "Content-Type": "application/json" },
+          body: JSON.stringify({ name: deviceId, uniqueId: deviceId }),
+        });
+      } catch (_) {}
+      return new Response(JSON.stringify({ ok: true, position: null, status: "new", message: "Dispositivo criado, aguardando primeira posicao" }), {
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       });
     }
