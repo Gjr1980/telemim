@@ -3125,6 +3125,15 @@ export default function App(){
     return Object.values(map).sort((a,b)=>b.key.localeCompare(a.key));
   })();
 
+  // PROTOCOLO: Contagem de mudanças para Financeiro inclui TODAS as agendadas
+  // (não apenas concluídas), pois ajudantes trabalham independente de conclusão.
+  // Exclui apenas canceladas e deletadas.
+  var _countMudFinanceiro=function(data){
+    var _seenF={};var count=0;
+    (mudancas||[]).forEach(function(m){if(!m.deleted_at&&m.data===data){var k=(m.nome||"").toLowerCase().trim()+"|"+m.data;_seenF[k]=true;count++;}});
+    (agenda||[]).forEach(function(a){if(!a.deleted_at&&a.data===data&&a.status!=="cancelada"){var k=(a.nome||"").toLowerCase().trim()+"|"+a.data;if(!_seenF[k]){_seenF[k]=true;count++;}}});
+    return count;
+  };
   const totalM3=_allForFiltered.filter(m=>!m.deleted_at).reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
   const comunidades=[...new Set(mudancas.map(m=>m.comunidade).filter(Boolean))];
   var _hjFilt=new Date();_hjFilt.setHours(0,0,0,0);
@@ -5093,7 +5102,7 @@ return(
   // Build ajudantes map
   var _ajMap2={};
   _eqMes2.forEach(function(ed){
-    var numMud=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data===ed.data;}).length;
+    var numMud=_countMudFinanceiro(ed.data);
     var valPorAj=numMud>0?_aj1a2+Math.max(0,numMud-1)*_ajAdd2:0;
     ed.ajudantes.forEach(function(aj){
       if(!_ajMap2[aj.id])_ajMap2[aj.id]={nome:aj.nome,telefone:aj.telefone||"",dias:[]};
@@ -5200,7 +5209,7 @@ return(
   var _eqMesP=equipeDiaList.filter(function(e){return e.data&&e.data.slice(0,7)===pagMes&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
   var _ajMapP={};
   _eqMesP.forEach(function(ed){
-    var numMud=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data===ed.data;}).length;
+    var numMud=_countMudFinanceiro(ed.data);
     var valPorAj=numMud>0?_aj1aP+Math.max(0,numMud-1)*_ajAddP:0;
     ed.ajudantes.forEach(function(aj){
       if(!_ajMapP[aj.id])_ajMapP[aj.id]={id:aj.id,nome:aj.nome,telefone:aj.telefone||"",dias:[],total:0};
@@ -5441,9 +5450,11 @@ return(
           var _fv=function(v){return "R$ "+parseFloat(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});};
           var _fd=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]:d;};
           var _fdFull=function(d){if(!d)return"";var p=(typeof d==="string"?d:"").split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:d;};
-          // Escalar: mudancas do dia selecionado (includes concluded)
-          var _mudDia=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data===equipeDiaSel;});
-          var _numMudDia=_mudDia.length;
+          // Escalar: mudancas do dia selecionado (ALL non-deleted, non-cancelled)
+          var _numMudDia=_countMudFinanceiro(equipeDiaSel);
+          var _seenMD={};var _mudDia=[];
+          (mudancas||[]).forEach(function(m){if(!m.deleted_at&&m.data===equipeDiaSel){var k=(m.nome||"").toLowerCase().trim()+"|"+m.data;_seenMD[k]=true;_mudDia.push(m);}});
+          (agenda||[]).forEach(function(a){if(!a.deleted_at&&a.data===equipeDiaSel&&a.status!=="cancelada"){var k=(a.nome||"").toLowerCase().trim()+"|"+a.data;if(!_seenMD[k]){_seenMD[k]=true;_mudDia.push(a);}}});
           var _eqDia=equipeDiaList.find(function(e){return e.data===equipeDiaSel;});
           var _eqAjArr=_eqDia&&Array.isArray(_eqDia.ajudantes)?_eqDia.ajudantes:[];
           // Custo preview
@@ -5456,7 +5467,7 @@ return(
           var _eqMes=equipeDiaList.filter(function(e){return e.data&&e.data.slice(0,7)===_mesFin&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
           var _ajMap={};
           _eqMes.forEach(function(ed){
-            var numMud=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data===ed.data;}).length;
+            var numMud=_countMudFinanceiro(ed.data);
             var valPorAj=numMud>0?_aj1a+Math.max(0,numMud-1)*_ajAdd:0;
             ed.ajudantes.forEach(function(aj){
               if(!_ajMap[aj.id])_ajMap[aj.id]={nome:aj.nome,telefone:aj.telefone||"",dias:[]};
@@ -5636,7 +5647,7 @@ return(
           var _eqMes=equipeDiaList.filter(function(e){return e.data&&e.data.slice(0,7)===_mesFin&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
           var _ajMap={};
           _eqMes.forEach(function(ed){
-            var numMud=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data===ed.data;}).length;
+            var numMud=_countMudFinanceiro(ed.data);
             var valPorAj=numMud>0?_aj1a+Math.max(0,numMud-1)*_ajAdd:0;
             ed.ajudantes.forEach(function(aj){
               if(!_ajMap[aj.id])_ajMap[aj.id]={id:aj.id,nome:aj.nome,telefone:aj.telefone||"",dias:[]};
