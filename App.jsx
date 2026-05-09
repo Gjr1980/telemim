@@ -5264,9 +5264,28 @@ return(
   var _ajListP=Object.values(_ajMapP).sort(function(a,b){return a.nome.localeCompare(b.nome);});
   var _totalEquipe=_ajListP.reduce(function(s,aj){return s+aj.total;},0);
   var _totalDiasEquipe=_ajListP.reduce(function(s,aj){return s+aj.dias.length;},0);
-  // Motorista costs: consumir detCamDias/detVanDias do _calcCustos
-  var _camTotal=_rPag.cCam;var _vanTotal=_rPag.cVan;
-  var _camDias=_rPag.detCamDias;var _vanDias=_rPag.detVanDias;
+  // Motorista costs: só trabalho realizado (exclui "confirmado"), filtra por motorista_*_id
+  var _mudMesPReal=_mudMesPDesp.filter(function(m){return (m.status||"").toLowerCase()!=="confirmado";});
+  var _camDias=[];var _camTotal=0;
+  var _vanDias=[];var _vanTotal=0;
+  if(pagCam){
+    var _diasCamU=[...new Set(_mudMesPReal.map(function(m){return m.data;}))];
+    _diasCamU.forEach(function(data){
+      var hasMot=_mudMesPReal.some(function(m){return m.data===data&&m.motorista_caminhao_id===pagCam;});
+      if(!hasMot) return;
+      var numTotal=_mudMesPReal.filter(function(m){return m.data===data&&(m.caminhao||m.motorista_caminhao_id||(!m.caminhao&&!m.van&&!m.motorista_van_id));}).length;
+      var val=_calcDiario(numTotal,0,"caminhao",RULES);_camTotal+=val;_camDias.push({data:data,numMud:numTotal,valor:val});
+    });
+  }
+  if(pagVan){
+    var _diasVanU=[...new Set(_mudMesPReal.map(function(m){return m.data;}))];
+    _diasVanU.forEach(function(data){
+      var hasMot=_mudMesPReal.some(function(m){return m.data===data&&m.motorista_van_id===pagVan;});
+      if(!hasMot) return;
+      var numMot=_mudMesPReal.filter(function(m){return m.data===data&&m.motorista_van_id===pagVan;}).length;
+      var val=_calcDiario(numMot,0,"van",RULES);_vanTotal+=val;_vanDias.push({data:data,numMud:numMot,valor:val});
+    });
+  }
   var _numMudCamP=_camDias.reduce(function(s,d){return s+d.numMud;},0);
   var _numMudVanP=_vanDias.reduce(function(s,d){return s+d.numMud;},0);
   // Get payment status
