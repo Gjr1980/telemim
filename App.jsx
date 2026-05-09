@@ -5234,7 +5234,8 @@ return(
   var _mudMesP=(_allForFiltered||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===pagMes;});
   var _diasMesP=[...new Set(_mudMesP.map(function(m){return m.data;}))];
   var _camTotal=0;var _vanTotal=0;
-  _diasMesP.forEach(function(data){var n=_mudMesP.filter(function(m){return m.data===data;}).length;_camTotal+=(parseFloat(RULES.cam1a)||350)+Math.max(0,n-1)*(parseFloat(RULES.camAdd)||130);_vanTotal+=parseFloat(RULES.vanCusto)||400;});
+  var _camDias=[];var _vanDias=[];var _vanDiaria=parseFloat(RULES.vanCusto)||400;
+  _diasMesP.forEach(function(data){var n=_mudMesP.filter(function(m){return m.data===data;}).length;var camVal=(parseFloat(RULES.cam1a)||350)+Math.max(0,n-1)*(parseFloat(RULES.camAdd)||130);_camTotal+=camVal;_vanTotal+=_vanDiaria;_camDias.push({data:data,numMud:n,valor:camVal});_vanDias.push({data:data,valor:_vanDiaria});});
   // Get payment status
   var _getPag=function(tipo,refId){return (pagamentos||[]).find(function(p){return p.tipo===tipo&&p.ref_id===refId&&p.periodo===pagMes;})||null;};
   var _statusColor=function(s){return s==="pago"?"#16a34a":s==="parcial"?"#f59e0b":"#dc2626";};
@@ -5270,7 +5271,7 @@ return(
       </div>
       {dias&&<div style={{marginBottom:8,paddingLeft:8,borderLeft:"2px solid #e2e8f0"}}>
         {dias.sort(function(a,b){return a.data.localeCompare(b.data);}).map(function(d,i){
-          return <div key={i} style={{fontSize:10,color:"#475569",padding:"2px 0"}}>{_fdShort(d.data)} · {d.numMud} mud · {_fvP(d.valor)}</div>;
+          return <div key={i} style={{fontSize:10,color:"#475569",padding:"2px 0"}}>{_fdShort(d.data)}{d.numMud!=null?" · "+d.numMud+" mud":""} · {_fvP(d.valor)}</div>;
         })}
       </div>}
       {_pag&&_pag.data_pagamento&&<div style={{fontSize:10,color:"#64748b",marginBottom:6}}>📅 Pago em: {_fdP(_pag.data_pagamento)}{_pag.metodo?" · "+_pag.metodo:""}</div>}
@@ -5371,7 +5372,7 @@ return(
           <option value="">Selecione o motorista...</option>
           {_motsCam.map(function(m){return <option key={m.id} value={m.id}>{m.nome}{m.placa_veiculo?" · "+m.placa_veiculo:""}</option>;})}
         </select>
-        {pagCam&&_camTotal>0&&_renderPagItem("caminhao",pagCam,"🚚 "+(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).nome||"",(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).contato||"",_camTotal,[{data:_diasMesP.length+" dias",numMud:_mudMesP.length,valor:_camTotal}])}
+        {pagCam&&_camTotal>0&&_renderPagItem("caminhao",pagCam,"🚚 "+(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).nome||"",(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).contato||"",_camTotal,_camDias)}
         {pagCam&&_camTotal>0&&<div style={{background:"#92400e",borderRadius:10,padding:"10px 14px",marginTop:4}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>🚚 {_diasMesP.length} dia{_diasMesP.length!==1?"s":""} · {_mudMesP.length} mudança{_mudMesP.length!==1?"s":""}</div>
@@ -5381,14 +5382,16 @@ return(
         {pagCam&&_camTotal>0&&(function(){var _camNome=(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).nome||"";var _camTel=(listaUsuarios.find(function(u){return u.id===pagCam;})||{}).contato||"";return <div style={{display:"flex",gap:6,marginTop:8}}>
           <button onClick={function(){
             var NL="%0A";var t="📊 *CAMINHÃO - "+_camNome.toUpperCase()+"*"+NL+"🗓️ "+_mesLabelP+NL+NL;
-            t+="🚚 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+" · "+_mudMesP.length+" mudança"+(_mudMesP.length!==1?"s":"")+NL;
+            _camDias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){t+="   📅 "+_fdShort(d.data)+" · "+d.numMud+" mud · "+_fvP(d.valor)+NL;});
+            t+=NL+"🚚 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+" · "+_mudMesP.length+" mudança"+(_mudMesP.length!==1?"s":"")+NL;
             t+="💰 *TOTAL: "+_fvP(_camTotal)+"*"+NL+NL+"— TELEMIM Mudanças";
             var _ph=_camTel?(_camTel.replace(/\D/g,"").length<=11?"55"+_camTel.replace(/\D/g,""):_camTel.replace(/\D/g,"")):"";
             window.open("https://wa.me/"+_ph+"?text="+encodeURIComponent(t),"_blank");
           }} style={{flex:1,padding:"10px 14px",borderRadius:10,border:"none",background:"#25d366",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>📲 WhatsApp</button>
           <button onClick={function(){
             var NL="\n";var t="📊 CAMINHÃO - "+_camNome.toUpperCase()+NL+"🗓️ "+_mesLabelP+NL+NL;
-            t+="🚚 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+" · "+_mudMesP.length+" mudança"+(_mudMesP.length!==1?"s":"")+NL;
+            _camDias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){t+="   📅 "+_fdShort(d.data)+" · "+d.numMud+" mud · "+_fvP(d.valor)+NL;});
+            t+=NL+"🚚 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+" · "+_mudMesP.length+" mudança"+(_mudMesP.length!==1?"s":"")+NL;
             t+="💰 TOTAL: "+_fvP(_camTotal)+NL+NL+"— TELEMIM Mudanças";
             var _w=window.open("","_blank");
             _w.document.write("<html><head><title>Caminhão - "+_camNome+" - "+_mesLabelP+"</title><style>body{font-family:monospace;white-space:pre-wrap;padding:20px;font-size:14px;} @media print{button{display:none!important;}}</style></head><body>"+t.replace(/\n/g,"<br>")+"<br><br><button onclick='window.print()' style='padding:12px 24px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:bold;'>🖨️ Imprimir / Salvar PDF</button></body></html>");
@@ -5405,7 +5408,7 @@ return(
           <option value="">Selecione o motorista...</option>
           {_motsVan.map(function(m){return <option key={m.id} value={m.id}>{m.nome}{m.placa_veiculo?" · "+m.placa_veiculo:""}</option>;})}
         </select>
-        {pagVan&&_vanTotal>0&&_renderPagItem("van",pagVan,"🚐 "+(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).nome||"",(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).contato||"",_vanTotal,[{data:_diasMesP.length+" dias",numMud:_mudMesP.length,valor:_vanTotal}])}
+        {pagVan&&_vanTotal>0&&_renderPagItem("van",pagVan,"🚐 "+(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).nome||"",(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).contato||"",_vanTotal,_vanDias)}
         {pagVan&&_vanTotal>0&&<div style={{background:"#1e40af",borderRadius:10,padding:"10px 14px",marginTop:4}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div style={{color:"rgba(255,255,255,0.8)",fontSize:11}}>🚐 {_diasMesP.length} dia{_diasMesP.length!==1?"s":""}</div>
@@ -5415,14 +5418,16 @@ return(
         {pagVan&&_vanTotal>0&&(function(){var _vanNome=(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).nome||"";var _vanTel=(listaUsuarios.find(function(u){return u.id===pagVan;})||{}).contato||"";return <div style={{display:"flex",gap:6,marginTop:8}}>
           <button onClick={function(){
             var NL="%0A";var t="📊 *VAN - "+_vanNome.toUpperCase()+"*"+NL+"🗓️ "+_mesLabelP+NL+NL;
-            t+="🚐 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+" · "+_mudMesP.length+" mudança"+(_mudMesP.length!==1?"s":"")+NL;
+            _vanDias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){t+="   📅 "+_fdShort(d.data)+" · "+_fvP(d.valor)+NL;});
+            t+=NL+"🚐 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+NL;
             t+="💰 *TOTAL: "+_fvP(_vanTotal)+"*"+NL+NL+"— TELEMIM Mudanças";
             var _ph=_vanTel?(_vanTel.replace(/\D/g,"").length<=11?"55"+_vanTel.replace(/\D/g,""):_vanTel.replace(/\D/g,"")):"";
             window.open("https://wa.me/"+_ph+"?text="+encodeURIComponent(t),"_blank");
           }} style={{flex:1,padding:"10px 14px",borderRadius:10,border:"none",background:"#25d366",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>📲 WhatsApp</button>
           <button onClick={function(){
             var NL="\n";var t="📊 VAN - "+_vanNome.toUpperCase()+NL+"🗓️ "+_mesLabelP+NL+NL;
-            t+="🚐 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+" · "+_mudMesP.length+" mudança"+(_mudMesP.length!==1?"s":"")+NL;
+            _vanDias.sort(function(a,b){return a.data.localeCompare(b.data);}).forEach(function(d){t+="   📅 "+_fdShort(d.data)+" · "+_fvP(d.valor)+NL;});
+            t+=NL+"🚐 "+_diasMesP.length+" dia"+(_diasMesP.length!==1?"s":"")+NL;
             t+="💰 TOTAL: "+_fvP(_vanTotal)+NL+NL+"— TELEMIM Mudanças";
             var _w=window.open("","_blank");
             _w.document.write("<html><head><title>Van - "+_vanNome+" - "+_mesLabelP+"</title><style>body{font-family:monospace;white-space:pre-wrap;padding:20px;font-size:14px;} @media print{button{display:none!important;}}</style></head><body>"+t.replace(/\n/g,"<br>")+"<br><br><button onclick='window.print()' style='padding:12px 24px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:bold;'>🖨️ Imprimir / Salvar PDF</button></body></html>");
