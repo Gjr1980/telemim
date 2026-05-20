@@ -1,166 +1,13 @@
 // TELEMIM v3.4 — Multi-Fleet
 import { useState, useEffect, useMemo } from "react";
-import { createClient } from "@supabase/supabase-js";
-/* v2 */const _getValidToken=async function(usuario,SUPA_URL,SUPA_KEY){if(!usuario?.token)return null;try{const pl=JSON.parse(atob(usuario.token.split(".")[1]));const ok=pl.exp*1000>Date.now()+30000;if(ok)return usuario.token;if(!usuario.refresh_token)return usuario.token;const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:usuario.refresh_token})});const d=await res.json();if(d.access_token){const saved=JSON.parse(localStorage.getItem("tmim_u")||"{}");saved.token=d.access_token;if(d.refresh_token)saved.refresh_token=d.refresh_token;localStorage.setItem("tmim_u",JSON.stringify(saved));return d.access_token;}}catch(e){}return usuario.token;};
-const _fmtDate=function(d){return d.getFullYear()+"-"+(d.getMonth()+1<10?"0":"")+(d.getMonth()+1)+"-"+(d.getDate()<10?"0":"")+d.getDate();};
-
-// ── SUPABASE CONFIG ──────────────────────────────────────────────────────────
-const SUPA_URL = "https://netoufukpmmfhzwirogi.supabase.co";
-const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ldG91ZnVrcG1tZmh6d2lyb2dpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTkwOTksImV4cCI6MjA4OTg5NTA5OX0.iapL70SiL_GV4XvmXRNcjlK_Sc-P2-esJzuLQvovdGQ";
-var APPS_SCRIPT_URL="https://script.google.com/macros/s/AKfycbzdcWIsm6LcCM6e7Cpx0699PPw7d3NQTVrIELsxTs_hbACSEEjGCPoUrBzESDhxyoGJ/exec";
-// ── PUSH NOTIFICATIONS ───────────────────────────────────────────────────────
-const VAPID_PUBLIC="BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjZEuEguqec8LTygq7UQTqp8-XWo4";
-function urlBase64ToUint8Array(base64String){var padding="=".repeat((4-base64String.length%4)%4);var base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");var rawData=window.atob(base64);var outputArray=new Uint8Array(rawData.length);for(var i=0;i<rawData.length;++i){outputArray[i]=rawData.charCodeAt(i);}return outputArray;}
-async function subscribePush(userId){
-  if(!("serviceWorker" in navigator)||!("PushManager" in window))return null;
-  try{
-    var reg=await navigator.serviceWorker.ready;
-    var sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC)});
-    var keys=sub.toJSON();
-    await fetch(SUPA_URL+"/rest/v1/push_subscriptions",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({usuario_id:userId,endpoint:keys.endpoint,p256dh:keys.keys.p256dh,auth:keys.keys.auth})});
-    return sub;
-  }catch(e){return null;}
-}
-async function sendPushNotification(userIds,title,body){
-  try{
-    await fetch(SUPA_URL+"/functions/v1/send-push",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({user_ids:userIds,title:title,body:body})});
-  }catch(e){}
-}
-// ── OFFLINE CACHE (IndexedDB) ─────────────────────────────────────────────────
-const IDB_NAME="telemim_offline";const IDB_VER=1;
-function openIDB(){return new Promise(function(resolve,reject){var req=indexedDB.open(IDB_NAME,IDB_VER);req.onupgradeneeded=function(e){var db=e.target.result;if(!db.objectStoreNames.contains("cache"))db.createObjectStore("cache");};req.onsuccess=function(e){resolve(e.target.result);};req.onerror=function(){reject();};});}
-async function idbSet(key,val){try{var db=await openIDB();var tx=db.transaction("cache","readwrite");tx.objectStore("cache").put(val,key);await new Promise(function(r){tx.oncomplete=r;});}catch(e){}}
-async function idbGet(key){try{var db=await openIDB();var tx=db.transaction("cache","readonly");var req=tx.objectStore("cache").get(key);return new Promise(function(r){req.onsuccess=function(){r(req.result||null);};req.onerror=function(){r(null);};});}catch(e){return null;}}
-// ── OFFLINE SYNC QUEUE ────────────────────────────────────────────────────────
-async function addToSyncQueue(op){try{var q=await idbGet("syncQueue")||[];q.push(op);await idbSet("syncQueue",q);}catch(e){}}
-async function processSyncQueue(){
-  var q=await idbGet("syncQueue");if(!q||q.length===0)return;
-  var failed=[];
-  for(var i=0;i<q.length;i++){
-    var op=q[i];
-    try{
-      var r=await fetch(op.url,{method:op.method,headers:op.headers,body:op.body?JSON.stringify(op.body):undefined});
-      if(!r.ok)failed.push(op);
-    }catch(e){failed.push(op);}
-  }
-  await idbSet("syncQueue",failed);
-}
-// Auto-process queue when back online
-if(typeof window!=="undefined"){window.addEventListener("online",function(){setTimeout(processSyncQueue,2000);});}
-// ── Supabase Realtime client ───────────────────────────────
-var _supaRealtime=null
-function getSupaClient(){
-  if(_supaRealtime) return Promise.resolve(_supaRealtime);
-  try{
-    _supaRealtime=createClient(SUPA_URL,SUPA_KEY,{realtime:{params:{eventsPerSecond:10}}});
-    return Promise.resolve(_supaRealtime);
-  }catch(e){
-    return Promise.resolve(null);
-  }
-}
-// Headers dinâmicos: usa JWT do usuário logado (não expirado) se houver; senão anon key.
-function getH(){
-  var _t=SUPA_KEY;
-  try{
-    var _u=JSON.parse(localStorage.getItem('tmim_u')||'{}');
-    if(_u&&_u.token){
-      var _pl=JSON.parse(atob(_u.token.split('.')[1]));
-      if(_pl.exp*1000>Date.now()+5000)_t=_u.token;
-    }
-  }catch(e){}
-  return {"Content-Type":"application/json","apikey":SUPA_KEY,"Authorization":"Bearer "+_t};
-}
-async function _ensureAuth(){
-  var _su=JSON.parse(localStorage.getItem('tmim_u')||'{}');
-  if(_su&&_su.refresh_token){
-    var _tk=await _getValidToken(_su,SUPA_URL,SUPA_KEY);
-    if(_tk&&_tk!==_su.token){_su.token=_tk;localStorage.setItem('tmim_u',JSON.stringify(_su));}
-  }
-}
-
-async function dbGet(table,extraParams) {
-  var params="?select=*&order=id"+(extraParams?"&"+extraParams:"");
-  const r = await fetch(SUPA_URL+"/rest/v1/"+table+params, { headers: getH() });
-  if (!r.ok) return [];
-  return r.json();
-}
-async function dbUpsert(table, rows) {
-  await fetch(`${SUPA_URL}/rest/v1/${table}`, {
-    method: "POST",
-    headers: { ...getH(), "Prefer": "resolution=merge-duplicates" },
-    body: JSON.stringify(rows),
-  });
-}
-async function dbDelete(table, id) {
-  await fetch(`${SUPA_URL}/rest/v1/${table}?id=eq.${id}`, { method: "DELETE", headers: getH() });
-}
-
-async function dbGetContas(status){
-  const r=await fetch(`${SUPA_URL}/rest/v1/contas_pagar?status=eq.${status}&order=criado_em.desc`,{headers:{...getH(),"Range":"0-29"}});
-  if(!r.ok)return [];
-  return r.json();
-}
-async function dbInsertConta(row){
-  const r=await fetch(`${SUPA_URL}/rest/v1/contas_pagar`,{method:"POST",headers:{...getH(),"Prefer":"return=representation"},body:JSON.stringify([row])});
-  if(!r.ok)return null;
-  const d=await r.json();return d[0]||null;
-}
-async function dbPagarConta(id,agora){
-  await fetch(`${SUPA_URL}/rest/v1/contas_pagar?id=eq.${id}`,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({status:"pago",pago_em:agora})});
-}
-// ── CUSTOS DIÁRIOS ───────────────────────────────────────────────────────────
-async function dbGetCustos() {
-  const r = await fetch(`${SUPA_URL}/rest/v1/custos_diarios?select=*&order=data`, { headers: getH() });
-  if (!r.ok) return [];
-  return r.json();
-}
-async function dbUpsertCusto(row) {
-  await fetch(`${SUPA_URL}/rest/v1/custos_diarios`, {
-    method: "POST",
-    headers: { ...getH(), "Prefer": "resolution=merge-duplicates" },
-    body: JSON.stringify([row]),
-  });
-}
-const FORNECEDORES = {
-  van:      { tel: "" },
-  caminhao: { tel: "" },
-};
-
-// ── THEME & RULES ─────────────────────────────────────────────────────────────
-const COLORS = {
-  bg:"#f0f4f8", card:"#ffffff", cardBorder:"#e2e8f0",
-  accent:"#e67e22", green:"#16a34a", red:"#dc2626",
-  blue:"#2563eb", purple:"#7c3aed", text:"#1e293b", muted:"#64748b", inputBg:"#f8fafc",
-  shadow:"0 2px 12px rgba(0,0,0,0.08)", headerBg:"#1e293b",
-};
-const RULES = { medicaoPorM3:150, vanGanho:1000, vanCusto:400, caminhao:350, cam1a:350, camAdd:130, ajudante:80, imposto:0.16, van1a:1000, vanAdd:130, aj1a:80, ajAdd:20, dataInicioRegra:'' };
-
-const DADOS_INICIAIS = [
-  { id:1,  selo:"180",               nome:"Joyce Rosendo",                               origem:"Travessa João Murilo de Oliveira, Beira da Maré",            destino:"Rua Sargento Silvino de Macedo, N°210, 5° Travessa, Aritana",                                     data:"2026-03-09", medicao:26, van:true, comunidade:"Comunidade do Bem" },
-  { id:2,  selo:"177",               nome:"Ivaneide Valença",                            origem:"Travessa João Murilo de Oliveira, Beira da Maré",            destino:"Comunidade do Bueiro, Av. Central, Afogados",                                                     data:"2026-03-04", medicao:26, van:true, comunidade:"Comunidade do Bem" },
-  { id:3,  selo:"168",               nome:"Julio Serafim",                               origem:"Estrada Velha do Frigorífico, S/N, Beira da Maré",           destino:"Rua João Murilo de Oliveira, Irmã Dorothy. Ref: lanchonete o melhor do trigo",                  data:"2026-03-10", medicao:30, van:true, comunidade:"Comunidade do Bem" },
-  { id:4,  selo:"VT-020-020 C e D",  nome:"Sônia Maria do Vale",                        origem:"Rua Dr. Flávio Ferreira da Silva Marajó, s/n, Com. Vietnã",  destino:"Rua Leila Felix Carã, s/nº - Torrões",                                                            data:"2026-03-02", medicao:31, van:true, comunidade:"Comunidade Chesf Vietnã" },
-  { id:5,  selo:"VT-020-020 C e D",  nome:"Sônia Maria do Vale",                        origem:"Rua Dr. Flávio Ferreira da Silva Marajó, s/n, Com. Vietnã",  destino:"Rua Leila Felix Carã, s/nº - Torrões",                                                            data:"2026-03-02", medicao:20, van:true, comunidade:"Comunidade Chesf Vietnã" },
-  { id:6,  selo:"VT-020-007 B",      nome:"Iranildo Araújo da Silva",                   origem:"Rua Dr. Flávio Ferreira da Silva Marajó, s/n, Com. Vietnã",  destino:"2ª Travessa da Rua Tenente Mindelo, nº15 - Jiquiá",                                               data:"2026-03-05", medicao:31, van:true, comunidade:"Comunidade Chesf Vietnã" },
-  { id:7,  selo:"VT-020-001 A",      nome:"Severino José dos Santos",                   origem:"Rua Dr. Flávio Ferreira da Silva Marajó, s/nº",              destino:"Rua Tavares de Holanda, nº 520",                                                                  data:"2026-03-06", medicao:27, van:true, comunidade:"Comunidade Chesf Vietnã" },
-  { id:8,  selo:"VT-020-003-A",      nome:"Ednaldo Gomes",                              origem:"Rua Dr. Flávio Ferreira da Silva Marajó, s/nº",              destino:"Rua Apulcro de Assunção, nº620 - próx. praça giradouro terminal San Martin",                      data:"2026-03-06", medicao:17, van:true, comunidade:"Comunidade Chesf Vietnã" },
-  { id:9,  selo:"VT-020-018-A",      nome:"Claudia Rafaela Barbosa de Oliveira Borges", origem:"Rua Dr. Flávio Ferreira da Silva Marajó, nº26",              destino:"Rua do Rosário, nº210 - Afogados",                                                               data:"2026-03-10", medicao:27, van:true, comunidade:"Comunidade Chesf Vietnã" },
-  { id:10, selo:"VT-020-018-A",      nome:"Claudia Rafaela Barbosa de Oliveira Borges", origem:"Rua Dr. Flávio Ferreira da Silva Marajó, nº26",              destino:"Rua do Rosário, nº210 - Afogados",                                                               data:"2026-03-10", medicao:20, van:true, comunidade:"Comunidade Chesf Vietnã" },
-  { id:11, selo:"VT-020-012-A",      nome:"Ricardo Pereira",                            origem:"Rua Dr. Flávio Ferreira da Silva Marajó, s/nº",              destino:"Rua Juscelândia, nº27 - Torrões",                                                                 data:"2026-03-13", medicao:29, van:true, comunidade:"Comunidade Chesf Vietnã" },
-  { id:12, selo:"VT-020-008-A",      nome:"Wirlânia do Nascimento Ferreira Araújo",     origem:"Rua Dr. Flávio Ferreira da Silva Marajó, nº727",             destino:"Rua Tenente Mindelo, nº15",                                                                      data:"2026-03-13", medicao:31, van:true, comunidade:"Comunidade Chesf Vietnã" },
-  { id:13, selo:"57",                nome:"Edeilson Pereira dos Santos",                 origem:"Av. Rio Capibaribe, 57 - São José",                         destino:"Habitacional Vila Brasil 1",                                                                      data:"2026-03-02", medicao:25, van:true, comunidade:"Comunidade Vila Brasil" },
-  { id:14, selo:"008A-1",            nome:"Aguinaldo José Bezerra",                     origem:"Rua Sargento Rubens Leite, nº98",                            destino:"Av. Barreto de Menezes, 160 - Marcos Freire, Jaboatão dos Guararapes",                           data:"2026-03-18", medicao:27, van:true, comunidade:"Encostas" },
-  { id:15, selo:"VT-020-004-A",      nome:"Maria do Carmo Carneiro Barbosa",            origem:"Rua Dr. Flávio Ferreira da Silva Marajó, nº730",             destino:"Rua 61, nº66 - Caetés 3 - próximo à associação Betânia",                                         data:"2026-03-05", medicao:31, van:true, comunidade:"Comunidade Chesf Vietnã" },
-  { id:16, selo:"243",               nome:"Clara Fernanda dos Santos Silva",             origem:"Tv João Murilo de Oliveira, Nº 182, Beira da Maré",         destino:"Rua Ernesto Lundgren, Nº 96, Lagoa Encantada, Ibura, Recife/PE",                                  data:"2026-03-13", medicao:25, van:true, comunidade:"Comunidade Chesf Vietnã" },
-];
-
-const AGENDA_INICIAIS = [
-  { id:101, nome:"Anderson Sebastião",                 selo:"VT-020-021-A", data:"2026-03-25", horario:"09:00", origem:"Rua Dr. Flávio Marajó, S/N - Comunidade Vietnã", destino:"8ª Travessa da Rua Porto Estrela, 28 - Recife/PE",         van:true,  caminhao:true, comunidade:"Comunidade Chesf Vietnã", contato:"81 8654-1134", status:"confirmado" },
-  { id:102, nome:"Maria da Conceição Silva Ferreira",  selo:"SESAN",        data:"2026-03-27", horario:"14:00", origem:"Rua Zeferino Agra, nº 490 - Bloco B 108",         destino:"1ª Travessa Santo Antonio, nº 215 - Dois Unidos",          van:false, caminhao:true, comunidade:"SESAN",                   contato:"",            status:"confirmado" },
-  { id:103, nome:"Jhonatan",                           selo:"VT-020-022-A", data:"2026-03-25", horario:"15:00", origem:"Rua Dr. Flávio Marajó, S/N - Comunidade Vietnã", destino:"1ª Travessa Eng. Abdias de Carvalho - Curado",             van:true,  caminhao:true, comunidade:"Comunidade Chesf Vietnã", contato:"81 8582-8967", status:"confirmado" },
-];
-
-const initForm = { nome:"", selo:"", data:(function(){var _d=new Date();var _y=_d.getFullYear();var _m=String(_d.getMonth()+1).padStart(2,"0");var _dd=String(_d.getDate()).padStart(2,"0");return _y+"-"+_m+"-"+_dd;})(), horario:"08:00", origem:"", destino:"", medicao:"", van:true, comunidade:"", contato:"" };
+// ── Modular imports ──────────────────────────────────────────────────────────
+import { SUPA_URL, SUPA_KEY, APPS_SCRIPT_URL, _getValidToken, _fmtDate, getSupaClient, getH, _ensureAuth, dbGet, dbUpsert, dbDelete, dbGetContas, dbInsertConta, dbPagarConta, dbGetCustos, dbUpsertCusto, FORNECEDORES } from "./src/config/supabase.js";
+import { VAPID_PUBLIC, COLORS, RULES, DADOS_INICIAIS, AGENDA_INICIAIS, initForm } from "./src/config/constants.js";
+import { urlBase64ToUint8Array, subscribePush, sendPushNotification } from "./src/utils/push.js";
+import { idbSet, idbGet, addToSyncQueue, processSyncQueue } from "./src/utils/offline.js";
+import { _calcDiario, _calcCustos } from "./src/utils/calcCustos.js";
+import { exportarPDF, exportarExcel } from "./src/utils/exportar.js";
+import { Badge, Card, Inp, Tog } from "./src/components/shared.jsx";
 
 function fmt(n){ return "R$ "+Number(n).toLocaleString("pt-BR",{minimumFractionDigits:2}); }
 function fmtDate(d){ if(!d) return ""; const [y,m,dd]=d.split("-"); return `${dd}/${m}/${y}`; }
@@ -183,125 +30,6 @@ function calcRel(list,aj,alm){
   const cV=vd*RULES.vanCusto, cC=list.length*RULES.caminhao, cA=(parseInt(aj)||0)>0?(RULES.aj1a+(vd>0?vd-1:0)*RULES.ajAdd)*(parseInt(aj)||0):0, cAlm=parseFloat(alm)||0;
   const custos=cV+cC+cA+cAlm, liq=bruto-imp-custos, marg=bruto>0?(liq/bruto)*100:0;
   return {fatM,fatV,bruto,imp,cV,cC,cA,cAlm,custos,liq,marg,m3,vd,nAj:parseInt(aj)||0};
-}
-
-function Badge({children,color=COLORS.accent}){
-  return <span style={{background:color+"18",color,border:`1px solid ${color}33`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{children}</span>;
-}
-function Card({children,style={}}){
-  return <div style={{background:COLORS.card,border:`1px solid ${COLORS.cardBorder}`,borderRadius:16,padding:18,boxShadow:COLORS.shadow,...style}}>{children}</div>;
-}
-function Inp({label,type="text",value,onChange,placeholder,icon}){
-  return(
-    <div style={{marginBottom:12}}>
-      <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:5,textTransform:"uppercase"}}>{icon} {label}</label>
-      <input type={type} value={value} onChange={e=>onChange(e.target.value)} onInput={e=>onChange(e.target.value)} placeholder={placeholder}
-        style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:10,color:COLORS.text,padding:"10px 13px",fontSize:14,outline:"none",boxSizing:"border-box"}}
-        onFocus={e=>e.target.style.border=`1.5px solid ${COLORS.accent}`}
-        onBlur={e=>e.target.style.border=`1.5px solid ${COLORS.cardBorder}`}/>
-    </div>
-  );
-}
-function Tog({label,value,onChange}){
-  return(
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-      <label style={{color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,textTransform:"uppercase"}}>{label}</label>
-      <div onClick={()=>onChange(!value)} style={{width:46,height:25,borderRadius:13,background:value?COLORS.accent:"#cbd5e1",position:"relative",cursor:"pointer",transition:"background 0.3s"}}>
-        <div style={{position:"absolute",top:3,left:value?22:3,width:19,height:19,borderRadius:10,background:"#fff",transition:"left 0.3s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// AGENTE DE PRECIFICAÇÃO — Fonte Única da Verdade
-// Calcula o custo de UM DIA para UMA categoria
-// Regras escalonadas exactas conforme aba Config > Regras
-// ============================================================
-function _calcDiario(numMud, numAj, cargo, RULES){
-  if(numMud===0) return 0;
-  var cam1a=parseFloat(RULES.cam1a)||0;
-  var camAdd=parseFloat(RULES.camAdd)||0;
-  var vanD=parseFloat(RULES.vanCusto)||0;
-  var aj1a=parseFloat(RULES.aj1a)||0;
-  var ajAdd=parseFloat(RULES.ajAdd)||0;
-  if(cargo==="van"){
-    // Van: valor fixo diário independente de quantas mudanças
-    return vanD;
-  }
-  if(cargo==="caminhao"){
-    // Caminhão: base na 1ª mudança + acréscimo por cada mudança adicional
-    var extraCam=Math.max(0,numMud-1);
-    return cam1a+(extraCam*camAdd);
-  }
-  if(cargo==="ajudante"){
-    // Ajudante: escalonado igual ao caminhão × qtd ajudantes presentes
-    var extraAj=Math.max(0,numMud-1);
-    var custoPorUm=aj1a+(extraAj*ajAdd);
-    return custoPorUm*(parseInt(numAj)||1);
-  }
-  return 0;
-}
-// ============================================================
-// CALCULADORA CENTRAL — usa _calcDiario como driver
-// Itera dia a dia sobre os dias com mudanças
-// ============================================================
-// mudP = concluídas (para receita), mudDesp = todas agendadas (para despesas)
-// eqDiaP = equipe_dia list (fonte primária para qtd ajudantes)
-// solFin = solicitacoes_financeiras aprovadas (overrides por ajudante)
-function _calcCustos(mudP, cdP, cpP, RULES, mudDesp, eqDiaP, solFin){
-  var _fv=function(v){return parseFloat(v)||0;};
-  var _desp=mudDesp||mudP;
-  // --- FATURAMENTO (só concluídas) ---
-  var diasU=[...new Set(mudP.map(function(m){return m.data;}))];
-  var m3Total=mudP.reduce(function(s,m){return s+_fv(m.medicao);},0);
-  var numVan=mudP.filter(function(m){return m.van;}).length;
-  var fatBruto=diasU.length*_fv(RULES.van1a)+m3Total*_fv(RULES.medicaoPorM3);
-  var imposto=fatBruto*_fv(RULES.imposto);
-  var fatLiq=fatBruto-imposto;
-  // --- CUSTOS (todas realizadas, não-canceladas, não-pendentes) ---
-  var diasDesp=[...new Set(_desp.map(function(m){return m.data;}))];
-  var cCam=0;var cVan=0;var cAj=0;var cAlm=0;var cDesp=0;
-  var _aj1a=_fv(RULES.aj1a)||80;var _ajAdd=_fv(RULES.ajAdd)||20;
-  var _aprovList=(solFin||[]).filter(function(s){return s.status==="aprovado"&&s.tipo==="editar_valor";});
-  var _ajMap={};var _camDias=[];var _vanDias=[];
-  diasDesp.forEach(function(data){
-    var mudDia=_desp.filter(function(m){return m.data===data;});
-    var numMud=mudDia.length;
-    if(numMud===0) return;
-    var cdDia=(cdP||[]).find(function(cd){return cd.data===data;})||{custo_almoco:0,despesa_extra:0};
-    // VEÍCULOS: só cobra se teve veículo naquele dia
-    var numMudCam=mudDia.filter(function(m){return m.caminhao||m.motorista_caminhao_id;}).length;
-    var numMudVan=mudDia.filter(function(m){return m.van||m.motorista_van_id;}).length;
-    if(numMudCam>0){var camVal=_calcDiario(numMudCam,0,"caminhao",RULES);cCam+=camVal;_camDias.push({data:data,numMud:numMudCam,valor:camVal});}
-    if(numMudVan>0){var vanVal=_calcDiario(numMudVan,0,"van",RULES);cVan+=vanVal;_vanDias.push({data:data,numMud:numMudVan,valor:vanVal});}
-    // AJUDANTES: só se tem equipe_dia (sem fallback inventado)
-    var _eqDia=(eqDiaP||[]).find(function(e){return e.data===data&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
-    if(_eqDia){
-      var valPorAj=_aj1a+Math.max(0,numMud-1)*_ajAdd;
-      _eqDia.ajudantes.forEach(function(aj){
-        var ajVal=valPorAj;
-        var aprov=_aprovList.find(function(s){return s.prestador_nome===aj.nome&&s.data_ref===data;});
-        if(aprov){var _nv=parseFloat(aprov.valor_novo);if(!isNaN(_nv))ajVal=_nv;}
-        cAj+=ajVal;
-        var ajKey=aj.id||aj.nome;
-        if(!_ajMap[ajKey])_ajMap[ajKey]={id:aj.id,nome:aj.nome,telefone:aj.telefone||"",dias:[],total:0};
-        _ajMap[ajKey].dias.push({data:data,numMud:numMud,valor:ajVal});
-        _ajMap[ajKey].total+=ajVal;
-      });
-    }
-    cAlm+=_fv(cdDia.custo_almoco);
-    cDesp+=_fv(cdDia.despesa_extra);
-  });
-  var cExtra=(cpP||[]).reduce(function(s,cp){return s+_fv(cp.valor);},0);
-  var despTotal=cCam+cVan+cAj+cAlm+cDesp+cExtra;
-  var lucroLiq=fatLiq-despTotal;
-  return {
-    cCam,cVan,cAj,cAlm,cDesp,cExtra,despTotal,
-    fatBruto,fatLiq,imposto,lucroLiq,
-    numMud:mudP.length,numMudDesp:_desp.length,m3Total,diasU,diasDesp,numVan,
-    detAjudantes:_ajMap,detCamDias:_camDias,detVanDias:_vanDias
-  };
 }
 function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCustosDiarios,setContasSemana,equipeDiaList,solicitacoesFin}){
   var _pc=function(n){return String(n).padStart(2,"0");};
@@ -812,6 +540,147 @@ function RotaTerceirizada({token}){
     </div>
   );
 }
+function MudancaTerceirizada({token}){
+  var [dados,setDados]=useState(null);
+  var [erro,setErro]=useState(null);
+  var [loading,setLoading]=useState(true);
+  var [aba,setAba]=useState("detalhes");
+  var [iniciando,setIniciando]=useState(false);
+  function carregarDados(){
+    fetch(SUPA_URL+"/functions/v1/consumir-link-mudanca?token="+encodeURIComponent(token),{headers:{"apikey":SUPA_KEY}})
+      .then(function(r){return r.json();})
+      .then(function(d){if(d.ok){setDados(d);}else if(!dados){setErro(d.error||"Link inválido.");}setLoading(false);})
+      .catch(function(){if(!dados)setErro("Erro de conexão.");setLoading(false);});
+  }
+  useEffect(function(){carregarDados();},[token]);
+  // Auto-refresh a cada 30s
+  useEffect(function(){var iv=setInterval(carregarDados,30000);return function(){clearInterval(iv);};},[token]);
+  function handleIniciar(){
+    setIniciando(true);
+    fetch(SUPA_URL+"/functions/v1/iniciar-mudanca-terceirizada",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({token:token})})
+      .then(function(r){return r.json();})
+      .then(function(d){if(d.ok&&d.mudanca){setDados(function(prev){return Object.assign({},prev,{mudanca:d.mudanca});});}else{alert(d.error||"Erro ao iniciar");}setIniciando(false);})
+      .catch(function(){alert("Erro de conexão");setIniciando(false);});
+  }
+  if(loading) return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f8fafc"}}><div style={{textAlign:"center"}}><div style={{fontSize:36,marginBottom:8}}>🏠</div><div style={{fontWeight:700,fontSize:14,color:"#64748b"}}>Carregando mudança...</div></div></div>);
+  if(erro) return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#fef2f2",padding:20}}><div style={{textAlign:"center",maxWidth:360}}><div style={{fontSize:48,marginBottom:12}}>⚠️</div><div style={{fontWeight:800,fontSize:16,color:"#dc2626",marginBottom:8}}>Link Inválido ou Expirado</div><div style={{fontSize:13,color:"#991b1b"}}>{erro}</div></div></div>);
+  var m=dados.mudanca;
+  var _dfmt=m.data?m.data.slice(8)+"/"+m.data.slice(5,7)+"/"+m.data.slice(0,4):"";
+  var _veiculos=[m.van&&"🚐 Van",m.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
+  var _expFmt=dados.expira_em?(function(){var p=(dados.expira_em||"").slice(0,10).split("-");return p[2]+"/"+p[1]+"/"+p[0]+" às 23:59";})():"";
+  var _conclStatuses=["Concluido","Concluído","concluido","concluida","realizado","realizada"];
+  var _isConcl=_conclStatuses.indexOf(m.status)>=0||m.termino_em;
+  var _isIniciada=m.status==="Realizando"||m.inicio_mudanca_em;
+  // Step tracker
+  var _fmtH=function(ts){if(!ts)return null;var d=new Date(ts);if(isNaN(d.getTime()))return null;return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
+  var _steps=[
+    {key:"deslocamento",label:"Rumo à Origem",icon:"🚐",time:m.inicio_van_em||m.van_saiu_em||m.inicio_caminhao_em||m.caminhao_saiu_em||m.inicio_mudanca_em},
+    {key:"origem",label:"Na Origem",icon:"📍",time:m.chegou_origem_van_em||m.chegou_origem_cam_em},
+    {key:"carregando",label:"Carregando",icon:"📦",time:m.saiu_destino_van_em||m.saiu_destino_cam_em?m.chegou_origem_van_em||m.chegou_origem_cam_em:null},
+    {key:"destino",label:"Rumo Destino",icon:"🚚",time:m.saiu_destino_van_em||m.saiu_destino_cam_em},
+    {key:"descarregando",label:"No Destino",icon:"📦",time:m.chegada_van_em||m.chegada_caminhao_em},
+    {key:"concluido",label:"Concluído",icon:"🏁",time:m.termino_em||m.termino_van_em||m.termino_caminhao_em}
+  ];
+  var _activeIdx=-1;
+  for(var si=_steps.length-1;si>=0;si--){if(_steps[si].time){_activeIdx=si;break;}}
+  if(_isConcl)_activeIdx=5;
+  return(
+    <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
+      <div style={{background:"linear-gradient(135deg,#1e293b,#7c3aed)",padding:"20px 16px 16px",color:"#fff"}}>
+        <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600,letterSpacing:1,textTransform:"uppercase"}}>TELEMIM — Mudança Terceirizada</div>
+        <div style={{fontSize:18,fontWeight:900,marginTop:4}}>🏠 {m.nome||"Beneficiário"}</div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.8)",marginTop:2}}>📅 {_dfmt}{m.horario?" · ⏰ "+m.horario:""}</div>
+        {dados.criado_por&&<div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginTop:4}}>Compartilhado por: {dados.criado_por}</div>}
+      </div>
+      {/* Abas */}
+      <div style={{display:"flex",background:"#fff",borderBottom:"2px solid #e2e8f0"}}>
+        <button onClick={function(){setAba("detalhes");}} style={{flex:1,padding:"12px 0",border:"none",background:aba==="detalhes"?"#fff":"#f8fafc",borderBottom:aba==="detalhes"?"3px solid #7c3aed":"3px solid transparent",fontWeight:800,fontSize:13,color:aba==="detalhes"?"#7c3aed":"#94a3b8",cursor:"pointer"}}>📋 Detalhes</button>
+        <button onClick={function(){setAba("monitoramento");}} style={{flex:1,padding:"12px 0",border:"none",background:aba==="monitoramento"?"#fff":"#f8fafc",borderBottom:aba==="monitoramento"?"3px solid #7c3aed":"3px solid transparent",fontWeight:800,fontSize:13,color:aba==="monitoramento"?"#7c3aed":"#94a3b8",cursor:"pointer"}}>📡 Monitoramento</button>
+      </div>
+      <div style={{padding:"16px 12px 80px"}}>
+        {aba==="detalhes"&&(
+          <div>
+            <div style={{background:"#fff",borderRadius:14,border:"2px solid #e2e8f0",padding:"16px",marginBottom:12,boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
+              <div style={{fontWeight:800,fontSize:18,color:"#1e293b",marginBottom:12}}>{m.nome||"Sem nome"}</div>
+              {m.selo&&<div style={{display:"inline-block",background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:20,padding:"3px 12px",fontSize:12,fontWeight:700,color:"#0369a1",marginBottom:10}}>🏷️ {m.selo}</div>}
+              <div style={{display:"grid",gap:10,marginTop:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📅</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>DATA</div><div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{_dfmt}{m.horario?" às "+m.horario:""}</div></div></div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📍</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>COMUNIDADE</div><div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{m.comunidade||"—"}</div></div></div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📦</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>ORIGEM</div><div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{m.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(m.origem)} target="_blank" rel="noopener" style={{color:"#2563eb",textDecoration:"none"}}>{m.origem} 🗺️</a>:"—"}</div></div></div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>🏠</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>DESTINO</div><div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{m.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(m.destino)} target="_blank" rel="noopener" style={{color:"#2563eb",textDecoration:"none"}}>{m.destino} 🗺️</a>:"—"}</div></div></div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>🚗</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>VEÍCULOS</div><div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{_veiculos}</div></div></div>
+                {m.contato&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📱</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>CONTATO BENEFICIÁRIO</div><div style={{fontSize:14,fontWeight:700,color:"#2563eb"}}><a href={"tel:"+m.contato} style={{color:"#2563eb",textDecoration:"none"}}>{m.contato}</a></div></div></div>}
+                {m.observacao&&<div style={{display:"flex",alignItems:"flex-start",gap:8}}><span style={{fontSize:16}}>📝</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>OBSERVAÇÕES</div><div style={{fontSize:13,color:"#475569",fontStyle:"italic"}}>{m.observacao}</div></div></div>}
+                {m.assist_social&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>👩‍⚕️</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>ASSISTENTE SOCIAL</div><div style={{fontSize:14,fontWeight:700,color:"#7c3aed"}}>{m.assist_social}</div></div></div>}
+              </div>
+              {m.contato&&<a href={"https://wa.me/55"+(m.contato||"").replace(/\D/g,"")} target="_blank" rel="noopener" style={{display:"block",marginTop:16,textAlign:"center",padding:14,background:"#25d366",color:"#fff",borderRadius:12,fontWeight:800,fontSize:14,textDecoration:"none",boxShadow:"0 4px 12px rgba(37,211,102,0.3)"}}>📱 WhatsApp do Beneficiário</a>}
+            </div>
+          </div>
+        )}
+        {aba==="monitoramento"&&(
+          <div>
+            {/* Status Badge */}
+            <div style={{textAlign:"center",marginBottom:16}}>
+              <div style={{display:"inline-block",padding:"8px 20px",borderRadius:20,fontWeight:800,fontSize:14,background:_isConcl?"#dcfce7":_isIniciada?"#eff6ff":"#fff7ed",color:_isConcl?"#15803d":_isIniciada?"#1d4ed8":"#c2410c",border:"2px solid "+(_isConcl?"#86efac":_isIniciada?"#93c5fd":"#fed7aa")}}>{_isConcl?"✅ Concluída":_isIniciada?"🔧 Em Andamento":"⏳ Aguardando Início"}</div>
+            </div>
+            {/* Step Tracker */}
+            <div style={{background:"#fff",borderRadius:14,border:"2px solid #e2e8f0",padding:"16px 10px",marginBottom:12,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",overflowX:"auto"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>📡 Progresso da Mudança</div>
+              <div style={{display:"flex",alignItems:"flex-start",gap:0,minWidth:500}}>
+                {_steps.map(function(step,idx){
+                  var isDone=idx<_activeIdx;
+                  var isActive=idx===_activeIdx;
+                  var _h=_fmtH(step.time);
+                  return(
+                    <div key={step.key} style={{display:"flex",alignItems:"flex-start",flex:1}}>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"center",flex:0,minWidth:48}}>
+                        <div style={{width:36,height:36,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,background:isDone?"#16a34a":isActive?"#2563eb":"#e2e8f0",color:isDone||isActive?"#fff":"#94a3b8",fontWeight:800,boxShadow:isActive?"0 0 0 4px rgba(37,99,235,0.25)":"none",border:isActive?"3px solid #93c5fd":"2px solid "+(isDone?"#16a34a":"#e2e8f0")}}>{isDone?"✓":step.icon}</div>
+                        <div style={{fontSize:9,fontWeight:isDone||isActive?700:500,color:isDone?"#16a34a":isActive?"#2563eb":"#94a3b8",marginTop:4,textAlign:"center",whiteSpace:"nowrap"}}>{step.label}</div>
+                        {_h?<div style={{fontSize:11,fontWeight:900,color:isDone?"#15803d":isActive?"#1d4ed8":"#64748b",marginTop:2}}>{_h}</div>:<div style={{fontSize:9,color:"#cbd5e1",marginTop:2}}>—</div>}
+                      </div>
+                      {idx<_steps.length-1&&<div style={{flex:1,height:3,background:isDone?"#16a34a":"#e2e8f0",borderRadius:2,margin:"0 2px",marginTop:17}}></div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Info rápido */}
+            <div style={{background:"#fff",borderRadius:14,border:"2px solid #e2e8f0",padding:"16px",marginBottom:12,boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
+              <div style={{display:"grid",gap:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📦</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>ORIGEM</div><div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{m.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(m.origem)} target="_blank" rel="noopener" style={{color:"#2563eb",textDecoration:"none"}}>{m.origem} 🗺️</a>:"—"}</div></div></div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>🏠</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>DESTINO</div><div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{m.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(m.destino)} target="_blank" rel="noopener" style={{color:"#2563eb",textDecoration:"none"}}>{m.destino} 🗺️</a>:"—"}</div></div></div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>🚗</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>VEÍCULOS</div><div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{_veiculos}</div></div></div>
+                {m.contato&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📱</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>CONTATO</div><div style={{fontSize:13,fontWeight:700}}><a href={"tel:"+m.contato} style={{color:"#2563eb",textDecoration:"none"}}>{m.contato}</a></div></div></div>}
+              </div>
+            </div>
+            {/* Botão Iniciar — só aparece se não iniciada e não concluída */}
+            {!_isConcl&&!_isIniciada&&(
+              <button onClick={handleIniciar} disabled={iniciando} style={{width:"100%",padding:"16px 0",borderRadius:12,border:"none",background:iniciando?"#94a3b8":"#7c3aed",color:"#fff",fontWeight:900,fontSize:15,cursor:iniciando?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:"0 4px 16px rgba(124,58,237,0.35)",marginBottom:12}}>
+                {iniciando?"⏳ Iniciando...":"🔧 Iniciar Mudança"}
+              </button>
+            )}
+            {_isIniciada&&!_isConcl&&(
+              <div style={{textAlign:"center",padding:"14px",background:"#eff6ff",borderRadius:12,border:"2px solid #93c5fd",marginBottom:12}}>
+                <div style={{fontSize:14,fontWeight:800,color:"#1d4ed8"}}>🔧 Mudança em Andamento</div>
+                <div style={{fontSize:11,color:"#3b82f6",marginTop:4}}>Iniciada às {_fmtH(m.inicio_mudanca_em)||"—"}</div>
+              </div>
+            )}
+            {_isConcl&&(
+              <div style={{textAlign:"center",padding:"14px",background:"#dcfce7",borderRadius:12,border:"2px solid #86efac",marginBottom:12}}>
+                <div style={{fontSize:14,fontWeight:800,color:"#15803d"}}>✅ Mudança Concluída</div>
+              </div>
+            )}
+            <div style={{textAlign:"center",fontSize:10,color:"#94a3b8",marginTop:8}}>🔄 Atualiza automaticamente a cada 30s</div>
+          </div>
+        )}
+        {/* Expira */}
+        <div style={{marginTop:16,textAlign:"center",padding:"10px",background:"#fffbeb",borderRadius:10,border:"1px solid #fcd34d"}}>
+          <div style={{fontSize:11,color:"#92400e",fontWeight:600}}>⚠️ Este link expira em: {_expFmt}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
 export default function App(){
   const [usuario,setUsuario]=useState(null);
   const [abaMotorista,setAbaMotorista]=useState('hoje');
@@ -846,6 +715,13 @@ export default function App(){
   const [magicToken,setMagicToken]=useState(null);
   const [magicLoading,setMagicLoading]=useState(false);
   const [magicData,setMagicData]=useState(null);
+  const [terceirizarModal,setTerceirizarModal]=useState(null);
+  const [terceirizarSel,setTerceirizarSel]=useState("");
+  const [terceirizarSaving,setTerceirizarSaving]=useState(false);
+  const [mudLinkToken,setMudLinkToken]=useState(null);
+  const [mudLinkLoading,setMudLinkLoading]=useState(false);
+  const [tercInlineId,setTercInlineId]=useState(null);
+  const [tercInlineLoading,setTercInlineLoading]=useState(null);
   const [cfgEdit,setCfgEdit]=useState({van1a:1000,vanAdd:0,aj1a:80,ajAdd:20,dataInicioRegra:'',imposto:16});
   const [cfgSaved,setCfgSaved]=useState(false);
   const [bioLock,setBioLock]=useState(localStorage.getItem('tmim_bio_enabled')==='true'&&!!localStorage.getItem('tmim_u'));
@@ -856,7 +732,7 @@ export default function App(){
   const [showImport,setShowImport]=useState(false);
   const [cfgWA,setCfgWA]=useState({admin_whatsapp:"",supervisor_whatsapp:"",whatsapp_ativo:"false",evolution_api_url:"",evolution_api_key:"",evolution_instance:""});
   const [cfgWAauto,setCfgWAauto]=useState({
-    atribuida:{ativo:false,dest:["mot_van","mot_caminhao","supervisor"],msg:"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDE9B *MUDAN\u00C7A ATRIBU\u00CDDA*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDC64 Cliente: *{cliente}*\n\uD83D\uDCC5 Data: *{data}*\n\u23F0 Hora: *{hora}*\n\n\uD83D\uDCCD *Origem:*\n{origem}\n\n\uD83D\uDCCD *Destino:*\n{destino}\n\n\uD83D\uDC77 *Supervisor:* {supervisor}\n\uD83D\uDD27 TELEMIM - PROMORAR - *VERIFIQUE O APP!*"},
+    atribuida:{ativo:false,dest:["mot_van","mot_caminhao","supervisor"],msg:"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDE9B *MUDAN\u00C7A ATRIBU\u00CDDA*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDC64 Cliente: *{cliente}*\n\uD83D\uDCDE Contato: {contato}\n\uD83D\uDCC5 Data: *{data}*\n\u23F0 Hora: *{hora}*\n\n\uD83D\uDCCD *Origem:*\n{origem}\n\uD83D\uDDFA\uFE0F {mapa_origem}\n\n\uD83D\uDCCD *Destino:*\n{destino}\n\uD83D\uDDFA\uFE0F {mapa_destino}\n\n\uD83D\uDC77 *Supervisor:* {supervisor}\n\uD83D\uDD27 TELEMIM - PROMORAR - *VERIFIQUE O APP!*"},
     iniciada:{ativo:false,dest:["admin","supervisor","cliente"],msg:"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDE80 *MUDAN\u00C7A INICIADA*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDC64 Cliente: *{cliente}*\n\uD83D\uDCC5 Data: *{data}*\n\uD83D\uDE9A Motorista: *{motorista}*\n\uD83D\uDD27 TELEMIM - PROMORAR"},
     deslocamento:{ativo:false,dest:["admin","supervisor","cliente"],msg:"\uD83D\uDCCD {motorista} iniciou deslocamento\nCliente: {cliente}\n\uD83D\uDD27 TELEMIM - PROMORAR"},
     no_destino:{ativo:false,dest:["admin","supervisor","cliente"],msg:"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDCCD *MOTORISTA NO DESTINO*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\uD83D\uDC64 Cliente: *{cliente}*\n\uD83D\uDE9A Motorista: *{motorista}*\n\uD83D\uDD27 TELEMIM - PROMORAR"},
@@ -866,11 +742,14 @@ export default function App(){
   const [isUploading,setIsUploading]=useState(false);
   const [isApproving,setIsApproving]=useState({});
   const [waLoading,setWaLoading]=useState(false);
+  const [configuracoes,setConfiguracoes]=useState([]);
   const [showViewPDF,setShowViewPDF]=useState(false);
   const [mudViewPDF,setMudViewPDF]=useState(null);
   const [confirmFinAg,setConfirmFinAg]=useState(null);
   const [cancelModal,setCancelModal]=useState(null);
   const [cancelMotivo,setCancelMotivo]=useState("");
+  const [pendModal,setPendModal]=useState(null);
+  const [pendMotivo,setPendMotivo]=useState("");
   const [viewEquipeAg,setViewEquipeAg]=useState(null);
   const [showAssinatura,setShowAssinatura]=useState(false);
   const [mudAssinatura,setMudAssinatura]=useState(null);
@@ -937,6 +816,7 @@ export default function App(){
   const [convertModal,setConvertModal]=useState(null);
   const [editAg,setEditAg]=useState(null);
   const [syncStatus,setSyncStatus]=useState("✅ Sincronizado");
+  const [equipeSalvaMsg,setEquipeSalvaMsg]=useState("");
   const [contasPagar,setContasPagar]=useState([]);
   const [contasHist,setContasHist]=useState([]);
   const [novaContaForm,setNovaContaForm]=useState({tipo:'van',descricao:'',valor:'',beneficiario:'',telefone:'',vencimento:''});
@@ -1062,11 +942,20 @@ export default function App(){
     }catch(e){return null;}
   }
 
+  // ── GPS: Clean address for geocoding ────────────────────────────────────────
+  function _cleanAddressForGeo(addr){
+    if(!addr)return "";
+    var c=addr.replace(/,?\s*s\/n[º°]?\b/gi,"").replace(/,?\s*n[º°]\s*\d+/gi,"").replace(/,?\s*nº\s*\d+/gi,"").replace(/\bRef[\.:]\s*[^,]*/gi,"").replace(/\bCom\.\s*/gi,"").replace(/\bComunidade\s+(do|da|de|dos|das)?\s*/gi,"").replace(/\bpróx\.?\s*[^,]*/gi,"").replace(/\b\d+[ªºa]?\s*Travessa\b/gi,"Travessa").replace(/\s{2,}/g," ").replace(/,\s*,/g,",").replace(/,\s*$/,"").trim();
+    if(!/recife|jaboatão|olinda|paulista|camaragibe|cabo/i.test(c))c+=", Recife PE";
+    return c;
+  }
+
   // ── GPS: Fetch ETA via Mapbox Directions ───────────────────────────────────
   async function gpsCalcEta(fromLat,fromLng,toAddress){
     try{
-      // Geocode destination address
-      var geoUrl="https://api.mapbox.com/geocoding/v5/mapbox.places/"+encodeURIComponent(toAddress)+".json?access_token="+MAPBOX_TOKEN+"&limit=1&country=BR";
+      // Geocode destination address (cleaned + proximity to Recife)
+      var _cleanAddr=_cleanAddressForGeo(toAddress);
+      var geoUrl="https://api.mapbox.com/geocoding/v5/mapbox.places/"+encodeURIComponent(_cleanAddr)+".json?access_token="+MAPBOX_TOKEN+"&limit=1&country=BR&proximity=-34.87,-8.05&bbox=-35.2,-8.3,-34.7,-7.8";
       var geoR=await fetch(geoUrl);
       var geoD=await geoR.json();
       if(!geoD.features||geoD.features.length===0) return null;
@@ -1163,7 +1052,7 @@ export default function App(){
     function _isActive(item){
       // PROTOCOLO: Cancelada ou Pendente NUNCA são ativas no monitoramento
       var _st=item.status;
-      if(_st==="cancelada"||_st==="pendente") return false;
+      if(_st==="cancelada"||_st==="pendente"||_st==="pendente_social") return false;
       var d=_deriveStatus(item);
       return d.indexOf("deslocamento")>=0||d.indexOf("origem")>=0||d.indexOf("destino")>=0||d.indexOf("descarregando")>=0||d==="Em Deslocamento"||d==="Realizando"||d==="Na Origem"||d==="Deslocamento Destino"||d==="Descarregando";
     }
@@ -1197,7 +1086,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}if((tab==="financeiro_sup"||tab==="financeiro"||tab==="contas")&&!solicitacoesLoaded)loadSolicitacoesFin();if(tab==="financeiro_sup"){loadAjudantes();loadEquipeDia();}},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}if((tab==="financeiro_sup"||tab==="financeiro"||tab==="contas")&&!solicitacoesLoaded)loadSolicitacoesFin();if(tab==="financeiro_sup"||(tab==="equipe"&&isSupervisor)){loadAjudantes();loadEquipeDia();loadEquipePadrao();}if(tab==="equipe"||tab==="config"||tab==="social"||tab==="dashboard")loadAssistentesSocial();},[tab]);
   useEffect(()=>{
     async function load(){
       try{
@@ -1243,6 +1132,7 @@ export default function App(){
         loadAjudantes();
         loadEquipeDia();
         loadPagamentos();
+        loadSolicitacoesAlmoco();
         // SEMPRE executado — garante que o app abre
                 setAuthChecked(true);
         setLoading(false);
@@ -1267,10 +1157,17 @@ export default function App(){
   async function loadAg(){try{const r=await dbGet("agenda");if(r){var mapped=r.map(function(x){return {...x,_dbId:x.id};});setAgenda(mapped);idbSet("agenda",mapped);}}catch(e){var cached=await idbGet("agenda");if(cached)setAgenda(cached);}}
   async function loadCfgWA(){
     try{
+      await _ensureAuth();
       var r=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=in.(admin_whatsapp,supervisor_whatsapp,whatsapp_ativo,evolution_api_url,evolution_api_key,evolution_instance,wa_auto_config)&select=chave,valor",{headers:getH()});
       if(!r.ok) return;
       var rows=await r.json();
       if(!Array.isArray(rows)) return;
+      // If empty, try once more after re-auth
+      if(rows.length===0){
+        await _ensureAuth();
+        var r1b=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=in.(admin_whatsapp,supervisor_whatsapp,whatsapp_ativo,evolution_api_url,evolution_api_key,evolution_instance,wa_auto_config)&select=chave,valor",{headers:getH()});
+        if(r1b.ok){var rows1b=await r1b.json();if(Array.isArray(rows1b)&&rows1b.length>0)rows=rows1b;}
+      }
       var obj={};
       rows.forEach(function(row){obj[row.chave]=row.valor||"";});
       setCfgWA(function(prev){return {...prev,...obj};});
@@ -1293,6 +1190,11 @@ export default function App(){
         }
         setCfgWAauto(_parsed);}catch(e){}}
     }catch(e){console.warn("loadCfgWA:",e);}
+    // Also load restaurant config
+    try{
+      var r2=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=in.(restaurante_nome,restaurante_contato)&select=chave,valor",{headers:getH()});
+      if(r2.ok){var rows2=await r2.json();if(Array.isArray(rows2))setConfiguracoes(function(prev){return prev.concat(rows2);});}
+    }catch(e2){console.warn("loadRestCfg:",e2);}
   }
   // ── ENVIAR WHATSAPP VIA EVOLUTION API ─────────────────────────────────────────
   async function enviarWA(numero,mensagem){
@@ -1300,7 +1202,9 @@ export default function App(){
     var clean=numero.replace(/\D/g,"");
     if(!clean)return;
     try{
-      await fetch(SUPA_URL+"/functions/v1/enviar-whatsapp",{method:"POST",headers:{...getH(),"Content-Type":"application/json"},body:JSON.stringify({numero:clean,mensagem:mensagem})});
+      await _ensureAuth();
+      var _r=await fetch(SUPA_URL+"/functions/v1/enviar-whatsapp",{method:"POST",headers:{...getH(),"Content-Type":"application/json"},body:JSON.stringify({numero:clean,mensagem:mensagem})});
+      if(!_r.ok)console.warn("[WA] HTTP "+_r.status);
     }catch(e){console.warn("[WA] envio falhou:",e);}
   }
   function substituirVarsWA(template,vars){
@@ -1431,7 +1335,7 @@ export default function App(){
   }
   async function handleLogin(){if(!loginForm.email||!loginForm.senha){setLoginErro("Preencha email e senha");return;}setLoginLoad(true);setLoginErro("");try{const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:loginForm.email,password:loginForm.senha})});const d=await res.json();if(!res.ok||!d.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+d.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+d.access_token}});const pd=await pr.json();if(!pd||!pd[0]||pd[0].ativo===false){setLoginErro("Sem acesso. Contate o administrador.");setLoginLoad(false);return;}const u={id:d.user.id,email:d.user.email,nome:pd[0].nome,perfil:pd[0].perfil,tipo_veiculo:pd[0].tipo_veiculo||null,token:d.access_token,refresh_token:d.refresh_token||null};setUsuario(u);setTab("dashboard");localStorage.setItem('tmim_u',JSON.stringify(u));/* Reload data with fresh JWT */try{var _mr=await dbGet("mudancas","deleted_at=is.null");setMudancas(_mr||[]);var _ar=await dbGet("agenda");if(_ar)setAgenda(_ar.map(function(x){return{...x,_dbId:x.id};}));var _cr=await dbGetCustos();if(_cr)setCustosDiarios(_cr);loadContasSemana();loadPrestadores();}catch(_le){}}catch(e){setLoginErro("Erro.");}setLoginLoad(false);}
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
-  const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social";const isMotorista=perfil==="motorista";const isSupervisor=perfil==="supervisor";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar||isSupervisor;const verMed=isAdmin||isPromorar||isSupervisor;
+  const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social"||perfil==="coordenador";const isMotorista=perfil==="motorista";const isSupervisor=perfil==="supervisor";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar||isSupervisor;const verMed=isAdmin||isPromorar||isSupervisor;
   useEffect(function(){if(isAdmin)loadNotificacoes();},[usuario]);
   // ── PUSH NOTIFICATIONS: prompt after login ────────────────────────────────
   useEffect(function(){
@@ -1690,7 +1594,7 @@ export default function App(){
       );
     });
   }
-  async function carregarUsuarios(){if((!isAdmin&&!isPromorar&&!isSocial&&!isSupervisor)||!usuario?.token)return;try{if(isAdmin||isSupervisor){const _tk3=await _getValidToken(usuario,SUPA_URL,SUPA_KEY);const r=await fetch(SUPA_URL+"/functions/v1/listar-usuarios",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(_tk3||"")}});const d=await r.json();if(d.ok&&Array.isArray(d.usuarios)){setListaUsuarios(d.usuarios);idbSet("listaUsuarios",d.usuarios);}}else{var _tk4=await _getValidToken(usuario,SUPA_URL,SUPA_KEY);var r2=await fetch(SUPA_URL+"/rest/v1/usuarios?perfil=eq.motorista&ativo=eq.true&select=id,nome,perfil,tipo_veiculo,placa_veiculo,ativo",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(_tk4||SUPA_KEY)}});if(r2.ok){var d2=await r2.json();if(Array.isArray(d2)){setListaUsuarios(d2);idbSet("listaUsuarios",d2);}}}}catch(e){var cached=await idbGet("listaUsuarios");if(cached)setListaUsuarios(cached);}}
+  async function carregarUsuarios(){if((!isAdmin&&!isPromorar&&!isSocial&&!isSupervisor)||!usuario?.token)return;try{if(isAdmin||isSupervisor){const _tk3=await _getValidToken(usuario,SUPA_URL,SUPA_KEY);const r=await fetch(SUPA_URL+"/functions/v1/listar-usuarios",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(_tk3||"")}});const d=await r.json();if(d.ok&&Array.isArray(d.usuarios)){setListaUsuarios(d.usuarios);idbSet("listaUsuarios",d.usuarios);}}else{var _tk4=await _getValidToken(usuario,SUPA_URL,SUPA_KEY);var r2=await fetch(SUPA_URL+"/rest/v1/usuarios?perfil=in.(motorista,social)&ativo=eq.true&select=id,nome,perfil,tipo_veiculo,placa_veiculo,ativo,contato",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(_tk4||SUPA_KEY)}});if(r2.ok){var d2=await r2.json();if(Array.isArray(d2)){setListaUsuarios(d2);idbSet("listaUsuarios",d2);}}}}catch(e){var cached=await idbGet("listaUsuarios");if(cached)setListaUsuarios(cached);}}
   async function editarUsuario(){if(!editUser?.id)return;if(editUser.perfil==="motorista"&&!editUser.tipo_veiculo){setEditMsg("⚠️ Selecione o tipo de veículo");return;}setSavingEdit(true);setEditMsg("");try{const bd={id:editUser.id,nome:editUser.nome,email:editUser.email,perfil:editUser.perfil,contato:editUser.contato||null};if(editUser.senha)bd.senha=editUser.senha;if(editUser.perfil==="motorista"){bd.tipo_veiculo=editUser.tipo_veiculo;bd.placa_veiculo=editUser.placa_veiculo?editUser.placa_veiculo.toUpperCase().trim():null;}else{bd.tipo_veiculo=null;bd.placa_veiculo=null;}const _tk=await _getValidToken(usuario,SUPA_URL,SUPA_KEY);const res=await fetch(SUPA_URL+"/functions/v1/editar-usuario",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(_tk||""),"Content-Type":"application/json"},body:JSON.stringify(bd)});const d=await res.json();if(!res.ok){setEditMsg("⚠️ "+(d.error||"Erro"));setSavingEdit(false);return;}setEditMsg("✅ Salvo!");await carregarUsuarios();setTimeout(()=>{setEditUser(null);setEditMsg("");},1500);}catch(e){setEditMsg("⚠️ Erro de conexão.");}setSavingEdit(false);}
   const [prestadores,setPrestadores]=useState([]);
   async function loadPrestadores(){
@@ -1711,6 +1615,11 @@ export default function App(){
   const [equipeDiaCheck,setEquipeDiaCheck]=useState([]);
   const [equipeFinMes,setEquipeFinMes]=useState(()=>new Date().toISOString().slice(0,7));
   const [editAjudante,setEditAjudante]=useState(null);
+  const [equipePadrao,setEquipePadrao]=useState([]);
+  const [assistSocialList,setAssistSocialList]=useState([]);
+  const [showAddAssistSocial,setShowAddAssistSocial]=useState(false);
+  const [novoAssistSocial,setNovoAssistSocial]=useState({nome:"",contato:""});
+  const [editAssistSocial,setEditAssistSocial]=useState(null);
   const [adminRelSup,setAdminRelSup]=useState("");
   const [adminRelMes,setAdminRelMes]=useState(()=>new Date().toISOString().slice(0,7));
   const [pagamentos,setPagamentos]=useState([]);
@@ -1719,6 +1628,76 @@ export default function App(){
   const [pagCam,setPagCam]=useState("");
   const [pagVan,setPagVan]=useState("");
   const [pagFiltro,setPagFiltro]=useState("todos");
+  const [pagPeriodo,setPagPeriodo]=useState("semana");
+  const [supFinPeriodo,setSupFinPeriodo]=useState("semana");
+
+  // ── SOLICITAÇÃO DE ALMOÇO ──────────────────────────────────────────────────
+  const [solicitacoesAlmoco,setSolicitacoesAlmoco]=useState([]);
+  const [almocoItens,setAlmocoItens]=useState([{tipo:"",qtd:1},{tipo:"",qtd:1},{tipo:"",qtd:1},{tipo:"",qtd:1}]);
+  const [almocoObs,setAlmocoObs]=useState("");
+  const [almocoExtras,setAlmocoExtras]=useState([{tipo:"",qtd:1},{tipo:"",qtd:1},{tipo:"",qtd:1},{tipo:"",qtd:1}]);
+
+  async function loadSolicitacoesAlmoco(){
+    try{
+      var r=await fetch(SUPA_URL+"/rest/v1/solicitacoes_almoco?select=*&order=created_at.desc&limit=50",{headers:getH()});
+      var d=await r.json();if(Array.isArray(d))setSolicitacoesAlmoco(d);
+    }catch(e){}
+  }
+  async function enviarSolicitacaoAlmoco(){
+    await _ensureAuth();
+    var _todosItens=[].concat(almocoItens,almocoExtras).filter(function(it){return it.tipo&&it.tipo.trim()&&it.qtd>0;});
+    if(_todosItens.length===0){setSyncStatus("⚠️ Adicione pelo menos 1 item");return;}
+    var _supNome=(usuario&&usuario.nome)||"Supervisor";
+    var _hoje=new Date();var _p2=function(n){return String(n).padStart(2,"0");};
+    var _dataHoje=_hoje.getFullYear()+"-"+_p2(_hoje.getMonth()+1)+"-"+_p2(_hoje.getDate());
+    var novaS={data:_dataHoje,supervisor_id:usuario.id,supervisor_nome:_supNome,itens:JSON.stringify(_todosItens),observacao:almocoObs||"",status:"pendente"};
+    try{
+      var r=await fetch(SUPA_URL+"/rest/v1/solicitacoes_almoco",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"}),body:JSON.stringify([novaS])});
+      var d=await r.json();
+      if(Array.isArray(d)&&d[0]){setSolicitacoesAlmoco(function(prev){return[d[0]].concat(prev);});setSyncStatus("✅ Solicitação enviada!");setAlmocoItens([{tipo:"",qtd:1},{tipo:"",qtd:1},{tipo:"",qtd:1},{tipo:"",qtd:1}]);setAlmocoExtras([{tipo:"",qtd:1},{tipo:"",qtd:1},{tipo:"",qtd:1},{tipo:"",qtd:1}]);setAlmocoObs("");
+        // Push para admins
+        var admins=(listaUsuarios||[]).filter(function(u){return u.perfil==="admin";}).map(function(u){return u.id;});
+        if(admins.length>0)sendPushNotification(admins,"🍽️ Solicitação de Almoço","👷 "+_supNome+" solicitou almoço para "+_dataHoje.split("-").reverse().join("/"));
+      }
+    }catch(e){setSyncStatus("⚠️ Erro ao enviar solicitação");}
+  }
+  async function aprovarAlmoco(solId,aprovar){
+    await _ensureAuth();
+    var _status=aprovar?"aprovado":"rejeitado";
+    try{
+      var r=await fetch(SUPA_URL+"/rest/v1/solicitacoes_almoco?id=eq."+solId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"}),body:JSON.stringify({status:_status,aprovado_por:usuario.id,aprovado_em:new Date().toISOString()})});
+      var d=await r.json();
+      if(Array.isArray(d)&&d[0]){
+        setSolicitacoesAlmoco(function(prev){return prev.map(function(s){return s.id===solId?d[0]:s;});});
+        setSyncStatus(aprovar?"✅ Almoço aprovado!":"❌ Almoço rejeitado");
+        // Se aprovado, abrir WhatsApp para restaurante e notificar supervisor
+        if(aprovar){
+          var _sol=d[0];
+          var _itens=[];try{_itens=typeof _sol.itens==="string"?JSON.parse(_sol.itens):(_sol.itens||[]);}catch(e2){_itens=[];}
+          // Push para supervisor
+          if(_sol.supervisor_id)sendPushNotification([_sol.supervisor_id],"✅ Almoço Aprovado!","Seu pedido de almoço foi aprovado pelo admin");
+          // WhatsApp restaurante
+          var _cfg=(configuracoes||[]).find(function(c){return c.chave==="restaurante_contato";});
+          var _telRest=_cfg?(_cfg.valor||"").replace(/\D/g,""):"";
+          if(_telRest){
+            var _dpS=(_sol.data||"").split("-");var _dataFmt=_dpS[2]+"/"+_dpS[1]+"/"+_dpS[0];
+            var _msgRest="🍽️ *Pedido de Almoço — Promorar*\n📅 "+_dataFmt+"\n👷 Equipe: "+(_sol.supervisor_nome||"Supervisor")+"\n\n*Pedidos:*\n"+_itens.map(function(it){return"• "+it.qtd+"x "+it.tipo;}).join("\n")+(_sol.observacao?"\n\n📝 Obs: "+_sol.observacao:"")+"\n\nTotal de itens: "+_itens.reduce(function(s,it){return s+(parseInt(it.qtd)||0);},0)+"\n🤝 Promorar";
+            window.open("https://wa.me/55"+_telRest+"?text="+encodeURIComponent(_msgRest),"_blank");
+          }
+          // WhatsApp admin (auto)
+          var _adminU=(listaUsuarios||[]).find(function(u){return u.perfil==="admin"&&u.contato;});
+          if(_adminU&&_adminU.contato){
+            var _telAdmin=(_adminU.contato||"").replace(/\D/g,"");
+            if(_telAdmin){
+              var _dpA=(_sol.data||"").split("-");var _dataFmtA=_dpA[2]+"/"+_dpA[1]+"/"+_dpA[0];
+              var _msgAdmin="✅ *Almoço Aprovado*\n📅 "+_dataFmtA+"\n👷 "+(_sol.supervisor_nome||"")+"\n\n"+_itens.map(function(it){return"• "+it.qtd+"x "+it.tipo;}).join("\n")+"\n\n🤝 Promorar";
+              window.open("https://wa.me/55"+_telAdmin+"?text="+encodeURIComponent(_msgAdmin),"_blank");
+            }
+          }
+        }
+      }
+    }catch(e){setSyncStatus("⚠️ Erro ao processar solicitação");}
+  }
 
   async function loadPagamentos(){
     try{var r=await fetch(SUPA_URL+"/rest/v1/pagamentos?select=*&order=criado_em.desc",{headers:getH()});var d=await r.json();if(Array.isArray(d))setPagamentos(d);}catch(e){}
@@ -1748,6 +1727,20 @@ export default function App(){
   async function desativarAjudante(ajId){
     try{await fetch(SUPA_URL+"/rest/v1/ajudantes?id=eq."+ajId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({ativo:false})});await loadAjudantes();setSyncStatus("✅ Ajudante removido!");}catch(e){setSyncStatus("⚠️ Erro ao remover");}
   }
+  async function loadAssistentesSocial(){
+    try{var r=await fetch(SUPA_URL+"/rest/v1/assistentes_social?select=*&ativo=eq.true&order=nome",{headers:getH()});var d=await r.json();if(Array.isArray(d))setAssistSocialList(d);}catch(e){}
+  }
+  async function criarAssistSocial(){
+    if(!novoAssistSocial.nome.trim()){alert("Informe o nome.");return;}
+    try{await fetch(SUPA_URL+"/rest/v1/assistentes_social",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({nome:novoAssistSocial.nome.trim(),contato:novoAssistSocial.contato.trim()})});setNovoAssistSocial({nome:"",contato:""});setShowAddAssistSocial(false);loadAssistentesSocial();}catch(e){alert("Erro: "+e.message);}
+  }
+  async function editarAssistSocialFn(){
+    if(!editAssistSocial||!editAssistSocial.nome.trim())return;
+    try{await fetch(SUPA_URL+"/rest/v1/assistentes_social?id=eq."+editAssistSocial.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({nome:editAssistSocial.nome.trim(),contato:editAssistSocial.contato.trim()})});setEditAssistSocial(null);loadAssistentesSocial();}catch(e){alert("Erro: "+e.message);}
+  }
+  async function desativarAssistSocial(asId){
+    try{await fetch(SUPA_URL+"/rest/v1/assistentes_social?id=eq."+asId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({ativo:false})});loadAssistentesSocial();}catch(e){alert("Erro: "+e.message);}
+  }
   async function loadEquipeDia(){
     try{var r=await fetch(SUPA_URL+"/rest/v1/equipe_dia?select=*&order=data.desc",{headers:getH()});var d=await r.json();if(Array.isArray(d))setEquipeDiaList(d);}catch(e){}
   }
@@ -1758,8 +1751,23 @@ export default function App(){
       var r;
       if(existing){r=await fetch(SUPA_URL+"/rest/v1/equipe_dia?data=eq."+data,{method:"PATCH",headers:_hd,body:JSON.stringify({ajudantes:ajudantesArr})});}
       else{r=await fetch(SUPA_URL+"/rest/v1/equipe_dia",{method:"POST",headers:_hd,body:JSON.stringify({data:data,ajudantes:ajudantesArr})});}
-      if(r.ok){var d=await r.json();if(Array.isArray(d)&&d[0]){setEquipeDiaList(function(prev){var nxt=prev.filter(function(e){return e.data!==data;});nxt.push(d[0]);return nxt;});}setSyncStatus("✅ Equipe do dia salva!");}
-    }catch(e){setSyncStatus("⚠️ Erro ao salvar equipe do dia");}
+      if(r.ok){var d=await r.json();if(Array.isArray(d)&&d[0]){setEquipeDiaList(function(prev){var nxt=prev.filter(function(e){return e.data!==data;});nxt.push(d[0]);return nxt;});}setSyncStatus("✅ Equipe do dia salva!");setEquipeSalvaMsg("✅ Equipe salva com sucesso!");setTimeout(function(){setEquipeSalvaMsg("");},3000);}
+    }catch(e){setSyncStatus("⚠️ Erro ao salvar equipe do dia");setEquipeSalvaMsg("⚠️ Erro ao salvar equipe");setTimeout(function(){setEquipeSalvaMsg("");},3000);}
+  }
+  // ── Equipe Padrão (banco configuracoes) ──
+  async function loadEquipePadrao(){
+    if(!usuario||!usuario.id)return;
+    try{var r=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.equipe_padrao_"+usuario.id+"&select=valor",{headers:getH()});var d=await r.json();if(Array.isArray(d)&&d[0]&&d[0].valor){var _p=JSON.parse(d[0].valor);if(Array.isArray(_p))setEquipePadrao(_p);}}catch(e){}
+  }
+  async function salvarEquipePadrao(arr){
+    if(!usuario||!usuario.id)return;
+    var _k="equipe_padrao_"+usuario.id;
+    try{await fetch(SUPA_URL+"/rest/v1/configuracoes",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify({chave:_k,valor:JSON.stringify(arr)})});setEquipePadrao(arr);alert("⭐ Equipe padrão salva no banco com sucesso!");}catch(e){alert("⚠️ Erro ao salvar equipe padrão");}
+  }
+  async function limparEquipePadrao(){
+    if(!usuario||!usuario.id)return;
+    var _k="equipe_padrao_"+usuario.id;
+    try{await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq."+_k,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({valor:"[]"})});setEquipePadrao([]);alert("🗑️ Equipe padrão removida!");}catch(e){alert("⚠️ Erro ao limpar equipe padrão");}
   }
 
     async function criarUsuario(){
@@ -1875,7 +1883,7 @@ export default function App(){
       setFlash("🚨 Bloqueado: Já existe uma mudança para este Cliente ou Selo nesta data. Verifique a Agenda ou os Registros.");
       return;
     }
-    var _p=usuario&&usuario.perfil||"";var _isSocial=_p==="social";var _isPromorar=_p==="promorar";var _isAdm=_p==="admin"||_p==="telemim";var _nomeUser=usuario&&(usuario.nome||usuario.email)||"";const nova={...form,id:Date.now(),medicao:parseFloat(form.medicao)||0,requires_validation:true,social_approved:_isSocial,social_approved_by:_isSocial?_nomeUser:null,promorar_approved:_isPromorar,promorar_approved_by:_isPromorar?_nomeUser:null,adm_approved:_isAdm,adm_approved_by:_isAdm?_nomeUser:null,created_by:_nomeUser,creator_role:_p};
+    var _p=usuario&&usuario.perfil||"";var _isSocial=_p==="social"||_p==="coordenador";var _isPromorar=_p==="promorar";var _isAdm=_p==="admin"||_p==="telemim";var _nomeUser=usuario&&(usuario.nome||usuario.email)||"";const nova={...form,id:Date.now(),medicao:parseFloat(form.medicao)||0,requires_validation:true,social_approved:_isSocial,social_approved_by:_isSocial?_nomeUser:null,promorar_approved:_isPromorar,promorar_approved_by:_isPromorar?_nomeUser:null,adm_approved:_isAdm,adm_approved_by:_isAdm?_nomeUser:null,created_by:_nomeUser,creator_role:_p};
     setMudancas(prev=>[nova,...prev]);
     await saveMud([nova,...mudancas],nova);
     setForm(initForm); setFlash("✅ Salvo!"); setTimeout(()=>setFlash(""),1800); setTab("lista");
@@ -1991,7 +1999,7 @@ export default function App(){
       setFlash("🚨 Bloqueado: Já existe um agendamento para este Cliente ou Selo nesta data. Verifique a Agenda ou os Registros.");
       return;
     }
-    var _pa=usuario&&usuario.perfil||"";var _na=usuario&&(usuario.nome||usuario.email)||"";const nova={...agForm,id:Date.now(),requires_validation:true,social_approved:_pa==="social",social_approved_by:_pa==="social"?_na:null,promorar_approved:_pa==="promorar",promorar_approved_by:_pa==="promorar"?_na:null,adm_approved:_pa==="admin"||_pa==="telemim",adm_approved_by:(_pa==="admin"||_pa==="telemim")?_na:null};
+    var _pa=usuario&&usuario.perfil||"";var _na=usuario&&(usuario.nome||usuario.email)||"";var _isSocialAg=_pa==="social"||_pa==="coordenador";const nova={...agForm,id:Date.now(),requires_validation:true,social_approved:_isSocialAg,social_approved_by:_isSocialAg?_na:null,promorar_approved:_pa==="promorar",promorar_approved_by:_pa==="promorar"?_na:null,adm_approved:_pa==="admin"||_pa==="telemim",adm_approved_by:(_pa==="admin"||_pa==="telemim")?_na:null,status:_isSocialAg?"pendente_social":"confirmado"};
     // POST directo para nova agenda — email + flash SÓ após confirmação do banco
     setSyncStatus("⏳ Salvando...");
     (async function(){
@@ -2029,7 +2037,7 @@ export default function App(){
             }).catch(function(e){console.warn('[email agendamento]',e);});
           }catch(eE){}
           setAgForm({...initForm,status:"confirmado"});
-          setFlash("✅ Agendado!");setTimeout(function(){setFlash("");},1800);
+          setFlash(_isSocialAg?"⏳ Enviado! Aguardando aprovação do Promorar.":"✅ Agendado!");setTimeout(function(){setFlash("");},3000);
           setTab("agenda");
           setSyncStatus("✅ Sinc");
         }catch(eN){
@@ -2049,6 +2057,15 @@ export default function App(){
   }
   async function handleDelAg(id){
     if(!usuario||usuario.perfil!=="admin"){setSyncStatus("⛔ Apenas o administrador pode excluir agendas.");return;}
+    // PROTEÇÃO: Bloquear exclusão de mudanças concluídas ou em andamento
+    var _agItem=agenda.find(function(a){return a.id===id;});
+    if(_agItem){
+      if(_agItem.status==="concluida"||_agItem.status==="realizada"){setSyncStatus("⛔ Não é possível excluir — mudança já concluída.");return;}
+      if(_agItem.inicio_van_em||_agItem.van_saiu_em||_agItem.inicio_caminhao_em||_agItem.caminhao_saiu_em||_agItem.inicio_mudanca_em){setSyncStatus("⛔ Não é possível excluir — veículos já em operação.");return;}
+      if(_agItem.termino_em||_agItem.termino_van_em||_agItem.termino_caminhao_em){setSyncStatus("⛔ Não é possível excluir — mudança já finalizada.");return;}
+      // Confirmar se tem motoristas atribuídos
+      if((_agItem.motorista_van_id||_agItem.motorista_caminhao_id)&&!window.confirm("⚠️ Esta agenda tem motoristas atribuídos ("+(_agItem.nome||"?")+"). Deseja realmente excluir?")){return;}
+    }
     var nome=usuario&&usuario.nome?usuario.nome:"Admin";
     var prevAg=agenda.slice();
     setAgenda(function(a){return a.filter(function(x){return x.id!==id;});});
@@ -2736,6 +2753,7 @@ export default function App(){
     if(usuario&&usuario.perfil==='social')     updatePayload.approved_by_social=usuario.nome;
     if(usuario&&usuario.perfil==='promorar')   updatePayload.approved_by_promorar=usuario.nome;
     if(usuario&&usuario.perfil==='supervisor') updatePayload.approved_by_supervisor=usuario.nome;
+    if(usuario&&usuario.perfil==='coordenador') updatePayload.approved_by_social=usuario.nome;
 
     if(Object.keys(updatePayload).length===0){
       setIsApproving(function(prev){var n={};Object.assign(n,prev);delete n[osId];return n;});
@@ -2819,6 +2837,7 @@ export default function App(){
     if(usuario&&usuario.perfil==='social')     updatePayload.approved_by_social=usuario.nome;
     if(usuario&&usuario.perfil==='promorar')   updatePayload.approved_by_promorar=usuario.nome;
     if(usuario&&usuario.perfil==='supervisor') updatePayload.approved_by_supervisor=usuario.nome;
+    if(usuario&&usuario.perfil==='coordenador') updatePayload.approved_by_social=usuario.nome;
     if(Object.keys(updatePayload).length===0){
       setIsApproving(function(prev){var n={};Object.assign(n,prev);delete n[agId];return n;});
       return;
@@ -2888,15 +2907,49 @@ export default function App(){
       setSyncStatus("✅ Cancelamento recusado!");
     }catch(e){setSyncStatus("⚠️ Erro ao recusar");}
   }
-  // PROTOCOLO: Mover para Pendente encerra monitoramento (limpa timestamps)
-  async function handleMoverPendente(agId){
+  // PROTOCOLO: Solicitar Pendência (não-admin) ou executar direto (admin)
+  async function handleSolicitarPendencia(agId,motivo){
     await _ensureAuth();
-    var _clearPayload=Object.assign({status:"pendente"},_monitorClearFields);
+    var _nome=usuario?(usuario.nome||usuario.email):"";
+    var _perfil=usuario?usuario.perfil:"";
+    var payload={pendencia_solicitada:true,pendencia_motivo:motivo,pendencia_por:_nome,pendencia_perfil:_perfil,pendencia_em:new Date().toISOString()};
+    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,payload):a;});});
+    try{
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(payload)});
+      try{_addNotif("pendencia","Solicitação de pendência por "+_nome,(agenda.find(function(a){return a.id===agId;})||{}).nome||"");}catch(e){}
+      setSyncStatus("✅ Solicitação de pendência enviada ao Admin!");
+    }catch(e){setSyncStatus("⚠️ Erro ao solicitar pendência");}
+    setPendModal(null);setPendMotivo("");
+  }
+  // PROTOCOLO: Mover para Pendente — salva histórico de tentativa e limpa timestamps
+  async function handleMoverPendente(agId,motivo){
+    await _ensureAuth();
+    var _ag=agenda.find(function(a){return a.id===agId;});
+    // Salvar tentativa no histórico
+    var _hist=(_ag&&Array.isArray(_ag.historico_tentativas)?_ag.historico_tentativas:[]).slice();
+    var _temTimestamps=_ag&&(_ag.inicio_van_em||_ag.van_saiu_em||_ag.inicio_caminhao_em||_ag.caminhao_saiu_em||_ag.inicio_mudanca_em);
+    if(_ag&&_temTimestamps){
+      _hist.push({data_original:_ag.data||null,motivo:motivo||"Sem motivo informado",quem:usuario?(usuario.nome||usuario.email):"",registrado_em:new Date().toISOString(),timestamps:{inicio_van_em:_ag.inicio_van_em||null,van_saiu_em:_ag.van_saiu_em||null,chegou_origem_van_em:_ag.chegou_origem_van_em||null,saiu_destino_van_em:_ag.saiu_destino_van_em||null,chegada_van_em:_ag.chegada_van_em||null,inicio_caminhao_em:_ag.inicio_caminhao_em||null,caminhao_saiu_em:_ag.caminhao_saiu_em||null,chegou_origem_cam_em:_ag.chegou_origem_cam_em||null,saiu_destino_cam_em:_ag.saiu_destino_cam_em||null,chegada_caminhao_em:_ag.chegada_caminhao_em||null}});
+    }
+    var _clearPayload=Object.assign({status:"pendente",pendencia_solicitada:false,pendencia_motivo:null,pendencia_por:null,pendencia_perfil:null,pendencia_em:null,historico_tentativas:_hist},_monitorClearFields);
     setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,_clearPayload):a;});});
     try{
       await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_clearPayload)});
-      setSyncStatus("✅ Movida para Pendente — monitoramento encerrado.");
+      setSyncStatus("✅ Movida para Pendente"+(motivo?" — "+motivo:"")+" — monitoramento encerrado.");
     }catch(e){setSyncStatus("⚠️ Erro ao mover para pendente");}
+  }
+  async function handleAutorizarPendencia(agId){
+    var _ag=agenda.find(function(a){return a.id===agId;});
+    var _motivo=_ag?_ag.pendencia_motivo:"";
+    await handleMoverPendente(agId,_motivo);
+  }
+  async function handleRecusarPendencia(agId){
+    await _ensureAuth();
+    setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,{pendencia_solicitada:false,pendencia_motivo:null,pendencia_por:null,pendencia_perfil:null,pendencia_em:null}):a;});});
+    try{
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({pendencia_solicitada:false,pendencia_motivo:null,pendencia_por:null,pendencia_perfil:null,pendencia_em:null})});
+      setSyncStatus("✅ Solicitação de pendência recusada!");
+    }catch(e){setSyncStatus("⚠️ Erro ao recusar");}
   }
   async function handleDespachar(agId,motoristaId,tipo){
     await _ensureAuth();
@@ -2916,7 +2969,9 @@ export default function App(){
           var _supNome="";if((_agItem||{}).supervisor_id){var _sU=listaUsuarios.find(function(u){return u.id===_agItem.supervisor_id;});if(_sU)_supNome=_sU.nome||"";}
           var _motVanN="";if((_agItem||{}).motorista_van_id){var _mv=listaUsuarios.find(function(u){return u.id===_agItem.motorista_van_id;});if(_mv)_motVanN=_mv.nome||"";}
           var _motCamN="";if((_agItem||{}).motorista_caminhao_id){var _mc=listaUsuarios.find(function(u){return u.id===_agItem.motorista_caminhao_id;});if(_mc)_motCamN=_mc.nome||"";}
-          var _vars={cliente:(_agItem||{}).nome||"",data:(_agItem||{}).data||"",hora:(_agItem||{}).horario||"",origem:(_agItem||{}).origem||"",destino:(_agItem||{}).destino||"",motorista:(_mot&&_mot.nome)||"",metragem:(_agItem||{}).metragem||"",supervisor:_supNome,caminhao:_motCamN,van:_motVanN};
+          var _oriEnc=encodeURIComponent(((_agItem||{}).origem||"").replace(/\s+/g," ").trim());
+          var _dstEnc=encodeURIComponent(((_agItem||{}).destino||"").replace(/\s+/g," ").trim());
+          var _vars={cliente:(_agItem||{}).nome||"",data:(_agItem||{}).data||"",hora:(_agItem||{}).horario||"",origem:(_agItem||{}).origem||"",destino:(_agItem||{}).destino||"",motorista:(_mot&&_mot.nome)||"",metragem:(_agItem||{}).metragem||"",supervisor:_supNome,caminhao:_motCamN,van:_motVanN,contato:(_agItem||{}).contato||"",mapa_origem:_oriEnc?"https://www.google.com/maps/search/?api=1&query="+_oriEnc:"",mapa_destino:_dstEnc?"https://www.google.com/maps/search/?api=1&query="+_dstEnc:""};
           var _nums=resolverDestinatariosWA(cfgWAauto.atribuida.dest,_agItem||{});
           _nums.forEach(function(n){enviarWA(n,substituirVarsWA(cfgWAauto.atribuida.msg,_vars));});
         }
@@ -2952,7 +3007,9 @@ export default function App(){
         if(cfgWA.whatsapp_ativo==="true"&&cfgWAauto.atribuida&&cfgWAauto.atribuida.ativo){
           var _supU=listaUsuarios.find(function(u){return u.id===sid;});
           var _motVanNome="";var _motCamNome="";if(_ag.motorista_van_id){var _mvU=listaUsuarios.find(function(u){return u.id===_ag.motorista_van_id;});if(_mvU)_motVanNome=_mvU.nome||"";}if(_ag.motorista_caminhao_id){var _mcU=listaUsuarios.find(function(u){return u.id===_ag.motorista_caminhao_id;});if(_mcU)_motCamNome=_mcU.nome||"";}
-          var _vars2={cliente:_ag.nome||"",data:_ag.data||"",hora:_ag.horario||"",origem:_ag.origem||"",destino:_ag.destino||"",motorista:"",supervisor:(_supU&&_supU.nome)||"",metragem:_ag.metragem||"",caminhao:_motCamNome,van:_motVanNome};
+          var _oriEnc2=encodeURIComponent((_ag.origem||"").replace(/\s+/g," ").trim());
+          var _dstEnc2=encodeURIComponent((_ag.destino||"").replace(/\s+/g," ").trim());
+          var _vars2={cliente:_ag.nome||"",data:_ag.data||"",hora:_ag.horario||"",origem:_ag.origem||"",destino:_ag.destino||"",motorista:"",supervisor:(_supU&&_supU.nome)||"",metragem:_ag.metragem||"",caminhao:_motCamNome,van:_motVanNome,contato:_ag.contato||"",mapa_origem:_oriEnc2?"https://www.google.com/maps/search/?api=1&query="+_oriEnc2:"",mapa_destino:_dstEnc2?"https://www.google.com/maps/search/?api=1&query="+_dstEnc2:""};
           var _nums2=resolverDestinatariosWA(cfgWAauto.atribuida.dest,Object.assign({},_ag,{supervisor_id:sid}));
           _nums2.forEach(function(n){enviarWA(n,substituirVarsWA(cfgWAauto.atribuida.msg,_vars2));});
         }}
@@ -3103,6 +3160,84 @@ export default function App(){
     }
   }
 
+  // ── TERCEIRIZAR MUDANÇA ──────────────────────────────────────────────────
+  async function salvarAssistSocial(agId,nomeAssist,contatoAssist){
+    setTerceirizarSaving(true);
+    var _ag=terceirizarModal;
+    try{
+      setAgenda(function(prev){return prev.map(function(x){return x.id===agId?Object.assign({},x,{assist_social:nomeAssist}):x;});});
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({assist_social:nomeAssist})});
+      setSyncStatus("✅ Assistente vinculada!");
+      setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);
+      // Enviar WhatsApp para a assistente
+      if(contatoAssist&&_ag){
+        var tel=contatoAssist.replace(/\D/g,"");
+        if(tel.length>=10){
+          var veiculos=[_ag.van&&"🚐 Van",_ag.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
+          var _nomeUser=usuario&&(usuario.nome||usuario.email)||"Sistema";
+          var texto="🚛 *TELEMIM — MUDANÇA ATRIBUÍDA*\n━━━━━━━━━━━━━━━━━\nOlá *"+nomeAssist+"*! 👋\nVocê foi vinculada à mudança:\n\n👤 *Beneficiário:* "+_ag.nome+"\n🏷️ *Selo:* "+(_ag.selo||"—")+"\n📅 *Data:* "+fmtDate(_ag.data)+(_ag.horario?" ⏰ "+_ag.horario:"")+"\n📍 *Comunidade:* "+(_ag.comunidade||"—")+"\n📦 *Saída:* "+(_ag.origem||"—")+"\n🏠 *Chegada:* "+(_ag.destino||"—")+"\n🚗 *Veículos:* "+veiculos+(_ag.contato?"\n📞 *Contato beneficiário:* "+_ag.contato:"")+"\n━━━━━━━━━━━━━━━━━\n_Atribuído por: "+_nomeUser+"_\n_TELEMIM_";
+          window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent(texto),"_blank");
+        }
+      }
+    }catch(e){setSyncStatus("⚠️ Erro ao vincular");}
+    setTerceirizarSaving(false);
+    setTerceirizarModal(null);
+    setTerceirizarSel("");
+  }
+  function terceirizarWhatsApp(a){
+    var veiculos=[a.van&&"🚐 Van",a.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
+    var _nomeUser=usuario&&(usuario.nome||usuario.email)||"Sistema";
+    var _perfLabel=isPromorar?"Promorar":isAdmin?"Admin":isSupervisor?"Supervisor":perfil==="coordenador"?"Coordenador":isSocial?"Social":"Usuário";
+    var texto="🚛 *TELEMIM — TERCEIRIZAR MUDANÇA*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* "+a.nome+"\n🏷️ *Selo:* "+(a.selo||"—")+"\n📅 *Data:* "+fmtDate(a.data)+(a.horario?" ⏰ "+a.horario:"")+"\n📍 *Comunidade:* "+(a.comunidade||"—")+"\n📦 *Saída:* "+(a.origem||"—")+"\n🏠 *Chegada:* "+(a.destino||"—")+"\n🚗 *Veículos:* "+veiculos+(a.contato?"\n📞 *Contato:* "+a.contato:"")+"\n━━━━━━━━━━━━━━━━━\n_Terceirizado por: "+_nomeUser+" ("+_perfLabel+")_\n_TELEMIM_";
+    window.open("https://wa.me/?text="+encodeURIComponent(texto),"_blank");
+  }
+  async function gerarLinkMudanca(agId){
+    setMudLinkLoading(true);
+    try{
+      var _nomeUser=usuario&&(usuario.nome||usuario.email)||"Sistema";
+      var res=await fetch(SUPA_URL+"/functions/v1/gerar-link-mudanca",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({mudanca_id:agId,criado_por:_nomeUser})});
+      var d=await res.json();
+      if(d.ok&&d.token){setMudLinkToken(d.token);}else{alert("Erro: "+(d.error||"falha"));}
+    }catch(e){alert("Erro de conexão");}
+    setMudLinkLoading(false);
+  }
+
+  // ── INLINE TERCEIRIZAR: vincular + gerar link + WhatsApp ──
+  async function vincularAssistEEnviarLink(agItem,nomeAssist,contatoAssist){
+    setTercInlineLoading(agItem.id);
+    try{
+      setAgenda(function(prev){return prev.map(function(x){return x.id===agItem.id?Object.assign({},x,{assist_social:nomeAssist}):x;});});
+      await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agItem.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({assist_social:nomeAssist})});
+      var _nomeUser=usuario&&(usuario.nome||usuario.email)||"Sistema";
+      var res=await fetch(SUPA_URL+"/functions/v1/gerar-link-mudanca",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({mudanca_id:agItem.id,criado_por:_nomeUser})});
+      var d=await res.json();
+      if(d.ok&&d.token){
+        var url=location.origin+"/?mm="+d.token;
+        var tel=contatoAssist?(contatoAssist+"").replace(/\D/g,""):"";
+        var texto="🏠 *Mudança — Acesso Temporário*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* "+(agItem.nome||"")+"\n📅 *Data:* "+fmtDate(agItem.data)+(agItem.horario?" ⏰ "+agItem.horario:"")+"\n📍 *Comunidade:* "+(agItem.comunidade||"—")+"\n📦 *Saída:* "+(agItem.origem||"—")+"\n🏠 *Chegada:* "+(agItem.destino||"—")+"\n━━━━━━━━━━━━━━━━━\n🔗 *Acesse o link:*\n"+url+"\n_Válido até meia-noite_\n_TELEMIM_";
+        if(tel.length>=10){window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent(texto),"_blank");}
+        else{window.open("https://wa.me/?text="+encodeURIComponent(texto),"_blank");}
+        setSyncStatus("✅ Assistente vinculada + link enviado!");
+      }else{alert("Erro ao gerar link: "+(d.error||"falha"));}
+    }catch(e){alert("Erro: "+e.message);}
+    setTercInlineLoading(null);setTercInlineId(null);setTerceirizarSel("");
+  }
+  async function enviarLinkWhatsApp(agItem,contatoAssist){
+    setTercInlineLoading(agItem.id);
+    try{
+      var _nomeUser=usuario&&(usuario.nome||usuario.email)||"Sistema";
+      var res=await fetch(SUPA_URL+"/functions/v1/gerar-link-mudanca",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({mudanca_id:agItem.id,criado_por:_nomeUser})});
+      var d=await res.json();
+      if(d.ok&&d.token){
+        var url=location.origin+"/?mm="+d.token;
+        var tel=contatoAssist?(contatoAssist+"").replace(/\D/g,""):"";
+        var texto="🏠 *Mudança — Acesso Temporário*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* "+(agItem.nome||"")+"\n📅 *Data:* "+fmtDate(agItem.data)+(agItem.horario?" ⏰ "+agItem.horario:"")+"\n📍 *Comunidade:* "+(agItem.comunidade||"—")+"\n📦 *Saída:* "+(agItem.origem||"—")+"\n🏠 *Chegada:* "+(agItem.destino||"—")+"\n━━━━━━━━━━━━━━━━━\n🔗 *Acesse o link:*\n"+url+"\n_Válido até meia-noite_\n_TELEMIM_";
+        if(tel.length>=10){window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent(texto),"_blank");}
+        else{window.open("https://wa.me/?text="+encodeURIComponent(texto),"_blank");}
+      }else{alert("Erro ao gerar link: "+(d.error||"falha"));}
+    }catch(e){alert("Erro: "+e.message);}
+    setTercInlineLoading(null);
+  }
   // ── PDF MUDANÇA INDIVIDUAL ─────────────────────────────────────────────────
   function gerarPDFAgendamento(a,btn){gerarPDFCardIndividual(a,btn);}
 
@@ -3158,7 +3293,7 @@ export default function App(){
     var _seen2={};
     _list2.forEach(function(m){if(m.nome&&m.data)_seen2[(m.nome||"").toLowerCase().trim()+"|"+m.data]=true;});
     (agenda||[]).forEach(function(a){
-      if(a.deleted_at||!a.data||a.status==="cancelada"||a.status==="pendente") return;
+      if(a.deleted_at||!a.data||a.status==="cancelada"||a.status==="pendente"||a.status==="pendente_social") return;
       var key2=(a.nome||"").toLowerCase().trim()+"|"+a.data;
       if(_seen2[key2]) return;
       _seen2[key2]=true;
@@ -3182,7 +3317,7 @@ export default function App(){
   var _countMudFinanceiro=function(data){
     var _seenF={};var count=0;
     (mudancas||[]).forEach(function(m){if(!m.deleted_at&&m.data===data){var k=(m.nome||"").toLowerCase().trim()+"|"+m.data;_seenF[k]=true;count++;}});
-    (agenda||[]).forEach(function(a){if(!a.deleted_at&&a.data===data&&a.status!=="cancelada"&&a.status!=="pendente"){var k=(a.nome||"").toLowerCase().trim()+"|"+a.data;if(!_seenF[k]){_seenF[k]=true;count++;}}});
+    (agenda||[]).forEach(function(a){if(!a.deleted_at&&a.data===data&&a.status!=="cancelada"&&a.status!=="pendente"&&a.status!=="pendente_social"){var k=(a.nome||"").toLowerCase().trim()+"|"+a.data;if(!_seenF[k]){_seenF[k]=true;count++;}}});
     return count;
   };
   const totalM3=_allForFiltered.filter(m=>!m.deleted_at).reduce((s,m)=>s+(parseFloat(m.medicao)||0),0);
@@ -3220,8 +3355,8 @@ export default function App(){
   // Excluir também itens que já existem em mudancas (foram sincronizados como realizados)
   const _jaEmMudancas=function(a){return mudancas.some(function(m){return m.data===a.data&&(m.nome||"").toLowerCase().trim()===(a.nome||"").toLowerCase().trim();});};
   // PROTOCOLO: Cancelada/Pendente não aparece no card do Dashboard
-  const mudancasHoje=agendaOrdenada.filter(a=>a.data===hoje&&a.status!=="cancelada"&&a.status!=="pendente"&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a));
-  const mudancasAmanha=agendaOrdenada.filter(a=>a.data===amanha&&a.status!=="cancelada"&&a.status!=="pendente"&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a));
+  const mudancasHoje=agendaOrdenada.filter(a=>a.data===hoje&&a.status!=="cancelada"&&a.status!=="pendente"&&a.status!=="pendente_social"&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a));
+  const mudancasAmanha=agendaOrdenada.filter(a=>a.data===amanha&&a.status!=="cancelada"&&a.status!=="pendente"&&a.status!=="pendente_social"&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a));
   const mudancasFuturas=isMotorista?agendaOrdenada.filter(a=>a.data>amanha&&!_statusRealizados.includes(a.status)&&!_jaEmMudancas(a)):[];
   const _mesAtual=new Date().getMonth();
   const _anoAtual=new Date().getFullYear();
@@ -3244,12 +3379,20 @@ export default function App(){
     {id:"equipe",label:"👷 Equipe"},
     {id:"financeiro_sup",label:"💰 Financeiro"},
     {id:"config",label:"⚙️ Config"},
+  ]:isSocial?[
+    {id:"dashboard",label:"📊 Dashboard"},
+    {id:"monitoramento",label:"📡 Monitor"},
+    {id:"agenda",label:"📅 Agenda"},
+    {id:"lista",label:"📋 Registros"},
+    {id:"importar_mud",label:"+ Mudanças"},
+    {id:"social",label:"👩‍⚕️ Social"},
   ]:[
     {id:"dashboard",label:"📊 Dashboard"},
     {id:"monitoramento",label:"📡 Monitor"},
     {id:"agenda",label:"📅 Agenda"},
     {id:"lista",label:"📋 Registros"},
     {id:"importar_mud",label:"+ Mudanças"},
+    ...(!isAdmin?[{id:"social",label:"👩‍⚕️ Social"}]:[]),
     ...(isAdmin?[{id:"contas",label:"💸 Contas"},{id:"financeiro",label:"💰 Financeiro"},{id:"config",label:"⚙️ Config"}]:[]),
   ];
 
@@ -3266,6 +3409,8 @@ export default function App(){
 
     var _mlParam=(function(){try{var u=new URL(window.location.href);return u.searchParams.get("ml")||null;}catch(e){return null;}})();
     if(_mlParam) return <RotaTerceirizada token={_mlParam}/>;
+    var _mmParam=(function(){try{var u=new URL(window.location.href);return u.searchParams.get("mm")||null;}catch(e){return null;}})();
+    if(_mmParam) return <MudancaTerceirizada token={_mmParam}/>;
 
     if(bioLock) return(
     <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:0,padding:32}}>
@@ -3306,7 +3451,7 @@ export default function App(){
             <div style={{marginLeft:"auto",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
               <div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end"}}>
               </div>
-              <span style={{fontSize:10,color:syncStatus.includes("✅")?"#4ade80":syncStatus.includes("🔄")?"#fbbf24":"#f87171",fontWeight:700}}>{syncStatus}</span><div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}><span style={{background:isAdmin?"#dbeafe":isPromorar?"#dcfce7":isSupervisor?"#fef3c7":isMotorista?"#ede9fe":"#fef9c3",border:"1px solid "+(isAdmin?"#93c5fd":isPromorar?"#86efac":isSupervisor?"#f59e0b":isMotorista?"#c4b5fd":"#fde047"),borderRadius:20,padding:"3px 9px",fontSize:10,fontWeight:800,color:isAdmin?"#1d4ed8":isPromorar?"#15803d":isSupervisor?"#92400e":isMotorista?"#7c3aed":"#a16207"}}>{isAdmin?"🛡️ Admin":isPromorar?"🏢 Promorar":isSupervisor?"👷 Supervisor":isMotorista?"🚚 Motorista":"🌟 Social"}</span><span style={{fontSize:11,color:"#64748b",maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{usuario?.nome?.split(" ")[0]}</span><button onClick={registrarPush} title="Notificacoes" style={{background:"none",border:"1px solid rgba(255,255,255,0.4)",borderRadius:8,padding:"4px 10px",color:"#fff",cursor:"pointer",fontSize:16,marginRight:4}}>🔔</button><button onClick={function(){localStorage.getItem('tmim_bio_enabled')==='true'?desativarBiometria():ativarBiometria();}} title="Biometria" style={{background:"none",border:"1px solid rgba(255,255,255,0.4)",borderRadius:8,padding:"4px 10px",color:"#fff",cursor:"pointer",fontSize:16,marginRight:4}}>🔐</button><button onClick={handleLogout} style={{background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:8,padding:"4px 8px",fontSize:10,fontWeight:700,color:"#64748b",cursor:"pointer"}}>Sair</button></div>
+              <span style={{fontSize:10,color:syncStatus.includes("✅")?"#4ade80":syncStatus.includes("🔄")?"#fbbf24":"#f87171",fontWeight:700}}>{syncStatus}</span><div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}><span style={{background:isAdmin?"#dbeafe":isPromorar?"#dcfce7":isSupervisor?"#fef3c7":isMotorista?"#ede9fe":"#fef9c3",border:"1px solid "+(isAdmin?"#93c5fd":isPromorar?"#86efac":isSupervisor?"#f59e0b":isMotorista?"#c4b5fd":"#fde047"),borderRadius:20,padding:"3px 9px",fontSize:10,fontWeight:800,color:isAdmin?"#1d4ed8":isPromorar?"#15803d":isSupervisor?"#92400e":isMotorista?"#7c3aed":"#a16207"}}>{isAdmin?"🛡️ Admin":isPromorar?"🏢 Promorar":isSupervisor?"👷 Supervisor":isMotorista?"🚚 Motorista":perfil==="coordenador"?"📋 Coordenador":"🌟 Social"}</span><span style={{fontSize:11,color:"#64748b",maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{usuario?.nome?.split(" ")[0]}</span><button onClick={registrarPush} title="Notificacoes" style={{background:"none",border:"1px solid rgba(255,255,255,0.4)",borderRadius:8,padding:"4px 10px",color:"#fff",cursor:"pointer",fontSize:16,marginRight:4}}>🔔</button><button onClick={function(){localStorage.getItem('tmim_bio_enabled')==='true'?desativarBiometria():ativarBiometria();}} title="Biometria" style={{background:"none",border:"1px solid rgba(255,255,255,0.4)",borderRadius:8,padding:"4px 10px",color:"#fff",cursor:"pointer",fontSize:16,marginRight:4}}>🔐</button><button onClick={handleLogout} style={{background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:8,padding:"4px 8px",fontSize:10,fontWeight:700,color:"#64748b",cursor:"pointer"}}>Sair</button></div>
             </div>
           </div>
         </div>
@@ -3359,8 +3504,15 @@ export default function App(){
         {/* ══ DASHBOARD ══ */}
         {tab==="dashboard"&&(
         <div style={{paddingBottom:16}}>
-        {(()=>{var _p=usuario&&usuario.perfil||"";var _campoMeu=_p==="admin"?"approved_by_admin":_p==="social"?"approved_by_social":_p==="promorar"?"approved_by_promorar":_p==="supervisor"?"approved_by_supervisor":null;if(!_campoMeu)return null;var _pend=[...agenda].filter(function(x){if(!x.data||x.deleted_at)return false;if(x[_campoMeu])return false;return true;});if(!_pend.length)return null;return(<div style={{margin:"0 12px 16px",background:"#fffbeb",border:"2.5px solid #f59e0b",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(245,158,11,0.25)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🔔</span><div><div style={{fontWeight:800,fontSize:14,color:"#92400e"}}>Notificações ({_pend.length})</div><div style={{fontWeight:600,fontSize:11,color:"#b45309"}}>Confirme o recebimento das mudanças agendadas</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pend.map(function(x){var _quem=x.created_by||x.approved_by_admin||x.approved_by_social||x.approved_by_promorar||"Sistema";var _perfQuem=x.creator_role||"";return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"10px 12px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>👤 {x.nome}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · 🏷️ {x.selo||"—"}</div><div style={{fontSize:10,color:"#64748b",marginTop:1}}>Agendado por: <strong>{_quem}</strong>{_perfQuem?" ("+_perfQuem+")":""}</div></div><button onClick={function(e){e.stopPropagation();handleApproveAgenda(x.id);}} disabled={!!isApproving[x.id]} style={{padding:"7px 14px",background:isApproving[x.id]?"#94a3b8":"#16a34a",color:"#fff",border:"none",borderRadius:999,fontWeight:800,fontSize:11,cursor:isApproving[x.id]?"not-allowed":"pointer",whiteSpace:"nowrap",flexShrink:0,boxShadow:"0 2px 8px rgba(22,163,74,0.3)"}}>{isApproving[x.id]?"⏳":"✅ Confirmar"}</button></div></div>);})}</div></div>);})()}
+        {(()=>{var _p=usuario&&usuario.perfil||"";var _campoMeu=_p==="admin"?"approved_by_admin":_p==="promorar"?"approved_by_promorar":_p==="supervisor"?"approved_by_supervisor":(_p==="social"||_p==="coordenador")?"approved_by_social":null;if(!_campoMeu)return null;var _pend=[...agenda].filter(function(x){if(!x.data||x.deleted_at)return false;if(x.status==="pendente_social")return false;if(x[_campoMeu])return false;return true;});if(!_pend.length)return null;return(<div style={{margin:"0 12px 16px",background:"#fffbeb",border:"2.5px solid #f59e0b",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(245,158,11,0.25)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🔔</span><div><div style={{fontWeight:800,fontSize:14,color:"#92400e"}}>Notificações ({_pend.length})</div><div style={{fontWeight:600,fontSize:11,color:"#b45309"}}>Confirme o recebimento das mudanças agendadas</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pend.map(function(x){var _quem=x.created_by||x.approved_by_admin||x.approved_by_social||x.approved_by_promorar||"Sistema";var _perfQuem=x.creator_role||"";return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"10px 12px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>👤 {x.nome}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · 🏷️ {x.selo||"—"}</div><div style={{fontSize:10,color:"#64748b",marginTop:1}}>Agendado por: <strong>{_quem}</strong>{_perfQuem?" ("+_perfQuem+")":""}</div></div><button onClick={function(e){e.stopPropagation();handleApproveAgenda(x.id);}} disabled={!!isApproving[x.id]} style={{padding:"7px 14px",background:isApproving[x.id]?"#94a3b8":"#16a34a",color:"#fff",border:"none",borderRadius:999,fontWeight:800,fontSize:11,cursor:isApproving[x.id]?"not-allowed":"pointer",whiteSpace:"nowrap",flexShrink:0,boxShadow:"0 2px 8px rgba(22,163,74,0.3)"}}>{isApproving[x.id]?"⏳":"✅ Confirmar"}</button></div></div>);})}</div></div>);})()}
+        {(isAdmin||isPromorar)&&(function(){
+          var _pendSocial=agenda.filter(function(a){return !a.deleted_at&&a.status==="pendente_social";});
+          if(_pendSocial.length===0)return null;
+          function _aprovarSocial(xId){_ensureAuth().then(function(){fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+xId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({status:"confirmado"})}).then(function(r){if(r.ok){setAgenda(function(prev){return prev.map(function(a){return a.id===xId?Object.assign({},a,{status:"confirmado"}):a;});});}}).catch(function(){alert("Erro ao aprovar.");});});}
+          function _recusarSocial(xId,xNome){if(!confirm("Recusar agendamento de "+xNome+"?"))return;_ensureAuth().then(function(){fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+xId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({status:"cancelada",deleted_at:new Date().toISOString()})}).then(function(r){if(r.ok){setAgenda(function(prev){return prev.map(function(a){return a.id===xId?Object.assign({},a,{status:"cancelada",deleted_at:new Date().toISOString()}):a;});});}}).catch(function(){alert("Erro ao recusar.");});});}
+          return(<div style={{margin:"0 12px 16px",background:"#eff6ff",border:"2.5px solid #3b82f6",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(59,130,246,0.15)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>👩‍⚕️</span><div><div style={{fontWeight:800,fontSize:14,color:"#1e40af"}}>Aprovações Social ({_pendSocial.length})</div><div style={{fontWeight:600,fontSize:11,color:"#3b82f6"}}>Mudanças agendadas pelo Social aguardando autorização</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pendSocial.map(function(x){return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #bfdbfe",borderRadius:12,padding:"10px 12px"}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",marginBottom:3}}>👤 {x.nome}</div><div style={{fontSize:10,color:"#64748b"}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · 🏷️ {x.selo||"—"}{x.horario?" · ⏰ "+x.horario:""}</div><div style={{fontSize:10,color:"#64748b",marginTop:1}}>📦 {x.origem||"—"} → 🏠 {x.destino||"—"}</div><div style={{fontSize:10,color:"#64748b",marginTop:1}}>📝 Agendado por: <strong>{x.created_by||"Social"}</strong> ({x.creator_role||"social"})</div><div style={{display:"flex",gap:6,marginTop:8}}><button onClick={function(){_aprovarSocial(x.id);}} style={{flex:1,padding:"8px 10px",borderRadius:8,border:"none",background:"#16a34a",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>✅ Aprovar</button><button onClick={function(){_recusarSocial(x.id,x.nome);}} style={{flex:1,padding:"8px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Recusar</button></div></div>);})}</div></div>);})()}
         {isAdmin&&(function(){var _pendCanc=agenda.filter(function(a){return !a.deleted_at&&a.cancelamento_solicitado;});if(_pendCanc.length===0)return null;return(<div style={{margin:"0 12px 16px",background:"#fef2f2",border:"2.5px solid #dc2626",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(220,38,38,0.15)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🚨</span><div><div style={{fontWeight:800,fontSize:14,color:"#991b1b"}}>Solicitações de Cancelamento ({_pendCanc.length})</div><div style={{fontWeight:600,fontSize:11,color:"#b91c1c"}}>Autorize ou recuse os pedidos abaixo</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pendCanc.map(function(x){return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fecaca",borderRadius:12,padding:"10px 12px"}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",marginBottom:3}}>📦 {x.nome}</div><div style={{fontSize:10,color:"#64748b"}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · ⏰ {x.horario||"?"}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>👤 Solicitado por: <strong>{x.cancelamento_por}</strong> ({x.cancelamento_perfil})</div>{x.cancelamento_motivo&&<div style={{fontSize:10,color:"#991b1b",marginTop:2}}>💬 {x.cancelamento_motivo}</div>}<div style={{display:"flex",gap:6,marginTop:8}}><button onClick={function(){handleRecusarCancelamento(x.id);}} style={{flex:1,padding:"6px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Recusar</button><button onClick={function(){handleAutorizarCancelamento(x.id);}} style={{flex:1,padding:"6px 10px",borderRadius:8,border:"none",background:"#dc2626",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>✅ Autorizar Cancelamento</button></div></div>);})}</div></div>);})()}
+        {isAdmin&&(function(){var _pendPend=agenda.filter(function(a){return !a.deleted_at&&a.pendencia_solicitada;});if(_pendPend.length===0)return null;return(<div style={{margin:"0 12px 16px",background:"#fffbeb",border:"2.5px solid #f59e0b",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(245,158,11,0.15)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>⏳</span><div><div style={{fontWeight:800,fontSize:14,color:"#92400e"}}>Solicitações de Pendência ({_pendPend.length})</div><div style={{fontWeight:600,fontSize:11,color:"#b45309"}}>Autorize ou recuse os pedidos abaixo</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pendPend.map(function(x){return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fde68a",borderRadius:12,padding:"10px 12px"}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",marginBottom:3}}>📦 {x.nome}</div><div style={{fontSize:10,color:"#64748b"}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · ⏰ {x.horario||"?"}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>👤 Solicitado por: <strong>{x.pendencia_por}</strong> ({x.pendencia_perfil})</div>{x.pendencia_motivo&&<div style={{fontSize:10,color:"#92400e",marginTop:2}}>💬 {x.pendencia_motivo}</div>}{(function(){var _ht=x.historico_tentativas||[];if(_ht.length>0)return <div style={{fontSize:9,color:"#b45309",marginTop:3}}>📜 {_ht.length} tentativa{_ht.length>1?"s":""} anterior{_ht.length>1?"es":""}</div>;return null;})()}<div style={{display:"flex",gap:6,marginTop:8}}><button onClick={function(){handleRecusarPendencia(x.id);}} style={{flex:1,padding:"6px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Recusar</button><button onClick={function(){handleAutorizarPendencia(x.id);}} style={{flex:1,padding:"6px 10px",borderRadius:8,border:"none",background:"#f59e0b",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>✅ Autorizar Pendência</button></div></div>);})}</div></div>);})()}
         {isMotorista&&mudancasHoje.length===0&&mudancasAmanha.length===0&&mudancasFuturas.length===0&&(<div style={{margin:"12px 0 0",background:"#f0fdf4",border:"2px solid #86efac",borderRadius:14,padding:"20px 16px",textAlign:"center"}}><div style={{fontSize:28,marginBottom:8}}>😊</div><div style={{fontWeight:800,fontSize:15,color:"#15803d",marginBottom:6}}>Nenhuma mudança agendada!</div><div style={{fontSize:13,color:"#16a34a"}}>Bom descanso! ✅</div></div>)}
         {mudancasHoje.length>0&&(
           <div style={{margin:"12px 0 0",display:"flex",flexDirection:"column",gap:7}}>
@@ -3397,6 +3549,7 @@ export default function App(){
                     <div style={{fontSize:_dest?13:11,marginTop:8}}>📦 {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     <div style={{fontSize:_dest?13:11,marginTop:24}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     {(a.approved_by_supervisor||a.supervisor_id)&&(function(){var _supNome=a.approved_by_supervisor||(function(){var _s=listaUsuarios.find(function(u){return u.id===a.supervisor_id;});return _s?_s.nome:null;})();return _supNome?<div style={{fontSize:_dest?13:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {_supNome}</div>:null;})()}
+                    {a.assist_social&&<div style={{fontSize:_dest?13:12,marginTop:8,fontWeight:700,color:"#7c2d12",background:"#fff7ed",borderRadius:8,padding:"5px 10px",border:"1px solid #fed7aa"}}>👩‍⚕️ Assist. Social: {a.assist_social}</div>}
                   </div>
                   <div style={{background:_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#dbeafe":_stMot==="Na Origem"||_stMot==="Descarregando"?"#fef9c3":_stMot==="Concluido"?"#dcfce7":"#f1f5f9",border:"1px solid "+(_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#93c5fd":_stMot==="Na Origem"||_stMot==="Descarregando"?"#fde047":_stMot==="Concluido"?"#86efac":"#cbd5e1"),borderRadius:20,padding:"3px 10px",fontSize:_dest?11:10,fontWeight:700,color:_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#1d4ed8":_stMot==="Na Origem"||_stMot==="Descarregando"?"#854d0e":_stMot==="Concluido"?"#15803d":"#64748b",whiteSpace:"nowrap"}}>
                     {_stMot==="confirmado"||_stMot==="pendente"?"🟡 Pendente":_stMot==="Em Deslocamento"?"🚚 Rumo à Origem":_stMot==="Na Origem"?"📍 Na Origem":_stMot==="Deslocamento Destino"?"🚚 Rumo ao Destino":_stMot==="Descarregando"?"📦 Descarregando":_stMot==="Concluido"?"✅ Concluído":_stMot}
@@ -3466,8 +3619,8 @@ export default function App(){
                   {/* ── CONCLUÍDA banner ── */}
                   {(function(){var _done=_statusRealizados.includes(a.status)||a.termino_em||(_stMot==="Concluido");
                     return _done?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#dcfce7",border:"2px solid #86efac",borderRadius:_dest?12:10,padding:_dest?"12px 0":"9px 0"}}><span style={{fontSize:_dest?18:15}}>✅</span><span style={{fontWeight:800,fontSize:_dest?15:13,color:"#15803d"}}>Mudança Concluída</span></div>:null;})()}
-                  {/* ── ADMIN/SUPERVISOR/PROMORAR/SOCIAL: Iniciar / Finalizar ── */}
-                  {!isMotorista&&(function(){
+                  {/* ── ADMIN/SUPERVISOR/PROMORAR: Iniciar / Finalizar ── */}
+                  {!isMotorista&&!isSocial&&(function(){
                     var _isConcl=_statusRealizados.includes(a.status)||a.termino_em||(_stMot==="Concluido");
                     if(_isConcl) return null;
                     var _isIniciada=a.status==="Realizando"||a.inicio_mudanca_em;
@@ -3494,6 +3647,42 @@ export default function App(){
                       </button>
                     );
                   })()}
+                  {/* ── TERCEIRIZAR MUDANÇA INLINE ── */}
+                  {(isPromorar||isAdmin||isSupervisor||isSocial)&&!((_statusRealizados.includes(a.status)||a.termino_em||_stMot==="Concluido"))&&(
+                    <div style={{marginTop:8,background:"#fff7ed",border:"1.5px solid #f97316",borderRadius:12,padding:"10px 12px"}}>
+                      <div style={{fontSize:11,fontWeight:800,color:"#c2410c",marginBottom:6,letterSpacing:0.5}}>👩‍⚕️ TERCEIRIZAR MUDANÇA</div>
+                      {a.assist_social&&tercInlineId!==a.id?(
+                        <div>
+                          <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
+                            <div style={{fontSize:13,fontWeight:700,color:"#15803d"}}>✅ {a.assist_social}</div>
+                            {(function(){var _as=assistSocialList.find(function(s){return s.nome===a.assist_social;});return _as&&_as.contato?<div style={{fontSize:11,color:"#64748b",marginTop:2}}>📞 {_as.contato}</div>:null;})()}
+                          </div>
+                          <div style={{display:"flex",gap:6}}>
+                            <button onClick={function(){var _as=assistSocialList.find(function(s){return s.nome===a.assist_social;});enviarLinkWhatsApp(a,_as&&_as.contato||"");}} disabled={tercInlineLoading===a.id} style={{flex:2,padding:"9px 0",borderRadius:8,border:"none",background:tercInlineLoading===a.id?"#94a3b8":"#25d366",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                              {tercInlineLoading===a.id?"⏳...":"📲 Reenviar Link WhatsApp"}
+                            </button>
+                            <button onClick={function(){setTercInlineId(a.id);setTerceirizarSel("");}} style={{flex:1,padding:"9px 0",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>🔄 Trocar</button>
+                          </div>
+                        </div>
+                      ):(
+                        <div>
+                          <select value={tercInlineId===a.id?terceirizarSel:""} onChange={function(e){setTercInlineId(a.id);setTerceirizarSel(e.target.value);}} style={{width:"100%",padding:"9px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:12,fontWeight:700,background:"#fff",color:"#1e293b",cursor:"pointer",boxSizing:"border-box",marginBottom:6}}>
+                            <option value="">Selecione assistente...</option>
+                            {assistSocialList.map(function(s){return <option key={s.id} value={s.nome}>{s.nome}{s.contato?" ("+s.contato+")":""}</option>;})}
+                          </select>
+                          <div style={{display:"flex",gap:6}}>
+                            <button onClick={function(){if(!terceirizarSel){alert("Selecione uma assistente.");return;}var _su=assistSocialList.find(function(s){return s.nome===terceirizarSel;});vincularAssistEEnviarLink(a,terceirizarSel,_su&&_su.contato||"");}} disabled={tercInlineLoading===a.id||!terceirizarSel} style={{flex:1,padding:"9px 0",borderRadius:8,border:"none",background:tercInlineLoading===a.id?"#94a3b8":terceirizarSel?"#16a34a":"#94a3b8",color:"#fff",fontWeight:700,fontSize:11,cursor:terceirizarSel?"pointer":"not-allowed"}}>
+                              {tercInlineLoading===a.id?"⏳ Gerando...":"✅ OK"}
+                            </button>
+                            <button onClick={function(){enviarLinkWhatsApp(a,"");}} disabled={tercInlineLoading===a.id} style={{flex:1,padding:"9px 0",borderRadius:8,border:"none",background:tercInlineLoading===a.id?"#94a3b8":"#25d366",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                              {tercInlineLoading===a.id?"⏳...":"📲 WhatsApp"}
+                            </button>
+                          </div>
+                          {tercInlineId===a.id&&a.assist_social&&<button onClick={function(){setTercInlineId(null);}} style={{width:"100%",marginTop:4,padding:"6px 0",borderRadius:6,border:"1px solid #e2e8f0",background:"transparent",color:"#64748b",fontSize:10,fontWeight:600,cursor:"pointer"}}>Cancelar</button>}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               );
@@ -3517,8 +3706,46 @@ export default function App(){
                   </div>
                   <div style={{background:"#ffedd5",border:"1px solid #fed7aa",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:"#c2410c",whiteSpace:"nowrap"}}>⏳ Amanhã</div>
                 </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
                 <div style={{background:"#fff",border:"1px solid #fed7aa",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#92400e",fontWeight:600,textAlign:"center"}}>
                   🛠️ {isSupervisor||isPromorar?"Prepare a sua equipe para amanhã!":(usuario&&usuario.tipo_veiculo==="CAMINHAO"?"Prepare o caminhão para amanhã!":"Prepare a van para amanhã!")}
+                </div>
+                {/* ── TERCEIRIZAR MUDANÇA INLINE (AMANHÃ) ── */}
+                  {(isPromorar||isAdmin||isSupervisor||isSocial)&&(
+                    <div style={{background:"#fff7ed",border:"1.5px solid #f97316",borderRadius:12,padding:"10px 12px"}}>
+                      <div style={{fontSize:11,fontWeight:800,color:"#c2410c",marginBottom:6,letterSpacing:0.5}}>👩‍⚕️ TERCEIRIZAR MUDANÇA</div>
+                      {a.assist_social&&tercInlineId!==a.id?(
+                        <div>
+                          <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
+                            <div style={{fontSize:13,fontWeight:700,color:"#15803d"}}>✅ {a.assist_social}</div>
+                            {(function(){var _as=assistSocialList.find(function(s){return s.nome===a.assist_social;});return _as&&_as.contato?<div style={{fontSize:11,color:"#64748b",marginTop:2}}>📞 {_as.contato}</div>:null;})()}
+                          </div>
+                          <div style={{display:"flex",gap:6}}>
+                            <button onClick={function(){var _as=assistSocialList.find(function(s){return s.nome===a.assist_social;});enviarLinkWhatsApp(a,_as&&_as.contato||"");}} disabled={tercInlineLoading===a.id} style={{flex:2,padding:"9px 0",borderRadius:8,border:"none",background:tercInlineLoading===a.id?"#94a3b8":"#25d366",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                              {tercInlineLoading===a.id?"⏳...":"📲 Reenviar Link WhatsApp"}
+                            </button>
+                            <button onClick={function(){setTercInlineId(a.id);setTerceirizarSel("");}} style={{flex:1,padding:"9px 0",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>🔄 Trocar</button>
+                          </div>
+                        </div>
+                      ):(
+                        <div>
+                          <select value={tercInlineId===a.id?terceirizarSel:""} onChange={function(e){setTercInlineId(a.id);setTerceirizarSel(e.target.value);}} style={{width:"100%",padding:"9px 10px",borderRadius:8,border:"1.5px solid #e2e8f0",fontSize:12,fontWeight:700,background:"#fff",color:"#1e293b",cursor:"pointer",boxSizing:"border-box",marginBottom:6}}>
+                            <option value="">Selecione assistente...</option>
+                            {assistSocialList.map(function(s){return <option key={s.id} value={s.nome}>{s.nome}{s.contato?" ("+s.contato+")":""}</option>;})}
+                          </select>
+                          <div style={{display:"flex",gap:6}}>
+                            <button onClick={function(){if(!terceirizarSel){alert("Selecione uma assistente.");return;}var _su=assistSocialList.find(function(s){return s.nome===terceirizarSel;});vincularAssistEEnviarLink(a,terceirizarSel,_su&&_su.contato||"");}} disabled={tercInlineLoading===a.id||!terceirizarSel} style={{flex:1,padding:"9px 0",borderRadius:8,border:"none",background:tercInlineLoading===a.id?"#94a3b8":terceirizarSel?"#16a34a":"#94a3b8",color:"#fff",fontWeight:700,fontSize:11,cursor:terceirizarSel?"pointer":"not-allowed"}}>
+                              {tercInlineLoading===a.id?"⏳ Gerando...":"✅ OK"}
+                            </button>
+                            <button onClick={function(){enviarLinkWhatsApp(a,"");}} disabled={tercInlineLoading===a.id} style={{flex:1,padding:"9px 0",borderRadius:8,border:"none",background:tercInlineLoading===a.id?"#94a3b8":"#25d366",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                              {tercInlineLoading===a.id?"⏳...":"📲 WhatsApp"}
+                            </button>
+                          </div>
+                          {tercInlineId===a.id&&a.assist_social&&<button onClick={function(){setTercInlineId(null);}} style={{width:"100%",marginTop:4,padding:"6px 0",borderRadius:6,border:"1px solid #e2e8f0",background:"transparent",color:"#64748b",fontSize:10,fontWeight:600,cursor:"pointer"}}>Cancelar</button>}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               );
@@ -3625,7 +3852,7 @@ export default function App(){
                       {(m.origem||m.destino)&&<div style={{fontSize:11,color:"#475569",marginBottom:3}}>📦 {m.origem||"?"} → 🏠 {m.destino||"?"}</div>}
                       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
                         {_veics&&<span style={{fontSize:10,fontWeight:600,color:"#1e40af",background:"#dbeafe",borderRadius:6,padding:"2px 7px"}}>{_veics}</span>}
-                        {m.medicao>0&&<span style={{fontSize:10,fontWeight:600,color:"#7c3aed",background:"#ede9fe",borderRadius:6,padding:"2px 7px"}}>📐 {m.medicao} m³</span>}
+                        {!isSocial&&m.medicao>0&&<span style={{fontSize:10,fontWeight:600,color:"#7c3aed",background:"#ede9fe",borderRadius:6,padding:"2px 7px"}}>📐 {m.medicao} m³</span>}
                         {m.horario&&<span style={{fontSize:10,fontWeight:600,color:"#334155",background:"#f1f5f9",borderRadius:6,padding:"2px 7px"}}>⏰ {m.horario}</span>}
                       </div>
                     </div>
@@ -3649,7 +3876,13 @@ export default function App(){
   for(var _ci=0;_ci<_inicDow;_ci++)_cells.push(null);
   for(var _cd=1;_cd<=_diasMes;_cd++)_cells.push(_cd);
   var _prefix=calAno+"-"+(calMes+1<10?"0":"")+(calMes+1);
+  // Função unificada para detectar item concluído (agenda ou mudança)
+  var _isCalConcl=function(x){var _s=(x.status||"").toLowerCase();return _s==="concluida"||_s==="concluido"||_s==="concluído"||_s==="realizado"||_s==="realizada"||_s==="registrado"||!!x.termino_em||!!x.termino_van_em||!!x.termino_caminhao_em;};
+  // Mesclar agenda (não-deletados) + mudanças (para itens que foram soft-deleted da agenda)
   var _agMes=(agenda||[]).filter(function(a){return a.data&&a.data.slice(0,7)===_prefix&&!a.deleted_at;});
+  var _seenCal={};
+  _agMes.forEach(function(a){_seenCal[(a.nome||"").toLowerCase().trim()+"|"+a.data]=true;});
+  (mudancas||[]).forEach(function(m){if(!m.data||m.deleted_at||m.data.slice(0,7)!==_prefix)return;var key=(m.nome||"").toLowerCase().trim()+"|"+m.data;if(_seenCal[key])return;_seenCal[key]=true;_agMes.push(Object.assign({},m,{_fromMud:true,status:m.status||"Concluído"}));});
   var _porDia={};
   _agMes.forEach(function(a){var d=parseInt(a.data.slice(8,10));if(!_porDia[d])_porDia[d]={total:0,items:[]};_porDia[d].total++;_porDia[d].items.push(a);});
   var _hjStr=new Date().toISOString().slice(0,10);
@@ -3679,7 +3912,7 @@ export default function App(){
                   background:_isS?"#dbeafe":(_isH?"#eff6ff":"transparent"),transition:"all 0.15s"}}>
                 <div style={{fontSize:13,fontWeight:_isH||_isS?800:500,color:_isS?"#1e40af":(_isH?"#1e40af":"#334155")}}>{dia}</div>
                 {_hasM&&<div style={{minWidth:16,height:16,borderRadius:8,padding:"0 3px",
-                  background:_info.items.some(function(x){return x.status==="cancelada";})?"#dc2626":_info.items.every(function(x){return x.status==="concluida";})?"#047857":"#f59e0b",
+                  background:_info.items.some(function(x){return x.status==="cancelada";})?"#dc2626":_info.items.every(function(x){return _isCalConcl(x);})?"#047857":"#f59e0b",
                   display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#fff",marginTop:1}}>{_info.total}</div>}
               </div>);
           })}
@@ -3693,13 +3926,13 @@ export default function App(){
             {_selItems.map(function(a){return(
               <div key={a.id} style={{padding:"8px 10px",marginBottom:4,background:"#f8fafc",borderRadius:10,border:"1px solid #e2e8f0"}}>
                 <div style={{display:"flex",alignItems:"center"}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:a.status==="concluida"?"#047857":a.status==="cancelada"?"#dc2626":"#f59e0b",marginRight:10,flexShrink:0}}></div>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:_isCalConcl(a)?"#047857":a.status==="cancelada"?"#dc2626":"#f59e0b",marginRight:10,flexShrink:0}}></div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:13,fontWeight:600,color:"#334155",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nome}</div>
                     <div style={{fontSize:11,color:"#94a3b8"}}>{a.comunidade||a.origem||""}{a.horario?<span> - <b style={{color:"#334155"}}>{a.horario.replace(":00","")+"h"}</b></span>:""}</div>
                   </div>
                   <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                    <span style={{fontSize:11,fontWeight:700,color:a.status==="concluida"?"#047857":a.status==="cancelada"?"#dc2626":"#d97706"}}>{a.status==="concluida"?"✅":a.status==="cancelada"?"❌":"⏳"}</span>
+                    <span style={{fontSize:11,fontWeight:700,color:_isCalConcl(a)?"#047857":a.status==="cancelada"?"#dc2626":"#d97706"}}>{_isCalConcl(a)?"✅":a.status==="cancelada"?"❌":"⏳"}</span>
                     <button onClick={function(e){e.stopPropagation();setViewMud(a);}} style={{background:"#f0f9ff",border:"1.5px solid #0ea5e9",color:"#0ea5e9",borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>👁️ Ver</button>
                   </div>
                 </div>
@@ -3736,7 +3969,7 @@ export default function App(){
                   </div>
                 )}
                 {/* ── Iniciar / Finalizar Mudança (admin, supervisor, promorar, social) ── */}
-                {(isAdmin||isSupervisor||isPromorar||isSocial)&&calDiaSel===_hjStr&&a.status!=="concluida"&&a.status!=="cancelada"&&(
+                {(isAdmin||isSupervisor||isPromorar)&&calDiaSel===_hjStr&&!_isCalConcl(a)&&a.status!=="cancelada"&&!a._fromMud&&(
                   <div style={{display:"flex",gap:4,marginTop:6}}>
                     {a.status!=="Realizando"&&a.status!=="em_andamento"&&!a.inicio_mudanca_em?(
                       <button onClick={function(e){e.stopPropagation();var agora=new Date().toISOString();var body={status:"Realizando",inicio_mudanca_em:agora};
@@ -3772,15 +4005,17 @@ export default function App(){
   var _hjFmt=(function(){var p=_hjStr.split("-");return p[2]+"/"+p[1]+"/"+p[0];})();
   var _hora=new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
   // Step Tracker component
+  var _fmtHora=function(ts){if(!ts)return null;var d=new Date(ts);if(isNaN(d.getTime()))return null;return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
   var StepTracker=function(props){
     var status=props.status||"confirmado";
+    var ts=props.timestamps||{};
     var steps=[
-      {key:"deslocamento",label:"Rumo à Origem",icon:"🚐"},
-      {key:"origem",label:"Na Origem",icon:"📍"},
-      {key:"carregando",label:"Carregando",icon:"📦"},
-      {key:"destino",label:"Rumo ao Destino",icon:"🚚"},
-      {key:"descarregando",label:"Descarregando",icon:"📦"},
-      {key:"chegou",label:"Concluído",icon:"🏁"}
+      {key:"deslocamento",label:"Rumo à Origem",icon:"🚐",time:ts.saiu},
+      {key:"origem",label:"Na Origem",icon:"📍",time:ts.chegou_origem},
+      {key:"carregando",label:"Carregando",icon:"📦",time:ts.carregando},
+      {key:"destino",label:"Rumo ao Destino",icon:"🚚",time:ts.saiu_destino},
+      {key:"descarregando",label:"Descarregando",icon:"📦",time:ts.chegou_destino},
+      {key:"chegou",label:"Concluído",icon:"🏁",time:ts.concluido}
     ];
     var _map={"Em Deslocamento":0,"Na Origem":1,"Carregando":2,"Realizando":2,"Deslocamento Destino":3,"Descarregando":4,"No Destino":4,"Concluido":5,"Concluído":5,"concluido":5,"concluida":5,"realizado":5,"realizada":5};
     var activeIdx=_map[status]!==undefined?_map[status]:-1;
@@ -3790,6 +4025,7 @@ export default function App(){
           var isDone=idx<activeIdx;
           var isActive=idx===activeIdx;
           var isFuture=idx>activeIdx;
+          var _h=_fmtHora(step.time);
           return(
             <div key={step.key} style={{display:"flex",alignItems:"center",flex:1}}>
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",flex:0}}>
@@ -3802,9 +4038,12 @@ export default function App(){
                   border:isActive?"3px solid #93c5fd":"2px solid "+(isDone?"#16a34a":"#e2e8f0")
                 }}>{isDone?"✓":step.icon}</div>
                 <div style={{fontSize:9,fontWeight:isDone||isActive?700:500,color:isDone?"#16a34a":isActive?"#2563eb":"#94a3b8",marginTop:4,textAlign:"center",whiteSpace:"nowrap"}}>{step.label}</div>
+                {_h?<div style={{fontSize:11,fontWeight:900,color:isDone?"#15803d":isActive?"#1d4ed8":"#64748b",marginTop:2,textAlign:"center",letterSpacing:0.5}}>{_h}</div>
+                :(isDone||isActive)?null
+                :<div style={{fontSize:9,color:"#cbd5e1",marginTop:2,textAlign:"center"}}>⏳</div>}
               </div>
               {idx<steps.length-1&&(
-                <div style={{flex:1,height:3,background:isDone?"#16a34a":"#e2e8f0",borderRadius:2,margin:"0 4px",marginBottom:18,alignSelf:"flex-start",marginTop:17}}></div>
+                <div style={{flex:1,height:3,background:isDone?"#16a34a":"#e2e8f0",borderRadius:2,margin:"0 4px",marginBottom:32,alignSelf:"flex-start",marginTop:17}}></div>
               )}
             </div>
           );
@@ -4098,7 +4337,7 @@ export default function App(){
                         {am.comunidade&&<span style={{fontSize:10,fontWeight:700,color:"#92400e",background:"#fef3c7",borderRadius:6,padding:"2px 8px"}}>📍 {am.comunidade}</span>}
                         {am.contato&&<span style={{fontSize:10,fontWeight:700,color:"#92400e",background:"#fef3c7",borderRadius:6,padding:"2px 8px"}}>📞 {am.contato}</span>}
                         {am.horario&&<span style={{fontSize:10,fontWeight:700,color:"#92400e",background:"#fef3c7",borderRadius:6,padding:"2px 8px"}}>⏰ {am.horario}h</span>}
-                        {am.medicao>0&&<span style={{fontSize:10,fontWeight:700,color:"#92400e",background:"#fef3c7",borderRadius:6,padding:"2px 8px"}}>📐 {am.medicao} m³</span>}
+                        {!isSocial&&am.medicao>0&&<span style={{fontSize:10,fontWeight:700,color:"#92400e",background:"#fef3c7",borderRadius:6,padding:"2px 8px"}}>📐 {am.medicao} m³</span>}
                       </div>
                     </div>
 
@@ -4186,9 +4425,18 @@ export default function App(){
                       // Fallback to general status (non-vehicle flow)
                       else if(_hasConcl) _st4="Concluido";
                       else if(am.status==="Realizando"||am.status==="em_andamento"||am.inicio_mudanca_em) _st4="Carregando";
+                      // Build timestamps object for StepTracker
+                      var _tsObj={
+                        saiu:am.inicio_van_em||am.van_saiu_em||am.inicio_caminhao_em||am.caminhao_saiu_em||am.inicio_mudanca_em||null,
+                        chegou_origem:am.chegou_origem_van_em||am.chegou_origem_cam_em||null,
+                        carregando:am.chegou_origem_van_em||am.chegou_origem_cam_em||null,
+                        saiu_destino:am.saiu_destino_van_em||am.saiu_destino_cam_em||null,
+                        chegou_destino:am.chegada_van_em||am.chegada_caminhao_em||null,
+                        concluido:am.termino_em||am.termino_van_em||am.termino_caminhao_em||null
+                      };
                       return(
                         <div style={{background:"#f8fafc",borderRadius:12,padding:"8px 12px",marginTop:4,border:"1px solid #e2e8f0"}}>
-                          <StepTracker status={_st4}/>
+                          <StepTracker status={_st4} timestamps={_tsObj}/>
                         </div>
                       );
                     })()}
@@ -4369,15 +4617,15 @@ export default function App(){
                   {(function(){var _vn=null,_cn=null;if(m.motorista_van_id){var _fv=listaUsuarios.find(function(u){return u.id===m.motorista_van_id;});if(_fv)_vn=_fv;}if(m.motorista_caminhao_id){var _fc=listaUsuarios.find(function(u){return u.id===m.motorista_caminhao_id;});if(_fc)_cn=_fc;}if(!_vn&&!_cn)return null;return(<div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:4,fontSize:11}}>{_vn&&<span><b style={{color:"#2563eb"}}>🚐 {_vn.nome}</b>{_vn.placa_veiculo?" · "+_vn.placa_veiculo:""}</span>}{_cn&&<span><b style={{color:"#7c3aed"}}>🚚 {_cn.nome}</b>{_cn.placa_veiculo?" · "+_cn.placa_veiculo:""}</span>}</div>);})()}
                 </div>
                 {/* ── Validação 3 vias ── */}
-                {m.requires_validation&&<div style={{display:"flex",gap:3,padding:"6px 16px",borderTop:"1px solid #f1f5f9",flexWrap:"wrap"}}>{m.social_approved?<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#15803d"}}>✅ Social</span>:usuario&&usuario.perfil==="social"?<button onClick={function(e){e.stopPropagation();handleValidar3vias(m.id,"social");}} style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",background:"#facc15",color:"#713f12",cursor:"pointer"}}>👆 Validar Social</button>:<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}}>⏳ Social</span>}{m.promorar_approved?<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#15803d"}}>✅ Promorar</span>:usuario&&usuario.perfil==="promorar"?<button onClick={function(e){e.stopPropagation();handleValidar3vias(m.id,"promorar");}} style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",background:"#facc15",color:"#713f12",cursor:"pointer"}}>👆 Validar Promorar</button>:<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}}>⏳ Promorar</span>}{m.adm_approved?<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#15803d"}}>✅ Adm</span>:usuario&&(usuario.perfil==="admin"||usuario.perfil==="telemim")?<button onClick={function(e){e.stopPropagation();handleValidar3vias(m.id,"adm");}} style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",background:"#facc15",color:"#713f12",cursor:"pointer"}}>👆 Validar Adm</button>:<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}}>⏳ Adm</span>}</div>}
+                {m.requires_validation&&<div style={{display:"flex",gap:3,padding:"6px 16px",borderTop:"1px solid #f1f5f9",flexWrap:"wrap"}}>{m.social_approved?<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#15803d"}}>✅ Social</span>:<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}}>⏳ Social</span>}{m.promorar_approved?<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#15803d"}}>✅ Promorar</span>:usuario&&usuario.perfil==="promorar"?<button onClick={function(e){e.stopPropagation();handleValidar3vias(m.id,"promorar");}} style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",background:"#facc15",color:"#713f12",cursor:"pointer"}}>👆 Validar Promorar</button>:<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}}>⏳ Promorar</span>}{m.adm_approved?<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#15803d"}}>✅ Adm</span>:usuario&&(usuario.perfil==="admin"||usuario.perfil==="telemim")?<button onClick={function(e){e.stopPropagation();handleValidar3vias(m.id,"adm");}} style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,border:"none",background:"#facc15",color:"#713f12",cursor:"pointer"}}>👆 Validar Adm</button>:<span style={{padding:"2px 8px",borderRadius:999,fontSize:10,fontWeight:700,background:"#f1f5f9",color:"#94a3b8",border:"1px solid #e2e8f0"}}>⏳ Adm</span>}</div>}
                 {/* ── Barra de ações ── */}
                 <div style={{display:"flex",gap:6,padding:"8px 16px 12px",borderTop:"1px solid #e2e8f0",flexWrap:"wrap",alignItems:"center"}}>
-                  {m.contato&&<button onClick={()=>{var tel=(m.contato||"").replace(/\D/g,"");var txt="\uD83D\uDE9A *TELEMIM — Sua Mudan\u00E7a*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nOl\u00E1 *"+m.nome+"*! \uD83D\uDC4B\nConfirmamos sua mudan\u00E7a:\n\uD83D\uDCC5 *Data:* "+_fmtDate(m.data)+"\n\uD83D\uDCCD *Sa\u00EDda:* "+(m.comunidade||m.origem||"-")+"\n\uD83D\uDCCD *Destino:* "+(m.destino||"-")+"\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nEm caso de d\u00FAvidas, entre em contacto. \uD83D\uDE0A\n_TELEMIM_";window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent(txt),"_blank");}} style={{background:"#25d366",border:"none",color:"#fff",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700}}>📱</button>}
+                  {m.contato&&<button onClick={()=>{var tel=(m.contato||"").replace(/\D/g,"");var txt="\uD83D\uDE9A *TELEMIM — Sua Mudan\u00E7a*\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nOl\u00E1 *"+m.nome+"*! \uD83D\uDC4B\nConfirmamos sua mudan\u00E7a:\n\uD83D\uDCC5 *Data:* "+fmtDate(m.data)+"\n\uD83D\uDCCD *Sa\u00EDda:* "+(m.comunidade||m.origem||"-")+"\n\uD83D\uDCCD *Destino:* "+(m.destino||"-")+"\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nEm caso de d\u00FAvidas, entre em contacto. \uD83D\uDE0A\n_TELEMIM_";window.open("https://wa.me/55"+tel+"?text="+encodeURIComponent(txt),"_blank");}} style={{background:"#25d366",border:"none",color:"#fff",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700}}>📱</button>}
                   <button onClick={()=>setViewMud(m)} style={{background:"#f0f9ff",border:"1.5px solid #0ea5e9",color:"#0ea5e9",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700}}>👁️</button>
                   <button onClick={()=>compartilharMudanca(m)} style={{...btnGreen,borderRadius:8,padding:"6px 10px",fontSize:13}}>📲</button>
-                  {m.signature_data
+                  {!isSocial&&(m.signature_data
                     ? <button onClick={function(){setMudViewPDF(m);setShowViewPDF(true);}} style={{background:"#e0f2fe",border:"1.5px solid #0284c7",color:"#0284c7",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:11,fontWeight:700}}>📄 Assinado</button>
-                    : <button onClick={()=>gerarPDFMudanca(m)} style={{background:"#fff7ed",border:"1.5px solid #ea580c",color:"#ea580c",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:11,fontWeight:700}}>✍️ Assinar</button>}
+                    : <button onClick={()=>gerarPDFMudanca(m)} style={{background:"#fff7ed",border:"1.5px solid #ea580c",color:"#ea580c",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:11,fontWeight:700}}>✍️ Assinar</button>)}
                   {(isAdmin||isPromorar)&&<button onClick={()=>setEditMud((function(){var _cd=(custosDiarios||[]).find(function(x){return x.data===m.data;});return {...m,_qtdAj:_cd?parseInt(_cd.ajudantes)||1:1};})())} style={{...btnBlue,borderRadius:8,padding:"6px 10px",fontSize:13}}>✏️</button>}
                   {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud"});}} style={{...btnRed,borderRadius:8,padding:"6px 10px",fontSize:13}}>✕</button>}
                   {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===m.data;});setViewEquipeAg({nome:m.nome,data:m.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"1.5px solid #fde047",color:"#92400e",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700}} title="Ver equipe do dia">👷</button>}
@@ -4404,7 +4652,7 @@ export default function App(){
                   }} style={{background:"#dcfce7",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📲 Dia ({mudancasHoje.length})</button>
                   </>
                 )}
-                <button onClick={_openRelModal} style={{background:COLORS.accent,border:"none",color:"#fff",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Gerar Relatório</button>
+                {!isSocial&&<button onClick={_openRelModal} style={{background:COLORS.accent,border:"none",color:"#fff",borderRadius:10,padding:"7px 12px",fontWeight:800,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>📊 Gerar Relatório</button>}
                 <button onClick={()=>setTab("novaAgenda")} style={{background:COLORS.purple,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:800,fontSize:12,cursor:"pointer",boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>+ Agendar</button>
               </div>
             </div>
@@ -4416,7 +4664,7 @@ export default function App(){
                       <div style={{flex:1}}>
                         <div style={{fontWeight:900,fontSize:24,color:COLORS.text,marginBottom:8}}>👤 {a.nome}</div>
                         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-                          <TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/><TagCom v={a.comunidade}/>
+                          <TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/><TagCom v={a.comunidade}/>{a.status==="pendente_social"&&<span style={{background:"#fef3c7",border:"1.5px solid #fcd34d",borderRadius:8,padding:"3px 8px",fontSize:10,fontWeight:800,color:"#92400e"}}>⏳ Aguardando Promorar</span>}
                         </div>
                         <div style={{fontSize:12,lineHeight:1.9,background:"#f8fafc",borderRadius:10,padding:"8px 12px",marginBottom:10}}>
                           <div>📦 <strong>Saída:</strong> {a.origem?<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.origem)}`} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
@@ -4426,13 +4674,13 @@ export default function App(){
                         <div style={{marginBottom:10}}>
                           <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>🚗 Veículos</div>
                           <div style={{display:"flex",gap:8}}>
-                            <button onClick={()=>toggleAgField(a.id,"van")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.van?COLORS.blue:"#e2e8f0"}`,background:a.van?"#eff6ff":"#f8fafc",color:a.van?COLORS.blue:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚐 Van {a.van?"✓":"✗"}</button>
-                            <button onClick={()=>toggleAgField(a.id,"caminhao")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.caminhao?COLORS.accent:"#e2e8f0"}`,background:a.caminhao?"#fff7ed":"#f8fafc",color:a.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>🚚 Caminhão {a.caminhao?"✓":"✗"}</button>
+                            <button onClick={isSocial?undefined:()=>toggleAgField(a.id,"van")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.van?COLORS.blue:"#e2e8f0"}`,background:a.van?"#eff6ff":"#f8fafc",color:a.van?COLORS.blue:COLORS.muted,fontWeight:800,fontSize:13,cursor:isSocial?"default":"pointer",opacity:isSocial?0.7:1,transition:"all 0.2s"}}>🚐 Van {a.van?"✓":"✗"}</button>
+                            <button onClick={isSocial?undefined:()=>toggleAgField(a.id,"caminhao")} style={{padding:"7px 14px",borderRadius:10,border:`2px solid ${a.caminhao?COLORS.accent:"#e2e8f0"}`,background:a.caminhao?"#fff7ed":"#f8fafc",color:a.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:isSocial?"default":"pointer",opacity:isSocial?0.7:1,transition:"all 0.2s"}}>🚚 Caminhão {a.caminhao?"✓":"✗"}</button>
                           </div>
                         </div>
                         {!isAdmin&&(a.motorista_van_id||a.motorista_caminhao_id)&&(function(){var _vn=null,_cn=null;if(a.motorista_van_id){var _f=listaUsuarios.find(function(u){return u.id===a.motorista_van_id;});if(_f)_vn=_f;}if(a.motorista_caminhao_id){var _f2=listaUsuarios.find(function(u){return u.id===a.motorista_caminhao_id;});if(_f2)_cn=_f2;}if(!_vn&&!_cn)return null;return(<div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:6,fontSize:11}}>{_vn&&<span><b style={{color:"#2563eb"}}>🚐 {_vn.nome}</b>{_vn.placa_veiculo?" · "+_vn.placa_veiculo:""}</span>}{_cn&&<span><b style={{color:"#7c3aed"}}>🚚 {_cn.nome}</b>{_cn.placa_veiculo?" · "+_cn.placa_veiculo:""}</span>}</div>);})()}
                         {(isAdmin||isSupervisor)&&(function(){var _motsV=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="VAN";});var _motsC=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="CAMINHAO";});var _selStyle={flex:1,padding:"8px 10px",borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer"};var _okStyle={padding:"8px 12px",borderRadius:9,border:"none",fontWeight:800,fontSize:12,cursor:"pointer",color:"#fff",whiteSpace:"nowrap"};var _kV=a.id+"_VAN";var _kC=a.id+"_CAM";var _valV=despPend[_kV]!==undefined?despPend[_kV]:(a.motorista_van_id||"");var _valC=despPend[_kC]!==undefined?despPend[_kC]:(a.motorista_caminhao_id||"");var _changedV=despPend[_kV]!==undefined&&despPend[_kV]!==(a.motorista_van_id||"");var _changedC=despPend[_kC]!==undefined&&despPend[_kC]!==(a.motorista_caminhao_id||"");return(<div style={{marginBottom:10}}><div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🚚 Despachar Motoristas</div>{a.van&&_motsV.length>0&&<div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6}}><select value={_valV} onChange={function(e){setDespPend(function(p){var n=Object.assign({},p);n[_kV]=e.target.value;return n;});}} style={Object.assign({},_selStyle,{border:"1.5px solid "+(_valV?"#2563eb":"#e2e8f0"),background:_valV?"#eff6ff":"#f8fafc",color:_valV?"#2563eb":"#64748b"})}><option value="">🚐 Sem motorista Van</option>{_motsV.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}{mt.placa_veiculo?" · "+mt.placa_veiculo:""}</option>);})}</select><button onClick={function(){handleDespachar(a.id,_valV||null,"VAN");setDespPend(function(p){var n=Object.assign({},p);delete n[_kV];return n;});}} disabled={!_changedV} style={Object.assign({},_okStyle,{background:_changedV?"#2563eb":"#94a3b8",cursor:_changedV?"pointer":"not-allowed"})}>{_changedV?"✓ OK":"✓"}</button></div>}{a.caminhao&&_motsC.length>0&&<div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6}}><select value={_valC} onChange={function(e){setDespPend(function(p){var n=Object.assign({},p);n[_kC]=e.target.value;return n;});}} style={Object.assign({},_selStyle,{border:"1.5px solid "+(_valC?"#7c3aed":"#e2e8f0"),background:_valC?"#f5f3ff":"#f8fafc",color:_valC?"#7c3aed":"#64748b"})}><option value="">🚚 Sem motorista Caminhão</option>{_motsC.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}{mt.placa_veiculo?" · "+mt.placa_veiculo:""}</option>);})}</select><button onClick={function(){handleDespachar(a.id,_valC||null,"CAMINHAO");setDespPend(function(p){var n=Object.assign({},p);delete n[_kC];return n;});}} disabled={!_changedC} style={Object.assign({},_okStyle,{background:_changedC?"#7c3aed":"#94a3b8",cursor:_changedC?"pointer":"not-allowed"})}>{_changedC?"✓ OK":"✓"}</button></div>}{(function(){var _sups=listaUsuarios.filter(function(u){return u.perfil==="supervisor"&&u.ativo;});if(_sups.length===0)return null;var _kS=a.id+"_SUP";var _valS=despPend[_kS]!==undefined?despPend[_kS]:(a.supervisor_id||"");var _changedS=despPend[_kS]!==undefined&&despPend[_kS]!==(a.supervisor_id||"");return(<div style={{display:"flex",gap:6,alignItems:"center"}}><select value={_valS} onChange={function(e){setDespPend(function(p){var n=Object.assign({},p);n[_kS]=e.target.value;return n;});}} style={Object.assign({},_selStyle,{border:"1.5px solid "+(_valS?"#b45309":"#e2e8f0"),background:_valS?"#fef3c7":"#f8fafc",color:_valS?"#92400e":"#64748b"})}><option value="">👷 Sem supervisor</option>{_sups.map(function(s){return(<option key={s.id} value={s.id}>{s.nome}</option>);})}</select><button onClick={function(){handleDespacharSup(a.id,_valS||null);setDespPend(function(p){var n=Object.assign({},p);delete n[_kS];return n;});}} disabled={!_changedS} style={Object.assign({},_okStyle,{background:_changedS?"#b45309":"#94a3b8",cursor:_changedS?"pointer":"not-allowed"})}>{_changedS?"✓ OK":"✓"}</button></div>);})()}</div>);})()}
-                        {(usuario&&usuario.perfil!=="social")&&<div style={{display:"grid",gridTemplateColumns:(usuario&&(usuario.perfil==="admin"||usuario.perfil==="supervisor"))?"1fr 1fr":"1fr",gap:8,marginBottom:10}}>{(usuario&&usuario.perfil!=="social")&&<div>
+                        {!isSocial&&<div style={{display:"grid",gridTemplateColumns:(usuario&&(usuario.perfil==="admin"||usuario.perfil==="supervisor"))?"1fr 1fr":"1fr",gap:8,marginBottom:10}}>{!isSocial&&<div>
                             <label style={{display:"block",color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>📐 Medição (m³)</label>
                             <input type="number" placeholder="Ex: 27" value={a.medicao||""} onChange={e=>updateAgField(a.id,"medicao",e.target.value)}
                               style={{width:"100%",background:"#fff",border:`1.5px solid ${a.medicao?COLORS.green:COLORS.cardBorder}`,borderRadius:9,color:COLORS.text,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}
@@ -4459,28 +4707,28 @@ export default function App(){
                         </div>}
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
                           <div style={{display:"flex",gap:5}}>
-                            <button onClick={function(){pedirFinalizacao(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>
-                            {(isSupervisor||isPromorar||isSocial)&&!a.cancelamento_solicitado&&<button onClick={function(){setCancelModal(a);setCancelMotivo("");}} style={{background:"#fef2f2",border:"1.5px solid #fecaca",color:"#dc2626",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Cancelar</button>}
+                            {!isSocial&&<button onClick={function(){pedirFinalizacao(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>}
+                            {(isSupervisor||isPromorar)&&!a.cancelamento_solicitado&&<button onClick={function(){setCancelModal(a);setCancelMotivo("");}} style={{background:"#fef2f2",border:"1.5px solid #fecaca",color:"#dc2626",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Cancelar</button>}
                             {isAdmin&&!a.cancelamento_solicitado&&<button onClick={function(){if(confirm("Cancelar mudança de "+a.nome+"?\nEsta ação não pode ser desfeita.")){handleCancelarDireto(a.id);}}} style={{background:"#fef2f2",border:"1.5px solid #fecaca",color:"#dc2626",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Cancelar</button>}
                           </div>
                           <div style={{display:"flex",gap:5,alignItems:"center"}}>
-                            {a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
+                            {!isSocial&&a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
                             {a.ajudantes&&parseInt(a.ajudantes)>0&&<Badge color="#b45309">👷 {a.ajudantes} {parseInt(a.ajudantes)===1?"ajudante":"ajudantes"}</Badge>}
                             <button onClick={()=>compartilharWhatsApp(a)} style={{...btnGreen,fontSize:14,padding:"6px 10px"}}>📲</button>
-                            <button onClick={e=>gerarPDFAgendamento(a,e.currentTarget)} style={{...btnRed,background:"#fff1f0",fontSize:14,padding:"6px 10px"}}>📄</button>
+                            {!isSocial&&<button onClick={e=>gerarPDFAgendamento(a,e.currentTarget)} style={{...btnRed,background:"#fff1f0",fontSize:14,padding:"6px 10px"}}>📄</button>}
                           </div>
                         </div>
                       </div>
                       <div style={{display:"flex",flexDirection:"column",gap:5,marginLeft:9}}>
-                        <button onClick={()=>converterEmMudanca(a)} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>
-                        <button onClick={function(){handleMoverPendente(a.id);}} style={{background:"#fffbeb",border:"none",color:"#b45309",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Mover para Pendente">⏳</button>
+                        {!isSocial&&<button onClick={()=>converterEmMudanca(a)} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>}
+                        {!isSocial&&<button onClick={function(){var _emOp=a.inicio_van_em||a.van_saiu_em||a.inicio_caminhao_em||a.caminhao_saiu_em||a.inicio_mudanca_em;if(_emOp&&!isAdmin){setPendModal(a);setPendMotivo("");}else if(isAdmin&&_emOp){setPendModal(a);setPendMotivo("");}else if(isAdmin){handleMoverPendente(a.id,"");}else{setPendModal(a);setPendMotivo("");}}} style={{background:a.pendencia_solicitada?"#fef3c7":"#fffbeb",border:a.pendencia_solicitada?"1.5px solid #f59e0b":"none",color:"#b45309",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title={a.pendencia_solicitada?"Pendência solicitada":"Mover para Pendente"}>{a.pendencia_solicitada?"🔔":"⏳"}</button>}
                         <button onClick={()=>setEditAg({...a})} style={btnBlue}>✏️</button>
                         {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={btnRed}>✕</button>}
                         {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===a.data;});setViewEquipeAg({nome:a.nome,data:a.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"none",color:"#92400e",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Ver equipe do dia">👷</button>}
                       </div>
                     </div>
-                  
-                  
+
+
                     {/* ── Carimbos de Aprovação (Agenda) ── */}
                     {(a.approved_by_admin||a.approved_by_social||a.approved_by_promorar||a.approved_by_supervisor||a.requested_by||
                     (usuario&&['admin','social','promorar','supervisor'].includes(usuario.perfil)))&&(
@@ -4496,7 +4744,7 @@ export default function App(){
                       </div>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
                         <span>Social: {a.approved_by_social?<b style={{color:"#16a34a"}}>✅ {a.approved_by_social}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>
-                        {usuario&&usuario.perfil==="social"&&!a.approved_by_social&&(<button onClick={function(){handleApproveAgenda(a.id);}} disabled={!!isApproving[a.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[a.id]?"#94a3b8":"#0f766e",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[a.id]?"not-allowed":"pointer"}}>{isApproving[a.id]?"⏳":"Confirmar"}</button>)}
+                        {usuario&&(usuario.perfil==="social"||usuario.perfil==="coordenador")&&!a.approved_by_social&&(<button onClick={function(){handleApproveAgenda(a.id);}} disabled={!!isApproving[a.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[a.id]?"#94a3b8":"#10b981",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[a.id]?"not-allowed":"pointer"}}>{isApproving[a.id]?"⏳":"Confirmar"}</button>)}
                       </div>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <span>Supervisor: {a.approved_by_supervisor?<b style={{color:"#16a34a"}}>✅ {a.approved_by_supervisor}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>
@@ -4521,7 +4769,7 @@ export default function App(){
                       <div style={{flex:1}}>
                         <div style={{fontWeight:900,fontSize:24,color:COLORS.text,marginBottom:8}}>👤 {a.nome}</div>
                         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-                          <TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/><TagCom v={a.comunidade}/>
+                          <TagSelo v={a.selo}/><TagData v={a.data}/><TagHora v={a.horario}/><TagCom v={a.comunidade}/>{a.status==="pendente_social"&&<span style={{background:"#fef3c7",border:"1.5px solid #fcd34d",borderRadius:8,padding:"3px 8px",fontSize:10,fontWeight:800,color:"#92400e"}}>⏳ Aguardando Promorar</span>}
                         </div>
                         <div style={{fontSize:12,lineHeight:1.9,background:"#fff",borderRadius:10,padding:"8px 12px",marginBottom:10}}>
                           <div>📦 <strong>Saída:</strong> {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:COLORS.blue,textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:COLORS.muted}}>—</span>}</div>
@@ -4531,12 +4779,12 @@ export default function App(){
                         <div style={{marginBottom:10}}>
                           <div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>🚗 Veículos</div>
                           <div style={{display:"flex",gap:8}}>
-                            <button onClick={function(){toggleAgField(a.id,"van");}} style={{padding:"7px 14px",borderRadius:10,border:"2px solid "+(a.van?COLORS.blue:"#e2e8f0"),background:a.van?"#eff6ff":"#f8fafc",color:a.van?COLORS.blue:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer"}}>🚐 Van {a.van?"✓":"✗"}</button>
-                            <button onClick={function(){toggleAgField(a.id,"caminhao");}} style={{padding:"7px 14px",borderRadius:10,border:"2px solid "+(a.caminhao?COLORS.accent:"#e2e8f0"),background:a.caminhao?"#fff7ed":"#f8fafc",color:a.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:"pointer"}}>🚚 Caminhão {a.caminhao?"✓":"✗"}</button>
+                            <button onClick={isSocial?undefined:function(){toggleAgField(a.id,"van");}} style={{padding:"7px 14px",borderRadius:10,border:"2px solid "+(a.van?COLORS.blue:"#e2e8f0"),background:a.van?"#eff6ff":"#f8fafc",color:a.van?COLORS.blue:COLORS.muted,fontWeight:800,fontSize:13,cursor:isSocial?"default":"pointer",opacity:isSocial?0.7:1}}>🚐 Van {a.van?"✓":"✗"}</button>
+                            <button onClick={isSocial?undefined:function(){toggleAgField(a.id,"caminhao");}} style={{padding:"7px 14px",borderRadius:10,border:"2px solid "+(a.caminhao?COLORS.accent:"#e2e8f0"),background:a.caminhao?"#fff7ed":"#f8fafc",color:a.caminhao?COLORS.accent:COLORS.muted,fontWeight:800,fontSize:13,cursor:isSocial?"default":"pointer",opacity:isSocial?0.7:1}}>🚚 Caminhão {a.caminhao?"✓":"✗"}</button>
                           </div>
                         </div>
                         {(isAdmin||isSupervisor)&&(function(){var _motsV=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="VAN";});var _motsC=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="CAMINHAO";});var _selStyle={flex:1,padding:"8px 10px",borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer"};var _okStyle={padding:"8px 12px",borderRadius:9,border:"none",fontWeight:800,fontSize:12,cursor:"pointer",color:"#fff",whiteSpace:"nowrap"};var _kV=a.id+"_VAN";var _kC=a.id+"_CAM";var _valV=despPend[_kV]!==undefined?despPend[_kV]:(a.motorista_van_id||"");var _valC=despPend[_kC]!==undefined?despPend[_kC]:(a.motorista_caminhao_id||"");var _changedV=despPend[_kV]!==undefined&&despPend[_kV]!==(a.motorista_van_id||"");var _changedC=despPend[_kC]!==undefined&&despPend[_kC]!==(a.motorista_caminhao_id||"");return(<div style={{marginBottom:10}}><div style={{color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🚚 Despachar Motoristas</div>{a.van&&_motsV.length>0&&<div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6}}><select value={_valV} onChange={function(e){setDespPend(function(p){var n=Object.assign({},p);n[_kV]=e.target.value;return n;});}} style={Object.assign({},_selStyle,{border:"1.5px solid "+(_valV?"#2563eb":"#e2e8f0"),background:_valV?"#eff6ff":"#fff",color:_valV?"#2563eb":"#64748b"})}><option value="">🚐 Sem motorista Van</option>{_motsV.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}{mt.placa_veiculo?" · "+mt.placa_veiculo:""}</option>);})}</select><button onClick={function(){handleDespachar(a.id,_valV||null,"VAN");setDespPend(function(p){var n=Object.assign({},p);delete n[_kV];return n;});}} disabled={!_changedV} style={Object.assign({},_okStyle,{background:_changedV?"#2563eb":"#94a3b8",cursor:_changedV?"pointer":"not-allowed"})}>{_changedV?"✓ OK":"✓"}</button></div>}{a.caminhao&&_motsC.length>0&&<div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6}}><select value={_valC} onChange={function(e){setDespPend(function(p){var n=Object.assign({},p);n[_kC]=e.target.value;return n;});}} style={Object.assign({},_selStyle,{border:"1.5px solid "+(_valC?"#7c3aed":"#e2e8f0"),background:_valC?"#f5f3ff":"#fff",color:_valC?"#7c3aed":"#64748b"})}><option value="">🚚 Sem motorista Caminhão</option>{_motsC.map(function(mt){return(<option key={mt.id} value={mt.id}>{mt.nome}{mt.placa_veiculo?" · "+mt.placa_veiculo:""}</option>);})}</select><button onClick={function(){handleDespachar(a.id,_valC||null,"CAMINHAO");setDespPend(function(p){var n=Object.assign({},p);delete n[_kC];return n;});}} disabled={!_changedC} style={Object.assign({},_okStyle,{background:_changedC?"#7c3aed":"#94a3b8",cursor:_changedC?"pointer":"not-allowed"})}>{_changedC?"✓ OK":"✓"}</button></div>}{(function(){var _sups=listaUsuarios.filter(function(u){return u.perfil==="supervisor"&&u.ativo;});if(_sups.length===0)return null;var _kS=a.id+"_SUP";var _valS=despPend[_kS]!==undefined?despPend[_kS]:(a.supervisor_id||"");var _changedS=despPend[_kS]!==undefined&&despPend[_kS]!==(a.supervisor_id||"");return(<div style={{display:"flex",gap:6,alignItems:"center"}}><select value={_valS} onChange={function(e){setDespPend(function(p){var n=Object.assign({},p);n[_kS]=e.target.value;return n;});}} style={Object.assign({},_selStyle,{border:"1.5px solid "+(_valS?"#b45309":"#e2e8f0"),background:_valS?"#fef3c7":"#fff",color:_valS?"#92400e":"#64748b"})}><option value="">👷 Sem supervisor</option>{_sups.map(function(s){return(<option key={s.id} value={s.id}>{s.nome}</option>);})}</select><button onClick={function(){handleDespacharSup(a.id,_valS||null);setDespPend(function(p){var n=Object.assign({},p);delete n[_kS];return n;});}} disabled={!_changedS} style={Object.assign({},_okStyle,{background:_changedS?"#b45309":"#94a3b8",cursor:_changedS?"pointer":"not-allowed"})}>{_changedS?"✓ OK":"✓"}</button></div>);})()}</div>);})()}
-                        {(usuario&&usuario.perfil!=="social")&&<div style={{display:"grid",gridTemplateColumns:(usuario&&(usuario.perfil==="admin"||usuario.perfil==="supervisor"))?"1fr 1fr":"1fr",gap:8,marginBottom:10}}>{(usuario&&usuario.perfil!=="social")&&<div>
+                        {!isSocial&&<div style={{display:"grid",gridTemplateColumns:(usuario&&(usuario.perfil==="admin"||usuario.perfil==="supervisor"))?"1fr 1fr":"1fr",gap:8,marginBottom:10}}>{!isSocial&&<div>
                             <label style={{display:"block",color:COLORS.muted,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>📐 Medição (m³)</label>
                             <input type="number" placeholder="Ex: 27" value={a.medicao||""} onChange={function(e){updateAgField(a.id,"medicao",e.target.value);}}
                               style={{width:"100%",background:"#fff",border:"1.5px solid "+(a.medicao?COLORS.green:COLORS.cardBorder),borderRadius:9,color:COLORS.text,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"}}/>
@@ -4550,28 +4798,30 @@ export default function App(){
                         {(isAdmin||isSupervisor)&&(function(){var _eqD=equipeDiaList.find(function(e){return e.data===a.data;});var _eqAj=_eqD&&Array.isArray(_eqD.ajudantes)?_eqD.ajudantes:[];return _eqAj.length>0?<div style={{marginBottom:8}}><div style={{display:"flex",flexWrap:"wrap",gap:4}}><span style={{fontSize:11,fontWeight:700,color:"#92400e"}}>👷 Equipe ({_eqAj.length}):</span>{_eqAj.map(function(aj){return <span key={aj.id} style={{background:"#dcfce7",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#15803d"}}>{aj.nome}</span>;})}</div></div>:null;})()}
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
                           <div style={{display:"flex",gap:5}}>
-                            <button onClick={function(){pedirFinalizacao(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>
+                            {!isSocial&&<button onClick={function(){pedirFinalizacao(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>}
                             {isAdmin&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={{background:"#fef2f2",border:"1.5px solid #fecaca",color:"#dc2626",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Cancelar</button>}
                           </div>
                           <div style={{display:"flex",gap:5,alignItems:"center"}}>
-                            {a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
+                            {!isSocial&&a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
                             {a.ajudantes&&parseInt(a.ajudantes)>0&&<Badge color="#b45309">👷 {a.ajudantes} {parseInt(a.ajudantes)===1?"ajudante":"ajudantes"}</Badge>}
                             <button onClick={function(){compartilharWhatsApp(a);}} style={{...btnGreen,fontSize:14,padding:"6px 10px"}}>📲</button>
                           </div>
                         </div>
                       </div>
                       <div style={{display:"flex",flexDirection:"column",gap:5,marginLeft:9}}>
-                        <button onClick={function(){converterEmMudanca(a);}} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>
+                        {!isSocial&&<button onClick={function(){converterEmMudanca(a);}} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>}
                         <button onClick={function(){setEditAg({...a});}} style={btnBlue}>✏️</button>
                         {isAdmin&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={btnRed}>✕</button>}
                         {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===a.data;});setViewEquipeAg({nome:a.nome,data:a.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"none",color:"#92400e",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Ver equipe do dia">👷</button>}
                       </div>
                     </div>
-                    {(a.approved_by_admin||a.approved_by_social||a.approved_by_promorar||a.approved_by_supervisor||a.requested_by||(usuario&&['admin','social','promorar','supervisor'].includes(usuario.perfil)))&&(
+                    {(a.approved_by_admin||a.approved_by_social||a.approved_by_promorar||a.approved_by_supervisor||a.requested_by||(usuario&&['admin','social','promorar','supervisor','coordenador'].includes(usuario.perfil)))&&(
                     <div style={{borderTop:"1px solid #e2e8f0",marginTop:6,paddingTop:5,fontSize:11,color:"#475569"}}>
                       <div style={{marginBottom:3}}>📝 <b>Solicitado por:</b> {a.created_by||a.requested_by||"Sistema"}{a.criado_em?" · "+new Date(a.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
-                      <div style={{marginBottom:2}}><span>Promorar: {a.approved_by_promorar?<b style={{color:"#16a34a"}}>✅ {a.approved_by_promorar}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span></div>
-                      <div style={{marginBottom:2}}><span>Admin: {a.approved_by_admin?<b style={{color:"#16a34a"}}>✅ {a.approved_by_admin}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span></div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}><span>Promorar: {a.approved_by_promorar?<b style={{color:"#16a34a"}}>✅ {a.approved_by_promorar}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>{usuario&&usuario.perfil==="promorar"&&!a.approved_by_promorar&&(<button onClick={function(){handleApproveAgenda(a.id);}} disabled={!!isApproving[a.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[a.id]?"#94a3b8":"#7e22ce",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[a.id]?"not-allowed":"pointer"}}>{isApproving[a.id]?"⏳":"Confirmar"}</button>)}</div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}><span>Admin: {a.approved_by_admin?<b style={{color:"#16a34a"}}>✅ {a.approved_by_admin}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>{usuario&&usuario.perfil==="admin"&&!a.approved_by_admin&&(<button onClick={function(){handleApproveAgenda(a.id);}} disabled={!!isApproving[a.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[a.id]?"#94a3b8":"#1e40af",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[a.id]?"not-allowed":"pointer"}}>{isApproving[a.id]?"⏳":"Confirmar"}</button>)}</div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}><span>Social: {a.approved_by_social?<b style={{color:"#16a34a"}}>✅ {a.approved_by_social}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>{usuario&&(usuario.perfil==="social"||usuario.perfil==="coordenador")&&!a.approved_by_social&&(<button onClick={function(){handleApproveAgenda(a.id);}} disabled={!!isApproving[a.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[a.id]?"#94a3b8":"#10b981",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[a.id]?"not-allowed":"pointer"}}>{isApproving[a.id]?"⏳":"Confirmar"}</button>)}</div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span>Supervisor: {a.approved_by_supervisor?<b style={{color:"#16a34a"}}>✅ {a.approved_by_supervisor}</b>:<span style={{color:"#ea580c"}}>⏳ Pendente</span>}</span>{usuario&&usuario.perfil==="supervisor"&&!a.approved_by_supervisor&&(<button onClick={function(){handleApproveAgenda(a.id);}} disabled={!!isApproving[a.id]} style={{padding:"2px 8px",fontSize:10,fontWeight:700,background:isApproving[a.id]?"#94a3b8":"#b45309",color:"#fff",border:"none",borderRadius:5,cursor:isApproving[a.id]?"not-allowed":"pointer"}}>{isApproving[a.id]?"⏳":"Confirmar"}</button>)}</div>
                     </div>)}
                     </Card></div>
                   );})}
@@ -4702,8 +4952,12 @@ export default function App(){
           var _r=_calcCustos(_mudM,_cdM,_cpM,RULES,_mudMDesp,_eqM,solicitacoesFin);
           return (
             <div style={{padding:"12px 12px 0"}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>
-                📊 Gerencial — {_nm}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px"}}>📊 Gerencial — {_nm}</div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={function(){exportarPDF(_r,_nm,_r.detAjudantes,_r.detCamDias,_r.detVanDias,"Promorar");}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #dc2626",background:"#fef2f2",color:"#dc2626",fontSize:10,fontWeight:700,cursor:"pointer"}}>📄 PDF</button>
+                  <button onClick={function(){exportarExcel(_r,_nm,_r.detAjudantes,_r.detCamDias,_r.detVanDias,_mudM,"Promorar");}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #16a34a",background:"#f0fdf4",color:"#16a34a",fontSize:10,fontWeight:700,cursor:"pointer"}}>📊 Excel</button>
+                </div>
               </div>
               {(function(){
   // Faturamento médio diário (mês)
@@ -4824,6 +5078,30 @@ export default function App(){
                   <div style={{fontSize:28,fontWeight:900,color:_r.lucroLiq>=0?"#4ade80":"#f87171"}}>{"R$ "+_fvs(_r.lucroLiq)}</div>
                   <div style={{fontSize:9,color:"rgba(255,255,255,0.5)",marginTop:4}}>Receita Líquida menos todas as despesas do mês</div>
                 </div>
+              </div>
+              {/* ── KPIs ── */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                <div style={{background:"linear-gradient(135deg,#eff6ff,#dbeafe)",border:"2px solid #60a5fa",borderRadius:14,padding:"12px 12px 10px"}}>
+                  <div style={{fontSize:10,color:"#2563eb",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>📏 Média m³/Mudança</div>
+                  <div style={{fontSize:22,fontWeight:900,color:"#1d4ed8"}}>{_r.numMud>0?(_r.m3Total/_r.numMud).toFixed(1):"0"} <span style={{fontSize:12,fontWeight:600}}>m³</span></div>
+                  <div style={{fontSize:10,color:"#1e40af",marginTop:4,background:"rgba(37,99,235,0.08)",borderRadius:6,padding:"2px 6px",display:"inline-block"}}>{_r.numMud} mudanças • {_r.m3Total.toFixed(0)} m³ total</div>
+                </div>
+                <div style={{background:"linear-gradient(135deg,#fefce8,#fef9c3)",border:"2px solid #facc15",borderRadius:14,padding:"12px 12px 10px"}}>
+                  <div style={{fontSize:10,color:"#a16207",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>💰 Custo Médio/Mudança</div>
+                  <div style={{fontSize:22,fontWeight:900,color:"#854d0e"}}>{_r.numMudDesp>0?_fv(_r.despTotal/_r.numMudDesp):"R$ 0"}</div>
+                  <div style={{fontSize:10,color:"#713f12",marginTop:4,background:"rgba(161,98,7,0.08)",borderRadius:6,padding:"2px 6px",display:"inline-block"}}>{_r.numMudDesp} mudanças com despesa</div>
+                </div>
+                <div style={{background:"linear-gradient(135deg,#ecfdf5,#d1fae5)",border:"2px solid #34d399",borderRadius:14,padding:"12px 12px 10px"}}>
+                  <div style={{fontSize:10,color:"#059669",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>📈 Margem de Lucro</div>
+                  <div style={{fontSize:22,fontWeight:900,color:_r.fatBruto>0&&(_r.lucroLiq/_r.fatBruto*100)>=30?"#047857":"#dc2626"}}>{_r.fatBruto>0?(_r.lucroLiq/_r.fatBruto*100).toFixed(1):"0"}%</div>
+                  <div style={{fontSize:10,color:"#065f46",marginTop:4,background:"rgba(5,150,105,0.08)",borderRadius:6,padding:"2px 6px",display:"inline-block"}}>{_r.fatBruto>0&&(_r.lucroLiq/_r.fatBruto*100)>=30?"✅ Saudável":"⚠️ Abaixo de 30%"}</div>
+                </div>
+                {(function(){var _agMes=(agenda||[]).filter(function(a){return !a.deleted_at&&a.data&&a.data.slice(0,7)===_am;});var _canc=_agMes.filter(function(a){return a.status==="cancelada";}).length;var _total=_agMes.length;var _perc=_total>0?(_canc/_total*100).toFixed(1):"0";return(
+                <div style={{background:"linear-gradient(135deg,#fdf2f8,#fce7f3)",border:"2px solid #f472b6",borderRadius:14,padding:"12px 12px 10px"}}>
+                  <div style={{fontSize:10,color:"#be185d",fontWeight:700,marginBottom:4,textTransform:"uppercase"}}>❌ Cancelamentos</div>
+                  <div style={{fontSize:22,fontWeight:900,color:"#9d174d"}}>{_canc} <span style={{fontSize:12,fontWeight:600}}>({_perc}%)</span></div>
+                  <div style={{fontSize:10,color:"#831843",marginTop:4,background:"rgba(190,24,93,0.08)",borderRadius:6,padding:"2px 6px",display:"inline-block"}}>{_total} agendadas no mês</div>
+                </div>);})()}
               </div>
             </div>
           );
@@ -5245,11 +5523,21 @@ return(
   var _sups2=listaUsuarios.filter(function(u){return u.perfil==="supervisor"&&u.ativo;});
   var _motsCam=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="CAMINHAO";});
   var _motsVan=listaUsuarios.filter(function(u){return u.perfil==="motorista"&&u.ativo&&u.tipo_veiculo==="VAN";});
+  // ── Calcular semana atual (seg-dom) ──
+  var _pcW=function(n){return String(n).padStart(2,"0");};
+  var _hjW=new Date();var _dwW=_hjW.getDay();var _difW=_dwW===0?6:_dwW-1;
+  var _s0W=new Date(_hjW.getFullYear(),_hjW.getMonth(),_hjW.getDate()-_difW);
+  var _s1W=new Date(_s0W.getFullYear(),_s0W.getMonth(),_s0W.getDate()+6);
+  var _siW=_s0W.getFullYear()+"-"+_pcW(_s0W.getMonth()+1)+"-"+_pcW(_s0W.getDate());
+  var _sfW=_s1W.getFullYear()+"-"+_pcW(_s1W.getMonth()+1)+"-"+_pcW(_s1W.getDate());
+  var _semLabelW=_pcW(_s0W.getDate())+"/"+_pcW(_s0W.getMonth()+1)+" a "+_pcW(_s1W.getDate())+"/"+_pcW(_s1W.getMonth()+1);
+  // ── Filtro de dados: semana ou mês ──
+  var _dataOk=pagPeriodo==="semana"?function(d){return d>=_siW&&d<=_sfW;}:function(d){return d&&d.slice(0,7)===pagMes;};
   // FONTE ÚNICA: _calcCustos para ajudantes, caminhão e van
-  var _mudMesP=(_allForFiltered||[]).filter(function(m){return m.data&&m.data.slice(0,7)===pagMes;});
-  var _mudMesPDesp=(_allForDespesa||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===pagMes;});
-  var _eqMesP=equipeDiaList.filter(function(e){return e.data&&e.data.slice(0,7)===pagMes&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
-  var _cdMesP=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===pagMes;});
+  var _mudMesP=(_allForFiltered||[]).filter(function(m){return m.data&&_dataOk(m.data);});
+  var _mudMesPDesp=(_allForDespesa||[]).filter(function(m){return !m.deleted_at&&m.data&&_dataOk(m.data);});
+  var _eqMesP=equipeDiaList.filter(function(e){return e.data&&_dataOk(e.data)&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
+  var _cdMesP=(custosDiarios||[]).filter(function(cd){return cd.data&&_dataOk(cd.data);});
   var _rPag=_calcCustos(_mudMesP,_cdMesP,[],RULES,_mudMesPDesp,_eqMesP,solicitacoesFin);
   // Ajudantes: consumir detAjudantes do _calcCustos
   var _ajMapP=_rPag.detAjudantes;
@@ -5344,12 +5632,21 @@ return(
   return(
     <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 14px 16px",marginTop:10,marginBottom:10}}>
       <div style={{fontWeight:800,fontSize:14,color:"#1e293b",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>💰 Gestão de Pagamentos</div>
-      {/* Month nav */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:12}}>
-        <button onClick={function(){var d=new Date(pagMes+"-15");d.setMonth(d.getMonth()-1);setPagMes(d.toISOString().slice(0,7));}} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:14,fontWeight:700}}>◀</button>
-        <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>📅 {_mesLabelP}</div>
-        <button onClick={function(){var d=new Date(pagMes+"-15");d.setMonth(d.getMonth()+1);setPagMes(d.toISOString().slice(0,7));}} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:14,fontWeight:700}}>▶</button>
+      {/* Semana / Mês toggle */}
+      <div style={{display:"flex",gap:6,marginBottom:10}}>
+        <button onClick={function(){setPagPeriodo("semana");}} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"2px solid "+(pagPeriodo==="semana"?"#1e40af":"#e2e8f0"),background:pagPeriodo==="semana"?"#1e40af":"#f8fafc",color:pagPeriodo==="semana"?"#fff":"#64748b",fontSize:12,fontWeight:800,cursor:"pointer"}}>📅 Semana</button>
+        <button onClick={function(){setPagPeriodo("mes");}} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"2px solid "+(pagPeriodo==="mes"?"#1e40af":"#e2e8f0"),background:pagPeriodo==="mes"?"#1e40af":"#f8fafc",color:pagPeriodo==="mes"?"#fff":"#64748b",fontSize:12,fontWeight:800,cursor:"pointer"}}>📆 Mês</button>
       </div>
+      {/* Period label */}
+      {pagPeriodo==="semana"?(
+        <div style={{textAlign:"center",fontSize:13,fontWeight:800,color:"#1e40af",marginBottom:12,background:"#eff6ff",borderRadius:10,padding:"8px 0",border:"1px solid #bfdbfe"}}>📅 Semana: {_semLabelW}</div>
+      ):(
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:12}}>
+          <button onClick={function(){var d=new Date(pagMes+"-15");d.setMonth(d.getMonth()-1);setPagMes(d.toISOString().slice(0,7));}} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:14,fontWeight:700}}>◀</button>
+          <div style={{fontSize:14,fontWeight:800,color:"#1e293b"}}>📅 {_mesLabelP}</div>
+          <button onClick={function(){var d=new Date(pagMes+"-15");d.setMonth(d.getMonth()+1);setPagMes(d.toISOString().slice(0,7));}} style={{padding:"8px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontSize:14,fontWeight:700}}>▶</button>
+        </div>
+      )}
       {/* Summary cards */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
         <div style={{background:"#fef2f2",borderRadius:10,padding:"10px 12px",border:"1px solid #fecaca"}}>
@@ -5539,7 +5836,7 @@ return(
           return <div style={{paddingBottom:80}}>
             <div style={{background:"#1e293b",padding:"20px 16px 14px"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginBottom:2}}>Gerenciamento</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>👷 Equipe</div></div>
             <div style={{display:"flex",background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
-              {[{id:"cadastro",l:"📋 Cadastro"},{id:"escalar",l:"📅 Escalar"},{id:"financeiro",l:"💰 Financeiro"}].map(function(t){return <button key={t.id} onClick={function(){setSubEquipe(t.id);loadAjudantes();if(t.id!=="cadastro")loadEquipeDia();if(t.id==="escalar"){var _f=equipeDiaList.find(ed=>ed.data===equipeDiaSel);setEquipeDiaCheck(_f&&Array.isArray(_f.ajudantes)?_f.ajudantes:[]);}}} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subEquipe===t.id?700:500,background:"transparent",borderBottom:subEquipe===t.id?"3px solid #065f46":"3px solid transparent",color:subEquipe===t.id?"#065f46":"#64748b"}}>{t.l}</button>;})}
+              {[{id:"cadastro",l:"📋 Cadastro"},{id:"escalar",l:"📅 Escalar"},{id:"financeiro",l:"💰 Financeiro"},{id:"social",l:"👩‍⚕️ Social"}].concat(isSupervisor||isAdmin?[{id:"almoco",l:"🍽️ Almoço"}]:[]).map(function(t){return <button key={t.id} onClick={function(){setSubEquipe(t.id);loadAjudantes();if(t.id==="social")loadAssistentesSocial();if(t.id!=="cadastro")loadEquipeDia();if(t.id==="almoco")loadSolicitacoesAlmoco();if(t.id==="escalar"){loadEquipePadrao();var _f=equipeDiaList.find(ed=>ed.data===equipeDiaSel);if(_f&&Array.isArray(_f.ajudantes)){setEquipeDiaCheck(_f.ajudantes);}else if(equipePadrao.length>0){setEquipeDiaCheck(equipePadrao);}else{setEquipeDiaCheck([]);}}}} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subEquipe===t.id?700:500,background:"transparent",borderBottom:subEquipe===t.id?"3px solid #065f46":"3px solid transparent",color:subEquipe===t.id?"#065f46":"#64748b"}}>{t.l}</button>;})}
             </div>
             {/* SUB: CADASTRO */}
             {subEquipe==="cadastro"&&<div style={{padding:16}}>
@@ -5576,13 +5873,21 @@ return(
             </div>}
             {/* SUB: ESCALAR */}
             {subEquipe==="escalar"&&<div style={{padding:16}}>
+              {equipePadrao.length>0&&<Card style={{marginBottom:16,background:"linear-gradient(135deg,#fffbeb,#fef3c7)",border:"2px solid #f59e0b"}}>
+                <div style={{fontSize:11,fontWeight:800,color:"#92400e",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>⭐ EQUIPE PADRÃO ATUAL</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>{equipePadrao.map(function(aj){return <span key={aj.id} style={{background:"#fff",border:"1.5px solid #f59e0b",borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:700,color:"#92400e"}}>👷 {aj.nome}</span>;})}</div>
+                <div style={{display:"flex",gap:8}}><div style={{flex:1,fontSize:11,color:"#b45309",fontWeight:600,display:"flex",alignItems:"center"}}>{equipePadrao.length} ajudante{equipePadrao.length>1?"s":""}</div><button onClick={function(){if(confirm("Remover equipe padrão?"))limparEquipePadrao();}} style={{padding:"5px 14px",borderRadius:8,border:"1.5px solid #dc2626",background:"#fef2f2",color:"#dc2626",fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑️ Limpar</button></div>
+              </Card>}
               <Card style={{marginBottom:16}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>📅 DATA</div>
                 <input type="date" value={equipeDiaSel} onChange={function(e){
                   setEquipeDiaSel(e.target.value);
                   var _found=equipeDiaList.find(function(ed){return ed.data===e.target.value;});
-                  setEquipeDiaCheck(_found&&Array.isArray(_found.ajudantes)?_found.ajudantes:[]);
+                  if(_found&&Array.isArray(_found.ajudantes)){setEquipeDiaCheck(_found.ajudantes);}
+                  else if(equipePadrao.length>0){setEquipeDiaCheck(equipePadrao);}
+                  else{setEquipeDiaCheck([]);}
                 }} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:14,fontWeight:700,color:"#1e293b",boxSizing:"border-box"}}/>
+                {(function(){var _found2=equipeDiaList.find(function(ed){return ed.data===equipeDiaSel;});if(!_found2&&equipePadrao.length>0&&equipeDiaCheck.length>0){return <div style={{background:"#eff6ff",border:"1px solid #93c5fd",borderRadius:8,padding:"6px 10px",marginTop:8,fontSize:11,color:"#1e40af",fontWeight:600}}>⭐ Equipe padrão carregada automaticamente</div>;}return null;})()}
               </Card>
               {_numMudDia>0?<Card style={{marginBottom:16}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,marginBottom:8}}>MUDANÇAS DO DIA ({_numMudDia})</div>
@@ -5607,6 +5912,8 @@ return(
                   <div style={{fontSize:13,fontWeight:800,color:"#065f46",marginTop:4}}>💰 Custo total do dia: {_fv(_custoTotalDia)}</div>
                 </div>}
                 <button onClick={function(){salvarEquipeDia(equipeDiaSel,equipeDiaCheck);}} style={{width:"100%",padding:13,borderRadius:12,background:"#065f46",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:"pointer",marginTop:14}}>💾 Salvar Equipe do Dia</button>
+                <button onClick={function(){if(equipeDiaCheck.length===0){alert("Selecione pelo menos 1 ajudante!");return;}salvarEquipePadrao(equipeDiaCheck);}} style={{width:"100%",padding:11,borderRadius:12,background:"#fbbf24",color:"#78350f",fontWeight:800,fontSize:13,border:"none",cursor:"pointer",marginTop:8}}>⭐ Salvar como Equipe Padrão</button>
+                {equipeSalvaMsg&&<div style={{marginTop:10,padding:"12px 14px",borderRadius:10,background:equipeSalvaMsg.includes("✅")?"#f0fdf4":"#fef2f2",border:"1.5px solid "+(equipeSalvaMsg.includes("✅")?"#bbf7d0":"#fecaca"),textAlign:"center",fontSize:13,fontWeight:700,color:equipeSalvaMsg.includes("✅")?"#065f46":"#dc2626",animation:"fadeIn 0.3s ease"}}>{equipeSalvaMsg}</div>}
               </Card>
             </div>}
             {/* SUB: FINANCEIRO */}
@@ -5697,10 +6004,20 @@ return(
           var _mesLabel=_nomesMes[_mesD.getMonth()]+" "+_mesD.getFullYear();
           var _mesAnterior=function(){var d=new Date(_mesFin+"-15");d.setMonth(d.getMonth()-1);setEquipeFinMes(d.toISOString().slice(0,7));};
           var _mesProximo=function(){var d=new Date(_mesFin+"-15");d.setMonth(d.getMonth()+1);setEquipeFinMes(d.toISOString().slice(0,7));};
-          var _eqMes=equipeDiaList.filter(function(e){return e.data&&e.data.slice(0,7)===_mesFin&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
-          var _mudSupDesp=(_allForDespesa||[]).filter(function(m){return !m.deleted_at&&m.data&&m.data.slice(0,7)===_mesFin;});
-          var _mudSupConc=(_allForFiltered||[]).filter(function(m){return m.data&&m.data.slice(0,7)===_mesFin;});
-          var _cdSup=(custosDiarios||[]).filter(function(cd){return cd.data&&cd.data.slice(0,7)===_mesFin;});
+          // ── Calcular semana atual (seg-dom) ──
+          var _pcS=function(n){return String(n).padStart(2,"0");};
+          var _hjS=new Date();var _dwS=_hjS.getDay();var _difS=_dwS===0?6:_dwS-1;
+          var _s0S=new Date(_hjS.getFullYear(),_hjS.getMonth(),_hjS.getDate()-_difS);
+          var _s1S=new Date(_s0S.getFullYear(),_s0S.getMonth(),_s0S.getDate()+6);
+          var _siS=_s0S.getFullYear()+"-"+_pcS(_s0S.getMonth()+1)+"-"+_pcS(_s0S.getDate());
+          var _sfS=_s1S.getFullYear()+"-"+_pcS(_s1S.getMonth()+1)+"-"+_pcS(_s1S.getDate());
+          var _semLabelS=_pcS(_s0S.getDate())+"/"+_pcS(_s0S.getMonth()+1)+" a "+_pcS(_s1S.getDate())+"/"+_pcS(_s1S.getMonth()+1);
+          // ── Filtro de dados: semana ou mês ──
+          var _dataOkS=supFinPeriodo==="semana"?function(d){return d>=_siS&&d<=_sfS;}:function(d){return d&&d.slice(0,7)===_mesFin;};
+          var _eqMes=equipeDiaList.filter(function(e){return e.data&&_dataOkS(e.data)&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
+          var _mudSupDesp=(_allForDespesa||[]).filter(function(m){return !m.deleted_at&&m.data&&_dataOkS(m.data);});
+          var _mudSupConc=(_allForFiltered||[]).filter(function(m){return m.data&&_dataOkS(m.data);});
+          var _cdSup=(custosDiarios||[]).filter(function(cd){return cd.data&&_dataOkS(cd.data);});
           var _rSup=_calcCustos(_mudSupConc,_cdSup,[],RULES,_mudSupDesp,_eqMes,solicitacoesFin);
           var _ajMap=_rSup.detAjudantes;
           // Aplicar num_mud_novo para display
@@ -5749,11 +6066,20 @@ return(
               <div style={{background:"linear-gradient(135deg,#065f46,#047857)",padding:"20px 16px 24px"}}>
                 <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>FINANCEIRO</div>
                 <div style={{fontSize:20,fontWeight:900,color:"#fff"}}>👷 Ajudantes</div>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginTop:10}}>
-                  <button onClick={_mesAnterior} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.15)",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>◀</button>
-                  <div style={{fontSize:14,fontWeight:800,color:"#fff"}}>{_mesLabel}</div>
-                  <button onClick={_mesProximo} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.15)",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>▶</button>
+                {/* Semana / Mês toggle */}
+                <div style={{display:"flex",gap:6,marginTop:10}}>
+                  <button onClick={function(){setSupFinPeriodo("semana");}} style={{flex:1,padding:"8px 4px",borderRadius:8,border:"2px solid "+(supFinPeriodo==="semana"?"#fff":"rgba(255,255,255,0.2)"),background:supFinPeriodo==="semana"?"rgba(255,255,255,0.25)":"transparent",color:"#fff",fontSize:12,fontWeight:800,cursor:"pointer"}}>📅 Semana</button>
+                  <button onClick={function(){setSupFinPeriodo("mes");}} style={{flex:1,padding:"8px 4px",borderRadius:8,border:"2px solid "+(supFinPeriodo==="mes"?"#fff":"rgba(255,255,255,0.2)"),background:supFinPeriodo==="mes"?"rgba(255,255,255,0.25)":"transparent",color:"#fff",fontSize:12,fontWeight:800,cursor:"pointer"}}>📆 Mês</button>
                 </div>
+                {supFinPeriodo==="semana"?(
+                  <div style={{textAlign:"center",fontSize:12,fontWeight:800,color:"rgba(255,255,255,0.9)",marginTop:8,background:"rgba(255,255,255,0.1)",borderRadius:8,padding:"6px 0"}}>📅 Semana: {_semLabelS}</div>
+                ):(
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginTop:10}}>
+                    <button onClick={_mesAnterior} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.15)",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>◀</button>
+                    <div style={{fontSize:14,fontWeight:800,color:"#fff"}}>{_mesLabel}</div>
+                    <button onClick={_mesProximo} style={{padding:"6px 12px",borderRadius:8,border:"none",background:"rgba(255,255,255,0.15)",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>▶</button>
+                  </div>
+                )}
               </div>
               {_pendentes.length>0&&<div style={{margin:"8px 12px",background:"#fffbeb",border:"2px solid #fcd34d",borderRadius:12,padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
                 <span style={{fontSize:18}}>⏳</span>
@@ -5764,11 +6090,11 @@ return(
               </div>}
               {/* Total banner */}
               {_ajFinArr.length>0&&<div style={{margin:"8px 12px",background:"linear-gradient(135deg,#065f46,#047857)",borderRadius:12,padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div><div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>TOTAL MÊS</div><div style={{fontSize:11,color:"rgba(255,255,255,0.8)"}}>{_ajFinArr.length} ajudante(s) · {_totalGeralDias} dia(s)</div></div>
+                <div><div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>{supFinPeriodo==="semana"?"TOTAL SEMANA":"TOTAL MÊS"}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.8)"}}>{_ajFinArr.length} ajudante(s) · {_totalGeralDias} dia(s)</div></div>
                 <div style={{fontSize:20,fontWeight:900,color:"#fff"}}>{_fv2(_totalGeralValor)}</div>
               </div>}
               <div style={{padding:"12px"}}>
-                {_ajFinArr.length===0&&<div style={{textAlign:"center",padding:"30px 0",color:"#94a3b8",fontSize:12}}>Nenhum ajudante escalado neste mês.<br/>Use a aba Equipe → Escalar para registrar.</div>}
+                {_ajFinArr.length===0&&<div style={{textAlign:"center",padding:"30px 0",color:"#94a3b8",fontSize:12}}>{supFinPeriodo==="semana"?"Nenhum ajudante escalado nesta semana.":"Nenhum ajudante escalado neste mês."}<br/>Use a aba Equipe → Escalar para registrar.</div>}
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
                   {_ajFinArr.map(function(aj){
                     var ajTotal=aj.dias.reduce(function(s,d){return s+d.valor;},0);
@@ -5875,7 +6201,211 @@ return(
             </div>
           );
         })()}
-        {tab==="config"&&<div style={{paddingBottom:80}}><div style={{background:"#1e293b",padding:"20px 16px 14px"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginBottom:2}}>Sistema</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>⚙️ Configuração</div></div><div style={{display:"flex",background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}><button onClick={()=>setSubConfig("usuarios")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="usuarios"?700:500,background:"transparent",borderBottom:subConfig==="usuarios"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="usuarios"?"#1e40af":"#64748b"}}>👥 Usuários</button>{isAdmin&&<button onClick={()=>setSubConfig("regras")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="regras"?700:500,background:"transparent",borderBottom:subConfig==="regras"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="regras"?"#1e40af":"#64748b"}}>📊 Regras</button>}</div>{isAdmin&&<button onClick={()=>setSubConfig("backup")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="backup"?700:500,background:"transparent",borderBottom:subConfig==="backup"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="backup"?"#1e40af":"#64748b"}}>💾 Backup</button>}{subConfig==="usuarios"&&(isAdmin||isSupervisor)&&(<div style={{paddingBottom:80}} onMouseEnter={()=>listaUsuarios.length===0&&carregarUsuarios()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:900}}>👥 Gerenciar Usuários</div><button onClick={carregarUsuarios} style={{background:"#eff6ff",border:"1px solid #3b82f6",color:"#3b82f6",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔄 Atualizar</button></div><Card style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>USUÁRIOS ({listaUsuarios.length})</div>{listaUsuarios.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Clique em Atualizar</div>:listaUsuarios.map(u=>(<div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}><div><div style={{fontWeight:700,fontSize:13}}>{u.nome}</div><div style={{fontSize:11,color:"#94a3b8"}}>{u.email}{u.contato?" · 📞 "+u.contato:""}</div><span style={{display:"inline-block",marginTop:3,background:u.perfil==="admin"?"#dbeafe":u.perfil==="promorar"?"#dcfce7":u.perfil==="motorista"?"#ede9fe":"#fef9c3",borderRadius:12,padding:"2px 8px",fontSize:10,fontWeight:800,color:u.perfil==="admin"?"#1d4ed8":u.perfil==="promorar"?"#15803d":u.perfil==="motorista"?"#7c3aed":"#a16207"}}>{u.perfil==="admin"?"👑 Admin":u.perfil==="promorar"?"🏢 Promorar":u.perfil==="supervisor"?"👷 Supervisor":u.perfil==="motorista"?"🚚 Motorista":"🤝 Social"}</span>{u.perfil==="motorista"&&(u.tipo_veiculo||u.placa_veiculo)&&<span style={{display:"inline-block",marginTop:3,marginLeft:4,background:"#f5f3ff",border:"1px solid #c4b5fd",borderRadius:12,padding:"2px 8px",fontSize:10,fontWeight:600,color:"#6d28d9"}}>{u.tipo_veiculo==="VAN"?"🚐 Van":u.tipo_veiculo==="CAMINHAO"?"🚛 Caminhão":u.tipo_veiculo||""}{u.placa_veiculo?" · "+u.placa_veiculo:""}</span>}</div><button onClick={function(){setEditUser({id:u.id,nome:u.nome,email:u.email,senha:"",perfil:u.perfil,ativo:u.ativo,tipo_veiculo:u.tipo_veiculo||"",placa_veiculo:u.placa_veiculo||"",contato:u.contato||""});setEditMsg("");}} style={{padding:"6px 12px",borderRadius:8,border:"1.5px solid #3b82f6",background:"#eff6ff",color:"#1e40af",fontSize:11,fontWeight:700,cursor:"pointer",marginRight:6}}>✏️ Editar</button>{isAdmin&&<button onClick={()=>toggleAtivoUser(u)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid "+(u.ativo?"#ef4444":"#22c55e"),background:u.ativo?"#fef2f2":"#f0fdf4",color:u.ativo?"#ef4444":"#22c55e",fontSize:11,fontWeight:700,cursor:"pointer"}}>{u.ativo?"🚫 Desativar":"✅ Ativar"}</button>}</div>))}</Card><Card><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>+ NOVO USUÁRIO</div><Inp label="Nome" icon="👤" value={novoUser.nome} onChange={v=>setNovoUser(f=>({...f,nome:v}))}/><Inp label="Email" icon="📧" value={novoUser.email} onChange={v=>setNovoUser(f=>({...f,email:v}))}/><Inp label="Senha" icon="🔒" value={novoUser.senha} onChange={v=>setNovoUser(f=>({...f,senha:v}))}/><Inp label="Contato (telefone)" icon="📞" value={novoUser.contato} onChange={v=>setNovoUser(f=>({...f,contato:v}))}/><div style={{marginBottom:12}}><label style={{display:"block",color:"#94a3b8",fontSize:11,fontWeight:700,marginBottom:5}}>PERFIL</label><div style={{display:"flex",gap:8}}>{(isAdmin?[["admin","👑 Admin"],["promorar","🏢 Promorar"],["social","🤝 Social"],["motorista","🚚 Motorista"],["supervisor","👷 Supervisor"]]:[["motorista","🚚 Motorista"],["supervisor","👷 Supervisor"],["social","🤝 Social"]]).map(([val,lab])=>(<button key={val} onClick={()=>setNovoUser(f=>({...f,perfil:val,tipo_veiculo:val!=="motorista"?"":f.tipo_veiculo,placa_veiculo:val!=="motorista"?"":f.placa_veiculo}))} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"1.5px solid "+(novoUser.perfil===val?"#f97316":"#e2e8f0"),background:novoUser.perfil===val?"#fff7ed":"#f8fafc",color:novoUser.perfil===val?"#f97316":"#94a3b8",fontWeight:800,fontSize:11,cursor:"pointer"}}>{lab}</button>))}</div></div>{novoUser.perfil==="motorista"&&<div style={{marginBottom:12,padding:"12px 14px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12}}><div style={{fontSize:11,fontWeight:800,color:"#64748b",letterSpacing:0.5,marginBottom:10}}>🚗 DADOS DO VEÍCULO</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Tipo de Veículo *</label><select value={novoUser.tipo_veiculo} onChange={function(e){setNovoUser(function(f){return Object.assign({},f,{tipo_veiculo:e.target.value});});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid "+(novoUser.tipo_veiculo?"#7c3aed":"#e2e8f0"),borderRadius:9,fontSize:13,fontWeight:700,color:novoUser.tipo_veiculo?"#7c3aed":"#94a3b8",background:novoUser.tipo_veiculo?"#f5f3ff":"#fff",cursor:"pointer",boxSizing:"border-box"}}><option value="">Selecione...</option><option value="VAN">Van</option><option value="CAMINHAO">Caminhão</option></select></div><div><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Placa (Opcional)</label><input type="text" placeholder="Ex: ABC-1D23" value={novoUser.placa_veiculo} onChange={function(e){setNovoUser(function(f){return Object.assign({},f,{placa_veiculo:e.target.value});});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:9,fontSize:13,fontWeight:600,color:"#1e293b",textTransform:"uppercase",boxSizing:"border-box"}}/></div></div></div>}{userMsg&&<div style={{background:userMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:userMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{userMsg}</div>}<button onClick={criarUsuario} disabled={savingUser} style={{width:"100%",padding:13,borderRadius:12,background:savingUser?"#94a3b8":"#f97316",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:savingUser?"not-allowed":"pointer"}}>{savingUser?"⏳ Criando...":"➕ Criar Usuário"}</button></Card></div>)}{editUser&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setEditUser(null);}}><div style={{background:"#fff",borderRadius:16,padding:"20px 16px 24px",width:"100%",maxWidth:420}} onClick={function(e){e.stopPropagation();}}><div style={{fontSize:15,fontWeight:800,color:"#1e293b",marginBottom:14}}>✏️ Editar Usuário</div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>👤 NOME</div><input value={editUser.nome} onChange={function(e){setEditUser(function(p){return {...p,nome:e.target.value};});}} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Nome"/></div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>📧 EMAIL</div><input value={editUser.email} onChange={function(e){setEditUser(function(p){return {...p,email:e.target.value};});}} type="email" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Email"/></div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>📞 CONTATO</div><input value={editUser.contato||""} onChange={function(e){setEditUser(function(p){return {...p,contato:e.target.value};});}} type="tel" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Ex: 81999990000"/></div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>🔒 NOVA SENHA <span style={{fontSize:10,color:"#94a3b8"}}>(vazio = manter)</span></div><input value={editUser.senha||""} onChange={function(e){setEditUser(function(p){return {...p,senha:e.target.value};});}} type="password" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Nova senha (opcional)"/></div><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6}}>PERFIL</div><div style={{display:"flex",gap:8}}>{[{v:"admin",l:"👑 Admin"},{v:"promorar",l:"🏢 Promorar"},{v:"social",l:"🤝 Social"},{v:"motorista",l:"🚚 Motorista"},{v:"supervisor",l:"👷 Sup."}].map(function(p){return <button key={p.v} onClick={function(){setEditUser(function(u){return {...u,perfil:p.v,tipo_veiculo:p.v!=="motorista"?"":u.tipo_veiculo,placa_veiculo:p.v!=="motorista"?"":u.placa_veiculo};});}} style={{flex:1,padding:"8px 4px",borderRadius:10,border:"2px solid "+(editUser.perfil===p.v?"#1e40af":"#e2e8f0"),background:editUser.perfil===p.v?"#eff6ff":"#f8fafc",color:editUser.perfil===p.v?"#1e40af":"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>{p.l}</button>;})}</div></div>{editUser.perfil==="motorista"&&<div style={{marginBottom:14,padding:"12px 14px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12}}><div style={{fontSize:11,fontWeight:800,color:"#64748b",letterSpacing:0.5,marginBottom:10}}>🚗 DADOS DO VEÍCULO</div><div style={{marginBottom:8}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Tipo de Veículo *</div><select value={editUser.tipo_veiculo||""} onChange={function(e){setEditUser(function(u){return {...u,tipo_veiculo:e.target.value};});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid "+(editUser.tipo_veiculo?"#7c3aed":"#e2e8f0"),borderRadius:9,fontSize:13,fontWeight:700,color:editUser.tipo_veiculo?"#7c3aed":"#94a3b8",background:editUser.tipo_veiculo?"#f5f3ff":"#fff",cursor:"pointer",boxSizing:"border-box"}}><option value="">Selecione...</option><option value="VAN">Van</option><option value="CAMINHAO">Caminhão</option></select></div><div><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Placa (Opcional)</div><input type="text" placeholder="Ex: ABC-1D23" value={editUser.placa_veiculo||""} onChange={function(e){setEditUser(function(u){return {...u,placa_veiculo:e.target.value};});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:9,fontSize:13,fontWeight:600,color:"#1e293b",textTransform:"uppercase",boxSizing:"border-box"}}/></div></div>}{editMsg&&<div style={{background:editMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:editMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{editMsg}</div>}<div style={{display:"flex",gap:8}}><button onClick={function(){setEditUser(null);setEditMsg("");}} style={{flex:1,padding:11,borderRadius:10,background:"#f1f5f9",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>Cancelar</button><button onClick={editarUsuario} disabled={savingEdit} style={{flex:2,padding:11,borderRadius:10,background:savingEdit?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:13,border:"none",cursor:savingEdit?"not-allowed":"pointer"}}>{savingEdit?"⏳ Salvando...":"✅ Salvar"}</button></div></div></div>}{subConfig==="backup"&&<div style={{padding:16,paddingBottom:16}}><div style={{fontSize:13,fontWeight:800,color:"#1e293b",marginBottom:12}}>💾 Backup Automático → Google Drive</div><div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:12,fontWeight:600,color:"#1e293b"}}>Backup Ativado</div><div style={{fontSize:10,color:"#64748b"}}>Semanal (seg) + Mensal (dia 1)</div></div><button onClick={async function(){const nv=!backupCfg.ativo;await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.backup_ativo",{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor:nv?"true":"false"})});setBackupCfg(function(p){return{...p,ativo:nv};});}} style={{padding:"6px 16px",borderRadius:20,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:backupCfg.ativo?"#16a34a":"#e2e8f0",color:backupCfg.ativo?"#fff":"#64748b"}}>{backupCfg.ativo?"✅ Ativo":"❌ Inativo"}</button></div><div style={{background:"#eff6ff",borderRadius:10,padding:"12px 14px",marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#1e40af",marginBottom:8}}>🔗 Google OAuth2</div><div style={{marginBottom:6}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Client ID</div><input type="text" value={backupCfg.clientId} onChange={function(e){setBackupCfg(function(p){return{...p,clientId:e.target.value};});}} placeholder="xxxxxx.apps.googleusercontent.com" style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #bfdbfe",fontSize:11,boxSizing:"border-box"}} /></div><div style={{marginBottom:6}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Client Secret</div><input type="password" value={backupCfg.clientSecret} onChange={function(e){setBackupCfg(function(p){return{...p,clientSecret:e.target.value};});}} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #bfdbfe",fontSize:11,boxSizing:"border-box"}} /></div><div style={{marginBottom:8}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Refresh Token</div><input type="password" value={backupCfg.refreshToken} onChange={function(e){setBackupCfg(function(p){return{...p,refreshToken:e.target.value};});}} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #bfdbfe",fontSize:11,boxSizing:"border-box"}} /></div><button onClick={async function(){const pairs=[["backup_gdrive_client_id",backupCfg.clientId],["backup_gdrive_client_secret",backupCfg.clientSecret],["backup_gdrive_refresh_token",backupCfg.refreshToken]];for(const [k,v] of pairs){await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq."+k,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor:v})});}alert("✅ Credenciais salvas!");}} style={{width:"100%",padding:"8px",background:"#1e40af",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Salvar Credenciais</button></div><div style={{background:"#f0fdf4",borderRadius:10,padding:"10px 14px",marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#16a34a",marginBottom:4}}>📅 Agendamento Automático</div><div style={{fontSize:11,color:"#475569",marginBottom:2}}>🔁 Semanal: toda segunda-feira às 06:00h</div><div style={{fontSize:11,color:"#475569",marginBottom:2}}>📆 Mensal: dia 1º de cada mês às 06:00h</div><div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>Pasta: APP Telemim → [Ano] → Semanal / Mensal</div></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}><button onClick={async function(){setBackupLoading(true);try{const res=await fetch("https://netoufukpmmfhzwirogi.supabase.co/functions/v1/backup-gdrive?tipo=semanal&force=1",{method:"POST",headers:{"Content-Type":"application/json"}});const j=await res.json();alert(j.ok?"✅ Backup semanal!\n"+j.arquivo:"❌ "+(j.erro||j.msg));}catch(e){alert("❌ "+e.message);}setBackupLoading(false);}} disabled={backupLoading} style={{padding:"10px",background:backupLoading?"#94a3b8":"#059669",color:"#fff",border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>{backupLoading?"⏳...":"🚀 Rodar Semanal"}</button><button onClick={async function(){setBackupLoading(true);try{const res=await fetch("https://netoufukpmmfhzwirogi.supabase.co/functions/v1/backup-gdrive?tipo=mensal&force=1",{method:"POST",headers:{"Content-Type":"application/json"}});const j=await res.json();alert(j.ok?"✅ Backup mensal!\n"+j.arquivo:"❌ "+(j.erro||j.msg));}catch(e){alert("❌ "+e.message);}setBackupLoading(false);}} disabled={backupLoading} style={{padding:"10px",background:backupLoading?"#94a3b8":"#1e40af",color:"#fff",border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>{backupLoading?"⏳...":"🚀 Rodar Mensal"}</button></div><div style={{fontSize:12,fontWeight:700,color:"#1e293b",marginBottom:6}}>Histórico de Backups</div>{backupHist.length===0?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:16}}>Nenhum backup realizado ainda</div>:backupHist.map(function(h){return <div key={h.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",marginBottom:8,background:h.status==="ok"?"#f0fdf4":"#fef2f2",borderRadius:8,border:"1px solid "+(h.status==="ok"?"#bbf7d0":"#fecaca")}}><div><div style={{fontSize:11,fontWeight:600,color:"#1e293b"}}>{h.tipo==="semanal"?"🔁":"📆"} {h.periodo_ref}</div><div style={{fontSize:10,color:"#64748b"}}>{h.arquivo_nome||h.erro_msg}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:9,color:"#94a3b8"}}>{h.executado_em?new Date(h.executado_em).toLocaleString("pt-BR"):""}</div>{h.gdrive_link&&<a href={h.gdrive_link} target="_blank" style={{fontSize:10,color:"#1e40af"}}>🔗 Ver</a>}</div></div>;})}</div>}{subConfig==="regras"&&<div style={{padding:"12px 12px 80px"}}><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🚛 Caminhão</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>1ª Mudança (R$)</label><input type="number" value={cfgEdit.cam1a||350} onChange={e=>setCfgEdit(p=>({...p,cam1a:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>+ Acréscimo (R$)</label><input type="number" value={cfgEdit.camAdd||130} onChange={e=>setCfgEdit(p=>({...p,camAdd:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div></div></div></div><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>👷 Ajudante</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>1º Ajudante (R$)</label><input type="number" value={cfgEdit.aj1a||80} onChange={e=>setCfgEdit(p=>({...p,aj1a:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>+ Acréscimo (R$)</label><input type="number" value={cfgEdit.ajAdd||20} onChange={e=>setCfgEdit(p=>({...p,ajAdd:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div></div></div></div><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🚐 Van</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Custo Operacional (R$)</label><input type="number" value={cfgEdit.vanCusto||400} onChange={e=>setCfgEdit(p=>({...p,vanCusto:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Valor Cobrado (R$)</label><input type="number" value={cfgEdit.van1a||1000} onChange={e=>setCfgEdit(p=>({...p,van1a:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div></div></div></div><div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🮾 Imposto e Vigência</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Imposto (%)</label><input type="number" value={Math.round((cfgEdit.imposto||0.16)*100)} onChange={e=>setCfgEdit(p=>({...p,imposto:Number(e.target.value)/100}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>📅 Data Início</label><input type="date" value={cfgEdit.dataInicioRegra||""} onChange={e=>setCfgEdit(p=>({...p,dataInicioRegra:e.target.value}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box",color:"#334155"}}/></div></div></div></div>{(()=>{const _c1=cfgEdit.cam1a||350;const _cA=cfgEdit.camAdd||130;const _a1=cfgEdit.aj1a||80;const _aA=cfgEdit.ajAdd||20;const _v1=cfgEdit.van1a||1000;const _vC=cfgEdit.vanCusto||400;return <div style={{background:"#f1f5f9",borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:12,color:"#475569"}}><div style={{fontWeight:700,marginBottom:6}}>Simulação:</div><div>🚛 1 mud: R${_c1} | 2 mud: R${_c1+_cA} | 3 mud: R${_c1+2*_cA}</div><div>👷 1 aj/1 mud: R${_a1} | 1 aj/2 mud: R${_a1+_aA}</div><div>🚐 Van cobra R${_v1} | custa R${_vC}</div></div>;})()}<button onClick={async()=>{try{const rows=[{chave:"cam_1a_mudanca",valor:String(cfgEdit.cam1a||350)},{chave:"cam_adicional",valor:String(cfgEdit.camAdd||130)},{chave:"ajudante_1a_mudanca",valor:String(cfgEdit.aj1a||80)},{chave:"ajudante_adicional",valor:String(cfgEdit.ajAdd||20)},{chave:"custo_van_dia",valor:String(cfgEdit.vanCusto||400)},{chave:"ganho_van_dia",valor:String(cfgEdit.van1a||1000)},{chave:"van_1a_mudanca",valor:String(cfgEdit.van1a||1000)},{chave:"imposto_pct",valor:String(Math.round((cfgEdit.imposto||0.16)*100))},{chave:"data_inicio_regra",valor:cfgEdit.dataInicioRegra||""}];let ok2=true;for(const row of rows){const res=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq."+row.chave,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor:row.valor})});if(!res.ok){ok2=false;}}if(ok2){alert("Regras salvas!");}else{alert("Erro ao salvar.");}}catch(e){alert("Erro: "+e.message);}}} style={{width:"100%",padding:"14px",background:"#1e40af",color:"#fff",border:"none",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer"}}>💾 Salvar Regras</button></div>}</div>}
+        {/* ══ SUB: ALMOÇO (supervisor) ══ */}
+        {tab==="equipe"&&isSupervisor&&subEquipe==="almoco"&&(function(){
+          var _p2=function(n){return String(n).padStart(2,"0");};
+          var _hj=new Date();var _hoje=_hj.getFullYear()+"-"+_p2(_hj.getMonth()+1)+"-"+_p2(_hj.getDate());
+          var _eqHoje=equipeDiaList.find(function(e){return e.data===_hoje;});
+          var _numAj=_eqHoje&&Array.isArray(_eqHoje.ajudantes)?_eqHoje.ajudantes.length:0;
+          var _minhasSol=solicitacoesAlmoco.filter(function(s){return s.supervisor_id===usuario.id;});
+          var _solHoje=_minhasSol.find(function(s){return s.data===_hoje;});
+          return <div style={{padding:16}}>
+            <Card style={{marginBottom:16}}>
+              <div style={{fontSize:14,fontWeight:800,color:"#1e293b",marginBottom:12}}>🍽️ Solicitar Almoço — {_hoje.split("-").reverse().join("/")}</div>
+              <div style={{background:"#f0fdf4",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
+                <div style={{fontSize:12,color:"#065f46"}}>👷 Ajudantes escalados hoje: <strong>{_numAj}</strong></div>
+              </div>
+              {_solHoje&&_solHoje.status==="pendente"&&<div style={{background:"#fef9c3",border:"1.5px solid #facc15",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#a16207"}}>⏳ Já existe uma solicitação pendente para hoje</div>
+              </div>}
+              {_solHoje&&_solHoje.status==="aprovado"&&<div style={{background:"#dcfce7",border:"1.5px solid #4ade80",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#15803d"}}>✅ Almoço aprovado para hoje!</div>
+              </div>}
+              <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:8}}>PEDIDOS ({_numAj} ajudantes)</div>
+              {almocoItens.map(function(it,i){return <div key={"ai"+i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
+                <span style={{fontSize:11,color:"#94a3b8",minWidth:20}}>#{i+1}</span>
+                <input placeholder="Tipo (ex: Marmita carne)" value={it.tipo} onChange={function(e){setAlmocoItens(function(prev){var n=[].concat(prev);n[i]={tipo:e.target.value,qtd:n[i].qtd};return n;});}} style={{flex:2,padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+                <input type="number" min="1" value={it.qtd} onChange={function(e){setAlmocoItens(function(prev){var n=[].concat(prev);n[i]={tipo:n[i].tipo,qtd:parseInt(e.target.value)||1};return n;});}} style={{width:50,padding:"9px 6px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12,textAlign:"center"}}/>
+              </div>;})}
+              <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:8,marginTop:14}}>EXTRAS</div>
+              {almocoExtras.map(function(it,i){return <div key={"ae"+i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
+                <span style={{fontSize:11,color:"#94a3b8",minWidth:20}}>+{i+1}</span>
+                <input placeholder="Ex: Água, Suco, Refrigerante" value={it.tipo} onChange={function(e){setAlmocoExtras(function(prev){var n=[].concat(prev);n[i]={tipo:e.target.value,qtd:n[i].qtd};return n;});}} style={{flex:2,padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+                <input type="number" min="1" value={it.qtd} onChange={function(e){setAlmocoExtras(function(prev){var n=[].concat(prev);n[i]={tipo:n[i].tipo,qtd:parseInt(e.target.value)||1};return n;});}} style={{width:50,padding:"9px 6px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12,textAlign:"center"}}/>
+              </div>;})}
+              <div style={{marginTop:12}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>📝 Observação</div>
+                <input placeholder="Ex: Sem pimenta, entregar na obra..." value={almocoObs} onChange={function(e){setAlmocoObs(e.target.value);}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12,boxSizing:"border-box"}}/>
+              </div>
+              <button onClick={enviarSolicitacaoAlmoco} style={{width:"100%",marginTop:16,padding:13,borderRadius:12,background:"#f97316",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:"pointer"}}>📤 Enviar para Aprovação</button>
+            </Card>
+            {_minhasSol.length>0&&<Card>
+              <div style={{fontSize:13,fontWeight:800,color:"#1e293b",marginBottom:10}}>📋 Histórico de Solicitações</div>
+              {_minhasSol.slice(0,10).map(function(s){
+                var _it=[];try{_it=typeof s.itens==="string"?JSON.parse(s.itens):(s.itens||[]);}catch(e2){_it=[];}
+                var _dp=(s.data||"").split("-");var _df=_dp[2]+"/"+_dp[1]+"/"+_dp[0];
+                return <div key={s.id} style={{padding:"12px 0",borderBottom:"1px solid #f1f5f9"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                    <div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>📅 {_df}</div>
+                    <span style={{background:s.status==="aprovado"?"#dcfce7":s.status==="rejeitado"?"#fef2f2":"#fef9c3",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,color:s.status==="aprovado"?"#15803d":s.status==="rejeitado"?"#dc2626":"#a16207"}}>{s.status==="aprovado"?"✅ Aprovado":s.status==="rejeitado"?"❌ Rejeitado":"⏳ Pendente"}</span>
+                  </div>
+                  <div style={{fontSize:11,color:"#475569"}}>{_it.map(function(it){return it.qtd+"x "+it.tipo;}).join(" • ")}</div>
+                  {s.observacao&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>📝 {s.observacao}</div>}
+                </div>;
+              })}
+            </Card>}
+          </div>;
+        })()}
+        {/* ══ APROVAÇÃO ALMOÇO (admin no dashboard) ══ */}
+        {tab==="equipe"&&isAdmin&&subEquipe==="almoco"&&(function(){
+          var _pendentes=solicitacoesAlmoco.filter(function(s){return s.status==="pendente";});
+          var _historico=solicitacoesAlmoco.filter(function(s){return s.status!=="pendente";});
+          return <div style={{padding:16}}>
+            <Card style={{marginBottom:16}}>
+              <div style={{fontSize:14,fontWeight:800,color:"#1e293b",marginBottom:12}}>🍽️ Solicitações de Almoço</div>
+              {_pendentes.length===0&&<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:20}}>Nenhuma solicitação pendente</div>}
+              {_pendentes.map(function(s){
+                var _it=[];try{_it=typeof s.itens==="string"?JSON.parse(s.itens):(s.itens||[]);}catch(e2){_it=[];}
+                var _dp=(s.data||"").split("-");var _df=_dp[2]+"/"+_dp[1]+"/"+_dp[0];
+                var _totalItens=_it.reduce(function(acc,it){return acc+(parseInt(it.qtd)||0);},0);
+                return <div key={s.id} style={{background:"#fffbeb",border:"1.5px solid #fcd34d",borderRadius:12,padding:"14px",marginBottom:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <div><div style={{fontSize:13,fontWeight:700,color:"#92400e"}}>👷 {s.supervisor_nome||"Supervisor"}</div><div style={{fontSize:11,color:"#a16207"}}>📅 {_df} • {_totalItens} itens</div></div>
+                    <span style={{background:"#fef3c7",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:"#a16207"}}>⏳ Pendente</span>
+                  </div>
+                  <div style={{background:"#fff",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
+                    {_it.map(function(it,i){return <div key={i} style={{fontSize:11,color:"#475569",padding:"2px 0"}}>• {it.qtd}x {it.tipo}</div>;})}
+                  </div>
+                  {s.observacao&&<div style={{fontSize:11,color:"#64748b",marginBottom:8}}>📝 {s.observacao}</div>}
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={function(){aprovarAlmoco(s.id,true);}} style={{flex:1,padding:10,borderRadius:10,background:"#16a34a",color:"#fff",fontWeight:700,fontSize:12,border:"none",cursor:"pointer"}}>✅ Aprovar</button>
+                    <button onClick={function(){aprovarAlmoco(s.id,false);}} style={{flex:1,padding:10,borderRadius:10,background:"#dc2626",color:"#fff",fontWeight:700,fontSize:12,border:"none",cursor:"pointer"}}>❌ Rejeitar</button>
+                  </div>
+                </div>;
+              })}
+            </Card>
+            {_historico.length>0&&<Card>
+              <div style={{fontSize:13,fontWeight:800,color:"#1e293b",marginBottom:10}}>📋 Histórico</div>
+              {_historico.slice(0,15).map(function(s){
+                var _it=[];try{_it=typeof s.itens==="string"?JSON.parse(s.itens):(s.itens||[]);}catch(e2){_it=[];}
+                var _dp=(s.data||"").split("-");var _df=_dp[2]+"/"+_dp[1]+"/"+_dp[0];
+                return <div key={s.id} style={{padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{fontSize:12,color:"#1e293b"}}><strong>{s.supervisor_nome}</strong> · {_df}</div>
+                    <span style={{background:s.status==="aprovado"?"#dcfce7":"#fef2f2",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,color:s.status==="aprovado"?"#15803d":"#dc2626"}}>{s.status==="aprovado"?"✅":"❌"} {s.status}</span>
+                  </div>
+                  <div style={{fontSize:10,color:"#64748b",marginTop:2}}>{_it.map(function(it){return it.qtd+"x "+it.tipo;}).join(" • ")}</div>
+                </div>;
+              })}
+            </Card>}
+          </div>;
+        })()}
+        {tab==="equipe"&&(isSupervisor||isAdmin)&&subEquipe==="social"&&(function(){
+          return <div style={{padding:16,paddingBottom:80}}>
+            <Card style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div style={{fontSize:13,fontWeight:800,color:"#1e293b"}}>👩‍⚕️ Assistentes Sociais ({assistSocialList.length})</div>
+                <button onClick={function(){setShowAddAssistSocial(!showAddAssistSocial);}} style={{padding:"7px 14px",borderRadius:10,border:"1.5px solid #7c3aed",background:"#f5f3ff",color:"#7c3aed",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Nova</button>
+              </div>
+              {showAddAssistSocial&&<div style={{background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"12px",marginBottom:14}}>
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                  <input placeholder="Nome" value={novoAssistSocial.nome} onChange={function(e){setNovoAssistSocial(function(p){return{...p,nome:e.target.value};});}} style={{flex:2,minWidth:100,padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+                  <input type="tel" placeholder="Telefone" value={novoAssistSocial.contato} onChange={function(e){setNovoAssistSocial(function(p){return{...p,contato:e.target.value};});}} style={{flex:1.5,minWidth:90,padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+                  <button onClick={criarAssistSocial} style={{padding:"9px 14px",borderRadius:8,border:"none",background:"#7c3aed",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer"}}>✓</button>
+                </div>
+              </div>}
+              {assistSocialList.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:20}}>Nenhuma assistente social cadastrada</div>:assistSocialList.map(function(as){
+                return <div key={as.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid #f1f5f9"}}>
+                  <div><div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>{as.nome}</div>{as.contato&&<div style={{fontSize:11,color:"#64748b"}}>📞 {as.contato}</div>}</div>
+                  <div style={{display:"flex",gap:6}}>
+                    {as.contato&&<a href={"https://wa.me/55"+(as.contato||"").replace(/\D/g,"")} target="_blank" rel="noopener" style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #25d366",background:"#f0fdf4",color:"#25d366",fontSize:11,fontWeight:700,textDecoration:"none",cursor:"pointer"}}>📲</a>}
+                    <button onClick={function(){setEditAssistSocial({id:as.id,nome:as.nome,contato:as.contato||""});}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #3b82f6",background:"#eff6ff",color:"#1e40af",fontSize:11,fontWeight:700,cursor:"pointer"}}>✏️</button>
+                    <button onClick={function(){if(confirm("Remover "+as.nome+"?"))desativarAssistSocial(as.id);}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #ef4444",background:"#fef2f2",color:"#ef4444",fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑️</button>
+                  </div>
+                </div>;
+              })}
+            </Card>
+            {editAssistSocial&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setEditAssistSocial(null);}}>
+              <div style={{background:"#fff",borderRadius:16,padding:"20px 16px",width:"100%",maxWidth:360}} onClick={function(e){e.stopPropagation();}}>
+                <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>✏️ Editar Assistente Social</div>
+                <div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Nome</div><input value={editAssistSocial.nome} onChange={function(e){setEditAssistSocial(function(p){return{...p,nome:e.target.value};});}} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}}/></div>
+                <div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Telefone</div><input type="tel" value={editAssistSocial.contato} onChange={function(e){setEditAssistSocial(function(p){return{...p,contato:e.target.value};});}} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}}/></div>
+                <div style={{display:"flex",gap:8}}><button onClick={function(){setEditAssistSocial(null);}} style={{flex:1,padding:11,borderRadius:10,background:"#f1f5f9",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>Cancelar</button><button onClick={editarAssistSocialFn} style={{flex:2,padding:11,borderRadius:10,background:"#7c3aed",color:"#fff",fontWeight:900,fontSize:13,border:"none",cursor:"pointer"}}>✅ Salvar</button></div>
+              </div>
+            </div>}
+          </div>;
+        })()}
+        {tab==="social"&&!isSupervisor&&!isAdmin&&(function(){
+          return <div style={{paddingBottom:80}}>
+            <div style={{background:"#1e293b",padding:"20px 16px 14px"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginBottom:2}}>Cadastro</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>👩‍⚕️ Assistentes Sociais</div></div>
+            <div style={{padding:16}}>
+            <Card style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div style={{fontSize:13,fontWeight:800,color:"#1e293b"}}>👩‍⚕️ Assistentes ({assistSocialList.length})</div>
+                <button onClick={function(){setShowAddAssistSocial(!showAddAssistSocial);}} style={{padding:"7px 14px",borderRadius:10,border:"1.5px solid #7c3aed",background:"#f5f3ff",color:"#7c3aed",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Nova</button>
+              </div>
+              {showAddAssistSocial&&<div style={{background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"12px",marginBottom:14}}>
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                  <input placeholder="Nome" value={novoAssistSocial.nome} onChange={function(e){setNovoAssistSocial(function(p){return{...p,nome:e.target.value};});}} style={{flex:2,minWidth:100,padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+                  <input type="tel" placeholder="Telefone" value={novoAssistSocial.contato} onChange={function(e){setNovoAssistSocial(function(p){return{...p,contato:e.target.value};});}} style={{flex:1.5,minWidth:90,padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+                  <button onClick={criarAssistSocial} style={{padding:"9px 14px",borderRadius:8,border:"none",background:"#7c3aed",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer"}}>✓</button>
+                </div>
+              </div>}
+              {assistSocialList.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:20}}>Nenhuma assistente social cadastrada</div>:assistSocialList.map(function(as){
+                return <div key={as.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid #f1f5f9"}}>
+                  <div><div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>{as.nome}</div>{as.contato&&<div style={{fontSize:11,color:"#64748b"}}>📞 {as.contato}</div>}</div>
+                  <div style={{display:"flex",gap:6}}>
+                    {as.contato&&<a href={"https://wa.me/55"+(as.contato||"").replace(/\D/g,"")} target="_blank" rel="noopener" style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #25d366",background:"#f0fdf4",color:"#25d366",fontSize:11,fontWeight:700,textDecoration:"none",cursor:"pointer"}}>📲</a>}
+                    <button onClick={function(){setEditAssistSocial({id:as.id,nome:as.nome,contato:as.contato||""});}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #3b82f6",background:"#eff6ff",color:"#1e40af",fontSize:11,fontWeight:700,cursor:"pointer"}}>✏️</button>
+                    <button onClick={function(){if(confirm("Remover "+as.nome+"?"))desativarAssistSocial(as.id);}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #ef4444",background:"#fef2f2",color:"#ef4444",fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑️</button>
+                  </div>
+                </div>;
+              })}
+            </Card>
+            {editAssistSocial&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setEditAssistSocial(null);}}>
+              <div style={{background:"#fff",borderRadius:16,padding:"20px 16px",width:"100%",maxWidth:360}} onClick={function(e){e.stopPropagation();}}>
+                <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>✏️ Editar Assistente Social</div>
+                <div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Nome</div><input value={editAssistSocial.nome} onChange={function(e){setEditAssistSocial(function(p){return{...p,nome:e.target.value};});}} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}}/></div>
+                <div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Telefone</div><input type="tel" value={editAssistSocial.contato} onChange={function(e){setEditAssistSocial(function(p){return{...p,contato:e.target.value};});}} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}}/></div>
+                <div style={{display:"flex",gap:8}}><button onClick={function(){setEditAssistSocial(null);}} style={{flex:1,padding:11,borderRadius:10,background:"#f1f5f9",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>Cancelar</button><button onClick={editarAssistSocialFn} style={{flex:2,padding:11,borderRadius:10,background:"#7c3aed",color:"#fff",fontWeight:900,fontSize:13,border:"none",cursor:"pointer"}}>✅ Salvar</button></div>
+              </div>
+            </div>}
+            </div>
+          </div>;
+        })()}
+        {tab==="config"&&<div style={{paddingBottom:80}}><div style={{background:"#1e293b",padding:"20px 16px 14px"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginBottom:2}}>Sistema</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>⚙️ Configuração</div></div><div style={{display:"flex",background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}><button onClick={()=>setSubConfig("usuarios")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="usuarios"?700:500,background:"transparent",borderBottom:subConfig==="usuarios"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="usuarios"?"#1e40af":"#64748b"}}>👥 Usuários</button>{isAdmin&&<button onClick={()=>setSubConfig("regras")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="regras"?700:500,background:"transparent",borderBottom:subConfig==="regras"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="regras"?"#1e40af":"#64748b"}}>📊 Regras</button>}{isAdmin&&<button onClick={function(){setSubConfig("social");loadAssistentesSocial();}} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="social"?700:500,background:"transparent",borderBottom:subConfig==="social"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="social"?"#1e40af":"#64748b"}}>👩‍⚕️ Social</button>}</div>{isAdmin&&<button onClick={()=>setSubConfig("backup")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="backup"?700:500,background:"transparent",borderBottom:subConfig==="backup"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="backup"?"#1e40af":"#64748b"}}>💾 Backup</button>}{subConfig==="social"&&isAdmin&&(<div style={{padding:16,paddingBottom:80}}>
+            <Card style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div style={{fontSize:13,fontWeight:800,color:"#1e293b"}}>👩‍⚕️ Assistentes Sociais ({assistSocialList.length})</div>
+                <button onClick={function(){setShowAddAssistSocial(!showAddAssistSocial);}} style={{padding:"7px 14px",borderRadius:10,border:"1.5px solid #7c3aed",background:"#f5f3ff",color:"#7c3aed",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Nova</button>
+              </div>
+              {showAddAssistSocial&&<div style={{background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"12px",marginBottom:14}}>
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                  <input placeholder="Nome" value={novoAssistSocial.nome} onChange={function(e){setNovoAssistSocial(function(p){return{...p,nome:e.target.value};});}} style={{flex:2,minWidth:100,padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+                  <input type="tel" placeholder="Telefone" value={novoAssistSocial.contato} onChange={function(e){setNovoAssistSocial(function(p){return{...p,contato:e.target.value};});}} style={{flex:1.5,minWidth:90,padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}/>
+                  <button onClick={criarAssistSocial} style={{padding:"9px 14px",borderRadius:8,border:"none",background:"#7c3aed",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer"}}>✓</button>
+                </div>
+              </div>}
+              {assistSocialList.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:20}}>Nenhuma assistente social cadastrada</div>:assistSocialList.map(function(as){
+                return <div key={as.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid #f1f5f9"}}>
+                  <div><div style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>{as.nome}</div>{as.contato&&<div style={{fontSize:11,color:"#64748b"}}>📞 {as.contato}</div>}</div>
+                  <div style={{display:"flex",gap:6}}>
+                    {as.contato&&<a href={"https://wa.me/55"+(as.contato||"").replace(/\D/g,"")} target="_blank" rel="noopener" style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #25d366",background:"#f0fdf4",color:"#25d366",fontSize:11,fontWeight:700,textDecoration:"none",cursor:"pointer"}}>📲</a>}
+                    <button onClick={function(){setEditAssistSocial({id:as.id,nome:as.nome,contato:as.contato||""});}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #3b82f6",background:"#eff6ff",color:"#1e40af",fontSize:11,fontWeight:700,cursor:"pointer"}}>✏️</button>
+                    <button onClick={function(){if(confirm("Remover "+as.nome+"?"))desativarAssistSocial(as.id);}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #ef4444",background:"#fef2f2",color:"#ef4444",fontSize:11,fontWeight:700,cursor:"pointer"}}>🗑️</button>
+                  </div>
+                </div>;
+              })}
+            </Card>
+            {editAssistSocial&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setEditAssistSocial(null);}}>
+              <div style={{background:"#fff",borderRadius:16,padding:"20px 16px",width:"100%",maxWidth:360}} onClick={function(e){e.stopPropagation();}}>
+                <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>✏️ Editar Assistente Social</div>
+                <div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Nome</div><input value={editAssistSocial.nome} onChange={function(e){setEditAssistSocial(function(p){return{...p,nome:e.target.value};});}} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}}/></div>
+                <div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Telefone</div><input type="tel" value={editAssistSocial.contato} onChange={function(e){setEditAssistSocial(function(p){return{...p,contato:e.target.value};});}} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}}/></div>
+                <div style={{display:"flex",gap:8}}><button onClick={function(){setEditAssistSocial(null);}} style={{flex:1,padding:11,borderRadius:10,background:"#f1f5f9",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>Cancelar</button><button onClick={editarAssistSocialFn} style={{flex:2,padding:11,borderRadius:10,background:"#7c3aed",color:"#fff",fontWeight:900,fontSize:13,border:"none",cursor:"pointer"}}>✅ Salvar</button></div>
+              </div>
+            </div>}
+          </div>)}{subConfig==="usuarios"&&(isAdmin||isSupervisor)&&(<div style={{paddingBottom:80}} onMouseEnter={()=>listaUsuarios.length===0&&carregarUsuarios()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontSize:16,fontWeight:900}}>👥 Gerenciar Usuários</div><button onClick={carregarUsuarios} style={{background:"#eff6ff",border:"1px solid #3b82f6",color:"#3b82f6",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔄 Atualizar</button></div><Card style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>USUÁRIOS ({listaUsuarios.length})</div>{listaUsuarios.length===0?<div style={{color:"#94a3b8",fontSize:12,textAlign:"center",padding:16}}>Clique em Atualizar</div>:listaUsuarios.map(u=>(<div key={u.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f1f5f9"}}><div><div style={{fontWeight:700,fontSize:13}}>{u.nome}</div><div style={{fontSize:11,color:"#94a3b8"}}>{u.email}{u.contato?" · 📞 "+u.contato:""}</div><span style={{display:"inline-block",marginTop:3,background:u.perfil==="admin"?"#dbeafe":u.perfil==="promorar"?"#dcfce7":u.perfil==="motorista"?"#ede9fe":"#fef9c3",borderRadius:12,padding:"2px 8px",fontSize:10,fontWeight:800,color:u.perfil==="admin"?"#1d4ed8":u.perfil==="promorar"?"#15803d":u.perfil==="motorista"?"#7c3aed":"#a16207"}}>{u.perfil==="admin"?"👑 Admin":u.perfil==="promorar"?"🏢 Promorar":u.perfil==="supervisor"?"👷 Supervisor":u.perfil==="coordenador"?"📋 Coordenador":u.perfil==="motorista"?"🚚 Motorista":"🤝 Social"}</span>{u.perfil==="motorista"&&(u.tipo_veiculo||u.placa_veiculo)&&<span style={{display:"inline-block",marginTop:3,marginLeft:4,background:"#f5f3ff",border:"1px solid #c4b5fd",borderRadius:12,padding:"2px 8px",fontSize:10,fontWeight:600,color:"#6d28d9"}}>{u.tipo_veiculo==="VAN"?"🚐 Van":u.tipo_veiculo==="CAMINHAO"?"🚛 Caminhão":u.tipo_veiculo||""}{u.placa_veiculo?" · "+u.placa_veiculo:""}</span>}</div><button onClick={function(){setEditUser({id:u.id,nome:u.nome,email:u.email,senha:"",perfil:u.perfil,ativo:u.ativo,tipo_veiculo:u.tipo_veiculo||"",placa_veiculo:u.placa_veiculo||"",contato:u.contato||""});setEditMsg("");}} style={{padding:"6px 12px",borderRadius:8,border:"1.5px solid #3b82f6",background:"#eff6ff",color:"#1e40af",fontSize:11,fontWeight:700,cursor:"pointer",marginRight:6}}>✏️ Editar</button>{isAdmin&&<button onClick={()=>toggleAtivoUser(u)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid "+(u.ativo?"#ef4444":"#22c55e"),background:u.ativo?"#fef2f2":"#f0fdf4",color:u.ativo?"#ef4444":"#22c55e",fontSize:11,fontWeight:700,cursor:"pointer"}}>{u.ativo?"🚫 Desativar":"✅ Ativar"}</button>}</div>))}</Card><Card><div style={{fontSize:11,fontWeight:800,color:"#94a3b8",marginBottom:12}}>+ NOVO USUÁRIO</div><Inp label="Nome" icon="👤" value={novoUser.nome} onChange={v=>setNovoUser(f=>({...f,nome:v}))}/><Inp label="Email" icon="📧" value={novoUser.email} onChange={v=>setNovoUser(f=>({...f,email:v}))}/><Inp label="Senha" icon="🔒" value={novoUser.senha} onChange={v=>setNovoUser(f=>({...f,senha:v}))}/><Inp label="Contato (telefone)" icon="📞" value={novoUser.contato} onChange={v=>setNovoUser(f=>({...f,contato:v}))}/><div style={{marginBottom:12}}><label style={{display:"block",color:"#94a3b8",fontSize:11,fontWeight:700,marginBottom:5}}>PERFIL</label><div style={{display:"flex",gap:8}}>{(isAdmin?[["admin","👑 Admin"],["promorar","🏢 Promorar"],["social","🤝 Social"],["motorista","🚚 Motorista"],["supervisor","👷 Supervisor"],["coordenador","📋 Coordenador"]]:[["motorista","🚚 Motorista"],["supervisor","👷 Supervisor"],["coordenador","📋 Coordenador"],["social","🤝 Social"]]).map(([val,lab])=>(<button key={val} onClick={()=>setNovoUser(f=>({...f,perfil:val,tipo_veiculo:val!=="motorista"?"":f.tipo_veiculo,placa_veiculo:val!=="motorista"?"":f.placa_veiculo}))} style={{flex:1,padding:"9px 4px",borderRadius:10,border:"1.5px solid "+(novoUser.perfil===val?"#f97316":"#e2e8f0"),background:novoUser.perfil===val?"#fff7ed":"#f8fafc",color:novoUser.perfil===val?"#f97316":"#94a3b8",fontWeight:800,fontSize:11,cursor:"pointer"}}>{lab}</button>))}</div></div>{novoUser.perfil==="motorista"&&<div style={{marginBottom:12,padding:"12px 14px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12}}><div style={{fontSize:11,fontWeight:800,color:"#64748b",letterSpacing:0.5,marginBottom:10}}>🚗 DADOS DO VEÍCULO</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Tipo de Veículo *</label><select value={novoUser.tipo_veiculo} onChange={function(e){setNovoUser(function(f){return Object.assign({},f,{tipo_veiculo:e.target.value});});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid "+(novoUser.tipo_veiculo?"#7c3aed":"#e2e8f0"),borderRadius:9,fontSize:13,fontWeight:700,color:novoUser.tipo_veiculo?"#7c3aed":"#94a3b8",background:novoUser.tipo_veiculo?"#f5f3ff":"#fff",cursor:"pointer",boxSizing:"border-box"}}><option value="">Selecione...</option><option value="VAN">Van</option><option value="CAMINHAO">Caminhão</option></select></div><div><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Placa (Opcional)</label><input type="text" placeholder="Ex: ABC-1D23" value={novoUser.placa_veiculo} onChange={function(e){setNovoUser(function(f){return Object.assign({},f,{placa_veiculo:e.target.value});});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:9,fontSize:13,fontWeight:600,color:"#1e293b",textTransform:"uppercase",boxSizing:"border-box"}}/></div></div></div>}{userMsg&&<div style={{background:userMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:userMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{userMsg}</div>}<button onClick={criarUsuario} disabled={savingUser} style={{width:"100%",padding:13,borderRadius:12,background:savingUser?"#94a3b8":"#f97316",color:"#fff",fontWeight:900,fontSize:14,border:"none",cursor:savingUser?"not-allowed":"pointer"}}>{savingUser?"⏳ Criando...":"➕ Criar Usuário"}</button></Card></div>)}{editUser&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setEditUser(null);}}><div style={{background:"#fff",borderRadius:16,padding:"20px 16px 24px",width:"100%",maxWidth:420}} onClick={function(e){e.stopPropagation();}}><div style={{fontSize:15,fontWeight:800,color:"#1e293b",marginBottom:14}}>✏️ Editar Usuário</div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>👤 NOME</div><input value={editUser.nome} onChange={function(e){setEditUser(function(p){return {...p,nome:e.target.value};});}} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Nome"/></div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>📧 EMAIL</div><input value={editUser.email} onChange={function(e){setEditUser(function(p){return {...p,email:e.target.value};});}} type="email" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Email"/></div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>📞 CONTATO</div><input value={editUser.contato||""} onChange={function(e){setEditUser(function(p){return {...p,contato:e.target.value};});}} type="tel" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Ex: 81999990000"/></div><div style={{marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>🔒 NOVA SENHA <span style={{fontSize:10,color:"#94a3b8"}}>(vazio = manter)</span></div><input value={editUser.senha||""} onChange={function(e){setEditUser(function(p){return {...p,senha:e.target.value};});}} type="password" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:13,boxSizing:"border-box"}} placeholder="Nova senha (opcional)"/></div><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6}}>PERFIL</div><div style={{display:"flex",gap:8}}>{[{v:"admin",l:"👑 Admin"},{v:"promorar",l:"🏢 Promorar"},{v:"social",l:"🤝 Social"},{v:"motorista",l:"🚚 Motorista"},{v:"supervisor",l:"👷 Sup."},{v:"coordenador",l:"📋 Coord."}].map(function(p){return <button key={p.v} onClick={function(){setEditUser(function(u){return {...u,perfil:p.v,tipo_veiculo:p.v!=="motorista"?"":u.tipo_veiculo,placa_veiculo:p.v!=="motorista"?"":u.placa_veiculo};});}} style={{flex:1,padding:"8px 4px",borderRadius:10,border:"2px solid "+(editUser.perfil===p.v?"#1e40af":"#e2e8f0"),background:editUser.perfil===p.v?"#eff6ff":"#f8fafc",color:editUser.perfil===p.v?"#1e40af":"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>{p.l}</button>;})}</div></div>{editUser.perfil==="motorista"&&<div style={{marginBottom:14,padding:"12px 14px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12}}><div style={{fontSize:11,fontWeight:800,color:"#64748b",letterSpacing:0.5,marginBottom:10}}>🚗 DADOS DO VEÍCULO</div><div style={{marginBottom:8}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Tipo de Veículo *</div><select value={editUser.tipo_veiculo||""} onChange={function(e){setEditUser(function(u){return {...u,tipo_veiculo:e.target.value};});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid "+(editUser.tipo_veiculo?"#7c3aed":"#e2e8f0"),borderRadius:9,fontSize:13,fontWeight:700,color:editUser.tipo_veiculo?"#7c3aed":"#94a3b8",background:editUser.tipo_veiculo?"#f5f3ff":"#fff",cursor:"pointer",boxSizing:"border-box"}}><option value="">Selecione...</option><option value="VAN">Van</option><option value="CAMINHAO">Caminhão</option></select></div><div><div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Placa (Opcional)</div><input type="text" placeholder="Ex: ABC-1D23" value={editUser.placa_veiculo||""} onChange={function(e){setEditUser(function(u){return {...u,placa_veiculo:e.target.value};});}} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:9,fontSize:13,fontWeight:600,color:"#1e293b",textTransform:"uppercase",boxSizing:"border-box"}}/></div></div>}{editMsg&&<div style={{background:editMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:12,color:editMsg.startsWith("✅")?"#15803d":"#dc2626",marginBottom:10}}>{editMsg}</div>}<div style={{display:"flex",gap:8}}><button onClick={function(){setEditUser(null);setEditMsg("");}} style={{flex:1,padding:11,borderRadius:10,background:"#f1f5f9",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>Cancelar</button><button onClick={editarUsuario} disabled={savingEdit} style={{flex:2,padding:11,borderRadius:10,background:savingEdit?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:13,border:"none",cursor:savingEdit?"not-allowed":"pointer"}}>{savingEdit?"⏳ Salvando...":"✅ Salvar"}</button></div></div></div>}{subConfig==="backup"&&<div style={{padding:16,paddingBottom:16}}><div style={{fontSize:13,fontWeight:800,color:"#1e293b",marginBottom:12}}>💾 Backup Automático → Google Drive</div><div style={{background:"#f8fafc",borderRadius:10,padding:"12px 14px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:12,fontWeight:600,color:"#1e293b"}}>Backup Ativado</div><div style={{fontSize:10,color:"#64748b"}}>Semanal (seg) + Mensal (dia 1)</div></div><button onClick={async function(){const nv=!backupCfg.ativo;await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.backup_ativo",{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor:nv?"true":"false"})});setBackupCfg(function(p){return{...p,ativo:nv};});}} style={{padding:"6px 16px",borderRadius:20,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,background:backupCfg.ativo?"#16a34a":"#e2e8f0",color:backupCfg.ativo?"#fff":"#64748b"}}>{backupCfg.ativo?"✅ Ativo":"❌ Inativo"}</button></div><div style={{background:"#eff6ff",borderRadius:10,padding:"12px 14px",marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#1e40af",marginBottom:8}}>🔗 Google OAuth2</div><div style={{marginBottom:6}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Client ID</div><input type="text" value={backupCfg.clientId} onChange={function(e){setBackupCfg(function(p){return{...p,clientId:e.target.value};});}} placeholder="xxxxxx.apps.googleusercontent.com" style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #bfdbfe",fontSize:11,boxSizing:"border-box"}} /></div><div style={{marginBottom:6}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Client Secret</div><input type="password" value={backupCfg.clientSecret} onChange={function(e){setBackupCfg(function(p){return{...p,clientSecret:e.target.value};});}} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #bfdbfe",fontSize:11,boxSizing:"border-box"}} /></div><div style={{marginBottom:8}}><div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Refresh Token</div><input type="password" value={backupCfg.refreshToken} onChange={function(e){setBackupCfg(function(p){return{...p,refreshToken:e.target.value};});}} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #bfdbfe",fontSize:11,boxSizing:"border-box"}} /></div><button onClick={async function(){const pairs=[["backup_gdrive_client_id",backupCfg.clientId],["backup_gdrive_client_secret",backupCfg.clientSecret],["backup_gdrive_refresh_token",backupCfg.refreshToken]];for(const [k,v] of pairs){await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq."+k,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor:v})});}alert("✅ Credenciais salvas!");}} style={{width:"100%",padding:"8px",background:"#1e40af",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Salvar Credenciais</button></div><div style={{background:"#f0fdf4",borderRadius:10,padding:"10px 14px",marginBottom:10}}><div style={{fontSize:11,fontWeight:700,color:"#16a34a",marginBottom:4}}>📅 Agendamento Automático</div><div style={{fontSize:11,color:"#475569",marginBottom:2}}>🔁 Semanal: toda segunda-feira às 06:00h</div><div style={{fontSize:11,color:"#475569",marginBottom:2}}>📆 Mensal: dia 1º de cada mês às 06:00h</div><div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>Pasta: APP Telemim → [Ano] → Semanal / Mensal</div></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}><button onClick={async function(){setBackupLoading(true);try{const res=await fetch("https://netoufukpmmfhzwirogi.supabase.co/functions/v1/backup-gdrive?tipo=semanal&force=1",{method:"POST",headers:{"Content-Type":"application/json"}});const j=await res.json();alert(j.ok?"✅ Backup semanal!\n"+j.arquivo:"❌ "+(j.erro||j.msg));}catch(e){alert("❌ "+e.message);}setBackupLoading(false);}} disabled={backupLoading} style={{padding:"10px",background:backupLoading?"#94a3b8":"#059669",color:"#fff",border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>{backupLoading?"⏳...":"🚀 Rodar Semanal"}</button><button onClick={async function(){setBackupLoading(true);try{const res=await fetch("https://netoufukpmmfhzwirogi.supabase.co/functions/v1/backup-gdrive?tipo=mensal&force=1",{method:"POST",headers:{"Content-Type":"application/json"}});const j=await res.json();alert(j.ok?"✅ Backup mensal!\n"+j.arquivo:"❌ "+(j.erro||j.msg));}catch(e){alert("❌ "+e.message);}setBackupLoading(false);}} disabled={backupLoading} style={{padding:"10px",background:backupLoading?"#94a3b8":"#1e40af",color:"#fff",border:"none",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer"}}>{backupLoading?"⏳...":"🚀 Rodar Mensal"}</button></div><div style={{fontSize:12,fontWeight:700,color:"#1e293b",marginBottom:6}}>Histórico de Backups</div>{backupHist.length===0?<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:16}}>Nenhum backup realizado ainda</div>:backupHist.map(function(h){return <div key={h.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",marginBottom:8,background:h.status==="ok"?"#f0fdf4":"#fef2f2",borderRadius:8,border:"1px solid "+(h.status==="ok"?"#bbf7d0":"#fecaca")}}><div><div style={{fontSize:11,fontWeight:600,color:"#1e293b"}}>{h.tipo==="semanal"?"🔁":"📆"} {h.periodo_ref}</div><div style={{fontSize:10,color:"#64748b"}}>{h.arquivo_nome||h.erro_msg}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:9,color:"#94a3b8"}}>{h.executado_em?new Date(h.executado_em).toLocaleString("pt-BR"):""}</div>{h.gdrive_link&&<a href={h.gdrive_link} target="_blank" style={{fontSize:10,color:"#1e40af"}}>🔗 Ver</a>}</div></div>;})}</div>}{subConfig==="regras"&&<div style={{padding:"12px 12px 80px"}}><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🚛 Caminhão</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>1ª Mudança (R$)</label><input type="number" value={cfgEdit.cam1a||350} onChange={e=>setCfgEdit(p=>({...p,cam1a:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>+ Acréscimo (R$)</label><input type="number" value={cfgEdit.camAdd||130} onChange={e=>setCfgEdit(p=>({...p,camAdd:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div></div></div></div><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>👷 Ajudante</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>1º Ajudante (R$)</label><input type="number" value={cfgEdit.aj1a||80} onChange={e=>setCfgEdit(p=>({...p,aj1a:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>+ Acréscimo (R$)</label><input type="number" value={cfgEdit.ajAdd||20} onChange={e=>setCfgEdit(p=>({...p,ajAdd:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div></div></div></div><div style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🚐 Van</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Custo Operacional (R$)</label><input type="number" value={cfgEdit.vanCusto||400} onChange={e=>setCfgEdit(p=>({...p,vanCusto:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Valor Cobrado (R$)</label><input type="number" value={cfgEdit.van1a||1000} onChange={e=>setCfgEdit(p=>({...p,van1a:Number(e.target.value)}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div></div></div></div><div style={{marginBottom:16}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🮾 Imposto e Vigência</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Imposto (%)</label><input type="number" value={Math.round((cfgEdit.imposto||0.16)*100)} onChange={e=>setCfgEdit(p=>({...p,imposto:Number(e.target.value)/100}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:14,boxSizing:"border-box"}}/></div><div><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>📅 Data Início</label><input type="date" value={cfgEdit.dataInicioRegra||""} onChange={e=>setCfgEdit(p=>({...p,dataInicioRegra:e.target.value}))} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box",color:"#334155"}}/></div></div></div></div>{(()=>{const _c1=cfgEdit.cam1a||350;const _cA=cfgEdit.camAdd||130;const _a1=cfgEdit.aj1a||80;const _aA=cfgEdit.ajAdd||20;const _v1=cfgEdit.van1a||1000;const _vC=cfgEdit.vanCusto||400;return <div style={{background:"#f1f5f9",borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:12,color:"#475569"}}><div style={{fontWeight:700,marginBottom:6}}>Simulação:</div><div>🚛 1 mud: R${_c1} | 2 mud: R${_c1+_cA} | 3 mud: R${_c1+2*_cA}</div><div>👷 1 aj/1 mud: R${_a1} | 1 aj/2 mud: R${_a1+_aA}</div><div>🚐 Van cobra R${_v1} | custa R${_vC}</div></div>;})()}<button onClick={async()=>{try{const rows=[{chave:"cam_1a_mudanca",valor:String(cfgEdit.cam1a||350)},{chave:"cam_adicional",valor:String(cfgEdit.camAdd||130)},{chave:"ajudante_1a_mudanca",valor:String(cfgEdit.aj1a||80)},{chave:"ajudante_adicional",valor:String(cfgEdit.ajAdd||20)},{chave:"custo_van_dia",valor:String(cfgEdit.vanCusto||400)},{chave:"ganho_van_dia",valor:String(cfgEdit.van1a||1000)},{chave:"van_1a_mudanca",valor:String(cfgEdit.van1a||1000)},{chave:"imposto_pct",valor:String(Math.round((cfgEdit.imposto||0.16)*100))},{chave:"data_inicio_regra",valor:cfgEdit.dataInicioRegra||""}];let ok2=true;for(const row of rows){const res=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq."+row.chave,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({valor:row.valor})});if(!res.ok){ok2=false;}}if(ok2){alert("Regras salvas!");}else{alert("Erro ao salvar.");}}catch(e){alert("Erro: "+e.message);}}} style={{width:"100%",padding:"14px",background:"#1e40af",color:"#fff",border:"none",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer"}}>💾 Salvar Regras</button><div style={{marginTop:20,marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>🍽️ Restaurante (Almoço)</div><div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px"}}>{(function(){var _cfgRest=(configuracoes||[]).find(function(c){return c.chave==="restaurante_contato";});var _cfgNome=(configuracoes||[]).find(function(c){return c.chave==="restaurante_nome";});return <div><div style={{marginBottom:8}}><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>Nome do Restaurante</label><input type="text" defaultValue={_cfgNome?_cfgNome.valor:""} id="_inp_rest_nome" placeholder="Ex: Restaurante Sabor Caseiro" style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box"}}/></div><div style={{marginBottom:8}}><label style={{fontSize:11,fontWeight:600,color:"#64748b",display:"block",marginBottom:4}}>WhatsApp do Restaurante</label><input type="tel" defaultValue={_cfgRest?_cfgRest.valor:""} id="_inp_rest_tel" placeholder="Ex: 81999998888" style={{width:"100%",padding:"9px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,boxSizing:"border-box"}}/></div><button onClick={async function(){var _nome=document.getElementById("_inp_rest_nome").value;var _tel=document.getElementById("_inp_rest_tel").value;await fetch(SUPA_URL+"/rest/v1/configuracoes",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify({chave:"restaurante_nome",valor:_nome})});await fetch(SUPA_URL+"/rest/v1/configuracoes",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify({chave:"restaurante_contato",valor:_tel})});alert("✅ Restaurante salvo!");}} style={{width:"100%",padding:"10px",background:"#f97316",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>💾 Salvar Restaurante</button></div>;})()}</div></div></div>}</div>}
           {isAdmin&&subConfig==="regras"&&(
             <div style={{marginTop:20,background:"#f0fdf4",borderRadius:12,padding:16,border:"1px solid #bbf7d0"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -5922,7 +6452,7 @@ return(
                   </div>;
                 })}
                 <div style={{fontSize:10,color:"#64748b",background:"#f8fafc",borderRadius:6,padding:"6px 8px",marginBottom:10}}>
-                  Variáveis: {"{cliente}"} {"{motorista}"} {"{data}"} {"{origem}"} {"{destino}"} {"{metragem}"} {"{supervisor}"}
+                  Variáveis: {"{cliente}"} {"{motorista}"} {"{data}"} {"{origem}"} {"{destino}"} {"{metragem}"} {"{supervisor}"} {"{contato}"} {"{mapa_origem}"} {"{mapa_destino}"}
                 </div>
               </div>
               <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid #d1fae5"}}>
@@ -6175,7 +6705,7 @@ return(
               {_row("Origem",v.origem,"📦")}
               {_row("Destino",v.destino,"🏠")}
               {_row("Contato",v.contato,"📞")}
-              {_row("Medição",v.medicao?v.medicao+" m³":"","📐")}
+              {!isSocial&&_row("Medição",v.medicao?v.medicao+" m³":"","📐")}
               {_row("Van",v.van?"Sim":"Não","🚐")}
               {_row("Caminhão",v.caminhao?"Sim":"Não","🚚")}
               {_row("Status",v.status,"📌")}
@@ -6348,7 +6878,7 @@ return(
       </div>{toast&&<div style={{position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",background:"#1e293b",color:"#fff",padding:"12px 20px",borderRadius:14,fontSize:12,fontWeight:700,zIndex:9999,boxShadow:"0 4px 24px rgba(0,0,0,0.3)",maxWidth:"90vw",textAlign:"center"}}>{toast.msg}</div>}</div>)}
 
       {/* ══ MODAL EDITAR AGENDAMENTO ══ */}
-      {editAg&&podeEditar&&(
+      {editAg&&(podeEditar||isSocial)&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:999,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>setEditAg(null)}>
           <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:22,width:"100%",maxWidth:640,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 -4px 30px rgba(0,0,0,0.15)"}} onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -6443,7 +6973,90 @@ return(
         </div>
       </div>
     )}
+    {/* ══ MODAL SOLICITAR PENDÊNCIA ══ */}
+    {pendModal&&(
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setPendModal(null);setPendMotivo("");}}>
+        <div style={{background:"#fff",borderRadius:16,padding:"24px 20px",width:"100%",maxWidth:380}} onClick={function(e){e.stopPropagation();}}>
+          <div style={{fontSize:16,fontWeight:900,color:"#b45309",marginBottom:14}}>⏳ {isAdmin?"Mover para Pendente":"Solicitar Pendência"}</div>
+          <div style={{fontSize:13,fontWeight:700,color:"#1e293b",marginBottom:4}}>📦 {pendModal.nome}</div>
+          <div style={{fontSize:11,color:"#64748b",marginBottom:6}}>📅 {pendModal.data?fmtDate(pendModal.data):""} · ⏰ {pendModal.horario||"?"}</div>
+          {(function(){var _ht=pendModal.historico_tentativas||[];if(_ht.length>0)return <div style={{fontSize:10,color:"#b45309",marginBottom:10,background:"#fef3c7",borderRadius:6,padding:"5px 8px"}}>📜 Esta mudança já teve <strong>{_ht.length}</strong> tentativa{_ht.length>1?"s":""} anterior{_ht.length>1?"es":""}.</div>;return null;})()}
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:4}}>Motivo da pendência:</div>
+            <textarea value={pendMotivo} onChange={function(e){setPendMotivo(e.target.value);}} rows={3} placeholder="Ex: Cliente não estava em casa, endereço incorreto..." style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:13,resize:"vertical",boxSizing:"border-box"}}/>
+          </div>
+          {!isAdmin&&<div style={{background:"#fef9c3",borderRadius:8,padding:"8px 12px",fontSize:11,color:"#92400e",marginBottom:14}}>O Admin será notificado e precisará autorizar a pendência. Os dados de monitoramento desta tentativa serão salvos no histórico.</div>}
+          {isAdmin&&<div style={{background:"#ecfdf5",borderRadius:8,padding:"8px 12px",fontSize:11,color:"#065f46",marginBottom:14}}>Como Admin, a mudança será movida diretamente para Pendente. Os dados de monitoramento desta tentativa serão salvos no histórico.</div>}
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={function(){setPendModal(null);setPendMotivo("");}} style={{flex:1,padding:11,borderRadius:10,background:"#f1f5f9",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer"}}>Voltar</button>
+            <button onClick={function(){if(!pendMotivo.trim()){alert("Informe o motivo da pendência.");return;}if(isAdmin){handleMoverPendente(pendModal.id,pendMotivo.trim());setPendModal(null);setPendMotivo("");}else{handleSolicitarPendencia(pendModal.id,pendMotivo.trim());}}} style={{flex:2,padding:11,borderRadius:10,background:"#f59e0b",color:"#fff",fontWeight:900,fontSize:13,border:"none",cursor:"pointer"}}>{isAdmin?"⏳ Mover para Pendente":"📩 Solicitar Pendência"}</button>
+          </div>
+        </div>
+      </div>
+    )}
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.55)",zIndex:9998,display:confirmDelete?"flex":"none",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setConfirmDelete(null);}}><div style={{background:"#fff",borderRadius:20,padding:"28px 24px",maxWidth:340,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.2)",textAlign:"center"}} onClick={function(e){e.stopPropagation();}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><div style={{fontWeight:800,fontSize:16,color:"#1e293b",marginBottom:8}}>Tem a certeza?</div><div style={{fontSize:13,color:"#64748b",marginBottom:20}}>Apagar <strong>{confirmDelete&&confirmDelete.nome}</strong>?</div><div style={{display:"flex",gap:10}}><button onClick={function(){setConfirmDelete(null);}} style={{flex:1,padding:"11px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancelar</button><button onClick={function(){if(confirmDelete&&confirmDelete.tipo==="mud")handleDelMud(confirmDelete.id);else if(confirmDelete)handleDelAg(confirmDelete.id);setConfirmDelete(null);}} style={{flex:1,padding:"11px 0",borderRadius:12,border:"none",background:"#ef4444",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>🗑️ Sim, Apagar</button></div></div></div>
+    {/* ── MODAL TERCEIRIZAR MUDANÇA ── */}
+    {terceirizarModal&&(
+      <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.55)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setTerceirizarModal(null);setTerceirizarSel("");}}>
+        <div style={{background:"#fff",borderRadius:20,padding:"24px 20px",maxWidth:380,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}} onClick={function(e){e.stopPropagation();}}>
+          <div style={{textAlign:"center",marginBottom:16}}>
+            <div style={{fontSize:28,marginBottom:6}}>👩‍⚕️</div>
+            <div style={{fontWeight:900,fontSize:16,color:"#1e293b"}}>Terceirizar Mudança</div>
+            <div style={{fontSize:12,color:"#64748b",marginTop:4}}>{terceirizarModal.nome} · {terceirizarModal.data?fmtDate(terceirizarModal.data):""}</div>
+          </div>
+          {(function(){var _sociais=assistSocialList;
+            return _sociais.length>0?(
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>📋 Assistente Cadastrada</div>
+                <select value={terceirizarSel} onChange={function(e){setTerceirizarSel(e.target.value);}} style={{width:"100%",padding:"11px 12px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:13,fontWeight:700,background:"#f8fafc",color:"#1e293b",cursor:"pointer",boxSizing:"border-box"}}>
+                  <option value="">Selecione...</option>
+                  {_sociais.map(function(s){return <option key={s.id} value={s.nome}>{s.nome}{s.contato?" ("+s.contato+")":""}</option>;})}
+                </select>
+                <button onClick={function(){if(!terceirizarSel){alert("Selecione uma assistente.");return;}var _su=_sociais.find(function(s){return s.nome===terceirizarSel;});salvarAssistSocial(terceirizarModal.id,terceirizarSel,_su&&_su.contato||"");}} disabled={terceirizarSaving||!terceirizarSel} style={{width:"100%",marginTop:8,padding:"11px 0",borderRadius:10,border:"none",background:terceirizarSel?"#16a34a":"#94a3b8",color:"#fff",fontWeight:800,fontSize:13,cursor:terceirizarSel?"pointer":"not-allowed"}}>
+                  {terceirizarSaving?"⏳ Salvando...":"✅ Vincular"}
+                </button>
+              </div>
+            ):(
+              <div style={{marginBottom:16,background:"#f1f5f9",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+                <div style={{fontSize:12,color:"#64748b",fontWeight:600}}>Nenhuma assistente social cadastrada.</div>
+                <div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>Cadastre na aba 👩‍⚕️ Social.</div>
+              </div>
+            );
+          })()}
+          <div style={{display:"flex",alignItems:"center",gap:10,margin:"12px 0"}}>
+            <div style={{flex:1,height:1,background:"#e2e8f0"}}></div>
+            <div style={{fontSize:11,fontWeight:700,color:"#94a3b8"}}>ou</div>
+            <div style={{flex:1,height:1,background:"#e2e8f0"}}></div>
+          </div>
+          <button onClick={function(){terceirizarWhatsApp(terceirizarModal);}} style={{width:"100%",padding:"12px 0",borderRadius:10,border:"none",background:"#25d366",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 2px 8px rgba(37,211,102,0.3)"}}>
+            📲 Enviar no WhatsApp
+          </button>
+          <div style={{display:"flex",alignItems:"center",gap:10,margin:"12px 0"}}>
+            <div style={{flex:1,height:1,background:"#e2e8f0"}}></div>
+            <div style={{fontSize:11,fontWeight:700,color:"#94a3b8"}}>ou</div>
+            <div style={{flex:1,height:1,background:"#e2e8f0"}}></div>
+          </div>
+          {!mudLinkToken?(
+            <button onClick={function(){gerarLinkMudanca(terceirizarModal.id);}} disabled={mudLinkLoading} style={{width:"100%",padding:"12px 0",borderRadius:10,border:"none",background:mudLinkLoading?"#94a3b8":"#7c3aed",color:"#fff",fontWeight:800,fontSize:13,cursor:mudLinkLoading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 2px 8px rgba(124,58,237,0.3)"}}>
+              {mudLinkLoading?"⏳ Gerando...":"🔗 Gerar Link Temporário (24h)"}
+            </button>
+          ):(
+            <div>
+              <div style={{background:"#f5f3ff",border:"1.5px solid #c4b5fd",borderRadius:10,padding:"10px 12px",marginBottom:8,fontSize:11,color:"#6d28d9",fontWeight:600,wordBreak:"break-all"}}>
+                ✅ Link gerado! Expira em 24h<br/>{location.origin+"/?mm="+mudLinkToken}
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={function(){navigator.clipboard.writeText(location.origin+"/?mm="+mudLinkToken);alert("📋 Link copiado!");}} style={{flex:1,padding:10,background:"#7c3aed",color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:12,cursor:"pointer"}}>📋 Copiar</button>
+                <button onClick={function(){var url=location.origin+"/?mm="+mudLinkToken;var _ag=terceirizarModal;window.open("https://wa.me/?text="+encodeURIComponent("🏠 *Mudança — Acesso Temporário*\n"+(_ag.nome||"")+" · "+fmtDate(_ag.data)+"\nAcesse o link (válido por 24h):\n"+url+"\n_TELEMIM_"),"_blank");}} style={{flex:1,padding:10,background:"#25d366",color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:12,cursor:"pointer"}}>📲 Zap</button>
+              </div>
+            </div>
+          )}
+          <button onClick={function(){setTerceirizarModal(null);setTerceirizarSel("");setMudLinkToken(null);}} style={{width:"100%",marginTop:10,padding:"10px 0",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+            Fechar
+          </button>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
