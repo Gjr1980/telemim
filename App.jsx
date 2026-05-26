@@ -3129,10 +3129,11 @@ export default function App(){
         var _icoR=tipo==="VAN"?"🚐":"🚚";
         var _mudsHR=(agenda||[]).filter(function(a){return a.data===_dataR&&(a.motorista_van_id===_mot.id||a.motorista_caminhao_id===_mot.id);});
         var _qtdR=_mudsHR.length||1;
-        var _resR="\n📋 *"+_qtdR+" mudança"+(_qtdR>1?"s":"")+" hoje:*\n";
+        var _dFR=_dataR.split("-");var _dataFmtR=_dFR.length===3?(_dFR[2]+"/"+_dFR[1]+"/"+_dFR[0]):_dataR;
+        var _resR="\n📋 *"+_qtdR+" mudança"+(_qtdR>1?"s":"")+":*\n";
         _resR+="\n👤 *"+(_ag.nome||"")+"*";
         if(_ag.contato)_resR+="\n📞 "+_ag.contato;
-        _resR+="\n⏰ "+(_ag.horario||"—")+(_ag.horario?"h":"")+"\n📍 "+(_ag.comunidade||"—");
+        _resR+="\n📅 "+_dataFmtR+"\n⏰ "+(_ag.horario||"—")+(_ag.horario?"h":"")+"\n📍 "+(_ag.comunidade||"—");
         var _eqR="";
         var _supR="";if(_ag.supervisor_id){var _sUR=listaUsuarios.find(function(u){return u.id===_ag.supervisor_id;});if(_sUR)_supR=_sUR.nome||"";}
         if(_supR)_eqR+="\n👷 Supervisor: "+_supR;
@@ -3144,7 +3145,7 @@ export default function App(){
         }
         if(_eqR)_resR+="\n\n👥 *Equipe:*"+_eqR;
         if(_qtdR>1)_resR+="\n\n_(+"+(_qtdR-1)+" outra"+(_qtdR>2?"s":"")+" no link)_";
-        var _msgRotaR=_icoR+" *TELEMIM — SUA ROTA HOJE*\n━━━━━━━━━━━━━━\nOlá *"+(_mot.nome||"")+"*!\n\nVocê foi designado(a) como motorista "+(tipo==="VAN"?"da *VAN*":"do *CAMINHÃO*")+"."+_resR+"\n\n🔗 *Ver detalhes completos:*\n"+_linkR+"\n━━━━━━━━━━━━━━\n_Link válido até meia-noite_";
+        var _msgRotaR=_icoR+" *TELEMIM — SUA ROTA*\n━━━━━━━━━━━━━━\nOlá *"+(_mot.nome||"")+"*!\n\nVocê foi designado(a) como motorista "+(tipo==="VAN"?"da *VAN*":"do *CAMINHÃO*")+"."+_resR+"\n\n🔗 *Ver detalhes completos:*\n"+_linkR+"\n━━━━━━━━━━━━━━\n_Link válido até meia-noite_";
         enviarWA(_mot.contato,_msgRotaR);
       }
       setSyncStatus("📲 Mensagem reenviada para "+(_mot.nome||"")+"!");
@@ -3206,12 +3207,13 @@ export default function App(){
               var _ico=tipo==="VAN"?"🚐":"🚚";
               var _mudsHoje=(agenda||[]).filter(function(a){return a.data===_dataR&&(a.motorista_van_id===mid||a.motorista_caminhao_id===mid);});
               var _qtd=_mudsHoje.length||1;
+              var _dF=_dataR.split("-");var _dataFmt=_dF.length===3?(_dF[2]+"/"+_dF[1]+"/"+_dF[0]):_dataR;
               var _resumo="";
               if(_agItem){
-                _resumo="\n📋 *"+_qtd+" mudança"+(_qtd>1?"s":"")+" hoje:*\n";
+                _resumo="\n📋 *"+_qtd+" mudança"+(_qtd>1?"s":"")+":*\n";
                 _resumo+="\n👤 *"+(_agItem.nome||"")+"*";
                 if(_agItem.contato)_resumo+="\n📞 "+_agItem.contato;
-                _resumo+="\n⏰ "+(_agItem.horario||"—")+(_agItem.horario?"h":"")+"\n📍 "+(_agItem.comunidade||"—");
+                _resumo+="\n📅 "+_dataFmt+"\n⏰ "+(_agItem.horario||"—")+(_agItem.horario?"h":"")+"\n📍 "+(_agItem.comunidade||"—");
                 var _equipe="";
                 var _supN="";if(_agItem.supervisor_id){var _sU=listaUsuarios.find(function(u){return u.id===_agItem.supervisor_id;});if(_sU)_supN=_sU.nome||"";}
                 if(_supN)_equipe+="\n👷 Supervisor: "+_supN;
@@ -3224,7 +3226,7 @@ export default function App(){
                 if(_equipe)_resumo+="\n\n👥 *Equipe:*"+_equipe;
                 if(_qtd>1)_resumo+="\n\n_(+"+(_qtd-1)+" outra"+(_qtd>2?"s":"")+" no link)_";
               }
-              var _msgRota=_ico+" *TELEMIM — SUA ROTA HOJE*\n━━━━━━━━━━━━━━\nOlá *"+(_motR.nome||"")+"*!\n\nVocê foi designado(a) como motorista "+(tipo==="VAN"?"da *VAN*":"do *CAMINHÃO*")+"."+_resumo+"\n\n🔗 *Ver detalhes completos:*\n"+_linkUrl+"\n━━━━━━━━━━━━━━\n_Link válido até meia-noite_";
+              var _msgRota=_ico+" *TELEMIM — SUA ROTA*\n━━━━━━━━━━━━━━\nOlá *"+(_motR.nome||"")+"*!\n\nVocê foi designado(a) como motorista "+(tipo==="VAN"?"da *VAN*":"do *CAMINHÃO*")+"."+_resumo+"\n\n🔗 *Ver detalhes completos:*\n"+_linkUrl+"\n━━━━━━━━━━━━━━\n_Link válido até meia-noite_";
               enviarWA(_motR.contato,_msgRota);
             }).catch(function(e){console.warn("[auto-magic-link]",e);});
           }
