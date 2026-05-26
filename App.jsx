@@ -3148,7 +3148,17 @@ export default function App(){
               var _dF=_dataR.split("-");var _dataFmt=_dF.length===3?(_dF[2]+"/"+_dF[1]+"/"+_dF[0]):_dataR;
               var _linkUrl=location.origin+"/?ml="+d.token;
               var _ico=tipo==="VAN"?"🚐":"🚚";
-              var _msgRota=_ico+" *TELEMIM — SUA ROTA*\n━━━━━━━━━━━━━━\nOlá *"+(_motR.nome||"")+"*!\n\nVocê foi designado(a) como motorista "+(tipo==="VAN"?"da *VAN*":"do *CAMINHÃO*")+" para hoje.\n\n📅 Data: *"+_dataFmt+"*\n\n🔗 *Acesse sua rota completa:*\n"+_linkUrl+"\n━━━━━━━━━━━━━━\n_Link válido até meia-noite_";
+              var _mudsHoje=(agenda||[]).filter(function(a){return a.data===_dataR&&(a.motorista_van_id===mid||a.motorista_caminhao_id===mid);});
+              var _qtd=_mudsHoje.length||1;
+              var _resumo="";
+              if(_agItem){
+                _resumo="\n📋 *"+_qtd+" mudança"+(_qtd>1?"s":"")+" hoje:*\n";
+                _resumo+="\n👤 "+(_agItem.nome||"")+"\n⏰ "+(_agItem.horario||"—")+(_agItem.horario?"h":"")+"\n📍 "+(_agItem.comunidade||"—");
+                var _supN="";if(_agItem.supervisor_id){var _sU=listaUsuarios.find(function(u){return u.id===_agItem.supervisor_id;});if(_sU)_supN=_sU.nome||"";}
+                if(_supN)_resumo+="\n👷 Supervisor: "+_supN;
+                if(_qtd>1)_resumo+="\n\n_(+"+(_qtd-1)+" outra"+(_qtd>2?"s":"")+" no link)_";
+              }
+              var _msgRota=_ico+" *TELEMIM — SUA ROTA HOJE*\n━━━━━━━━━━━━━━\nOlá *"+(_motR.nome||"")+"*!\n\nVocê foi designado(a) como motorista "+(tipo==="VAN"?"da *VAN*":"do *CAMINHÃO*")+"."+_resumo+"\n\n🔗 *Ver detalhes completos:*\n"+_linkUrl+"\n━━━━━━━━━━━━━━\n_Link válido até meia-noite_";
               enviarWA(_motR.contato,_msgRota);
             }).catch(function(e){console.warn("[auto-magic-link]",e);});
           }
