@@ -1,63 +1,128 @@
-# TELEMIM — Gestão de Mudanças
+# 🚛 PROMORAR — Sistema de Gestão de Mudanças
 
-App PWA para gestão de mudanças residenciais. React + Vite + Supabase + Cloudflare Pages.
+Sistema web para gestão operacional de mudanças do contrato Promorar.
+Desenvolvido em React + Supabase + Cloudflare Pages.
 
-## Stack
+🌐 **Produção:** https://telemim.pages.dev
 
-- **Frontend:** React 18 + Vite (SPA de ficheiro único `App.jsx`)
-- **Backend:** Supabase (PostgreSQL + Auth + Realtime + Edge Functions)
-- **Hosting:** Cloudflare Pages (deploy automático via GitHub)
-- **Produção:** https://telemim.pages.dev
+---
 
-## Estrutura
+## 📋 Sumário
+
+- [Arquitetura](#-arquitetura)
+- [Setup local](#-setup-local)
+- [Deploy](DEPLOY.md)
+- [Segurança](SECURITY.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
+- [Perfis de usuário](#-perfis-de-usuário)
+- [Edge Functions](#-edge-functions)
+
+---
+
+## 🏗️ Arquitetura
 
 ```
-telemim/
-├── App.jsx           # Aplicação completa (~2700 linhas)
-├── main.jsx          # Entry point React
-├── index.html        # HTML raiz
-├── manifest.json     # PWA manifest
-├── vite.config.js    # Config Vite
-├── package.json      # Dependências (react, supabase-js)
-├── public/
-│   ├── icons/        # Ícones PWA (192px, 512px)
-│   ├── manifest.json # PWA manifest (cópia)
-│   └── sw.js         # Service Worker
-└── backup_*/         # Backups locais (não commitados)
+┌──────────────────┐       ┌─────────────────────┐
+│  Cloudflare Pages│  ←──→ │   GitHub Actions    │
+│  (frontend SPA)  │       │   (CI/CD deploy)    │
+└──────────────────┘       └─────────────────────┘
+        │
+        ↓
+┌─────────────────────────────────────────────┐
+│  Supabase                                   │
+│  ├─ PostgreSQL (dados)                      │
+│  ├─ Auth (login + JWT)                      │
+│  ├─ Edge Functions (Deno)                   │
+│  ├─ Storage (canhotos PDF)                  │
+│  └─ Realtime (WebSocket)                    │
+└─────────────────────────────────────────────┘
+        │
+        ↓
+┌──────────────────┐
+│  Evolution API   │  (servidor compartilhado com URB)
+│  (WhatsApp)      │  → 64.181.190.173:8080
+└──────────────────┘
 ```
 
-## Perfis de usuário
+### Stack técnico
+- **Frontend:** React 18 + JSX (single file App.jsx) + Vite bundler
+- **Backend:** Supabase (PostgreSQL + Edge Functions)
+- **Hosting:** Cloudflare Pages
+- **WhatsApp:** Evolution API (instância `telemim`)
+- **Monitoramento:** Sentry com Session Replay
+- **CI/CD:** GitHub Actions
 
-| Perfil | Permissões |
-|---|---|
-| **admin** | Acesso total: mudanças, agenda, custos, contas, configurações, usuários |
-| **promorar** | Lê mudanças/agenda, aprova como promorar, edita |
-| **social** | Lê mudanças/agenda, aprova como social |
-| **motorista** | Lê mudanças/agenda, inicia mudanças |
+---
 
-## Tabelas Supabase (TELEMIM)
-
-`mudancas`, `agenda`, `custos_diarios`, `contas_pagar`, `contas_semana`, `configuracoes`, `prestadores`, `usuarios`, `push_subscriptions`, `auditoria`, `lembretes_enviados`, `email_notificacoes`, `backup_historico`
-
-Todas com RLS ativado e políticas por perfil.
-
-## Desenvolvimento local
+## 🚀 Setup local
 
 ```bash
+git clone https://github.com/Gjr1980/telemim.git
+cd telemim
 npm install
-npm run dev       # http://localhost:5173
-npm run build     # Build de produção → dist/
-npm run preview   # Preview do build
+npm run dev   # http://localhost:5173
+npm run build # build de produção
 ```
 
-## Deploy
+Credenciais em:
+- `src/config/supabase.js`
+- `index.html` (Sentry DSN)
 
-Push para `main` → Cloudflare Pages faz deploy automático.
+---
 
-- **Build command:** `npm run build`
-- **Output directory:** `dist`
+## 👥 Perfis de usuário
 
-## PWA — Instalar no celular
+| Perfil | O que faz |
+|---|---|
+| **admin** | Acesso total |
+| **promorar** | Gestão do contrato |
+| **supervisor** | Vê sua equipe |
+| **motorista** | Vê só suas mudanças |
+| **social** | Acompanha terceirizadas |
+| **coordenador** | Acompanhamento operacional |
 
-- **Android:** Chrome → ⋮ → "Adicionar à tela inicial"
-- **iPhone:** Safari → □↑ → "Adicionar à Tela de Início"
+---
+
+## 🔧 Edge Functions
+
+Em **Supabase Project `netoufukpmmfhzwirogi`** → Edge Functions.
+
+Principais:
+- `criar-usuario`, `editar-usuario`, `deletar-usuario`, `listar-usuarios`
+- `enviar-whatsapp`, `enviar-whatsapp-auto`
+- `gerar-link-mudanca`, `gerar-magic-link`
+- `consumir-magic-link`, `consumir-link-mudanca`
+- `atualizar-status-terceirizado`
+- `salvar-canhoto` (Supabase Storage)
+- `enviar-email-agendamento`
+- `lembrete-d1`, `lembrete-diario` (cron)
+- `traccar-position` (GPS)
+- `backup-diario` (cron 06:15 UTC)
+
+> ⚠️ Tem ~25 funções órfãs (fix-*, patch-*, deploy-*) — limpar futuramente.
+
+---
+
+## 💾 Backups
+
+- **Diário automático** às 03:15 BRT (06:15 UTC)
+- Snapshot de 17 tabelas → `backup_historico`
+- Retenção 30 dias
+
+---
+
+## 🔗 Recursos
+
+| | Link |
+|---|---|
+| 📦 Repositório | https://github.com/Gjr1980/telemim |
+| 🌐 Produção | https://telemim.pages.dev |
+| 🚀 Cloudflare Pages | https://dash.cloudflare.com → Pages → telemim |
+| 🗄️ Supabase | https://supabase.com/dashboard/project/netoufukpmmfhzwirogi |
+| 📊 Sentry | https://telemim.sentry.io → Projects → telemim-promorar |
+| 📱 Evolution API | http://64.181.190.173:8080 |
+| 📦 Sistema irmão | [URB](https://github.com/Gjr1980/telemim-urb) |
+
+---
+
+**Última atualização:** 2026-05-26
