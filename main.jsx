@@ -2,17 +2,71 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, info: null, showDetails: false };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error: error };
+  }
+  componentDidCatch(error, info) {
+    this.setState({ info: info });
+    console.error('[Promorar ErrorBoundary]', error, info);
+    try {
+      var stack = (error && error.stack) ? error.stack.substring(0, 1500) : '';
+      var componentStack = (info && info.componentStack) ? info.componentStack.substring(0, 1000) : '';
+      fetch('https://netoufukpmmfhzwirogi.supabase.co/rest/v1/auditoria', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ldG91ZnVrcG1tZmh6d2lyb2dpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTkwOTksImV4cCI6MjA4OTg5NTA5OX0.iapL70SiL_GV4XvmXRNcjlK_Sc-P2-esJzuLQvovdGQ',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          acao: 'frontend_error',
+          detalhes: { mensagem: String(error && error.message || error), stack: stack, componente: componentStack, url: window.location.href, ua: navigator.userAgent }
+        })
+      }).catch(function(){});
+    } catch (e) {}
+  }
+  render() {
+    if (this.state.hasError) {
+      var self = this;
+      return React.createElement('div', { style: { minHeight: '100vh', background: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: '-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif' } },
+        React.createElement('div', { style: { background: '#fff', borderRadius: 20, padding: '30px 24px', maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.15)', textAlign: 'center' } },
+          React.createElement('div', { style: { fontSize: 56, marginBottom: 12 } }, '⚠️'),
+          React.createElement('div', { style: { fontSize: 20, fontWeight: 900, color: '#1e293b', marginBottom: 8 } }, 'Algo deu errado'),
+          React.createElement('div', { style: { fontSize: 14, color: '#64748b', marginBottom: 24, lineHeight: 1.5 } }, 'Encontramos um problema inesperado. Por favor, recarregue o app para continuar.'),
+          React.createElement('button', { onClick: function() { location.reload(); }, style: { width: '100%', padding: '14px 0', background: 'linear-gradient(135deg,#7c3aed,#6d28d9)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 12px rgba(124,58,237,0.35)' } }, '🔄 Recarregar Telemim'),
+          React.createElement('button', { onClick: function() { self.setState({ showDetails: !self.state.showDetails }); }, style: { marginTop: 12, padding: '8px 16px', background: 'transparent', color: '#94a3b8', border: '1px solid #e2e8f0', borderRadius: 8, fontWeight: 600, fontSize: 11, cursor: 'pointer' } }, self.state.showDetails ? 'Ocultar detalhes técnicos' : 'Ver detalhes técnicos'),
+          self.state.showDetails && React.createElement('div', { style: { marginTop: 16, padding: 12, background: '#f8fafc', borderRadius: 8, fontFamily: 'monospace', fontSize: 10, color: '#475569', textAlign: 'left', maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', border: '1px solid #e2e8f0' } },
+            String(self.state.error),
+            self.state.info && self.state.info.componentStack ? '\n\n' + self.state.info.componentStack : ''
+          )
+        )
+      );
+    }
+    return this.props.children;
+  }
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
+  React.createElement(ErrorBoundary, null,
+    React.createElement(React.StrictMode, null,
+      React.createElement(App, null)
+    )
+  )
 )
 
 // PWA Service Worker
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
+  window.addEventListener('load', function() {
     navigator.serviceWorker.register('/sw.js')
-      .then(() => console.log('[SW] registrado'))
-      .catch(e => console.warn('[SW] erro', e));
+      .then(function(reg) {
+        console.log('[SW] registrado', reg.scope);
+        setInterval(function(){ reg.update().catch(function(){}); }, 60 * 60 * 1000);
+      })
+      .catch(function(e) { console.warn('[SW] erro', e); });
   });
 }
