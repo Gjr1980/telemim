@@ -3121,19 +3121,7 @@ export default function App(){
       setSyncStatus("✅ Motorista despachado!");
       // Push notification to motorista
       if(mid){var _agItem=agenda.find(function(a){return a.id===agId;});sendPushNotification([mid],"📋 Nova mudança atribuída!","👤 "+(_agItem?_agItem.nome:"Mudança")+" · 📅 "+(_agItem?_agItem.data:"")+" · "+tipo);
-        // WA auto: atribuida
-        if(cfgWA.whatsapp_ativo==="true"&&cfgWAauto.atribuida&&cfgWAauto.atribuida.ativo){
-          var _mot=listaUsuarios.find(function(u){return u.id===mid;});
-          var _supNome="";if((_agItem||{}).supervisor_id){var _sU=listaUsuarios.find(function(u){return u.id===_agItem.supervisor_id;});if(_sU)_supNome=_sU.nome||"";}
-          var _motVanN="";if((_agItem||{}).motorista_van_id){var _mv=listaUsuarios.find(function(u){return u.id===_agItem.motorista_van_id;});if(_mv)_motVanN=_mv.nome||"";}
-          var _motCamN="";if((_agItem||{}).motorista_caminhao_id){var _mc=listaUsuarios.find(function(u){return u.id===_agItem.motorista_caminhao_id;});if(_mc)_motCamN=_mc.nome||"";}
-          var _oriEnc=encodeURIComponent(((_agItem||{}).origem||"").replace(/\s+/g," ").trim());
-          var _dstEnc=encodeURIComponent(((_agItem||{}).destino||"").replace(/\s+/g," ").trim());
-          var _vars={cliente:(_agItem||{}).nome||"",data:(_agItem||{}).data||"",hora:(_agItem||{}).horario||"",origem:(_agItem||{}).origem||"",destino:(_agItem||{}).destino||"",motorista:(_mot&&_mot.nome)||"",metragem:(_agItem||{}).metragem||"",supervisor:_supNome,caminhao:_motCamN,van:_motVanN,contato:(_agItem||{}).contato||"",assistente:(_agItem||{}).assist_social||"",mapa_origem:_oriEnc?"https://www.google.com/maps/search/?api=1&query="+_oriEnc:"",mapa_destino:_dstEnc?"https://www.google.com/maps/search/?api=1&query="+_dstEnc:""};
-          var _nums=resolverDestinatariosWA(cfgWAauto.atribuida.dest,_agItem||{});
-          _nums.forEach(function(n){enviarWA(n,substituirVarsWA(cfgWAauto.atribuida.msg,_vars));});
-        }
-        // AUTO: Gera link de terceirização de rota + envia WA ao motorista
+        // AUTO: Gera link de rota + envia WA unica ao motorista
         try{
           var _motR=listaUsuarios.find(function(u){return u.id===mid;});
           if(_motR&&_motR.contato){
@@ -3145,7 +3133,6 @@ export default function App(){
               body:JSON.stringify({motorista_id:_motR.id,motorista_nome:_motR.nome||"",data_servico:_dataR,criado_por:_nomeUserR})
             }).then(function(r){return r.json();}).then(function(d){
               if(!d||!d.ok||!d.token)return;
-              var _dF=_dataR.split("-");var _dataFmt=_dF.length===3?(_dF[2]+"/"+_dF[1]+"/"+_dF[0]):_dataR;
               var _linkUrl=location.origin+"/?ml="+d.token;
               var _ico=tipo==="VAN"?"🚐":"🚚";
               var _mudsHoje=(agenda||[]).filter(function(a){return a.data===_dataR&&(a.motorista_van_id===mid||a.motorista_caminhao_id===mid);});
@@ -3153,9 +3140,19 @@ export default function App(){
               var _resumo="";
               if(_agItem){
                 _resumo="\n📋 *"+_qtd+" mudança"+(_qtd>1?"s":"")+" hoje:*\n";
-                _resumo+="\n👤 "+(_agItem.nome||"")+"\n⏰ "+(_agItem.horario||"—")+(_agItem.horario?"h":"")+"\n📍 "+(_agItem.comunidade||"—");
+                _resumo+="\n👤 *"+(_agItem.nome||"")+"*";
+                if(_agItem.contato)_resumo+="\n📞 "+_agItem.contato;
+                _resumo+="\n⏰ "+(_agItem.horario||"—")+(_agItem.horario?"h":"")+"\n📍 "+(_agItem.comunidade||"—");
+                var _equipe="";
                 var _supN="";if(_agItem.supervisor_id){var _sU=listaUsuarios.find(function(u){return u.id===_agItem.supervisor_id;});if(_sU)_supN=_sU.nome||"";}
-                if(_supN)_resumo+="\n👷 Supervisor: "+_supN;
+                if(_supN)_equipe+="\n👷 Supervisor: "+_supN;
+                if(tipo==="VAN"){
+                  if(_agItem.assist_social)_equipe+="\n👩‍⚕️ Assist. Social: "+_agItem.assist_social;
+                  if(_agItem.motorista_caminhao_id){var _mc=listaUsuarios.find(function(u){return u.id===_agItem.motorista_caminhao_id;});if(_mc)_equipe+="\n🚚 Caminhão: "+(_mc.nome||"");}
+                } else {
+                  if(_agItem.motorista_van_id){var _mv=listaUsuarios.find(function(u){return u.id===_agItem.motorista_van_id;});if(_mv)_equipe+="\n🚐 Van: "+(_mv.nome||"");}
+                }
+                if(_equipe)_resumo+="\n\n👥 *Equipe:*"+_equipe;
                 if(_qtd>1)_resumo+="\n\n_(+"+(_qtd-1)+" outra"+(_qtd>2?"s":"")+" no link)_";
               }
               var _msgRota=_ico+" *TELEMIM — SUA ROTA HOJE*\n━━━━━━━━━━━━━━\nOlá *"+(_motR.nome||"")+"*!\n\nVocê foi designado(a) como motorista "+(tipo==="VAN"?"da *VAN*":"do *CAMINHÃO*")+"."+_resumo+"\n\n🔗 *Ver detalhes completos:*\n"+_linkUrl+"\n━━━━━━━━━━━━━━\n_Link válido até meia-noite_";
