@@ -6764,7 +6764,29 @@ return(
                   <input type="text" value={cfgWA.evolution_instance} onChange={function(e){setCfgWA(function(p){return {...p,evolution_instance:e.target.value};});}} placeholder="telemim" style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid #d1fae5",fontSize:12,boxSizing:"border-box"}}/>
                 </div>
               </div>
+              {/* Aviso visual se algum campo crítico estiver vazio */}
+              {(function(){
+                var _faltam=[];
+                if(!(cfgWA.evolution_api_url||"").trim())_faltam.push("URL Evolution API");
+                if(!(cfgWA.evolution_api_key||"").trim())_faltam.push("Chave Evolution API");
+                if(!(cfgWA.evolution_instance||"").trim())_faltam.push("Instância Evolution");
+                if(_faltam.length===0)return null;
+                return(<div style={{marginTop:10,padding:"10px 12px",background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:10,fontSize:12,color:"#991b1b"}}>
+                  ⚠️ <b>Campos obrigatórios em branco:</b> {_faltam.join(", ")}.<br/>
+                  <span style={{fontSize:11}}>Sem essas configurações, o envio automático de WhatsApp não funciona.</span>
+                </div>);
+              })()}
               <button onClick={async function(){
+                // PROTEÇÃO: bloqueia salvar se campos críticos estão vazios
+                var _faltando=[];
+                if(!(cfgWA.evolution_api_url||"").trim())_faltando.push("URL Evolution API");
+                if(!(cfgWA.evolution_api_key||"").trim())_faltando.push("Chave Evolution API");
+                if(!(cfgWA.evolution_instance||"").trim())_faltando.push("Instância Evolution");
+                if(_faltando.length>0){
+                  if(!window.confirm("⚠️ Atenção!\n\nOs seguintes campos estão em branco:\n• "+_faltando.join("\n• ")+"\n\nSalvar mesmo assim vai DESATIVAR o envio automático de WhatsApp.\n\nDeseja continuar?")){
+                    return;
+                  }
+                }
                 setWaLoading(true);
                 try{
                   var pairs=[["admin_whatsapp",cfgWA.admin_whatsapp||""],["supervisor_whatsapp",cfgWA.supervisor_whatsapp||""],["whatsapp_ativo",cfgWA.whatsapp_ativo||"false"],["evolution_api_url",cfgWA.evolution_api_url||""],["evolution_api_key",cfgWA.evolution_api_key||""],["evolution_instance",cfgWA.evolution_instance||""],["wa_auto_config",JSON.stringify(cfgWAauto)]];
