@@ -469,25 +469,48 @@ function RotaTerceirizada({token}){
   var [erro,setErro]=useState(null);
   var [loading,setLoading]=useState(true);
   var [updating,setUpdating]=useState({});
-  useEffect(function(){
+  var [usuarios,setUsuarios]=useState([]);
+  function carregarDados(){
     fetch(SUPA_URL+"/functions/v1/consumir-magic-link?token="+encodeURIComponent(token),{headers:{"apikey":SUPA_KEY}})
       .then(function(r){return r.json();})
-      .then(function(d){if(d.ok){setDados(d);}else{setErro(d.error||"Link inválido.");}setLoading(false);})
-      .catch(function(){setErro("Erro de conexão.");setLoading(false);});
-  },[token]);
-  function atualizarStatus(item,novoStatus,campoTempo){
+      .then(function(d){if(d.ok){setDados(d);}else if(!dados){setErro(d.error||"Link inválido.");}setLoading(false);})
+      .catch(function(){if(!dados){setErro("Erro de conexão.");}setLoading(false);});
+  }
+  useEffect(function(){carregarDados();},[token]);
+  useEffect(function(){var iv=setInterval(carregarDados,30000);return function(){clearInterval(iv);};},[token]);
+  var [assistSociais,setAssistSociais]=useState([]);
+  useEffect(function(){
+    fetch(SUPA_URL+"/rest/v1/usuarios?select=id,nome,perfil,tipo_veiculo,placa_veiculo,contato&ativo=eq.true",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY}})
+      .then(function(r){return r.json();}).then(function(d){if(Array.isArray(d))setUsuarios(d);}).catch(function(){});
+    fetch(SUPA_URL+"/rest/v1/assistentes_social?select=id,nome,contato&ativo=eq.true",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY}})
+      .then(function(r){return r.json();}).then(function(d){if(Array.isArray(d))setAssistSociais(d);}).catch(function(){});
+  },[]);
+  function atualizarStatus(item,campos){
     if(updating[item.id]) return;
     setUpdating(function(p){var n={...p};n[item.id]=true;return n;});
     var tabela=item._tabela||"agenda";
-    fetch(SUPA_URL+"/functions/v1/atualizar-status-terceirizado",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({token:token,item_id:item.id,tabela:tabela,novo_status:novoStatus,campo_tempo:campoTempo||null})})
+    // Detectar formato antigo (novo_status + campo_tempo) ou novo (campos)
+    var body;
+    if(typeof campos==="string"){
+      // formato antigo: atualizarStatus(item, novoStatus, campoTempo)
+      body={token:token,item_id:item.id,tabela:tabela,novo_status:campos,campo_tempo:arguments[2]||null};
+    }else{
+      body={token:token,item_id:item.id,tabela:tabela,campos:campos};
+    }
+    fetch(SUPA_URL+"/functions/v1/atualizar-status-terceirizado",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify(body)})
       .then(function(r){return r.json();})
       .then(function(d){
-        if(d.ok){setDados(function(prev){if(!prev)return prev;var nRotas=prev.rotas.map(function(r){if(r.id===item.id){var u={...r,status:novoStatus};if(campoTempo)u[campoTempo]=new Date().toISOString();return u;}return r;});return {...prev,rotas:nRotas};});}
+        if(d.ok){var _agora=new Date().toISOString();setDados(function(prev){if(!prev)return prev;var nRotas=prev.rotas.map(function(r){if(r.id!==item.id)return r;var u=Object.assign({},r);if(typeof campos==="object"){Object.keys(campos).forEach(function(k){u[k]=campos[k]==="NOW"?_agora:campos[k];});}return u;});return Object.assign({},prev,{rotas:nRotas});});}
         else{alert(d.error||"Erro ao atualizar");}
         setUpdating(function(p){var n={...p};delete n[item.id];return n;});
       })
       .catch(function(){alert("Erro de conexão");setUpdating(function(p){var n={...p};delete n[item.id];return n;});});
   }
+  var [contatoPopup,setContatoPopup]=useState(null);
+  function _gN(id){if(!id)return null;var u=usuarios.find(function(x){return x.id===id||String(x.id)===String(id);});return u?u.nome:null;}
+  function _gP(id){if(!id)return null;var u=usuarios.find(function(x){return x.id===id||String(x.id)===String(id);});return u&&u.placa_veiculo?u.placa_veiculo:null;}
+  function _gC(id){if(!id)return null;var u=usuarios.find(function(x){return x.id===id||String(x.id)===String(id);});return u&&u.contato?u.contato:null;}
+  var _fmtH=function(ts){if(!ts)return null;var d=new Date(ts);if(isNaN(d.getTime()))return null;return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
   if(loading) return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#f8fafc"}}><div style={{textAlign:"center"}}><div style={{fontSize:36,marginBottom:8}}>🚛</div><div style={{fontWeight:700,fontSize:14,color:"#64748b"}}>Carregando rota...</div></div></div>);
   if(erro) return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#fef2f2",padding:20}}><div style={{textAlign:"center",maxWidth:360}}><div style={{fontSize:48,marginBottom:12}}>⚠️</div><div style={{fontWeight:800,fontSize:16,color:"#dc2626",marginBottom:8}}>Link Inválido ou Expirado</div><div style={{fontSize:13,color:"#991b1b"}}>{erro}</div></div></div>);
   var _dfmt=dados.data_servico?dados.data_servico.slice(8)+"/"+dados.data_servico.slice(5,7)+"/"+dados.data_servico.slice(0,4):"";
@@ -496,47 +519,123 @@ function RotaTerceirizada({token}){
   var _statusCor={"confirmado":"#f97316","em_deslocamento":"#2563eb","em_andamento":"#16a34a"};
   var _statusBg={"confirmado":"#fff7ed","em_deslocamento":"#eff6ff","em_andamento":"#f0fdf4"};
   var _statusBadge={"confirmado":"⏳ Aguardando","em_deslocamento":"🚗 Em Deslocamento","em_andamento":"🔧 Em Andamento","realizada":"✅ Finalizada"};
+  var _firstR=dados.rotas&&dados.rotas.length>0?dados.rotas[0]:null;
   return(
     <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
       <div style={{background:"linear-gradient(135deg,#1e293b,#1e3a8a)",padding:"20px 16px 16px",color:"#fff"}}>
-        <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600,letterSpacing:1,textTransform:"uppercase"}}>TELEMIM — Rota Terceirizada</div>
-        <div style={{fontSize:18,fontWeight:900,marginTop:4}}>🚛 {dados.motorista_nome||"Motorista"}</div>
-        <div style={{fontSize:12,color:"rgba(255,255,255,0.8)",marginTop:2}}>📅 {_dfmt}</div>
+        <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600,letterSpacing:1,textTransform:"uppercase"}}>TELEMIM — Mudança Terceirizada</div>
+        <div style={{fontSize:18,fontWeight:900,marginTop:4}}>🚛 {_firstR?_firstR.nome:(dados.motorista_nome||"Motorista")}</div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.8)",marginTop:2}}>📅 {_dfmt}{_firstR&&_firstR.horario?" · ⏰ "+_firstR.horario:""}</div>
+        {dados.criado_por&&<div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginTop:4}}>Atribuído por: {dados.criado_por}</div>}
       </div>
       <div style={{padding:"12px 12px 80px"}}>
         {(!dados.rotas||dados.rotas.length===0)?(
-          <div style={{textAlign:"center",padding:"30px 0",color:"#94a3b8"}}><div style={{fontSize:36,marginBottom:8}}>📭</div><div style={{fontWeight:700,fontSize:14}}>Nenhuma OS para hoje.</div></div>
+          <div style={{textAlign:"center",padding:"30px 0",color:"#94a3b8"}}><div style={{fontSize:36,marginBottom:8}}>📭</div><div style={{fontWeight:700,fontSize:14}}>Nenhuma mudança encontrada.</div></div>
         ):(
-          dados.rotas.map(function(r){
+          [...dados.rotas].sort(function(a,b){return (a.horario||"99:99").localeCompare(b.horario||"99:99");}).map(function(r){
             var st=r.status||"confirmado";
             var prox=_statusFlow[st];
             var isFinal=st==="realizada";
+            var _veiculos=[r.van&&"🚐 Van",r.caminhao&&"🚚 Caminhão"].filter(Boolean).join(" + ")||"—";
+            var _vanN=_gN(r.motorista_van_id);var _vanP=_gP(r.motorista_van_id);
+            var _camN=_gN(r.motorista_caminhao_id);var _camP=_gP(r.motorista_caminhao_id);
+            var _supN=_gN(r.supervisor_id);
+            var _temEquipe=_vanN||_camN||_supN||r.assist_social;
+            var _steps=[];
+            _steps.push({key:"deslocamento",label:"Deslocamento p/ Origem",icon:"🚐",time:r.inicio_van_em||r.van_saiu_em||r.inicio_caminhao_em||r.caminhao_saiu_em||r.inicio_em});
+            _steps.push({key:"origem",label:"Chegou na Origem",icon:"📍",time:r.chegou_origem_van_em||r.chegou_origem_cam_em});
+            _steps.push({key:"carregando",label:"Carregamento Concluído",icon:"📦",time:(r.saiu_destino_van_em||r.saiu_destino_cam_em)?(r.chegou_origem_van_em||r.chegou_origem_cam_em):null});
+            _steps.push({key:"rumo_destino",label:"Deslocamento ao Destino",icon:"🚚",time:r.saiu_destino_van_em||r.saiu_destino_cam_em});
+            _steps.push({key:"destino",label:"Chegou no Destino",icon:"🏠",time:r.chegada_van_em||r.chegada_caminhao_em});
+            _steps.push({key:"concluido",label:"Mudança Concluída",icon:"🏁",time:r.termino_em||r.termino_van_em||r.termino_caminhao_em});
+            var _activeIdx=-1;
+            for(var si=_steps.length-1;si>=0;si--){if(_steps[si].time){_activeIdx=si;break;}}
+            if(isFinal)_activeIdx=5;
             return(
-              <div key={r.id} style={{background:"#fff",borderRadius:14,border:"2px solid "+(isFinal?"#86efac":"#e2e8f0"),padding:"14px 16px",marginBottom:10,boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                  <div style={{fontWeight:800,fontSize:16,color:"#1e293b"}}>{r.nome||"Sem nome"}</div>
-                  <div style={{background:_statusBg[st]||"#f8fafc",border:"1px solid "+(_statusCor[st]||"#e2e8f0"),borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:_statusCor[st]||"#64748b",whiteSpace:"nowrap"}}>{_statusBadge[st]||st}</div>
+              <div key={r.id} style={{marginBottom:14}}>
+                {!isFinal&&<div style={{textAlign:"center",marginBottom:10}}>
+                  <div style={{display:"inline-block",padding:"6px 18px",borderRadius:20,fontWeight:800,fontSize:13,background:_statusBg[st]||"#f8fafc",color:_statusCor[st]||"#64748b",border:"2px solid "+(_statusCor[st]||"#e2e8f0")}}>{_statusBadge[st]||st}</div>
+                </div>}
+                <div style={{background:isFinal?"#f0fdf4":"#fff",borderRadius:14,border:"2px solid "+(isFinal?"#86efac":"#e2e8f0"),padding:"16px",marginBottom:10,boxShadow:isFinal?"0 4px 16px rgba(22,163,74,0.15)":"0 2px 8px rgba(0,0,0,0.06)"}}>
+                  {isFinal&&<div style={{background:"linear-gradient(135deg,#16a34a,#15803d)",borderRadius:10,padding:"12px 14px",textAlign:"center",marginBottom:14,boxShadow:"0 2px 8px rgba(22,163,74,0.4)"}}>
+                    <div style={{fontSize:18,fontWeight:900,color:"#fff",letterSpacing:2}}>✅ FINALIZADA</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.85)",marginTop:3,fontWeight:600}}>Mudança concluída com sucesso</div>
+                  </div>}
+                  <div style={{fontSize:11,fontWeight:700,color:isFinal?"#15803d":"#64748b",marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>📋 Detalhes da Mudança</div>
+                  <div style={{fontWeight:800,fontSize:18,color:"#1e293b",marginBottom:12}}>{r.nome||"Sem nome"}</div>
+                  <div style={{display:"grid",gap:10}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📅</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>DATA</div><div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{_dfmt}{r.horario?" às "+r.horario:""}</div></div></div>
+                    {r.comunidade&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>🏘️</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>HABITACIONAL</div><div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{r.comunidade}</div></div></div>}
+                    {r.selo&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>🏷️</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>SELO</div><div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{r.selo}</div></div></div>}
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📦</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>ORIGEM</div><div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{r.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(r.origem)} target="_blank" rel="noopener" style={{color:"#2563eb",textDecoration:"none"}}>{r.origem} 🗺️</a>:"—"}</div></div></div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>🏠</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>DESTINO</div><div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{r.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(r.destino)} target="_blank" rel="noopener" style={{color:"#2563eb",textDecoration:"none"}}>{r.destino} 🗺️</a>:"—"}</div></div></div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>🚗</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>VEÍCULOS</div><div style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{_veiculos}</div></div></div>
+                    {r.contato&&<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📱</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>CONTATO BENEFICIÁRIO</div><div style={{fontSize:14,fontWeight:700,color:"#2563eb"}}><a href={"tel:"+r.contato} style={{color:"#2563eb",textDecoration:"none"}}>{r.contato}</a></div></div></div>}
+                    {(r.observacao||r.observacoes)&&<div style={{display:"flex",alignItems:"flex-start",gap:8}}><span style={{fontSize:16}}>📝</span><div><div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>OBSERVAÇÕES</div><div style={{fontSize:13,color:"#475569",fontStyle:"italic"}}>{r.observacao||r.observacoes}</div></div></div>}
+                  </div>
                 </div>
-                {r.horario&&<div style={{fontSize:12,color:"#475569",marginBottom:6}}>⏰ {r.horario}h</div>}
-                {r.contato&&<div style={{fontSize:11,color:"#64748b",marginBottom:6}}>📱 <a href={"tel:"+r.contato} style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{r.contato}</a></div>}
-                <div style={{fontSize:12,marginTop:8}}>📦 {r.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(r.origem)} target="_blank" rel="noopener" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{r.origem} 🗺️</a>:<span style={{color:"#94a3b8"}}>Origem não informada</span>}</div>
-                <div style={{fontSize:12,marginTop:16}}>🏘️ {r.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(r.destino)} target="_blank" rel="noopener" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{r.destino} 🗺️</a>:<span style={{color:"#94a3b8"}}>Destino não informado</span>}</div>
-                {r.observacoes&&<div style={{fontSize:11,color:"#64748b",marginTop:8,fontStyle:"italic"}}>📝 {r.observacoes}</div>}
-                {(r.inicio_van_em||r.inicio_caminhao_em||r.inicio_em)&&<div style={{fontSize:10,color:"#16a34a",marginTop:6}}>🚗 Saiu: {new Date(r.inicio_van_em||r.inicio_caminhao_em||r.inicio_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
-                {(r.chegada_van_em||r.chegada_caminhao_em)&&<div style={{fontSize:10,color:"#2563eb",marginTop:2}}>📍 Chegou: {new Date(r.chegada_van_em||r.chegada_caminhao_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
-                {(r.termino_van_em||r.termino_caminhao_em||r.termino_em)&&<div style={{fontSize:10,color:"#16a34a",marginTop:2}}>🏁 Fim: {new Date(r.termino_van_em||r.termino_caminhao_em||r.termino_em).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>}
-                {!isFinal&&prox&&(
-                  <button onClick={function(){var ct=null;if(st==="confirmado")ct="inicio_em";if(st==="em_deslocamento")ct="chegada_em";if(st==="em_andamento")ct="termino_em";atualizarStatus({id:r.id,_tabela:"agenda"},prox,ct);}} disabled={!!updating[r.id]} style={{marginTop:12,width:"100%",padding:12,background:updating[r.id]?"#94a3b8":(_statusCor[st]||"#3b82f6"),color:"#fff",border:"none",borderRadius:10,fontWeight:800,fontSize:13,cursor:updating[r.id]?"not-allowed":"pointer",boxShadow:"0 4px 12px rgba(0,0,0,0.15)"}}>{updating[r.id]?"⏳ Atualizando...":_statusLabel[st]}</button>
-                )}
-                {isFinal&&<div style={{marginTop:10,textAlign:"center",fontWeight:700,fontSize:12,color:"#16a34a"}}>✅ Mudança finalizada!</div>}
+                {_temEquipe&&<div style={{background:"#fff",borderRadius:14,border:"2px solid #e2e8f0",padding:"16px",marginBottom:10,boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>👥 Equipe</div>
+                  <div style={{display:"grid",gap:8}}>
+                    {_vanN&&<div onClick={function(){setContatoPopup({nome:_vanN,contato:_gC(r.motorista_van_id),tipo:"🚐 Motorista Van"});}} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{background:"#eff6ff",borderRadius:8,padding:"4px 8px",fontSize:12}}>🚐</span><div><div style={{fontSize:13,fontWeight:700,color:"#2563eb",textDecoration:"underline",textDecorationStyle:"dotted"}}>{_vanN}</div>{_vanP&&<div style={{fontSize:10,color:"#94a3b8"}}>{_vanP}</div>}</div></div>}
+                    {_camN&&<div onClick={function(){setContatoPopup({nome:_camN,contato:_gC(r.motorista_caminhao_id),tipo:"🚚 Motorista Caminhão"});}} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{background:"#f5f3ff",borderRadius:8,padding:"4px 8px",fontSize:12}}>🚚</span><div><div style={{fontSize:13,fontWeight:700,color:"#7c3aed",textDecoration:"underline",textDecorationStyle:"dotted"}}>{_camN}</div>{_camP&&<div style={{fontSize:10,color:"#94a3b8"}}>{_camP}</div>}</div></div>}
+                    {_supN&&<div onClick={function(){setContatoPopup({nome:_supN,contato:_gC(r.supervisor_id),tipo:"👷 Supervisor"});}} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{background:"#fef3c7",borderRadius:8,padding:"4px 8px",fontSize:12}}>👷</span><div><div style={{fontSize:13,fontWeight:700,color:"#92400e",textDecoration:"underline",textDecorationStyle:"dotted"}}>{_supN}</div></div></div>}
+                    {r.assist_social&&<div onClick={function(){var _as=assistSociais.find(function(s){return s.nome===r.assist_social;});setContatoPopup({nome:r.assist_social,contato:_as&&_as.contato||null,tipo:"👩‍⚕️ Assistente Social"});}} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><span style={{background:"#fdf4ff",borderRadius:8,padding:"4px 8px",fontSize:12}}>👩‍⚕️</span><div><div style={{fontSize:13,fontWeight:700,color:"#7c3aed",textDecoration:"underline",textDecorationStyle:"dotted"}}>{r.assist_social}</div></div></div>}
+                  </div>
+                </div>}
+                {_activeIdx>=0&&<div style={{background:"#fff",borderRadius:14,border:"2px solid #e2e8f0",padding:"16px 10px",marginBottom:10,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",overflowX:"auto"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>📡 Progresso</div>
+                  <div style={{display:"flex",alignItems:"flex-start",gap:0,minWidth:420}}>
+                    {_steps.map(function(step,idx){
+                      var isDone=idx<_activeIdx;var isActive=idx===_activeIdx;var _h=_fmtH(step.time);
+                      return(
+                        <div key={step.key} style={{display:"flex",alignItems:"flex-start",flex:1}}>
+                          <div style={{display:"flex",flexDirection:"column",alignItems:"center",flex:0,minWidth:42}}>
+                            <div style={{width:32,height:32,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,background:isDone?"#16a34a":isActive?"#2563eb":"#e2e8f0",color:isDone||isActive?"#fff":"#94a3b8",fontWeight:800,boxShadow:isActive?"0 0 0 3px rgba(37,99,235,0.25)":"none",border:isActive?"2px solid #93c5fd":"2px solid "+(isDone?"#16a34a":"#e2e8f0")}}>{isDone?"✓":step.icon}</div>
+                            <div style={{fontSize:8,fontWeight:isDone||isActive?700:500,color:isDone?"#16a34a":isActive?"#2563eb":"#94a3b8",marginTop:3,textAlign:"center",whiteSpace:"nowrap"}}>{step.label}</div>
+                            {_h?<div style={{fontSize:10,fontWeight:900,color:isDone?"#15803d":isActive?"#1d4ed8":"#64748b",marginTop:1}}>{_h}</div>:<div style={{fontSize:8,color:"#cbd5e1",marginTop:1}}>—</div>}
+                          </div>
+                          {idx<_steps.length-1&&<div style={{flex:1,height:3,background:isDone?"#16a34a":"#e2e8f0",borderRadius:2,margin:"0 2px",marginTop:15}}></div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>}
+                {(function(){
+                  var _isVan=dados.motorista_id&&r.motorista_van_id&&String(dados.motorista_id)===String(r.motorista_van_id);
+                  var _isCam=dados.motorista_id&&r.motorista_caminhao_id&&String(dados.motorista_id)===String(r.motorista_caminhao_id);
+                  var _proxBtn=null;
+                  if(_isVan){
+                    if(!r.inicio_van_em) _proxBtn={label:"🚗 Em Deslocamento",campos:{inicio_van_em:"NOW",van_saiu_em:"NOW"},bg:"#f97316"};
+                    else if(!r.chegou_origem_van_em) _proxBtn={label:"📍 Cheguei na Origem",campos:{chegou_origem_van_em:"NOW"},bg:"#2563eb"};
+                    else if(!r.saiu_destino_van_em) _proxBtn={label:"🚚 Rumo ao Destino",campos:{saiu_destino_van_em:"NOW"},bg:"#7c3aed"};
+                    else if(!r.chegada_van_em) _proxBtn={label:"🏠 Cheguei no Destino",campos:{chegada_van_em:"NOW"},bg:"#0891b2"};
+                    else if(!r.termino_van_em) _proxBtn={label:"✅ Finalizar Mudança",campos:{termino_van_em:"NOW"},bg:"#16a34a"};
+                  } else if(_isCam){
+                    if(!r.inicio_caminhao_em) _proxBtn={label:"🚗 Em Deslocamento",campos:{inicio_caminhao_em:"NOW",caminhao_saiu_em:"NOW"},bg:"#f97316"};
+                    else if(!r.chegou_origem_cam_em) _proxBtn={label:"📍 Cheguei na Origem",campos:{chegou_origem_cam_em:"NOW"},bg:"#2563eb"};
+                    else if(!r.saiu_destino_cam_em) _proxBtn={label:"🚚 Rumo ao Destino",campos:{saiu_destino_cam_em:"NOW"},bg:"#7c3aed"};
+                    else if(!r.chegada_caminhao_em) _proxBtn={label:"🏠 Cheguei no Destino",campos:{chegada_caminhao_em:"NOW"},bg:"#0891b2"};
+                    else if(!r.termino_caminhao_em) _proxBtn={label:"✅ Finalizar Mudança",campos:{termino_caminhao_em:"NOW"},bg:"#16a34a"};
+                  } else if(!isFinal&&prox){
+                    _proxBtn={label:_statusLabel[st]||"Avançar",campos:{status:prox},bg:_statusCor[st]||"#3b82f6"};
+                  }
+                  var _isFinalNow=(_isVan&&!!r.termino_van_em)||(_isCam&&!!r.termino_caminhao_em)||(!_isVan&&!_isCam&&isFinal);
+                  if(_isFinalNow) return(<div style={{textAlign:"center",padding:"14px",background:"#dcfce7",borderRadius:12,border:"2px solid #86efac",marginBottom:10}}><div style={{fontSize:14,fontWeight:800,color:"#15803d"}}>✅ Mudança Finalizada!</div></div>);
+                  if(!_proxBtn) return null;
+                  return(<button onClick={function(){atualizarStatus({id:r.id,_tabela:"agenda"},_proxBtn.campos);}} disabled={!!updating[r.id]} style={{width:"100%",padding:14,background:updating[r.id]?"#94a3b8":_proxBtn.bg,color:"#fff",border:"none",borderRadius:12,fontWeight:800,fontSize:14,cursor:updating[r.id]?"not-allowed":"pointer",boxShadow:"0 4px 12px rgba(0,0,0,0.15)",marginBottom:10}}>{updating[r.id]?"⏳ Atualizando...":_proxBtn.label}</button>);
+                })()}
+                {r.contato&&<a href={"https://wa.me/55"+(r.contato||"").replace(/\D/g,"")} target="_blank" rel="noopener" style={{display:"block",textAlign:"center",padding:14,background:"#25d366",color:"#fff",borderRadius:12,fontWeight:800,fontSize:14,textDecoration:"none",boxShadow:"0 4px 12px rgba(37,211,102,0.3)",marginBottom:10}}>📱 WhatsApp do Beneficiário</a>}
               </div>
             );
           })
         )}
-        <div style={{marginTop:16,textAlign:"center",padding:"10px",background:"#fffbeb",borderRadius:10,border:"1px solid #fcd34d"}}>
+        <div style={{marginTop:12,textAlign:"center",padding:"10px",background:"#fffbeb",borderRadius:10,border:"1px solid #fcd34d"}}>
           <div style={{fontSize:11,color:"#92400e",fontWeight:600}}>⚠️ Este link expira à meia-noite de {_dfmt}.</div>
         </div>
+        <div style={{textAlign:"center",fontSize:10,color:"#94a3b8",marginTop:8}}>🔄 Atualiza automaticamente a cada 30s</div>
       </div>
+      {contatoPopup&&<div onClick={function(){setContatoPopup(null);}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div onClick={function(e){e.stopPropagation();}} style={{background:"#fff",borderRadius:20,padding:"24px 20px",width:"100%",maxWidth:340,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}><div style={{textAlign:"center",marginBottom:16}}><div style={{fontSize:12,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>{contatoPopup.tipo}</div><div style={{fontSize:20,fontWeight:900,color:"#1e293b"}}>{contatoPopup.nome}</div></div>{contatoPopup.contato?<div><div style={{background:"#f0fdf4",border:"1.5px solid #bbf7d0",borderRadius:12,padding:"12px 16px",textAlign:"center",marginBottom:16}}><div style={{fontSize:11,fontWeight:600,color:"#64748b",marginBottom:4}}>📞 Telefone</div><div style={{fontSize:18,fontWeight:800,color:"#15803d"}}>{contatoPopup.contato}</div></div><div style={{display:"flex",gap:10}}><a href={"tel:"+contatoPopup.contato} style={{flex:1,display:"block",textAlign:"center",padding:"12px 0",background:"#2563eb",color:"#fff",borderRadius:12,fontWeight:800,fontSize:14,textDecoration:"none",boxShadow:"0 4px 12px rgba(37,99,235,0.3)"}}>📞 Ligar</a><a href={"https://wa.me/55"+(contatoPopup.contato||"").replace(/\D/g,"")} target="_blank" style={{flex:1,display:"block",textAlign:"center",padding:"12px 0",background:"#25d366",color:"#fff",borderRadius:12,fontWeight:800,fontSize:14,textDecoration:"none",boxShadow:"0 4px 12px rgba(37,211,102,0.3)"}}>📲 WhatsApp</a></div></div>:<div style={{background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:12,padding:"12px 16px",textAlign:"center",marginBottom:16}}><div style={{fontSize:13,fontWeight:700,color:"#dc2626"}}>📵 Telefone não cadastrado</div></div>}<button onClick={function(){setContatoPopup(null);}} style={{width:"100%",marginTop:12,padding:"10px 0",background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>✕ Fechar</button></div></div>}
     </div>
   );
 }
