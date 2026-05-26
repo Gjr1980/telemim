@@ -6,7 +6,7 @@ import App from './App.jsx'
 var SENTRY_DSN = (typeof window !== 'undefined' && window.__SENTRY_DSN__) || '';
 if (SENTRY_DSN) {
   var s = document.createElement('script');
-  s.src = 'https://browser.sentry-cdn.com/7.119.0/bundle.tracing.min.js';
+  s.src = 'https://browser.sentry-cdn.com/8.0.0/bundle.replay.min.js';
   s.crossOrigin = 'anonymous';
   s.onload = function() {
     if (window.Sentry) {
@@ -15,6 +15,9 @@ if (SENTRY_DSN) {
         environment: location.hostname.includes('localhost') ? 'dev' : 'production',
         release: 'telemim@' + (window.__APP_VERSION__ || 'unknown'),
         tracesSampleRate: 0.1,
+        integrations: window.Sentry.replayIntegration ? [window.Sentry.replayIntegration()] : [],
+        replaysSessionSampleRate: 0.1,
+        replaysOnErrorSampleRate: 1.0,
         beforeSend: function(event) {
           if (event.user) { delete event.user.email; delete event.user.ip_address; }
           return event;
