@@ -3133,6 +3133,26 @@ export default function App(){
           var _nums=resolverDestinatariosWA(cfgWAauto.atribuida.dest,_agItem||{});
           _nums.forEach(function(n){enviarWA(n,substituirVarsWA(cfgWAauto.atribuida.msg,_vars));});
         }
+        // AUTO: Gera link de terceirização de rota + envia WA ao motorista
+        try{
+          var _motR=listaUsuarios.find(function(u){return u.id===mid;});
+          if(_motR&&_motR.contato){
+            var _dataR=(_agItem&&_agItem.data)||_fmtDate(new Date());
+            var _nomeUserR=usuario&&(usuario.nome||usuario.email)||"Sistema";
+            fetch(SUPA_URL+"/functions/v1/gerar-magic-link",{
+              method:"POST",
+              headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
+              body:JSON.stringify({motorista_id:_motR.id,motorista_nome:_motR.nome||"",data_servico:_dataR,criado_por:_nomeUserR})
+            }).then(function(r){return r.json();}).then(function(d){
+              if(!d||!d.ok||!d.token)return;
+              var _dF=_dataR.split("-");var _dataFmt=_dF.length===3?(_dF[2]+"/"+_dF[1]+"/"+_dF[0]):_dataR;
+              var _linkUrl=location.origin+"/?ml="+d.token;
+              var _ico=tipo==="VAN"?"🚐":"🚚";
+              var _msgRota=_ico+" *TELEMIM — SUA ROTA*\n━━━━━━━━━━━━━━\nOlá *"+(_motR.nome||"")+"*!\n\nVocê foi designado(a) como motorista "+(tipo==="VAN"?"da *VAN*":"do *CAMINHÃO*")+" para hoje.\n\n📅 Data: *"+_dataFmt+"*\n\n🔗 *Acesse sua rota completa:*\n"+_linkUrl+"\n━━━━━━━━━━━━━━\n_Link válido até meia-noite_";
+              enviarWA(_motR.contato,_msgRota);
+            }).catch(function(e){console.warn("[auto-magic-link]",e);});
+          }
+        }catch(e){console.warn("[auto-magic-link]",e);}
       }
     }catch(e){
       loadAg();
