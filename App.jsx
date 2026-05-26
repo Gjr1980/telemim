@@ -1187,7 +1187,8 @@ export default function App(){
       ws.onmessage=function(e){try{var m=JSON.parse(e.data);if(m.event==="INSERT"||m.event==="UPDATE"||m.event==="DELETE"){if(m.topic&&m.topic.includes("mudancas"))loadMud();else if(m.topic&&m.topic.includes("agenda"))loadAg();}}catch(err){}};
       ws.onerror=function(){};
     }catch(err){}
-    var pollId=setInterval(function(){if(document.visibilityState==="visible"){loadMud();loadAg();}},30000);
+    /* Polling fallback: aumentado de 30s para 5min (Realtime via WebSocket cobre o caso normal) */
+    var pollId=setInterval(function(){if(document.visibilityState==="visible"){loadMud();loadAg();}},5*60*1000);
     // GPS positions auto-refresh every 15s for monitoring
     var gpsPollId=setInterval(function(){
       if(document.visibilityState!=="visible") return;

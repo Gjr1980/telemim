@@ -2,6 +2,29 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 
+// ── Sentry (carregamento opcional via CDN) ──────────────────────────────────
+var SENTRY_DSN = (typeof window !== 'undefined' && window.__SENTRY_DSN__) || '';
+if (SENTRY_DSN) {
+  var s = document.createElement('script');
+  s.src = 'https://browser.sentry-cdn.com/7.119.0/bundle.tracing.min.js';
+  s.crossOrigin = 'anonymous';
+  s.onload = function() {
+    if (window.Sentry) {
+      window.Sentry.init({
+        dsn: SENTRY_DSN,
+        environment: location.hostname.includes('localhost') ? 'dev' : 'production',
+        release: 'telemim@' + (window.__APP_VERSION__ || 'unknown'),
+        tracesSampleRate: 0.1,
+        beforeSend: function(event) {
+          if (event.user) { delete event.user.email; delete event.user.ip_address; }
+          return event;
+        }
+      });
+    }
+  };
+  document.head.appendChild(s);
+}
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -13,6 +36,9 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, info) {
     this.setState({ info: info });
     console.error('[Promorar ErrorBoundary]', error, info);
+    if (typeof window !== 'undefined' && window.Sentry) {
+      try { window.Sentry.captureException(error, { extra: { componentStack: info && info.componentStack } }); } catch (e) {}
+    }
     try {
       var stack = (error && error.stack) ? error.stack.substring(0, 1500) : '';
       var componentStack = (info && info.componentStack) ? info.componentStack.substring(0, 1000) : '';
