@@ -697,6 +697,15 @@ export default function App(){
   const [authChecked,setAuthChecked]=useState(true);
   const [listaUsuarios,setListaUsuarios]=useState([])
   const [confirmDelete,setConfirmDelete]=useState(null);
+  const [confirmReenvio,setConfirmReenvio]=useState(null);
+  function _confirmarReenvio(opts){
+    return new Promise(function(resolve){
+      setConfirmReenvio(Object.assign({},opts,{
+        onConfirm:function(){setConfirmReenvio(null);resolve(true);},
+        onCancel:function(){setConfirmReenvio(null);resolve(false);}
+      }));
+    });
+  }
   const [reagendarModal,setReagendarModal]=useState(null);
   const [reagendarData,setReagendarData]=useState("");
   const [reagendarMotivo,setReagendarMotivo]=useState("");
@@ -3117,7 +3126,14 @@ export default function App(){
     if(!_mot.contato){setSyncStatus("⚠️ Motorista sem contato cadastrado");return;}
     var _ag=agenda.find(function(a){return a.id===agId;});
     if(!_ag){setSyncStatus("⚠️ Mudança não encontrada");return;}
-    if(!window.confirm("📲 Reenviar mensagem WhatsApp para "+(_mot.nome||"")+"?")){return;}
+    var _ok=await _confirmarReenvio({
+      icone:tipo==="VAN"?"🚐":"🚚",
+      titulo:"Reenviar rota para o motorista?",
+      destinatario:{nome:_mot.nome||"",contato:_mot.contato,tipo:tipo==="VAN"?"🚐 Motorista da Van":"🚚 Motorista do Caminhão"},
+      contexto:{cliente:_ag.nome||"",data:_ag.data||"",horario:_ag.horario||"",comunidade:_ag.comunidade||""},
+      acaoLabel:"📲 Reenviar mensagem"
+    });
+    if(!_ok)return;
     setSyncStatus("📲 Reenviando mensagem...");
     try{
       var _dataR=_ag.data||_fmtDate(new Date());
@@ -3160,7 +3176,14 @@ export default function App(){
     if(!_sup.contato){setSyncStatus("⚠️ Supervisor sem contato cadastrado");return;}
     var _ag=agenda.find(function(a){return a.id===agId;});
     if(!_ag){setSyncStatus("⚠️ Mudança não encontrada");return;}
-    if(!window.confirm("📲 Reenviar mensagem WhatsApp para "+(_sup.nome||"")+"?")){return;}
+    var _ok=await _confirmarReenvio({
+      icone:"👷",
+      titulo:"Reenviar mensagem ao supervisor?",
+      destinatario:{nome:_sup.nome||"",contato:_sup.contato,tipo:"👷 Supervisor"},
+      contexto:{cliente:_ag.nome||"",data:_ag.data||"",horario:_ag.horario||"",comunidade:_ag.comunidade||""},
+      acaoLabel:"📲 Reenviar mensagem"
+    });
+    if(!_ok)return;
     setSyncStatus("📲 Reenviando mensagem...");
     try{
       if(cfgWA.whatsapp_ativo==="true"&&cfgWAauto.atribuida&&cfgWAauto.atribuida.ativo){
@@ -6876,6 +6899,50 @@ return(
               }} disabled={waLoading} style={{width:"100%",padding:10,borderRadius:10,border:"none",background:waLoading?"#86efac":"#16a34a",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",marginTop:12}}>{waLoading?"⏳ Salvando...":"💾 Salvar Configurações WhatsApp"}</button>
             </div>
           )}
+            {/* ══ MODAL CONFIRMAR REENVIO WHATSAPP ══ */}
+      {confirmReenvio&&(
+        <div onClick={confirmReenvio.onCancel} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={function(e){e.stopPropagation();}} style={{background:"#fff",borderRadius:24,padding:0,maxWidth:400,width:"100%",boxShadow:"0 25px 70px rgba(0,0,0,0.35)",overflow:"hidden"}}>
+            <div style={{background:"linear-gradient(135deg,#f97316,#ea580c)",padding:"24px 20px 20px",textAlign:"center",color:"#fff"}}>
+              <div style={{fontSize:48,marginBottom:6,filter:"drop-shadow(0 2px 4px rgba(0,0,0,0.2))"}}>{confirmReenvio.icone||"📲"}</div>
+              <div style={{fontSize:18,fontWeight:900,letterSpacing:0.3,textShadow:"0 1px 2px rgba(0,0,0,0.15)"}}>{confirmReenvio.titulo||"Reenviar mensagem WhatsApp?"}</div>
+            </div>
+            <div style={{padding:"22px 20px"}}>
+              {confirmReenvio.destinatario&&(
+                <div style={{background:"#f0fdf4",border:"1.5px solid #bbf7d0",borderRadius:14,padding:"14px 16px",marginBottom:12}}>
+                  <div style={{fontSize:10,fontWeight:800,color:"#15803d",letterSpacing:1.2,textTransform:"uppercase",marginBottom:5}}>📬 Destinatário</div>
+                  <div style={{fontSize:11,color:"#64748b",fontWeight:600,marginBottom:3}}>{confirmReenvio.destinatario.tipo||""}</div>
+                  <div style={{fontSize:17,fontWeight:900,color:"#1e293b"}}>{confirmReenvio.destinatario.nome||"—"}</div>
+                  {confirmReenvio.destinatario.contato&&(
+                    <div style={{fontSize:13,color:"#16a34a",fontWeight:700,marginTop:5,display:"flex",alignItems:"center",gap:5}}>📞 {confirmReenvio.destinatario.contato}</div>
+                  )}
+                </div>
+              )}
+              {confirmReenvio.contexto&&confirmReenvio.contexto.cliente&&(
+                <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:12,padding:"12px 14px",marginBottom:18}}>
+                  <div style={{fontSize:10,fontWeight:800,color:"#64748b",letterSpacing:1.2,textTransform:"uppercase",marginBottom:6}}>📋 Mudança</div>
+                  <div style={{fontSize:14,fontWeight:800,color:"#1e293b",marginBottom:6}}>👤 {confirmReenvio.contexto.cliente}</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6,fontSize:11,color:"#475569"}}>
+                    {confirmReenvio.contexto.data&&(
+                      <span style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:"3px 8px"}}>📅 {(function(){var d=confirmReenvio.contexto.data.split("-");return d.length===3?(d[2]+"/"+d[1]+"/"+d[0]):confirmReenvio.contexto.data;})()}</span>
+                    )}
+                    {confirmReenvio.contexto.horario&&(
+                      <span style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:"3px 8px"}}>⏰ {confirmReenvio.contexto.horario}h</span>
+                    )}
+                    {confirmReenvio.contexto.comunidade&&(
+                      <span style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:6,padding:"3px 8px"}}>📍 {confirmReenvio.contexto.comunidade}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={confirmReenvio.onCancel} style={{flex:1,padding:"13px 0",borderRadius:12,border:"2px solid #e2e8f0",background:"#f8fafc",color:"#475569",fontWeight:800,fontSize:14,cursor:"pointer"}}>✕ Cancelar</button>
+                <button onClick={confirmReenvio.onConfirm} style={{flex:1.4,padding:"13px 0",borderRadius:12,border:"none",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer",boxShadow:"0 4px 14px rgba(249,115,22,0.4)"}}>{confirmReenvio.acaoLabel||"📲 Reenviar"}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
             {/* ══ MODAL GPS MAP ══ */}
       {showGpsMap&&gpsMapAgenda&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(4px)",zIndex:2000,display:"flex",flexDirection:"column",padding:0}} onClick={function(){setShowGpsMap(false);setGpsMapAgenda(null);setGpsEta(null);setGpsPositions([]);}}>
