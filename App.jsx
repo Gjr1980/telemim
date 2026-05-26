@@ -1,7 +1,7 @@
 // TELEMIM v3.4 — Multi-Fleet
 import { useState, useEffect, useMemo } from "react";
 // ── Modular imports ──────────────────────────────────────────────────────────
-import { SUPA_URL, SUPA_KEY, APPS_SCRIPT_URL, _getValidToken, _fmtDate, getSupaClient, getH, _ensureAuth, dbGet, dbUpsert, dbDelete, dbGetContas, dbInsertConta, dbPagarConta, dbGetCustos, dbUpsertCusto, FORNECEDORES } from "./src/config/supabase.js";
+import { SUPA_URL, SUPA_KEY, _getValidToken, _fmtDate, getSupaClient, getH, _ensureAuth, dbGet, dbUpsert, dbDelete, dbGetContas, dbInsertConta, dbPagarConta, dbGetCustos, dbUpsertCusto, FORNECEDORES } from "./src/config/supabase.js";
 import { VAPID_PUBLIC, COLORS, RULES, DADOS_INICIAIS, AGENDA_INICIAIS, initForm } from "./src/config/constants.js";
 import { urlBase64ToUint8Array, subscribePush, sendPushNotification } from "./src/utils/push.js";
 import { idbSet, idbGet, addToSyncQueue, processSyncQueue } from "./src/utils/offline.js";
