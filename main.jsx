@@ -88,6 +88,47 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   )
 )
 
+// ── PWA Install Banner ──────────────────────────────────────────
+(function setupInstallBanner() {
+  if (typeof window === 'undefined') return;
+  if (window.matchMedia('(display-mode: standalone)').matches) return;
+  var lastDismiss = parseInt(localStorage.getItem('pwa_install_dismissed') || '0', 10);
+  if (lastDismiss && (Date.now() - lastDismiss) < 7 * 24 * 60 * 60 * 1000) return;
+  var deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    setTimeout(showBanner, 30000);
+  });
+  function showBanner() {
+    if (!deferredPrompt) return;
+    if (document.getElementById('pwa-install-banner')) return;
+    var banner = document.createElement('div');
+    banner.id = 'pwa-install-banner';
+    banner.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#fff;border:2px solid #1e3a8a;border-radius:14px;padding:14px 18px;box-shadow:0 10px 40px rgba(0,0,0,0.25);z-index:99999;display:flex;align-items:center;gap:12px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:380px;width:calc(100% - 32px);animation:slideUp .3s ease;';
+    banner.innerHTML = '<div style="font-size:32px">📱</div><div style="flex:1"><div style="font-size:13px;font-weight:900;color:#1e3a8a">Instalar TELEMIM no celular</div><div style="font-size:11px;color:#475569;margin-top:2px">Acesso rápido + funciona offline</div></div><button id="pwa-install-yes" style="padding:8px 14px;background:linear-gradient(135deg,#7c3aed,#1e3a8a);color:#fff;border:none;border-radius:10px;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap">📥 Instalar</button><button id="pwa-install-no" style="background:transparent;border:none;color:#94a3b8;font-size:20px;cursor:pointer;padding:4px 8px">✕</button>';
+    var style = document.createElement('style');
+    style.textContent = '@keyframes slideUp{from{transform:translate(-50%,100px);opacity:0}to{transform:translate(-50%,0);opacity:1}}';
+    document.head.appendChild(style);
+    document.body.appendChild(banner);
+    document.getElementById('pwa-install-yes').onclick = async function() {
+      banner.remove();
+      deferredPrompt.prompt();
+      try { await deferredPrompt.userChoice; } catch (e) {}
+      deferredPrompt = null;
+    };
+    document.getElementById('pwa-install-no').onclick = function() {
+      banner.remove();
+      localStorage.setItem('pwa_install_dismissed', String(Date.now()));
+    };
+  }
+  window.addEventListener('appinstalled', function() {
+    var el = document.getElementById('pwa-install-banner');
+    if (el) el.remove();
+    localStorage.setItem('pwa_install_dismissed', String(Date.now()));
+  });
+})();
+
 // PWA Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {

@@ -1499,6 +1499,35 @@ export default function App(){
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
   const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social"||perfil==="coordenador";const isMotorista=perfil==="motorista";const isSupervisor=perfil==="supervisor";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar||isSupervisor;const verMed=isAdmin||isPromorar||isSupervisor;
   useEffect(function(){if(isAdmin)loadNotificacoes();},[usuario]);
+  // ── PWA Badge no ícone (Android Chrome/Edge) ──────────────────────────────
+  useEffect(function(){
+    if(!usuario||!('setAppBadge' in navigator))return;
+    var _hoje=_fmtDate(new Date());
+    var _count=0;
+    if(isMotorista){
+      _count=(agenda||[]).filter(function(a){
+        if(!a||a.deleted_at||a.data!==_hoje)return false;
+        var _eu=(a.motorista_van_id===usuario.id)||(a.motorista_caminhao_id===usuario.id);
+        if(!_eu)return false;
+        var _fim=a.termino_van_em||a.termino_caminhao_em||a.termino_em;
+        return !_fim;
+      }).length;
+    } else if(isSupervisor){
+      _count=(agenda||[]).filter(function(a){
+        if(!a||a.deleted_at||a.data!==_hoje)return false;
+        if(a.supervisor_id!==usuario.id)return false;
+        var _semMot=(a.van&&!a.motorista_van_id)||(a.caminhao&&!a.motorista_caminhao_id);
+        var _fim=a.termino_van_em||a.termino_caminhao_em||a.termino_em;
+        return _semMot||!_fim;
+      }).length;
+    } else if(isAdmin||isPromorar){
+      _count=(notificacoes||[]).filter(function(n){return !n.lido;}).length;
+    }
+    try{
+      if(_count>0)navigator.setAppBadge(_count);
+      else if('clearAppBadge' in navigator)navigator.clearAppBadge();
+    }catch(e){}
+  },[usuario,agenda,mudancas,notificacoes,isMotorista,isSupervisor,isAdmin,isPromorar]);
   // ── PUSH NOTIFICATIONS: prompt after login ────────────────────────────────
   useEffect(function(){
     if(!usuario||!usuario.id)return;
