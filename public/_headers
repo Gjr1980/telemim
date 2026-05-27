@@ -1,0 +1,54 @@
+# ── Cloudflare Pages headers ────────────────────────────────────────
+# Cache agressivo em assets estáticos (ícones, fontes, imagens)
+# Versionados via path; pra atualizar, mude o nome do arquivo.
+
+/icons/*
+  Cache-Control: public, max-age=31536000, immutable
+  X-Content-Type-Options: nosniff
+
+/*.png
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.jpg
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.jpeg
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.svg
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.woff
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.ttf
+  Cache-Control: public, max-age=31536000, immutable
+
+# JS/CSS bundlados também (Vite gera hash no nome → safe pra cachear forever)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Service Worker NÃO cacheia (precisa pegar atualizações)
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Manifest revalida diariamente
+/manifest.json
+  Cache-Control: public, max-age=86400
+
+# HTML: sempre revalida (network-first via SW)
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# ── Segurança global ─────────────────────────────────────────
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(self), microphone=()
