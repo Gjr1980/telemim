@@ -9,6 +9,59 @@ import { _calcDiario, _calcCustos } from "./src/utils/calcCustos.js";
 import { exportarPDF, exportarExcel } from "./src/utils/exportar.js";
 import { Badge, Card, Inp, InpEndereco, Tog, playNotifSound } from "./src/components/shared.jsx";
 
+// ── Globais a nível de módulo ────────────────────────────────────────
+const MAPBOX_TOKEN_GLOBAL = ["pk.eyJ1IjoidGVsZW1pbSIsImEiOiJjbW9yd","HJzMmcwNW8yMndwdnZ1bDFoOXZ2In0.","4MHg1RPF_jFgiQt4Ax4Psw"].join("");
+
+// ── Helper GPS+ETA reutilizável (escopo de módulo) ─────────────────
+// Pega GPS atual do navegador e calcula ETA até o endereço via Mapbox driving-traffic.
+async function calcETAGpsParaEndereco(toAddress, opts = {}) {
+  const timeoutMs = opts.timeout || 6000;
+  const maxAgeMs = opts.maxAge || 60000;
+  return new Promise((resolve) => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return resolve(null);
+    let resolved = false;
+    const _to = setTimeout(() => { if (!resolved) { resolved = true; resolve(null); } }, timeoutMs);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        if (resolved) return;
+        try {
+          const fromLat = pos.coords.latitude;
+          const fromLng = pos.coords.longitude;
+          const cleanAddr = (toAddress || "").replace(/\s+/g, " ").trim();
+          const geoUrl = "https://api.mapbox.com/geocoding/v5/mapbox.places/" + encodeURIComponent(cleanAddr) + ".json?access_token=" + MAPBOX_TOKEN_GLOBAL + "&limit=1&country=BR&proximity=-34.87,-8.05";
+          const geoR = await fetch(geoUrl);
+          const geoD = await geoR.json();
+          if (!geoD.features || geoD.features.length === 0) { resolved = true; clearTimeout(_to); return resolve(null); }
+          const destCoords = geoD.features[0].center;
+          const dirUrl = "https://api.mapbox.com/directions/v5/mapbox/driving-traffic/" + fromLng + "," + fromLat + ";" + destCoords[0] + "," + destCoords[1] + "?overview=false&access_token=" + MAPBOX_TOKEN_GLOBAL;
+          const dirR = await fetch(dirUrl);
+          const dirD = await dirR.json();
+          if (!dirD.routes || dirD.routes.length === 0) { resolved = true; clearTimeout(_to); return resolve(null); }
+          const route = dirD.routes[0];
+          const durMin = Math.max(1, Math.ceil(route.duration / 60));
+          const distKm = (route.distance / 1000).toFixed(1);
+          const eta = new Date(Date.now() + route.duration * 1000);
+          const _pad = (n) => String(n).padStart(2, "0");
+          const etaStr = _pad(eta.getHours()) + ":" + _pad(eta.getMinutes());
+          const ratio = parseFloat(distKm) > 0 ? (durMin / parseFloat(distKm)) : 2;
+          let transitoTxt = "🟢 Leve";
+          if (ratio > 3.5) transitoTxt = "🔴 Pesado";
+          else if (ratio > 2.5) transitoTxt = "🟡 Moderado";
+          resolved = true;
+          clearTimeout(_to);
+          resolve({ durMin, etaStr, distKm, transitoTxt });
+        } catch (e) {
+          resolved = true;
+          clearTimeout(_to);
+          resolve(null);
+        }
+      },
+      () => { if (!resolved) { resolved = true; clearTimeout(_to); resolve(null); } },
+      { timeout: timeoutMs, maximumAge: maxAgeMs, enableHighAccuracy: false }
+    );
+  });
+}
+
 function fmt(n){ return "R$ "+Number(n).toLocaleString("pt-BR",{minimumFractionDigits:2}); }
 function fmtDate(d){ if(!d) return ""; const [y,m,dd]=d.split("-"); return `${dd}/${m}/${y}`; }
 function getWeek(ds){
@@ -470,6 +523,18 @@ function RotaTerceirizada({token}){
   var [loading,setLoading]=useState(true);
   var [updating,setUpdating]=useState({});
   var [usuarios,setUsuarios]=useState([]);
+  var [sendingMsg,setSendingMsg]=useState(null);
+  var [msgSentStatus,setMsgSentStatus]=useState({});
+  // ── Helper: dispara WhatsApp via edge function enviar-whatsapp-publico (sem JWT) ──
+  function enviarWAPublico(numero, mensagem){
+    if(!numero || !mensagem) return Promise.resolve({ok:false,error:"sem numero/mensagem"});
+    return fetch(SUPA_URL+"/functions/v1/enviar-whatsapp-publico",{
+      method:"POST",
+      headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY,"Content-Type":"application/json"},
+      body:JSON.stringify({numero:numero, mensagem:mensagem})
+    }).then(function(r){return r.json().catch(function(){return{ok:false,error:"resposta inválida"};});})
+      .catch(function(e){return {ok:false, error:e.message};});
+  }
   function carregarDados(){
     fetch(SUPA_URL+"/functions/v1/consumir-magic-link?token="+encodeURIComponent(token),{headers:{"apikey":SUPA_KEY}})
       .then(function(r){return r.json();})
@@ -612,7 +677,7 @@ function RotaTerceirizada({token}){
                     else if(!r.chegada_van_em) _proxBtn={label:"🏠 Cheguei no Destino",campos:{chegada_van_em:"NOW"},bg:"#0891b2"};
                     else if(!r.termino_van_em) _proxBtn={label:"✅ Finalizar Mudança",campos:{termino_van_em:"NOW"},bg:"#16a34a"};
                   } else if(_isCam){
-                    if(!r.inicio_caminhao_em) _proxBtn={label:"🚗 Em Deslocamento",campos:{inicio_caminhao_em:"NOW",caminhao_saiu_em:"NOW"},bg:"#f97316"};
+                    if(!r.inicio_caminhao_em) _proxBtn={label:"🚗 Em Deslocamento",campos:{inicio_caminhao_em:"NOW",caminhao_saiu_em:"NOW"},bg:"#f97316",_waMsg:"desloc_origem"};
                     else if(!r.chegou_origem_cam_em) _proxBtn={label:"📍 Cheguei na Origem",campos:{chegou_origem_cam_em:"NOW"},bg:"#2563eb"};
                     else if(!r.saiu_destino_cam_em) _proxBtn={label:"🚚 Rumo ao Destino",campos:{saiu_destino_cam_em:"NOW"},bg:"#7c3aed"};
                     else if(!r.chegada_caminhao_em) _proxBtn={label:"🏠 Cheguei no Destino",campos:{chegada_caminhao_em:"NOW"},bg:"#0891b2"};
@@ -623,7 +688,37 @@ function RotaTerceirizada({token}){
                   var _isFinalNow=(_isVan&&!!r.termino_van_em)||(_isCam&&!!r.termino_caminhao_em)||(!_isVan&&!_isCam&&isFinal);
                   if(_isFinalNow) return(<div style={{textAlign:"center",padding:"14px",background:"#dcfce7",borderRadius:12,border:"2px solid #86efac",marginBottom:10}}><div style={{fontSize:14,fontWeight:800,color:"#15803d"}}>✅ Mudança Finalizada!</div></div>);
                   if(!_proxBtn) return null;
-                  return(<button onClick={function(){atualizarStatus({id:r.id,_tabela:"agenda"},_proxBtn.campos);}} disabled={!!updating[r.id]} style={{width:"100%",padding:14,background:updating[r.id]?"#94a3b8":_proxBtn.bg,color:"#fff",border:"none",borderRadius:12,fontWeight:800,fontSize:14,cursor:updating[r.id]?"not-allowed":"pointer",boxShadow:"0 4px 12px rgba(0,0,0,0.15)",marginBottom:10}}>{updating[r.id]?"⏳ Atualizando...":_proxBtn.label}</button>);
+                  var _handleClickProm=async function(){
+                    atualizarStatus({id:r.id,_tabela:"agenda"},_proxBtn.campos);
+                    // Envio automático de mensagem para o morador quando caminhão sai p/ origem
+                    if(_proxBtn._waMsg==="desloc_origem"){
+                      if(!r.contato){
+                        setMsgSentStatus(function(p){var n={...p};n[r.id]="⚠️ Morador sem contato — não foi possível enviar";return n;});
+                        setTimeout(function(){setMsgSentStatus(function(p){var n={...p};delete n[r.id];return n;});},4500);
+                        return;
+                      }
+                      var _supNomeP=r.approved_by_supervisor||(function(){var _s=r.supervisor_id?usuarios.find(function(u){return String(u.id)===String(r.supervisor_id);}):null;return _s?_s.nome:"";})();
+                      setSendingMsg(r.id);
+                      setMsgSentStatus(function(p){var n={...p};n[r.id]="📡 Calculando ETA...";return n;});
+                      var _etaP=await calcETAGpsParaEndereco(r.origem||"",{timeout:6000});
+                      var _etaLinhaP=_etaP
+                        ?"🚚 Previsão de chegada: *"+_etaP.etaStr+"* (em "+_etaP.durMin+" min)"
+                        :"🚚 Previsão de chegada: *em alguns minutos*";
+                      var _msgMorP="Olá *"+(r.nome||"")+"*! 👋\n\nBoas notícias! 🎉 Estamos a caminho da sua casa\npara iniciar a sua mudança.\n\n"+_etaLinhaP+"\n📍 Endereço: "+(r.origem||"—")+(_supNomeP?"\n👷 Supervisor: *"+_supNomeP+"*":"")+(r.assist_social?"\n👩‍⚕️ Assistente Social: *"+r.assist_social+"*":"")+"\n\nPode ir se preparando! 📦\n\n— Telemim Mudanças";
+                      var _waResP=await enviarWAPublico(r.contato,_msgMorP);
+                      if(_waResP&&_waResP.ok){
+                        setMsgSentStatus(function(p){var n={...p};n[r.id]="✅ Mensagem enviada para "+r.contato;return n;});
+                      }else{
+                        setMsgSentStatus(function(p){var n={...p};n[r.id]="⚠️ Falha ao enviar: "+(_waResP&&_waResP.error||"erro");return n;});
+                      }
+                      setTimeout(function(){setMsgSentStatus(function(p){var n={...p};delete n[r.id];return n;});},4500);
+                      setSendingMsg(null);
+                    }
+                  };
+                  return(<div>
+                    <button onClick={_handleClickProm} disabled={!!updating[r.id]||sendingMsg===r.id} style={{width:"100%",padding:14,background:(updating[r.id]||sendingMsg===r.id)?"#94a3b8":_proxBtn.bg,color:"#fff",border:"none",borderRadius:12,fontWeight:800,fontSize:14,cursor:(updating[r.id]||sendingMsg===r.id)?"not-allowed":"pointer",boxShadow:"0 4px 12px rgba(0,0,0,0.15)",marginBottom:msgSentStatus[r.id]?6:10}}>{updating[r.id]?"⏳ Atualizando...":(sendingMsg===r.id?"📡 Enviando...":_proxBtn.label)}</button>
+                    {msgSentStatus[r.id]&&<div style={{padding:"8px 12px",borderRadius:10,fontSize:12,fontWeight:700,textAlign:"center",marginBottom:10,background:msgSentStatus[r.id].startsWith("✅")?"#dcfce7":msgSentStatus[r.id].startsWith("⚠️")?"#fef3c7":"#eff6ff",color:msgSentStatus[r.id].startsWith("✅")?"#15803d":msgSentStatus[r.id].startsWith("⚠️")?"#92400e":"#1e40af",border:"1px solid "+(msgSentStatus[r.id].startsWith("✅")?"#86efac":msgSentStatus[r.id].startsWith("⚠️")?"#fcd34d":"#bfdbfe")}}>{msgSentStatus[r.id]}</div>}
+                  </div>);
                 })()}
                 {r.contato&&<a href={"https://wa.me/55"+(r.contato||"").replace(/\D/g,"")} target="_blank" rel="noopener" style={{display:"block",textAlign:"center",padding:14,background:"#25d366",color:"#fff",borderRadius:12,fontWeight:800,fontSize:14,textDecoration:"none",boxShadow:"0 4px 12px rgba(37,211,102,0.3)",marginBottom:10}}>📱 WhatsApp do Beneficiário</a>}
               </div>
