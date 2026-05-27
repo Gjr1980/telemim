@@ -1359,14 +1359,26 @@ export default function App(){
   }
   // ── ENVIAR WHATSAPP VIA EVOLUTION API ─────────────────────────────────────────
   async function enviarWA(numero,mensagem){
-    if(!numero||!mensagem)return;
+    if(!numero||!mensagem){console.warn("[WA] sem numero/mensagem");return false;}
     var clean=numero.replace(/\D/g,"");
-    if(!clean)return;
+    if(!clean){console.warn("[WA] numero invalido apos limpeza");return false;}
     try{
       await _ensureAuth();
       var _r=await fetch(SUPA_URL+"/functions/v1/enviar-whatsapp",{method:"POST",headers:{...getH(),"Content-Type":"application/json"},body:JSON.stringify({numero:clean,mensagem:mensagem})});
-      if(!_r.ok)console.warn("[WA] HTTP "+_r.status);
-    }catch(e){console.warn("[WA] envio falhou:",e);}
+      if(!_r.ok){
+        var _err=await _r.text().catch(function(){return "";});
+        console.warn("[WA] HTTP "+_r.status,_err);
+        setSyncStatus("⚠️ WhatsApp falhou (HTTP "+_r.status+")");
+        setTimeout(function(){setSyncStatus("✅ Sincronizado");},4000);
+        return false;
+      }
+      return true;
+    }catch(e){
+      console.warn("[WA] envio falhou:",e);
+      setSyncStatus("⚠️ WhatsApp: erro de conexão");
+      setTimeout(function(){setSyncStatus("✅ Sincronizado");},4000);
+      return false;
+    }
   }
   function substituirVarsWA(template,vars){
     var msg=template;
@@ -3601,15 +3613,41 @@ export default function App(){
       await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agItem.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({assist_social:nomeAssist})});
       var _nomeUser=usuario&&(usuario.nome||usuario.email)||"Sistema";
       var res=await fetch(SUPA_URL+"/functions/v1/gerar-link-mudanca",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({mudanca_id:agItem.id,criado_por:_nomeUser})});
+      if(!res.ok){
+        var _txt=await res.text();
+        alert("Erro ao gerar link (HTTP "+res.status+"): "+_txt.substring(0,200));
+        setTercInlineLoading(null);setTercInlineId(null);setTerceirizarSel("");
+        return;
+      }
       var d=await res.json();
       if(d.ok&&d.token){
         var url=location.origin+"/?mm="+d.token;
         var tel=contatoAssist?(contatoAssist+"").replace(/\D/g,""):"";
         var texto="🏠 *Mudança — Acesso Temporário*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* "+(agItem.nome||"")+"\n📅 *Data:* "+fmtDate(agItem.data)+(agItem.horario?" ⏰ "+agItem.horario:"")+"\n📍 *Comunidade:* "+(agItem.comunidade||"—")+"\n📦 *Saída:* "+(agItem.origem||"—")+"\n🏠 *Chegada:* "+(agItem.destino||"—")+"\n━━━━━━━━━━━━━━━━━\n🔗 *Acesse o link:*\n"+url+"\n_Válido até meia-noite_\n_TELEMIM_";
-        enviarWA(tel,texto);
-        setSyncStatus("✅ Assistente vinculada + link enviado!");
-      }else{alert("Erro ao gerar link: "+(d.error||"falha"));}
-    }catch(e){alert("Erro: "+e.message);}
+        if(tel.length>=10){
+          enviarWA(tel,texto);
+          setSyncStatus("✅ Assistente vinculada + link enviado para "+tel);
+        }else{
+          try{
+            if(navigator.clipboard&&navigator.clipboard.writeText){
+              await navigator.clipboard.writeText(texto);
+              alert("✅ Assistente vinculada!\n\n⚠️ Sem contato cadastrado para envio automático. O link foi copiado para a área de transferência.");
+            }else{
+              alert("✅ Assistente vinculada!\n\n⚠️ Sem contato cadastrado. Link gerado:\n"+url);
+            }
+          }catch(_e){
+            alert("✅ Assistente vinculada!\n\n⚠️ Sem contato cadastrado. Link gerado:\n"+url);
+          }
+          setSyncStatus("⚠️ Vinculada — link copiado (sem contato)");
+        }
+        setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);
+      }else{
+        alert("Erro ao gerar link: "+(d.error||d.message||"falha desconhecida"));
+      }
+    }catch(e){
+      console.error("[vincularAssistEEnviarLink]",e);
+      alert("Erro: "+e.message);
+    }
     setTercInlineLoading(null);setTercInlineId(null);setTerceirizarSel("");
   }
   async function enviarLinkWhatsApp(agItem,contatoAssist){
@@ -3617,14 +3655,43 @@ export default function App(){
     try{
       var _nomeUser=usuario&&(usuario.nome||usuario.email)||"Sistema";
       var res=await fetch(SUPA_URL+"/functions/v1/gerar-link-mudanca",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({mudanca_id:agItem.id,criado_por:_nomeUser})});
+      if(!res.ok){
+        var _txt=await res.text();
+        alert("Erro ao gerar link (HTTP "+res.status+"): "+_txt.substring(0,200));
+        setTercInlineLoading(null);
+        return;
+      }
       var d=await res.json();
       if(d.ok&&d.token){
         var url=location.origin+"/?mm="+d.token;
         var tel=contatoAssist?(contatoAssist+"").replace(/\D/g,""):"";
         var texto="🏠 *Mudança — Acesso Temporário*\n━━━━━━━━━━━━━━━━━\n👤 *Beneficiário:* "+(agItem.nome||"")+"\n📅 *Data:* "+fmtDate(agItem.data)+(agItem.horario?" ⏰ "+agItem.horario:"")+"\n📍 *Comunidade:* "+(agItem.comunidade||"—")+"\n📦 *Saída:* "+(agItem.origem||"—")+"\n🏠 *Chegada:* "+(agItem.destino||"—")+"\n━━━━━━━━━━━━━━━━━\n🔗 *Acesse o link:*\n"+url+"\n_Válido até meia-noite_\n_TELEMIM_";
-        enviarWA(tel,texto);
-      }else{alert("Erro ao gerar link: "+(d.error||"falha"));}
-    }catch(e){alert("Erro: "+e.message);}
+        if(tel.length>=10){
+          enviarWA(tel,texto);
+          setSyncStatus("✅ Link enviado para "+tel);
+          setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);
+        }else{
+          // Sem contato: copia o link pra área de transferência e avisa
+          try{
+            if(navigator.clipboard&&navigator.clipboard.writeText){
+              await navigator.clipboard.writeText(texto);
+              alert("⚠️ Assistente social sem contato cadastrado.\n\n📋 O link foi copiado para a área de transferência. Cole no WhatsApp manualmente.\n\nPara enviar automaticamente, cadastre o telefone da assistente em: Config → Social.");
+            }else{
+              alert("⚠️ Assistente social sem contato cadastrado.\n\nCadastre o telefone em: Config → Social.\n\nLink gerado:\n"+url);
+            }
+          }catch(_clipErr){
+            alert("⚠️ Assistente social sem contato cadastrado.\n\nCadastre o telefone em: Config → Social.\n\nLink gerado:\n"+url);
+          }
+          setSyncStatus("⚠️ Assistente sem contato — link copiado");
+          setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);
+        }
+      }else{
+        alert("Erro ao gerar link: "+(d.error||d.message||"falha desconhecida"));
+      }
+    }catch(e){
+      console.error("[enviarLinkWhatsApp]",e);
+      alert("Erro de conexão: "+e.message);
+    }
     setTercInlineLoading(null);
   }
   // ── PDF MUDANÇA INDIVIDUAL ─────────────────────────────────────────────────
