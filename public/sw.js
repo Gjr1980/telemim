@@ -1,5 +1,5 @@
-// TELEMIM SW v8 - Network-first + Push + Force HTML refresh
-const CACHE_NAME = "telemim-v8";
+// TELEMIM SW v9 - Force refresh (PWA install banner XL)
+const CACHE_NAME = "telemim-v9";
 const APP_SHELL = ["/", "/index.html", "/icons/icon-192.png", "/icons/icon-512.png", "/manifest.json"];
 
 self.addEventListener("install", e => {
