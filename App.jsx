@@ -671,7 +671,7 @@ function RotaTerceirizada({token}){
                   var _isCam=dados.motorista_id&&r.motorista_caminhao_id&&String(dados.motorista_id)===String(r.motorista_caminhao_id);
                   var _proxBtn=null;
                   if(_isVan){
-                    if(!r.inicio_van_em) _proxBtn={label:"🚗 Em Deslocamento",campos:{inicio_van_em:"NOW",van_saiu_em:"NOW"},bg:"#f97316"};
+                    if(!r.inicio_van_em) _proxBtn={label:"🚗 Em Deslocamento",campos:{inicio_van_em:"NOW",van_saiu_em:"NOW"},bg:"#f97316",_waMsg:"desloc_origem_van_promorar"};
                     else if(!r.chegou_origem_van_em) _proxBtn={label:"📍 Cheguei na Origem",campos:{chegou_origem_van_em:"NOW"},bg:"#2563eb"};
                     else if(!r.saiu_destino_van_em) _proxBtn={label:"🚚 Rumo ao Destino",campos:{saiu_destino_van_em:"NOW"},bg:"#7c3aed"};
                     else if(!r.chegada_van_em) _proxBtn={label:"🏠 Cheguei no Destino",campos:{chegada_van_em:"NOW"},bg:"#0891b2"};
@@ -712,6 +712,65 @@ function RotaTerceirizada({token}){
                         setMsgSentStatus(function(p){var n={...p};n[r.id]="⚠️ Falha ao enviar: "+(_waResP&&_waResP.error||"erro");return n;});
                       }
                       setTimeout(function(){setMsgSentStatus(function(p){var n={...p};delete n[r.id];return n;});},4500);
+                      setSendingMsg(null);
+                    }
+                    // ── BRANCH: VAN em deslocamento → notifica Promorar + Assistente Social ──
+                    if(_proxBtn._waMsg==="desloc_origem_van_promorar"){
+                      setSendingMsg(r.id);
+                      setMsgSentStatus(function(p){var n={...p};n[r.id]="📡 Calculando ETA + buscando contatos...";return n;});
+                      // 1) Busca destinatários AO VIVO no banco (anon key — leitura pública)
+                      var _anonH={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY};
+                      var _destinatarios=[];
+                      try{
+                        var _prRes=await fetch(SUPA_URL+"/rest/v1/usuarios?perfil=eq.promorar&ativo=eq.true&select=nome,contato",{headers:_anonH});
+                        var _prList=await _prRes.json();
+                        if(Array.isArray(_prList)){
+                          _prList.forEach(function(u){if(u.contato)_destinatarios.push({nome:u.nome,contato:u.contato,tipo:"Promorar"});});
+                        }
+                      }catch(_e1){console.warn("[van-desloc] erro buscando promorar:",_e1);}
+                      if(r.assist_social){
+                        try{
+                          var _asRes=await fetch(SUPA_URL+"/rest/v1/assistentes_social?nome=eq."+encodeURIComponent(r.assist_social)+"&ativo=eq.true&select=nome,contato",{headers:_anonH});
+                          var _asList=await _asRes.json();
+                          if(Array.isArray(_asList)&&_asList[0]&&_asList[0].contato){
+                            _destinatarios.push({nome:_asList[0].nome,contato:_asList[0].contato,tipo:"Social"});
+                          }
+                        }catch(_e2){console.warn("[van-desloc] erro buscando social:",_e2);}
+                      }
+                      if(_destinatarios.length===0){
+                        setMsgSentStatus(function(p){var n={...p};n[r.id]="⚠️ Nenhum destinatário cadastrado (Promorar/Social)";return n;});
+                        setTimeout(function(){setMsgSentStatus(function(p){var n={...p};delete n[r.id];return n;});},4500);
+                        setSendingMsg(null);
+                        return;
+                      }
+                      // 2) Calcula ETA
+                      var _etaV=await calcETAGpsParaEndereco(r.origem||"",{timeout:6000});
+                      var _etaLinhaV=_etaV
+                        ?"🚐 Previsão de chegada na origem: *"+_etaV.etaStr+"* (em "+_etaV.durMin+" min)"
+                        :"🚐 Previsão de chegada na origem: *em alguns minutos*";
+                      // 3) Resolve dados da equipe pra colocar na mensagem
+                      var _motNomeV=dados.motorista_nome||"Motorista";
+                      var _supNomeV=r.approved_by_supervisor||(function(){var _s=r.supervisor_id?usuarios.find(function(u){return String(u.id)===String(r.supervisor_id);}):null;return _s?_s.nome:"";})();
+                      // 4) Monta mensagem
+                      var _msgV="🚐 *Van em deslocamento Origem*\n\nA van da Telemim está saindo agora para a casa da família\n*"+(r.nome||"")+"* iniciar a mudança.\n\n"+_etaLinhaV+"\n📍 Endereço: "+(r.origem||"—")+"\n👨‍✈️ Motorista: *"+_motNomeV+"*"+(_supNomeV?"\n👷 Supervisor: *"+_supNomeV+"*":"")+(r.assist_social?"\n👩‍⚕️ Assistente Social: *"+r.assist_social+"*":"")+"\n\n— Telemim Mudanças";
+                      // 5) Envia em paralelo pra todos os destinatários
+                      var _envios=await Promise.all(_destinatarios.map(function(d){
+                        return enviarWAPublico(d.contato,_msgV).then(function(res){return Object.assign({},d,{ok:res&&res.ok,error:res&&res.error});});
+                      }));
+                      var _okList=_envios.filter(function(e){return e.ok;});
+                      var _failList=_envios.filter(function(e){return !e.ok;});
+                      var _statusTxt="";
+                      if(_okList.length>0){
+                        _statusTxt="✅ Enviada para "+_okList.length+" destinatário(s): "+_okList.map(function(e){return e.nome+" ("+e.tipo+")";}).join(", ");
+                      }
+                      if(_failList.length>0){
+                        if(_statusTxt)_statusTxt+=" • ";
+                        _statusTxt+="⚠️ Falha em "+_failList.length+": "+_failList.map(function(e){return e.nome;}).join(", ");
+                      }
+                      // Determina cor do feedback baseado em qualquer sucesso
+                      var _prefix=_okList.length>0?"✅ ":"⚠️ ";
+                      setMsgSentStatus(function(p){var n={...p};n[r.id]=_prefix+_statusTxt.replace(/^[✅⚠️] /,"");return n;});
+                      setTimeout(function(){setMsgSentStatus(function(p){var n={...p};delete n[r.id];return n;});},6000);
                       setSendingMsg(null);
                     }
                   };
