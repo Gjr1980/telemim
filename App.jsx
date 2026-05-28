@@ -3405,7 +3405,8 @@ export default function App(){
     var _ag=agenda.find(function(a){return a.id===agId;});
     var _hist=(_ag&&Array.isArray(_ag.historico_tentativas)?_ag.historico_tentativas:[]).slice();
     _hist.push({data_original:_ag?_ag.data:null,nova_data:novaData,motivo:motivo||"Reagendamento",quem:usuario?(usuario.nome||usuario.email):"",tipo:"reagendamento",registrado_em:new Date().toISOString()});
-    var _payload={data:novaData,status:"confirmado",historico_tentativas:_hist};
+    // 🛡️ Reagendamento limpa TODOS timestamps de monitoramento — timeline volta ao zero
+    var _payload=Object.assign({data:novaData,status:"confirmado",historico_tentativas:_hist,inicio_em:null,termino_em:null},_monitorClearFields);
     setAgenda(function(prev){return prev.map(function(a){return a.id===agId?Object.assign({},a,_payload):a;});});
     try{
       await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+agId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_payload)});
@@ -7688,6 +7689,34 @@ return(
               <input type="number" min="0" value={editMud._qtdAj===0?"":editMud._qtdAj||""} onChange={function(e){var raw=e.target.value;setEditMud(function(f){return {...f,_qtdAj:raw===""?"":(parseInt(raw)||0)};});}} style={{width:"100%",padding:"6px 10px",borderRadius:8,border:"1px solid #fcd34d",fontSize:13,fontWeight:600,background:"#fffbeb"}} placeholder="Ex: 3"/>
               <div style={{fontSize:10,color:"#78716c",marginTop:4}}>Apenas administradores podem alterar este valor.</div>
             </div>}
+            {isAdmin&&(editMud.inicio_van_em||editMud.inicio_caminhao_em||editMud.chegada_van_em||editMud.chegada_caminhao_em||editMud.termino_em||editMud.termino_van_em||editMud.termino_caminhao_em)&&(
+              <div style={{marginTop:12,padding:"12px 14px",background:"#fef2f2",borderRadius:10,border:"1.5px solid #fecaca"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#991b1b",marginBottom:4}}>🔄 Resetar Timeline <span style={{fontSize:9,background:"#dc2626",color:"#fff",borderRadius:4,padding:"1px 5px",marginLeft:4}}>ADMIN</span></div>
+                <div style={{fontSize:10,color:"#7f1d1d",marginBottom:8,lineHeight:1.4}}>Apaga TODOS os timestamps de monitoramento (Em Deslocamento, Cheguei na Origem, Rumo ao Destino, etc.) e o status volta pra "confirmado". Use quando a mudança ficou com etapas antigas presas de uma tentativa anterior.</div>
+                <button onClick={async function(){
+                  if(!window.confirm("⚠️ Resetar Timeline de "+(editMud.nome||"")+"?\n\nTodos os timestamps (Em Deslocamento, Cheguei na Origem, etc.) serão APAGADOS e o status volta pra confirmado.\n\nUse só se a mudança ficou com etapas antigas presas. Não desfaz a mudança, só zera a timeline."))return;
+                  await _ensureAuth();
+                  var _tbl=editMud._fromAgenda?"agenda":"mudancas";
+                  var _payload=Object.assign({status:"confirmado",inicio_em:null,termino_em:null},_monitorClearFields);
+                  try{
+                    var _r=await fetch(SUPA_URL+"/rest/v1/"+_tbl+"?id=eq."+editMud.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_payload)});
+                    if(!_r.ok){var _t=await _r.text();throw new Error("HTTP "+_r.status+": "+_t.substring(0,200));}
+                    if(_tbl==="agenda"){
+                      setAgenda(function(prev){return prev.map(function(a){return a.id===editMud.id?Object.assign({},a,_payload):a;});});
+                    }else{
+                      setMudancas(function(prev){return prev.map(function(m){return m.id===editMud.id?Object.assign({},m,_payload):m;});});
+                    }
+                    var _outraTbl=_tbl==="agenda"?"mudancas":"agenda";
+                    try{
+                      await fetch(SUPA_URL+"/rest/v1/"+_outraTbl+"?nome=eq."+encodeURIComponent(editMud.nome||"")+"&data=eq."+editMud.data,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_payload)});
+                    }catch(_e){}
+                    setSyncStatus("🔄 Timeline resetada: "+(editMud.nome||""));
+                    setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);
+                    setEditMud(null);
+                  }catch(e){alert("Erro ao resetar timeline:\n"+e.message);}
+                }} style={{width:"100%",padding:"10px 0",borderRadius:8,border:"none",background:"#dc2626",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>🔄 Resetar Timeline</button>
+              </div>
+            )}
             <div style={{display:"flex",gap:8,marginTop:6}}>
               <button onClick={()=>setEditMud(null)} style={{flex:1,padding:12,borderRadius:12,border:`1px solid ${COLORS.cardBorder}`,background:"transparent",color:COLORS.muted,fontWeight:800,fontSize:14,cursor:"pointer"}}>Cancelar</button>
               <button onClick={handleSaveEditMud} style={{flex:2,padding:12,borderRadius:12,border:"none",background:COLORS.accent,color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer"}}>💾 Salvar</button>
