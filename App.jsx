@@ -675,13 +675,13 @@ function RotaTerceirizada({token}){
                     else if(!r.chegou_origem_van_em) _proxBtn={label:"📍 Cheguei na Origem",campos:{chegou_origem_van_em:"NOW"},bg:"#2563eb"};
                     else if(!r.saiu_destino_van_em) _proxBtn={label:"🚚 Rumo ao Destino",campos:{saiu_destino_van_em:"NOW"},bg:"#7c3aed"};
                     else if(!r.chegada_van_em) _proxBtn={label:"🏠 Cheguei no Destino",campos:{chegada_van_em:"NOW"},bg:"#0891b2"};
-                    else if(!r.termino_van_em) _proxBtn={label:"✅ Finalizar Mudança",campos:{termino_van_em:"NOW"},bg:"#16a34a"};
+                    else if(!r.termino_van_em) _proxBtn={label:"✅ Finalizar Mudança",campos:{termino_van_em:"NOW",termino_em:"NOW",status:"concluida"},bg:"#16a34a"};
                   } else if(_isCam){
                     if(!r.inicio_caminhao_em) _proxBtn={label:"🚗 Em Deslocamento",campos:{inicio_caminhao_em:"NOW",caminhao_saiu_em:"NOW"},bg:"#f97316",_waMsg:"desloc_origem"};
                     else if(!r.chegou_origem_cam_em) _proxBtn={label:"📍 Cheguei na Origem",campos:{chegou_origem_cam_em:"NOW"},bg:"#2563eb"};
                     else if(!r.saiu_destino_cam_em) _proxBtn={label:"🚚 Rumo ao Destino",campos:{saiu_destino_cam_em:"NOW"},bg:"#7c3aed"};
                     else if(!r.chegada_caminhao_em) _proxBtn={label:"🏠 Cheguei no Destino",campos:{chegada_caminhao_em:"NOW"},bg:"#0891b2"};
-                    else if(!r.termino_caminhao_em) _proxBtn={label:"✅ Finalizar Mudança",campos:{termino_caminhao_em:"NOW"},bg:"#16a34a"};
+                    else if(!r.termino_caminhao_em) _proxBtn={label:"✅ Finalizar Mudança",campos:{termino_caminhao_em:"NOW",termino_em:"NOW",status:"concluida"},bg:"#16a34a"};
                   } else if(!isFinal&&prox){
                     _proxBtn={label:_statusLabel[st]||"Avançar",campos:{status:prox},bg:_statusCor[st]||"#3b82f6"};
                   }
