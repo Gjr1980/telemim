@@ -2102,20 +2102,42 @@ export default function App(){
   async function loadEquipeDia(){
     try{var r=await fetch(SUPA_URL+"/rest/v1/equipe_dia?select=*&order=data.desc",{headers:getH()});var d=await r.json();if(Array.isArray(d))setEquipeDiaList(d);}catch(e){}
   }
+  // 🛡️ Dedupe array de ajudantes por id E por (nome+telefone normalizado)
+  function _dedupeAjs(arr){
+    if(!Array.isArray(arr))return [];
+    var seenIds={};var seenKeys={};var out=[];
+    arr.forEach(function(aj){
+      if(!aj)return;
+      var _id=aj.id!=null?String(aj.id):"";
+      var _normNome=(aj.nome||"").toLowerCase().trim();
+      var _normTel=(aj.telefone||"").replace(/\D/g,"");
+      var _key=_normNome+"|"+_normTel;
+      if(_id&&seenIds[_id])return;
+      if(_normNome&&seenKeys[_key])return;
+      if(_id)seenIds[_id]=true;
+      if(_normNome)seenKeys[_key]=true;
+      out.push(aj);
+    });
+    return out;
+  }
   async function salvarEquipeDia(data,ajudantesArr){
+    // 🛡️ Camada 1: dedupe antes de enviar (defesa em profundidade)
+    var _ajsLimpos=_dedupeAjs(ajudantesArr);
     // Upsert via on_conflict=data para evitar erro de unique constraint independente do estado local
     var _hd=Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"});
     try{
-      var r=await fetch(SUPA_URL+"/rest/v1/equipe_dia?on_conflict=data",{method:"POST",headers:_hd,body:JSON.stringify({data:data,ajudantes:ajudantesArr})});
+      var r=await fetch(SUPA_URL+"/rest/v1/equipe_dia?on_conflict=data",{method:"POST",headers:_hd,body:JSON.stringify({data:data,ajudantes:_ajsLimpos})});
       if(r.ok){
         var d=await r.json();
         if(Array.isArray(d)&&d[0]){
           setEquipeDiaList(function(prev){var nxt=prev.filter(function(e){return e.data!==data;});nxt.push(d[0]);return nxt;});
         } else {
           // Fallback: atualizar estado local e recarregar
-          setEquipeDiaList(function(prev){var nxt=prev.filter(function(e){return e.data!==data;});nxt.push({data:data,ajudantes:ajudantesArr});return nxt;});
+          setEquipeDiaList(function(prev){var nxt=prev.filter(function(e){return e.data!==data;});nxt.push({data:data,ajudantes:_ajsLimpos});return nxt;});
           setTimeout(function(){loadEquipeDia();},1500);
         }
+        // Atualiza state local com a versão deduplicada
+        setEquipeDiaCheck(_ajsLimpos);
         setSyncStatus("✅ Equipe do dia salva!");
         setEquipeSalvaMsg("✅ Equipe salva com sucesso!");
         setTimeout(function(){setEquipeSalvaMsg("");},3000);
@@ -6573,7 +6595,7 @@ return(
           return <div style={{paddingBottom:80}}>
             <div style={{background:"#1e293b",padding:"20px 16px 14px"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginBottom:2}}>Gerenciamento</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>👷 Equipe</div></div>
             <div style={{display:"flex",background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
-              {[{id:"cadastro",l:"📋 Cadastro"},{id:"escalar",l:"📅 Escalar"},{id:"financeiro",l:"💰 Financeiro"},{id:"social",l:"👩‍⚕️ Social"}].concat(isSupervisor||isAdmin?[{id:"almoco",l:"🍽️ Almoço"}]:[]).map(function(t){return <button key={t.id} onClick={function(){setSubEquipe(t.id);loadAjudantes();if(t.id==="social")loadAssistentesSocial();if(t.id!=="cadastro")loadEquipeDia();if(t.id==="almoco")loadSolicitacoesAlmoco();if(t.id==="escalar"){loadEquipePadrao();var _f=equipeDiaList.find(ed=>ed.data===equipeDiaSel);if(_f&&Array.isArray(_f.ajudantes)){setEquipeDiaCheck(_f.ajudantes);}else if(equipePadrao.length>0){setEquipeDiaCheck(equipePadrao);}else{setEquipeDiaCheck([]);}}}} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subEquipe===t.id?700:500,background:"transparent",borderBottom:subEquipe===t.id?"3px solid #065f46":"3px solid transparent",color:subEquipe===t.id?"#065f46":"#64748b"}}>{t.l}</button>;})}
+              {[{id:"cadastro",l:"📋 Cadastro"},{id:"escalar",l:"📅 Escalar"},{id:"financeiro",l:"💰 Financeiro"},{id:"social",l:"👩‍⚕️ Social"}].concat(isSupervisor||isAdmin?[{id:"almoco",l:"🍽️ Almoço"}]:[]).map(function(t){return <button key={t.id} onClick={function(){setSubEquipe(t.id);loadAjudantes();if(t.id==="social")loadAssistentesSocial();if(t.id!=="cadastro")loadEquipeDia();if(t.id==="almoco")loadSolicitacoesAlmoco();if(t.id==="escalar"){loadEquipePadrao();var _f=equipeDiaList.find(ed=>ed.data===equipeDiaSel);if(_f&&Array.isArray(_f.ajudantes)){setEquipeDiaCheck(_dedupeAjs(_f.ajudantes));}else if(equipePadrao.length>0){setEquipeDiaCheck(_dedupeAjs(equipePadrao));}else{setEquipeDiaCheck([]);}}}} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subEquipe===t.id?700:500,background:"transparent",borderBottom:subEquipe===t.id?"3px solid #065f46":"3px solid transparent",color:subEquipe===t.id?"#065f46":"#64748b"}}>{t.l}</button>;})}
             </div>
             {/* SUB: CADASTRO */}
             {subEquipe==="cadastro"&&<div style={{padding:16}}>
@@ -6626,8 +6648,8 @@ return(
                 <input type="date" value={equipeDiaSel} onChange={function(e){
                   setEquipeDiaSel(e.target.value);
                   var _found=equipeDiaList.find(function(ed){return ed.data===e.target.value;});
-                  if(_found&&Array.isArray(_found.ajudantes)){setEquipeDiaCheck(_found.ajudantes);}
-                  else if(equipePadrao.length>0){setEquipeDiaCheck(equipePadrao);}
+                  if(_found&&Array.isArray(_found.ajudantes)){setEquipeDiaCheck(_dedupeAjs(_found.ajudantes));}
+                  else if(equipePadrao.length>0){setEquipeDiaCheck(_dedupeAjs(equipePadrao));}
                   else{setEquipeDiaCheck([]);}
                 }} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #e2e8f0",borderRadius:10,fontSize:14,fontWeight:700,color:"#1e293b",boxSizing:"border-box"}}/>
                 {(function(){var _found2=equipeDiaList.find(function(ed){return ed.data===equipeDiaSel;});if(!_found2&&equipePadrao.length>0&&equipeDiaCheck.length>0){return <div style={{background:"#eff6ff",border:"1px solid #93c5fd",borderRadius:8,padding:"6px 10px",marginTop:8,fontSize:11,color:"#1e40af",fontWeight:600}}>⭐ Equipe padrão carregada automaticamente</div>;}return null;})()}
