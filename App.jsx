@@ -697,7 +697,7 @@ function RotaTerceirizada({token}){
                         setTimeout(function(){setMsgSentStatus(function(p){var n={...p};delete n[r.id];return n;});},4500);
                         return;
                       }
-                      var _supNomeP=r.approved_by_supervisor||(function(){var _s=r.supervisor_id?usuarios.find(function(u){return String(u.id)===String(r.supervisor_id);}):null;return _s?_s.nome:"";})();
+                      var _supNomeP=(function(){var _s=r.supervisor_id?usuarios.find(function(u){return String(u.id)===String(r.supervisor_id);}):null;return _s?_s.nome:(r.approved_by_supervisor||"");})();
                       setSendingMsg(r.id);
                       setMsgSentStatus(function(p){var n={...p};n[r.id]="📡 Calculando ETA...";return n;});
                       var _etaP=await calcETAGpsParaEndereco(r.origem||"",{timeout:6000});
@@ -750,7 +750,7 @@ function RotaTerceirizada({token}){
                         :"🚐 Previsão de chegada na origem: *em alguns minutos*";
                       // 3) Resolve dados da equipe pra colocar na mensagem
                       var _motNomeV=dados.motorista_nome||"Motorista";
-                      var _supNomeV=r.approved_by_supervisor||(function(){var _s=r.supervisor_id?usuarios.find(function(u){return String(u.id)===String(r.supervisor_id);}):null;return _s?_s.nome:"";})();
+                      var _supNomeV=(function(){var _s=r.supervisor_id?usuarios.find(function(u){return String(u.id)===String(r.supervisor_id);}):null;return _s?_s.nome:(r.approved_by_supervisor||"");})();
                       // 4) Monta mensagem
                       var _msgV="🚐 *Van em deslocamento Origem*\n\nA van da Telemim está saindo agora para a casa da família\n*"+(r.nome||"")+"* iniciar a mudança.\n\n"+_etaLinhaV+"\n📍 Endereço: "+(r.origem||"—")+"\n👨‍✈️ Motorista: *"+_motNomeV+"*"+(_supNomeV?"\n👷 Supervisor: *"+_supNomeV+"*":"")+(r.assist_social?"\n👩‍⚕️ Assistente Social: *"+r.assist_social+"*":"")+"\n\n— Telemim Mudanças";
                       // 5) Envia em paralelo pra todos os destinatários
@@ -4183,7 +4183,7 @@ export default function App(){
                     {a.horario&&<div style={{fontSize:_dest?14:12,color:"#475569"}}>⏰ {a.horario}h</div>}
                     <div style={{fontSize:_dest?13:11,marginTop:8}}>📦 {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     <div style={{fontSize:_dest?13:11,marginTop:24}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
-                    {(a.approved_by_supervisor||a.supervisor_id)&&(function(){var _supNome=a.approved_by_supervisor||(function(){var _s=listaUsuarios.find(function(u){return u.id===a.supervisor_id;});return _s?_s.nome:null;})();return _supNome?<div style={{fontSize:_dest?13:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {_supNome}</div>:null;})()}
+                    {(a.approved_by_supervisor||a.supervisor_id)&&(function(){var _supNome=(function(){var _s=listaUsuarios.find(function(u){return u.id===a.supervisor_id;});return _s?_s.nome:(a.approved_by_supervisor||null);})();return _supNome?<div style={{fontSize:_dest?13:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {_supNome}</div>:null;})()}
                     {a.assist_social&&<div style={{fontSize:_dest?13:12,marginTop:8,fontWeight:700,color:"#7c2d12",background:"#fff7ed",borderRadius:8,padding:"5px 10px",border:"1px solid #fed7aa"}}>👩‍⚕️ Assist. Social: {a.assist_social}</div>}
                   </div>
                   <div style={{background:_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#dbeafe":_stMot==="Na Origem"||_stMot==="Descarregando"?"#fef9c3":_stMot==="Concluido"?"#dcfce7":"#f1f5f9",border:"1px solid "+(_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#93c5fd":_stMot==="Na Origem"||_stMot==="Descarregando"?"#fde047":_stMot==="Concluido"?"#86efac":"#cbd5e1"),borderRadius:20,padding:"3px 10px",fontSize:_dest?11:10,fontWeight:700,color:_stMot==="Em Deslocamento"||_stMot==="Deslocamento Destino"?"#1d4ed8":_stMot==="Na Origem"||_stMot==="Descarregando"?"#854d0e":_stMot==="Concluido"?"#15803d":"#64748b",whiteSpace:"nowrap"}}>
@@ -4358,7 +4358,7 @@ export default function App(){
                     <div style={{fontSize:11,marginTop:8}}>📦 {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     <div style={{fontSize:11,marginTop:24}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     {a.contato&&<div style={{fontSize:12,marginTop:8,fontWeight:700,color:"#1e40af",background:"#eff6ff",borderRadius:8,padding:"5px 10px",border:"1px solid #93c5fd"}}>📞 Morador: {a.contato}</div>}
-                    {(a.approved_by_supervisor||a.supervisor_id)&&(function(){var _supNome=a.approved_by_supervisor||(function(){var _s=listaUsuarios.find(function(u){return u.id===a.supervisor_id;});return _s?_s.nome:null;})();return _supNome?<div style={{fontSize:12,marginTop:4,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {_supNome}</div>:null;})()}
+                    {(a.approved_by_supervisor||a.supervisor_id)&&(function(){var _supNome=(function(){var _s=listaUsuarios.find(function(u){return u.id===a.supervisor_id;});return _s?_s.nome:(a.approved_by_supervisor||null);})();return _supNome?<div style={{fontSize:12,marginTop:4,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {_supNome}</div>:null;})()}
                   </div>
                   <div style={{background:"#ffedd5",border:"1px solid #fed7aa",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:"#c2410c",whiteSpace:"nowrap"}}>⏳ Amanhã</div>
                 </div>
@@ -4421,7 +4421,7 @@ export default function App(){
                     {a.horario&&<div style={{fontSize:12,color:"#475569"}}>⏰ {a.horario}h</div>}
                     <div style={{fontSize:11,marginTop:8}}>📦 {a.origem?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.origem)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.origem} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
                     <div style={{fontSize:11,marginTop:24}}>🏘️ {a.destino?<a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.destino)} target="_blank" style={{color:"#2563eb",textDecoration:"none",fontWeight:600}}>{a.destino} 🗺️</a>:<span style={{color:"#64748b"}}>?</span>}</div>
-                    {(a.approved_by_supervisor||a.supervisor_id)&&(function(){var _supNome=a.approved_by_supervisor||(function(){var _s=listaUsuarios.find(function(u){return u.id===a.supervisor_id;});return _s?_s.nome:null;})();return _supNome?<div style={{fontSize:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {_supNome}</div>:null;})()}
+                    {(a.approved_by_supervisor||a.supervisor_id)&&(function(){var _supNome=(function(){var _s=listaUsuarios.find(function(u){return u.id===a.supervisor_id;});return _s?_s.nome:(a.approved_by_supervisor||null);})();return _supNome?<div style={{fontSize:12,marginTop:8,fontWeight:700,color:"#065f46",background:"#ecfdf5",borderRadius:8,padding:"5px 10px",border:"1px solid #a7f3d0"}}>👷 Supervisor: {_supNome}</div>:null;})()}
                   </div>
                   <div style={{background:"#bfdbfe",border:"1px solid #93c5fd",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,color:"#1e40af",whiteSpace:"nowrap"}}>{a.data?new Date(a.data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"?"}</div>
                 </div>
