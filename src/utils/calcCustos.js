@@ -50,6 +50,11 @@ export function _calcCustos(mudP, cdP, cpP, RULES, mudDesp, eqDiaP, solFin){
   var cCam=0;var cVan=0;var cAj=0;var cAlm=0;var cDesp=0;
   var _aj1a=_fv(RULES.aj1a)||80;var _ajAdd=_fv(RULES.ajAdd)||20;
   var _aprovList=(solFin||[]).filter(function(s){return s.status==="aprovado"&&s.tipo==="editar_valor";});
+  var _remDiaList=(solFin||[]).filter(function(s){return s.status==="aprovado"&&s.tipo==="remover_dia";});
+  var _remAjList=(solFin||[]).filter(function(s){return s.status==="aprovado"&&s.tipo==="remover_ajudante";});
+  var _norm=function(s){return(s||"").toLowerCase().trim();};
+  var _remDiaSet={};_remDiaList.forEach(function(s){_remDiaSet[_norm(s.prestador_nome)+"|"+s.data_ref]=true;});
+  var _remAjSet={};_remAjList.forEach(function(s){_remAjSet[_norm(s.ajudante_nome)]=true;});
   var _ajMap={};var _camDias=[];var _vanDias=[];
   diasDesp.forEach(function(data){
     var mudDia=_desp.filter(function(m){return m.data===data;});
@@ -66,6 +71,9 @@ export function _calcCustos(mudP, cdP, cpP, RULES, mudDesp, eqDiaP, solFin){
     if(_eqDia){
       var valPorAj=_aj1a+Math.max(0,numMud-1)*_ajAdd;
       _eqDia.ajudantes.forEach(function(aj){
+        var _ajKeyNorm=_norm(aj.nome);
+        if(_remAjSet[_ajKeyNorm])return;
+        if(_remDiaSet[_ajKeyNorm+"|"+data])return;
         var ajVal=valPorAj;
         var aprov=_aprovList.find(function(s){return s.prestador_nome===aj.nome&&s.data_ref===data;});
         if(aprov){var _nv=parseFloat(aprov.valor_novo);if(!isNaN(_nv))ajVal=_nv;}

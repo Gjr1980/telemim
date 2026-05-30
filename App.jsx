@@ -1106,6 +1106,7 @@ export default function App(){
   const [solicitacoesLoaded,setSolicitacoesLoaded]=useState(false);
   const [supFinEditMode,setSupFinEditMode]=useState(null);// {pId,idx,data,numMud,numAj,val,cargo}
   const [supFinMotivo,setSupFinMotivo]=useState("");
+  const [supFinDelConfirm,setSupFinDelConfirm]=useState(null);// {scope:"dia"|"ajudante",ajId,ajNome,data,numMud,valor}
   const [backupCfg,setBackupCfg]=useState({ativo:false,clientId:"",clientSecret:"",refreshToken:""});
   const [backupHist,setBackupHist]=useState([]);
   const [backupLoading,setBackupLoading]=useState(false);
@@ -5665,7 +5666,7 @@ export default function App(){
                   return <div key={s.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"12px",marginBottom:8,boxShadow:"0 2px 8px rgba(245,158,11,0.1)"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                       <div>
-                        <div style={{fontWeight:800,fontSize:12,color:"#1e293b"}}>{s.tipo==="editar_valor"?"✏️ Edição de Valor":"🗑️ Remoção de Ajudante"}</div>
+                        <div style={{fontWeight:800,fontSize:12,color:"#1e293b"}}>{s.tipo==="editar_valor"?"✏️ Edição de Valor":(s.tipo==="remover_dia"?"🗑️ Remoção de Dia":"🗑️ Remoção de Ajudante")}</div>
                         <div style={{fontSize:11,color:"#64748b",marginTop:2}}>Por: <strong>{s.supervisor_nome}</strong></div>
                       </div>
                       <span style={{background:"#fef3c7",border:"1px solid #fcd34d",borderRadius:6,padding:"2px 8px",fontSize:9,fontWeight:700,color:"#92400e"}}>⏳ Pendente</span>
@@ -5681,6 +5682,11 @@ export default function App(){
                     </div>}
                     {s.tipo==="remover_ajudante"&&<div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                       <div style={{fontSize:11,color:"#dc2626",fontWeight:700}}>Remover: {s.ajudante_nome}</div>
+                      <div style={{fontSize:10,color:"#991b1b",marginTop:2}}>De todo o período</div>
+                    </div>}
+                    {s.tipo==="remover_dia"&&<div style={{background:"#fef2f2",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
+                      <div style={{fontSize:11,color:"#dc2626",fontWeight:700}}>Remover: {s.prestador_nome}</div>
+                      <div style={{fontSize:10,color:"#991b1b",marginTop:2}}>Dia: {s.data_ref?String(s.data_ref).split("-").reverse().join("/"):""} · {s.num_mud_antigo||0} mud · {_fvA(s.valor_antigo)}</div>
                     </div>}
                     <div style={{fontSize:10,color:"#64748b",marginBottom:8}}>💬 Motivo: {s.motivo}</div>
                     <div style={{display:"flex",gap:8}}>
@@ -6587,6 +6593,39 @@ return(
           var _ajFinArr=Object.values(_ajMap).sort(function(a,b){return a.nome.localeCompare(b.nome);});
           var _totalGeralDias=0;var _totalGeralValor=0;
           _ajFinArr.forEach(function(a){_totalGeralDias+=a.dias.length;a.dias.forEach(function(d){_totalGeralValor+=d.valor;});});
+          // ── Helpers para edit/delete por dia (subEquipe=financeiro) ──
+          var _aj1aF2=parseFloat(RULES.aj1a)||80;
+          var _ajAddF2=parseFloat(RULES.ajAdd)||20;
+          var _mySolsF=solicitacoesFin.filter(function(s){return s.supervisor_id===(usuario&&usuario.id);});
+          var _pendentesF=_mySolsF.filter(function(s){return s.status==="pendente";});
+          function _temSolPendF(ajNome,data){return _pendentesF.some(function(s){return((s.tipo==="editar_valor"||s.tipo==="remover_dia")&&s.prestador_nome===ajNome&&s.data_ref===data)||(s.tipo==="remover_ajudante"&&s.ajudante_nome===ajNome);});}
+          function _supSolicEditAjF(aj,diaIdx){
+            var d=aj.dias[diaIdx];
+            var motivo=supFinMotivo.trim();
+            if(!motivo){alert("Informe o motivo.");return;}
+            criarSolicitacao({
+              supervisor_id:usuario.id,supervisor_nome:usuario.nome,tipo:"editar_valor",
+              data_ref:d.data,prestador_nome:aj.nome,cargo:"ajudante",
+              valor_antigo:parseFloat(d.valor)||0,valor_novo:parseFloat(supFinEditMode.val)||0,
+              num_mud_antigo:parseInt(d.numMud)||0,num_mud_novo:parseInt(supFinEditMode.numMud)||0,
+              motivo:motivo,status:"pendente"
+            }).then(function(ok){if(ok){setSupFinEditMode(null);setSupFinMotivo("");alert("Solicitação enviada!");}else alert("Erro.");});
+          }
+          function _supConfirmRemF(){
+            var c=supFinDelConfirm;if(!c)return;
+            var motivo=supFinMotivo.trim();
+            if(!motivo){alert("Informe o motivo.");return;}
+            var sol=c.scope==="dia"?{
+              supervisor_id:usuario.id,supervisor_nome:usuario.nome,tipo:"remover_dia",
+              data_ref:c.data,prestador_nome:c.ajNome,cargo:"ajudante",
+              valor_antigo:parseFloat(c.valor)||0,num_mud_antigo:parseInt(c.numMud)||0,
+              motivo:motivo,status:"pendente"
+            }:{
+              supervisor_id:usuario.id,supervisor_nome:usuario.nome,tipo:"remover_ajudante",
+              ajudante_nome:c.ajNome,motivo:motivo,status:"pendente"
+            };
+            criarSolicitacao(sol).then(function(ok){if(ok){setSupFinDelConfirm(null);setSupFinMotivo("");alert("Solicitação enviada!");}else alert("Erro.");});
+          }
           // Mes navigation
           var _mesD=new Date(_mesFin+"-15");
           var _nomesMes=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -6736,9 +6775,30 @@ return(
                   </div>
                   <div style={{borderTop:"1px solid #e2e8f0",paddingTop:8}}>
                     {aj.dias.sort(function(a,b){return a.data.localeCompare(b.data);}).map(function(d,i){
-                      return <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #f8fafc",fontSize:12}}>
-                        <span style={{color:"#475569"}}>{_fd(d.data)}  ·  {d.numMud} mudança{d.numMud!==1?"s":""}</span>
-                        <span style={{fontWeight:700,color:"#065f46"}}>{_fv(d.valor)}</span>
+                      var _isEditing=supFinEditMode&&supFinEditMode.pId===aj.id&&supFinEditMode.idx===i&&supFinEditMode._src==="subFin";
+                      var _pend=_temSolPendF(aj.nome,d.data);
+                      if(_isEditing){
+                        return <div key={i} style={{padding:"6px 0",borderBottom:"1px solid #f8fafc",fontSize:12,background:"#eff6ff"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <span style={{color:"#475569",flex:1}}>{_fd(d.data)}</span>
+                            <input type="number" min="0" value={supFinEditMode.numMud} onChange={function(e){var nm=parseInt(e.target.value)||0;setSupFinEditMode(function(v){return Object.assign({},v,{numMud:nm,val:nm>0?_aj1aF2+Math.max(0,nm-1)*_ajAddF2:0});});}} style={{width:50,padding:"3px",border:"1.5px solid #93c5fd",borderRadius:6,fontSize:11,textAlign:"center"}}/>
+                            <span style={{fontSize:10,color:"#64748b"}}>mud</span>
+                            <input type="number" step="0.01" value={supFinEditMode.val} onChange={function(e){setSupFinEditMode(function(v){return Object.assign({},v,{val:e.target.value});});}} style={{width:80,padding:"3px",border:"1.5px solid #93c5fd",borderRadius:6,fontSize:11,textAlign:"right"}}/>
+                          </div>
+                          <input type="text" value={supFinMotivo} onChange={function(e){setSupFinMotivo(e.target.value);}} placeholder="Motivo *" style={{width:"100%",padding:"6px",marginTop:6,border:"1.5px solid #93c5fd",borderRadius:6,fontSize:11,boxSizing:"border-box"}}/>
+                          <div style={{display:"flex",gap:4,marginTop:6}}>
+                            <button onClick={function(){_supSolicEditAjF(aj,i);}} style={{flex:2,padding:"6px",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,fontWeight:700,fontSize:11,cursor:"pointer"}}>📩 Solicitar</button>
+                            <button onClick={function(){setSupFinEditMode(null);setSupFinMotivo("");}} style={{flex:1,padding:"6px",background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:6,fontWeight:700,fontSize:11,cursor:"pointer"}}>Cancelar</button>
+                          </div>
+                        </div>;
+                      }
+                      return <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid #f8fafc",fontSize:12,background:_pend?"#fef2f2":"transparent"}}>
+                        <span style={{color:_pend?"#dc2626":"#475569",flex:1}}>{_fd(d.data)}  ·  {d.numMud} mud</span>
+                        <span style={{fontWeight:700,color:_pend?"#dc2626":"#065f46",marginRight:8}}>{_fv(d.valor)}</span>
+                        {_pend?<span style={{fontSize:9,fontWeight:700,color:"#dc2626"}}>⏳</span>:<>
+                          <button onClick={function(){setSupFinEditMode({pId:aj.id,idx:i,data:d.data,numMud:d.numMud,val:d.valor,cargo:"ajudante",_src:"subFin"});setSupFinMotivo("");}} style={{background:"#eff6ff",color:"#2563eb",border:"none",borderRadius:6,padding:"3px 6px",fontSize:10,fontWeight:700,cursor:"pointer",marginRight:3}} title="Editar">✏️</button>
+                          <button onClick={function(){setSupFinDelConfirm({scope:"dia",ajId:aj.id,ajNome:aj.nome,data:d.data,numMud:d.numMud,valor:d.valor});setSupFinMotivo("");}} style={{background:"#fef2f2",color:"#dc2626",border:"none",borderRadius:6,padding:"3px 6px",fontSize:10,fontWeight:700,cursor:"pointer"}} title="Remover este dia">🗑️</button>
+                        </>}
                       </div>;
                     })}
                   </div>
@@ -6754,6 +6814,32 @@ return(
                   <div style={{color:"#fff",fontSize:16,fontWeight:900}}>TOTAL MÊS: {_fv(_totalGeralValor)}</div>
                 </div>
                 <div style={{color:"rgba(255,255,255,0.6)",fontSize:10,marginTop:6}}>Regra: 1ª mud R${_aj1a} + R${_ajAdd} por mud adicional (Config → Regras)</div>
+              </div>}
+              {/* MODAL — Confirmação de remoção (sub-aba Financeiro) */}
+              {supFinDelConfirm&&<div onClick={function(){setSupFinDelConfirm(null);setSupFinMotivo("");}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:1000}}>
+                <div onClick={function(e){e.stopPropagation();}} style={{background:"#fff",borderRadius:14,padding:"18px",maxWidth:380,width:"100%",boxShadow:"0 10px 40px rgba(0,0,0,0.3)"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                    <div style={{fontSize:28}}>⚠️</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:14,fontWeight:900,color:"#dc2626"}}>Confirmar remoção</div>
+                      <div style={{fontSize:11,color:"#64748b"}}>Só será aplicada após aprovação do admin</div>
+                    </div>
+                  </div>
+                  <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 12px",marginBottom:10}}>
+                    {supFinDelConfirm.scope==="dia"?<>
+                      <div style={{fontSize:12,color:"#7f1d1d"}}>Solicitar remoção de <strong>{supFinDelConfirm.ajNome}</strong> do dia <strong>{String(supFinDelConfirm.data).split("-").reverse().join("/")}</strong>?</div>
+                      <div style={{fontSize:11,color:"#991b1b",marginTop:4}}>{supFinDelConfirm.numMud} mud · {_fv(supFinDelConfirm.valor)}</div>
+                    </>:<>
+                      <div style={{fontSize:12,color:"#7f1d1d"}}>Solicitar remoção de <strong>{supFinDelConfirm.ajNome}</strong> de todo o período?</div>
+                    </>}
+                  </div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#dc2626",marginBottom:6}}>Motivo *</div>
+                  <input type="text" value={supFinMotivo} onChange={function(e){setSupFinMotivo(e.target.value);}} placeholder="Ex: ajudante faltou..." style={{width:"100%",padding:"9px 11px",border:"1.5px solid #fca5a5",borderRadius:8,fontSize:12,boxSizing:"border-box",marginBottom:10}} autoFocus/>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={function(){setSupFinDelConfirm(null);setSupFinMotivo("");}} style={{flex:1,padding:"10px",background:"#f1f5f9",color:"#475569",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>Cancelar</button>
+                    <button onClick={_supConfirmRemF} style={{flex:2,padding:"10px",background:"#dc2626",color:"#fff",border:"none",borderRadius:8,fontWeight:800,fontSize:12,cursor:"pointer"}}>🗑️ Sim, solicitar</button>
+                  </div>
+                </div>
               </div>}
             </div>}
           </div>;
@@ -6800,8 +6886,26 @@ return(
           var _mySols=solicitacoesFin.filter(function(s){return s.supervisor_id===usuario.id;});
           var _pendentes=_mySols.filter(function(s){return s.status==="pendente";});
           var _historico=_mySols.filter(function(s){return s.status!=="pendente";}).slice(0,10);
-          function _temSolPendente(ajNome,data){return _pendentes.some(function(s){return(s.tipo==="editar_valor"&&s.prestador_nome===ajNome&&s.data_ref===data)||(s.tipo==="remover_ajudante"&&s.ajudante_nome===ajNome);});}
+          function _temSolPendente(ajNome,data){return _pendentes.some(function(s){return((s.tipo==="editar_valor"||s.tipo==="remover_dia")&&s.prestador_nome===ajNome&&s.data_ref===data)||(s.tipo==="remover_ajudante"&&s.ajudante_nome===ajNome);});}
           function _temRemPendente(ajNome){return _pendentes.some(function(s){return s.tipo==="remover_ajudante"&&s.ajudante_nome===ajNome;});}
+          function _supConfirmarRemocao(){
+            var c=supFinDelConfirm;if(!c)return;
+            var motivo=supFinMotivo.trim();
+            if(!motivo){alert("Informe o motivo da remoção.");return;}
+            var sol=c.scope==="dia"?{
+              supervisor_id:usuario.id,supervisor_nome:usuario.nome,tipo:"remover_dia",
+              data_ref:c.data,prestador_nome:c.ajNome,cargo:"ajudante",
+              valor_antigo:parseFloat(c.valor)||0,num_mud_antigo:parseInt(c.numMud)||0,
+              motivo:motivo,status:"pendente"
+            }:{
+              supervisor_id:usuario.id,supervisor_nome:usuario.nome,tipo:"remover_ajudante",
+              ajudante_nome:c.ajNome,motivo:motivo,status:"pendente"
+            };
+            criarSolicitacao(sol).then(function(ok){
+              if(ok){setSupFinDelConfirm(null);setSupFinMotivo("");alert("Solicitação enviada!");}
+              else{alert("Erro ao enviar solicitação.");}
+            });
+          }
           var _editM=supFinEditMode;
           function _supSolicitarEditAj(aj,diaIdx){
             var d=aj.dias[diaIdx];
@@ -6874,7 +6978,7 @@ return(
                           </div>
                           <div style={{display:"flex",alignItems:"center",gap:6}}>
                             <div style={{fontWeight:800,fontSize:14,color:_temRemPendente(aj.nome)?"#dc2626":"#065f46"}}>{_fv2(ajTotal)}</div>
-                            <button onClick={function(){_supSolicitarRemAj(aj.nome);}} style={{background:"#fef2f2",color:"#dc2626",border:"none",borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🗑️</button>
+                            <button onClick={function(){setSupFinDelConfirm({scope:"ajudante",ajId:aj.id,ajNome:aj.nome});setSupFinMotivo("");}} style={{background:"#fef2f2",color:"#dc2626",border:"none",borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}} title="Remover ajudante de toda a semana/mês">🗑️</button>
                           </div>
                         </div>
                         <div style={{borderTop:"1px solid #d1fae5",background:"#fff",padding:"8px 12px"}}>
@@ -6883,7 +6987,7 @@ return(
                               <th style={{padding:"5px 6px",textAlign:"left",color:"#64748b",fontWeight:600}}>Data</th>
                               <th style={{padding:"5px 4px",textAlign:"center",color:"#64748b",fontWeight:600}}>Mud.</th>
                               <th style={{padding:"5px 6px",textAlign:"right",color:"#64748b",fontWeight:600}}>Valor</th>
-                              <th style={{padding:"5px 4px",textAlign:"center",width:40}}></th>
+                              <th style={{padding:"5px 4px",textAlign:"center",width:64}}></th>
                             </tr></thead>
                             <tbody>
                             {aj.dias.map(function(d,i){
@@ -6906,8 +7010,9 @@ return(
                                   <td style={{padding:"5px 6px",fontWeight:500,color:_pend?"#dc2626":"#334155"}}>{dfmt}</td>
                                   <td style={{padding:"5px 4px",textAlign:"center",color:_pend?"#dc2626":"#475569"}}>{d.numMud}</td>
                                   <td style={{padding:"5px 6px",textAlign:"right",fontWeight:600,color:_pend?"#dc2626":"#065f46"}}>{_fv2(d.valor)}</td>
-                                  <td style={{padding:"5px 4px",textAlign:"center"}}>
-                                    <button onClick={function(){setSupFinEditMode({pId:aj.id,idx:i,data:d.data,numMud:d.numMud,val:d.valor,cargo:"ajudante"});setSupFinMotivo("");}} style={{background:"#eff6ff",color:"#2563eb",border:"none",borderRadius:6,padding:"3px 6px",fontSize:10,fontWeight:700,cursor:"pointer"}}>✏️</button>
+                                  <td style={{padding:"5px 4px",textAlign:"center",whiteSpace:"nowrap"}}>
+                                    <button onClick={function(){setSupFinEditMode({pId:aj.id,idx:i,data:d.data,numMud:d.numMud,val:d.valor,cargo:"ajudante"});setSupFinMotivo("");}} style={{background:"#eff6ff",color:"#2563eb",border:"none",borderRadius:6,padding:"3px 6px",fontSize:10,fontWeight:700,cursor:"pointer",marginRight:3}} title="Editar">✏️</button>
+                                    <button onClick={function(){setSupFinDelConfirm({scope:"dia",ajId:aj.id,ajNome:aj.nome,data:d.data,numMud:d.numMud,valor:d.valor});setSupFinMotivo("");}} style={{background:"#fef2f2",color:"#dc2626",border:"none",borderRadius:6,padding:"3px 6px",fontSize:10,fontWeight:700,cursor:"pointer"}} title="Remover este dia">🗑️</button>
                                   </td>
                                 </tr>
                               );
@@ -6943,26 +7048,55 @@ return(
               {(_pendentes.length>0||_historico.length>0)&&<div style={{padding:"0 12px",marginBottom:16}}>
                 <div style={{fontWeight:800,fontSize:13,color:"#1e293b",marginBottom:8}}>📋 Minhas Solicitações</div>
                 {_pendentes.map(function(s){
+                  var _lblP=s.tipo==="editar_valor"?"✏️ Edição":(s.tipo==="remover_dia"?"🗑️ Remover dia":"🗑️ Remover ajudante");
                   return <div key={s.id} style={{background:"#fffbeb",border:"1.5px solid #fcd34d",borderRadius:10,padding:"10px 12px",marginBottom:6}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <span style={{fontSize:11,fontWeight:700,color:"#92400e"}}>{s.tipo==="editar_valor"?"✏️ Edição":"🗑️ Remoção"} — {s.prestador_nome||s.ajudante_nome||""}</span>
+                      <span style={{fontSize:11,fontWeight:700,color:"#92400e"}}>{_lblP} — {s.prestador_nome||s.ajudante_nome||""}</span>
                       <span style={{background:"#fef3c7",border:"1px solid #fcd34d",borderRadius:6,padding:"2px 8px",fontSize:9,fontWeight:700,color:"#92400e"}}>⏳ Pendente</span>
                     </div>
                     <div style={{fontSize:10,color:"#a16207",marginTop:4}}>Motivo: {s.motivo}</div>
                     {s.data_ref&&<div style={{fontSize:10,color:"#a16207"}}>Data: {String(s.data_ref).split("-").reverse().join("/")}</div>}
-                    {s.valor_antigo!=null&&<div style={{fontSize:10,color:"#a16207"}}>{_fv2(s.valor_antigo)} → {_fv2(s.valor_novo)}</div>}
+                    {s.tipo==="editar_valor"&&s.valor_antigo!=null&&<div style={{fontSize:10,color:"#a16207"}}>{_fv2(s.valor_antigo)} → {_fv2(s.valor_novo)}</div>}
+                    {s.tipo==="remover_dia"&&s.valor_antigo!=null&&<div style={{fontSize:10,color:"#a16207"}}>Valor: {_fv2(s.valor_antigo)} ({s.num_mud_antigo||0} mud.)</div>}
                   </div>;
                 })}
                 {_historico.map(function(s){
                   var isAprov=s.status==="aprovado";
+                  var _lblH=s.tipo==="editar_valor"?"✏️ Edição":(s.tipo==="remover_dia"?"🗑️ Remover dia":"🗑️ Remover ajudante");
                   return <div key={s.id} style={{background:isAprov?"#f0fdf4":"#fef2f2",border:"1px solid "+(isAprov?"#bbf7d0":"#fecaca"),borderRadius:10,padding:"10px 12px",marginBottom:6}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <span style={{fontSize:11,fontWeight:700,color:isAprov?"#15803d":"#dc2626"}}>{s.tipo==="editar_valor"?"✏️ Edição":"🗑️ Remoção"} — {s.prestador_nome||s.ajudante_nome||""}</span>
+                      <span style={{fontSize:11,fontWeight:700,color:isAprov?"#15803d":"#dc2626"}}>{_lblH} — {s.prestador_nome||s.ajudante_nome||""}</span>
                       <span style={{fontSize:9,fontWeight:700,color:isAprov?"#15803d":"#dc2626"}}>{isAprov?"✅ Aprovado":"❌ Rejeitado"}</span>
                     </div>
                     <div style={{fontSize:10,color:"#64748b",marginTop:2}}>Por: {s.admin_nome||"Admin"} · {s.respondido_em?new Date(s.respondido_em).toLocaleDateString("pt-BR"):""}</div>
                   </div>;
                 })}
+              </div>}
+              {/* MODAL — Confirmação de remoção */}
+              {supFinDelConfirm&&<div onClick={function(){setSupFinDelConfirm(null);setSupFinMotivo("");}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:1000}}>
+                <div onClick={function(e){e.stopPropagation();}} style={{background:"#fff",borderRadius:14,padding:"18px",maxWidth:380,width:"100%",boxShadow:"0 10px 40px rgba(0,0,0,0.3)"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                    <div style={{fontSize:28}}>⚠️</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:14,fontWeight:900,color:"#dc2626"}}>Confirmar remoção</div>
+                      <div style={{fontSize:11,color:"#64748b"}}>Só será aplicada após aprovação do admin</div>
+                    </div>
+                  </div>
+                  <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 12px",marginBottom:10}}>
+                    {supFinDelConfirm.scope==="dia"?<>
+                      <div style={{fontSize:12,color:"#7f1d1d"}}>Solicitar remoção de <strong>{supFinDelConfirm.ajNome}</strong> do dia <strong>{String(supFinDelConfirm.data).split("-").reverse().join("/")}</strong>?</div>
+                      <div style={{fontSize:11,color:"#991b1b",marginTop:4}}>{supFinDelConfirm.numMud} mud · {_fv2(supFinDelConfirm.valor)}</div>
+                    </>:<>
+                      <div style={{fontSize:12,color:"#7f1d1d"}}>Solicitar remoção de <strong>{supFinDelConfirm.ajNome}</strong> de todo o período?</div>
+                    </>}
+                  </div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#dc2626",marginBottom:6}}>Motivo *</div>
+                  <input type="text" value={supFinMotivo} onChange={function(e){setSupFinMotivo(e.target.value);}} placeholder="Ex: ajudante faltou..." style={{width:"100%",padding:"9px 11px",border:"1.5px solid #fca5a5",borderRadius:8,fontSize:12,boxSizing:"border-box",marginBottom:10}} autoFocus/>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={function(){setSupFinDelConfirm(null);setSupFinMotivo("");}} style={{flex:1,padding:"10px",background:"#f1f5f9",color:"#475569",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>Cancelar</button>
+                    <button onClick={_supConfirmarRemocao} style={{flex:2,padding:"10px",background:"#dc2626",color:"#fff",border:"none",borderRadius:8,fontWeight:800,fontSize:12,cursor:"pointer"}}>🗑️ Sim, solicitar</button>
+                  </div>
+                </div>
               </div>}
             </div>
           );
