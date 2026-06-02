@@ -2990,7 +2990,8 @@ export default function App(){
           var lin=lista.map(function(m){return"👤 *"+m.nome+"* | 📅 "+fd(m.data)+" | 📍 "+(m.comunidade||m.destino||m.selo||"");});
           var SEP="━━━━━━━━━━━━━━━━━";
           var NL="\n";
-          var txt="🚚 *RELATÓRIO TELEMIM*"+NL+"📅 "+per+NL+SEP+NL+lin.join(NL)+NL+SEP+NL+"📊 *Total: "+lin.length+"*"+NL+"_TELEMIM_";
+          var _totM3WA=lista.reduce(function(s,m){return s+(parseFloat(m.medicao)||0);},0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+          var txt="🚚 *RELATÓRIO TELEMIM*"+NL+"📅 "+per+NL+SEP+NL+lin.join(NL)+NL+SEP+NL+"📊 *Total: "+lin.length+" mudança"+(lin.length!==1?"s":"")+"*"+NL+"📐 *Volume: "+_totM3WA+" m³*"+NL+"_TELEMIM_";
           var cb=function(){setToast({msg:"📋 Copiado! Cole no WhatsApp"});setTimeout(function(){setToast(null);},4000);};
           if(navigator.clipboard){navigator.clipboard.writeText(txt).then(cb).catch(function(){var t=mk("textarea","","");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();});}
           else{var t=mk("textarea","","");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();}
@@ -3165,8 +3166,10 @@ export default function App(){
       var now=new Date();
       var extractStr=now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
       var perStr=dataIni&&dataFim?(_fmtDateISO(dataIni)+' a '+_fmtDateISO(dataFim)):dataIni?('A partir de '+_fmtDateISO(dataIni)):dataFim?('Até '+_fmtDateISO(dataFim)):'Todo o período';
+      var _totM3=(lista||[]).reduce(function(s,m){return s+(parseFloat(m.medicao)||0);},0);
+      var _totM3Str=_totM3.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' m³';
       // Cabeçalho timbrado
-      _addPDFHeader(doc,'RELATÓRIO DE OPERAÇÕES — TELEMIM','Contrato: PROMORAR  |  Período: '+perStr+'  |  Total: '+lista.length+' mudança'+(lista.length!==1?'s':''));
+      _addPDFHeader(doc,'RELATÓRIO DE OPERAÇÕES — TELEMIM','Contrato: PROMORAR  |  Período: '+perStr+'  |  Total: '+lista.length+' mudança'+(lista.length!==1?'s':'')+'  |  Volume: '+_totM3Str);
       // Tabela
       doc.autoTable({
         startY:30,
@@ -3198,8 +3201,10 @@ export default function App(){
       var M=16;var Y=0;
       var extractStr=now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
       var perStr=dataIni&&dataFim?(_fmtDateISO(dataIni)+' a '+_fmtDateISO(dataFim)):dataIni?('A partir de '+_fmtDateISO(dataIni)):dataFim?('Até '+_fmtDateISO(dataFim)):'Todo o período';
+      var _totM3Exec=(lista||[]).reduce(function(s,m){return s+(parseFloat(m.medicao)||0);},0);
+      var _totM3ExecStr=_totM3Exec.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' m³';
       // Cabeçalho timbrado
-      _addPDFHeader(doc,'RELATÓRIO EXECUTIVO — TELEMIM','Contrato: PROMORAR  |  Período: '+perStr);
+      _addPDFHeader(doc,'RELATÓRIO EXECUTIVO — TELEMIM','Contrato: PROMORAR  |  Período: '+perStr+'  |  Volume Total: '+_totM3ExecStr);
       Y=32;
       // KPIs
       var totalMud=lista.length;
