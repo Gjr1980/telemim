@@ -22,6 +22,35 @@
   <body>
     <div id="root"></div>
     <script>window.__SENTRY_DSN__ = 'https://cb5894c1a589b321fd9595dcb6acc3e1@o4511457100627968.ingest.us.sentry.io/4511457821458432';</script>
+    <script src="https://browser.sentry-cdn.com/8.40.0/bundle.tracing.replay.min.js" crossorigin="anonymous"></script>
+    <script>
+      try {
+        if (window.Sentry && window.__SENTRY_DSN__) {
+          window.Sentry.init({
+            dsn: window.__SENTRY_DSN__,
+            environment: location.hostname.includes('localhost') ? 'dev' : 'production',
+            release: 'promorar@' + (new Date().toISOString().slice(0,10)),
+            tracesSampleRate: 0.1,
+            replaysSessionSampleRate: 0.05,
+            replaysOnErrorSampleRate: 1.0,
+            integrations: [
+              window.Sentry.browserTracingIntegration(),
+              window.Sentry.replayIntegration({ maskAllText: false, blockAllMedia: false })
+            ],
+            beforeSend(event) {
+              try {
+                if (event.request && event.request.cookies) delete event.request.cookies;
+                if (event.user) { event.user.email = undefined; }
+              } catch(_){}
+              return event;
+            }
+          });
+          window.__SENTRY_SET_USER__ = function(u){
+            try { window.Sentry.setUser(u ? { id: u.id, username: u.nome, perfil: u.perfil } : null); } catch(_){}
+          };
+        }
+      } catch(e) { console.warn('[Sentry] init falhou:', e); }
+    </script>
     <script type="module" src="/main.jsx"></script>
   </body>
 </html>

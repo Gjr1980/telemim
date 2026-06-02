@@ -950,6 +950,8 @@ export default function App(){
   const [authChecked,setAuthChecked]=useState(true);
   const [listaUsuarios,setListaUsuarios]=useState([])
   const [confirmDelete,setConfirmDelete]=useState(null);
+  const [confirmDeleteMotivo,setConfirmDeleteMotivo]=useState("");
+  const [cadastroWarnings,setCadastroWarnings]=useState(null);
   const [confirmReenvio,setConfirmReenvio]=useState(null);
   function _confirmarReenvio(opts){
     return new Promise(function(resolve){
@@ -1662,7 +1664,7 @@ export default function App(){
       console.error("[saveMud]",e);
     }
   }
-  async function handleLogin(){if(!loginForm.email||!loginForm.senha){setLoginErro("Preencha email e senha");return;}setLoginLoad(true);setLoginErro("");try{const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:loginForm.email,password:loginForm.senha})});const d=await res.json();if(!res.ok||!d.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+d.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+d.access_token}});const pd=await pr.json();if(!pd||!pd[0]||pd[0].ativo===false){setLoginErro("Sem acesso. Contate o administrador.");setLoginLoad(false);return;}const u={id:d.user.id,email:d.user.email,nome:pd[0].nome,perfil:pd[0].perfil,tipo_veiculo:pd[0].tipo_veiculo||null,token:d.access_token,refresh_token:d.refresh_token||null};setUsuario(u);setTab("dashboard");localStorage.setItem('tmim_u',JSON.stringify(u));/* Reload data with fresh JWT */try{var _mr=await dbGet("mudancas","deleted_at=is.null");setMudancas(_mr||[]);var _ar=await dbGet("agenda");if(_ar)setAgenda(_ar.map(function(x){return{...x,_dbId:x.id};}));var _cr=await dbGetCustos();if(_cr)setCustosDiarios(_cr);loadContasSemana();loadPrestadores();}catch(_le){}}catch(e){setLoginErro("Erro.");}setLoginLoad(false);}
+  async function handleLogin(){if(!loginForm.email||!loginForm.senha){setLoginErro("Preencha email e senha");return;}setLoginLoad(true);setLoginErro("");try{const res=await fetch(SUPA_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:loginForm.email,password:loginForm.senha})});const d=await res.json();if(!res.ok||!d.access_token){setLoginErro("Email ou senha incorretos");setLoginLoad(false);return;}const pr=await fetch(SUPA_URL+"/rest/v1/usuarios?id=eq."+d.user.id+"&select=*",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+d.access_token}});const pd=await pr.json();if(!pd||!pd[0]||pd[0].ativo===false){setLoginErro("Sem acesso. Contate o administrador.");setLoginLoad(false);return;}const u={id:d.user.id,email:d.user.email,nome:pd[0].nome,perfil:pd[0].perfil,tipo_veiculo:pd[0].tipo_veiculo||null,token:d.access_token,refresh_token:d.refresh_token||null};setUsuario(u);setTab("dashboard");localStorage.setItem('tmim_u',JSON.stringify(u));try{window.__SENTRY_SET_USER__&&window.__SENTRY_SET_USER__(u);}catch(_){}/* Reload data with fresh JWT */try{var _mr=await dbGet("mudancas","deleted_at=is.null");setMudancas(_mr||[]);var _ar=await dbGet("agenda");if(_ar)setAgenda(_ar.map(function(x){return{...x,_dbId:x.id};}));var _cr=await dbGetCustos();if(_cr)setCustosDiarios(_cr);loadContasSemana();loadPrestadores();}catch(_le){}}catch(e){setLoginErro("Erro.");}setLoginLoad(false);}
   function handleLogout(){setUsuario(null);localStorage.removeItem('tmim_u');setLoginForm({email:"",senha:""});}
   const perfil=usuario?.perfil||"";const isAdmin=perfil==="admin";const isPromorar=perfil==="promorar";const isSocial=perfil==="social"||perfil==="coordenador";const isMotorista=perfil==="motorista";const isSupervisor=perfil==="supervisor";const temFin=isAdmin;const podeEditar=isAdmin||isPromorar||isSupervisor;const verMed=isAdmin||isPromorar||isSupervisor;
   useEffect(function(){if(isAdmin)loadNotificacoes();},[usuario]);
@@ -2286,21 +2288,23 @@ export default function App(){
     await saveMud([nova,...mudancas],nova);
     setForm(initForm); setFlash("✅ Salvo!"); setTimeout(()=>setFlash(""),1800); setTab("lista");
   }
-  async function handleDelMud(id){
+  async function handleDelMud(id,motivo){
     if(!usuario||usuario.perfil!=="admin"){setSyncStatus("⛔ Apenas o administrador pode excluir mudânças.");return;}
     var nome=usuario&&usuario.nome?usuario.nome:"Admin";
+    var _delBy=motivo?nome+" — "+motivo:nome;
     var prevMud=mudancas.slice();
     setMudancas(function(m){return m.filter(function(x){return x.id!==id;});});
     setSyncStatus("⌛ Apagando...");
     try{
       var r=await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+id,
         {method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),
-        body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:nome})});
+        body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:_delBy})});
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("🗑️ OS apagada (mantida para auditoria).");
     }catch(e){
       setMudancas(prevMud);
       setSyncStatus("⚠️ Erro ao apagar: "+e.message);
+      try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"handleDelMud"},extra:{id:id}});}catch(_){}
     }
   }
   async function handleSaveEditMud(){
@@ -2375,7 +2379,35 @@ export default function App(){
       setSyncStatus("⚠️ Erro ao validar");
     }
   }
+  // Item 2: validações de cadastro
+  function _validarCadastroAg(form){
+    var _ws=[];
+    if(form.data){
+      var _hj=new Date();_hj.setHours(0,0,0,0);
+      var _alvo=new Date(form.data+"T12:00:00");
+      var _diffDias=Math.round((_alvo-_hj)/(1000*60*60*24));
+      if(_diffDias<-30) _ws.push({tipo:"data_antiga",msg:"📅 Data é "+Math.abs(_diffDias)+" dias no passado. Confirma?"});
+      else if(_diffDias>90) _ws.push({tipo:"data_futura",msg:"📅 Data é "+_diffDias+" dias no futuro. Confirma?"});
+    }
+    if(form.contato){
+      var _tel=String(form.contato).replace(/\D/g,"");
+      if(_tel.length>0&&_tel.length<10) _ws.push({tipo:"tel_curto",msg:"📞 Telefone parece incompleto ("+_tel.length+" dígitos). Confirma?"});
+    }
+    if(form.nome&&form.nome.trim().length<6) _ws.push({tipo:"nome_curto",msg:"👤 Nome parece incompleto. Confirma?"});
+    if(!form.origem||form.origem.trim().length<8) _ws.push({tipo:"origem_curta",msg:"📦 Endereço de origem vazio/curto. Confirma?"});
+    if(!form.destino||form.destino.trim().length<8) _ws.push({tipo:"destino_curto",msg:"🏠 Endereço de destino vazio/curto. Confirma?"});
+    return _ws;
+  }
   async function handleAddAg(){
+    if(!agForm.nome||!agForm.data) return;
+    var _warnings=_validarCadastroAg(agForm);
+    if(_warnings.length>0){
+      setCadastroWarnings({warnings:_warnings,onConfirm:function(){setCadastroWarnings(null);_doAddAg();},onCancel:function(){setCadastroWarnings(null);}});
+      return;
+    }
+    return _doAddAg();
+  }
+  async function _doAddAg(){
     if(!agForm.nome||!agForm.data) return;
     // === TRAVA ANTI-DUPLICIDADE: nome OU selo na mesma data ===
     var _nomeAF=(agForm.nome||"").toLowerCase().trim();
@@ -2453,7 +2485,7 @@ export default function App(){
       }
     })();
   }
-  async function handleDelAg(id){
+  async function handleDelAg(id,motivo){
     if(!usuario||usuario.perfil!=="admin"){setSyncStatus("⛔ Apenas o administrador pode excluir agendas.");return;}
     // PROTEÇÃO: Bloquear exclusão de mudanças concluídas ou em andamento
     var _agItem=agenda.find(function(a){return a.id===id;});
@@ -2465,18 +2497,20 @@ export default function App(){
       if((_agItem.motorista_van_id||_agItem.motorista_caminhao_id)&&!window.confirm("⚠️ Esta agenda tem motoristas atribuídos ("+(_agItem.nome||"?")+"). Deseja realmente excluir?")){return;}
     }
     var nome=usuario&&usuario.nome?usuario.nome:"Admin";
+    var _delBy=motivo?nome+" — "+motivo:nome;
     var prevAg=agenda.slice();
     setAgenda(function(a){return a.filter(function(x){return x.id!==id;});});
     setSyncStatus("⌛ Apagando...");
     try{
       var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+id,
         {method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),
-        body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:nome})});
+        body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:_delBy})});
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("🗑️ Agenda apagada (mantida para auditoria).");
     }catch(e){
       setAgenda(prevAg);
       setSyncStatus("⚠️ Erro ao apagar: "+e.message);
+      try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"handleDelAg"},extra:{id:id}});}catch(_){}
     }
   }
   async function handleSaveEditAg(){
@@ -5390,7 +5424,7 @@ export default function App(){
                   <button onClick={()=>compartilharMudanca(m)} style={{...btnGreen,borderRadius:8,padding:"6px 10px",fontSize:13}}>📲</button>
                   <button onClick={function(e){gerarPDFDetalheRegistro(m,e.currentTarget);}} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700}} title="PDF Detalhado">📑</button>
                   {(isAdmin||isPromorar)&&<button onClick={()=>setEditMud((function(){var _cd=(custosDiarios||[]).find(function(x){return x.data===m.data;});return {...m,_qtdAj:_cd?parseInt(_cd.ajudantes)||1:1};})())} style={{...btnBlue,borderRadius:8,padding:"6px 10px",fontSize:13}}>✏️</button>}
-                  {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud"});}} style={{...btnRed,borderRadius:8,padding:"6px 10px",fontSize:13}}>✕</button>}
+                  {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud",data:m.data,status:m.status,medicao:m.medicao});setConfirmDeleteMotivo("");}} style={{...btnRed,borderRadius:8,padding:"6px 10px",fontSize:13}}>✕</button>}
                   {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===m.data;});setViewEquipeAg({nome:m.nome,data:m.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"1.5px solid #fde047",color:"#92400e",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700}} title="Ver equipe do dia">👷</button>}
                 </div>
               </Card>
@@ -5487,7 +5521,7 @@ export default function App(){
                         {!isSocial&&<button onClick={()=>converterEmMudanca(a)} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>}
                         {!isSocial&&<button onClick={function(){var _emOp=a.inicio_van_em||a.van_saiu_em||a.inicio_caminhao_em||a.caminhao_saiu_em||a.inicio_mudanca_em;if(_emOp&&!isAdmin){setPendModal(a);setPendMotivo("");}else if(isAdmin&&_emOp){setPendModal(a);setPendMotivo("");}else if(isAdmin){handleMoverPendente(a.id,"");}else{setPendModal(a);setPendMotivo("");}}} style={{background:a.pendencia_solicitada?"#fef3c7":"#fffbeb",border:a.pendencia_solicitada?"1.5px solid #f59e0b":"none",color:"#b45309",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title={a.pendencia_solicitada?"Pendência solicitada":"Mover para Pendente"}>{a.pendencia_solicitada?"🔔":"⏳"}</button>}
                         <button onClick={()=>setEditAg({...a})} style={btnBlue}>✏️</button>
-                        {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={btnRed}>✕</button>}
+                        {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag",data:a.data,status:a.status,medicao:a.medicao});setConfirmDeleteMotivo("");}} style={btnRed}>✕</button>}
                         {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===a.data;});setViewEquipeAg({nome:a.nome,data:a.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"none",color:"#92400e",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Ver equipe do dia">👷</button>}
                       </div>
                     </div>
@@ -5564,7 +5598,7 @@ export default function App(){
                           <div style={{display:"flex",gap:5}}>
                             {!isSocial&&<button onClick={function(){pedirFinalizacao(a);}} disabled={_agendaRemovidaIds.has(a.id)} style={{background:_agendaRemovidaIds.has(a.id)?"#059669":"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:700,cursor:_agendaRemovidaIds.has(a.id)?"default":"pointer"}}>{_agendaRemovidaIds.has(a.id)?"✅ Concluído":"✅ Finalizar"}</button>}
                             <button onClick={function(){setReagendarModal(a);setReagendarData("");setReagendarMotivo("");}} style={{background:"#eff6ff",border:"1.5px solid #93c5fd",color:"#2563eb",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📅 Reagendar</button>
-                            {isAdmin&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={{background:"#fef2f2",border:"1.5px solid #fecaca",color:"#dc2626",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Cancelar</button>}
+                            {isAdmin&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag",data:a.data,status:a.status,medicao:a.medicao});setConfirmDeleteMotivo("");}} style={{background:"#fef2f2",border:"1.5px solid #fecaca",color:"#dc2626",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>❌ Cancelar</button>}
                           </div>
                           <div style={{display:"flex",gap:5,alignItems:"center"}}>
                             {!isSocial&&a.medicao&&<Badge color={COLORS.green}>📐 {a.medicao} m³</Badge>}
@@ -5576,7 +5610,7 @@ export default function App(){
                       <div style={{display:"flex",flexDirection:"column",gap:5,marginLeft:9}}>
                         {!isSocial&&<button onClick={function(){converterEmMudanca(a);}} style={{background:"#f0fdf4",border:"none",color:COLORS.green,borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Converter em mudança">✅</button>}
                         <button onClick={function(){setEditAg({...a});}} style={btnBlue}>✏️</button>
-                        {isAdmin&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag"});}} style={btnRed}>✕</button>}
+                        {isAdmin&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:a.id,nome:a.nome,tipo:"ag",data:a.data,status:a.status,medicao:a.medicao});setConfirmDeleteMotivo("");}} style={btnRed}>✕</button>}
                         {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===a.data;});setViewEquipeAg({nome:a.nome,data:a.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"none",color:"#92400e",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:10,fontWeight:800}} title="Ver equipe do dia">👷</button>}
                       </div>
                     </div>
@@ -8018,7 +8052,49 @@ return(
         <button onClick={function(){if(!reagendarData){alert("Selecione a nova data.");return;}if(!reagendarMotivo){alert("Selecione o motivo.");return;}handleReagendar(reagendarModal.id,reagendarData,reagendarMotivo);}} disabled={!reagendarData||!reagendarMotivo} style={{flex:2,padding:"11px 0",borderRadius:12,border:"none",background:reagendarData&&reagendarMotivo?"#2563eb":"#94a3b8",color:"#fff",fontWeight:900,fontSize:13,cursor:reagendarData&&reagendarMotivo?"pointer":"not-allowed"}}>📅 Reagendar</button>
       </div>
     </div></div>}
-        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.55)",zIndex:9998,display:confirmDelete?"flex":"none",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setConfirmDelete(null);}}><div style={{background:"#fff",borderRadius:20,padding:"28px 24px",maxWidth:340,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.2)",textAlign:"center"}} onClick={function(e){e.stopPropagation();}}><div style={{fontSize:36,marginBottom:12}}>⚠️</div><div style={{fontWeight:800,fontSize:16,color:"#1e293b",marginBottom:8}}>Tem a certeza?</div><div style={{fontSize:13,color:"#64748b",marginBottom:20}}>Apagar <strong>{confirmDelete&&confirmDelete.nome}</strong>?</div><div style={{display:"flex",gap:10}}><button onClick={function(){setConfirmDelete(null);}} style={{flex:1,padding:"11px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancelar</button><button onClick={function(){if(confirmDelete&&confirmDelete.tipo==="mud")handleDelMud(confirmDelete.id);else if(confirmDelete)handleDelAg(confirmDelete.id);setConfirmDelete(null);}} style={{flex:1,padding:"11px 0",borderRadius:12,border:"none",background:"#ef4444",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>🗑️ Sim, Apagar</button></div></div></div>
+        {cadastroWarnings&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){if(cadastroWarnings.onCancel)cadastroWarnings.onCancel();}}><div style={{background:"#fff",borderRadius:20,padding:"22px",maxWidth:420,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}} onClick={function(e){e.stopPropagation();}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+            <div style={{fontSize:30}}>⚠️</div>
+            <div>
+              <div style={{fontWeight:900,fontSize:15,color:"#92400e"}}>Atenção — revise antes de salvar</div>
+              <div style={{fontSize:11,color:"#64748b"}}>{cadastroWarnings.warnings.length} item(s) suspeito(s)</div>
+            </div>
+          </div>
+          <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:10,padding:"10px 12px",marginBottom:14}}>
+            {cadastroWarnings.warnings.map(function(w,i){return <div key={i} style={{fontSize:12,color:"#78350f",padding:"4px 0",borderBottom:i<cadastroWarnings.warnings.length-1?"1px solid #fde68a":"none"}}>{w.msg}</div>;})}
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={function(){if(cadastroWarnings.onCancel)cadastroWarnings.onCancel();}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:800,fontSize:13,cursor:"pointer"}}>↩️ Voltar e corrigir</button>
+            <button onClick={function(){if(cadastroWarnings.onConfirm)cadastroWarnings.onConfirm();}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"none",background:"#f59e0b",color:"#fff",fontWeight:900,fontSize:13,cursor:"pointer"}}>✅ Salvar assim</button>
+          </div>
+        </div></div>}
+        {confirmDelete&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setConfirmDelete(null);setConfirmDeleteMotivo("");}}><div style={{background:"#fff",borderRadius:20,padding:"24px 22px",maxWidth:380,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.2)"}} onClick={function(e){e.stopPropagation();}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+            <div style={{fontSize:32}}>⚠️</div>
+            <div>
+              <div style={{fontWeight:900,fontSize:16,color:"#dc2626"}}>Apagar {confirmDelete.tipo==="mud"?"mudança":"agenda"}?</div>
+              <div style={{fontSize:11,color:"#64748b"}}>Ação reversível só via Auditoria</div>
+            </div>
+          </div>
+          <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 12px",marginBottom:12}}>
+            <div style={{fontWeight:700,fontSize:13,color:"#7f1d1d"}}>👤 {confirmDelete.nome}</div>
+            {confirmDelete.data&&<div style={{fontSize:11,color:"#991b1b",marginTop:2}}>📅 {String(confirmDelete.data).split("-").reverse().join("/")}{confirmDelete.status?" · "+confirmDelete.status:""}</div>}
+            {confirmDelete.medicao!=null&&Number(confirmDelete.medicao)>0&&<div style={{fontSize:11,color:"#991b1b",marginTop:2}}>📐 {confirmDelete.medicao} m³</div>}
+          </div>
+          <div style={{fontSize:11,fontWeight:700,color:"#dc2626",marginBottom:6}}>Motivo da exclusão * <span style={{color:"#94a3b8",fontWeight:500}}>(mín. 5 caracteres)</span></div>
+          <input type="text" value={confirmDeleteMotivo} onChange={function(e){setConfirmDeleteMotivo(e.target.value);}} placeholder="Ex: morador cancelou, duplicata, ..." style={{width:"100%",padding:"10px 12px",border:"1.5px solid #fca5a5",borderRadius:10,fontSize:13,boxSizing:"border-box",marginBottom:14}} autoFocus/>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={function(){setConfirmDelete(null);setConfirmDeleteMotivo("");}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:800,fontSize:13,cursor:"pointer"}}>Cancelar</button>
+            <button disabled={confirmDeleteMotivo.trim().length<5} onClick={function(){
+              var _motivo=confirmDeleteMotivo.trim();
+              if(_motivo.length<5){alert("Informe o motivo (mín. 5 caracteres).");return;}
+              var _cd=confirmDelete;
+              if(_cd.tipo==="mud")handleDelMud(_cd.id,_motivo);
+              else handleDelAg(_cd.id,_motivo);
+              setConfirmDelete(null);setConfirmDeleteMotivo("");
+            }} style={{flex:2,padding:"12px 0",borderRadius:12,border:"none",background:confirmDeleteMotivo.trim().length>=5?"#dc2626":"#fca5a5",color:"#fff",fontWeight:900,fontSize:13,cursor:confirmDeleteMotivo.trim().length>=5?"pointer":"not-allowed"}}>🗑️ Apagar</button>
+          </div>
+        </div></div>}
     {/* ── MODAL TERCEIRIZAR MUDANÇA ── */}
     {terceirizarModal&&(
       <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.55)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){setTerceirizarModal(null);setTerceirizarSel("");}}>
