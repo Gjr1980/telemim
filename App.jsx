@@ -3760,6 +3760,9 @@ export default function App(){
       setTimeout(function(){setSyncStatus("✅ Sincronizado");},3500);
     }catch(e){console.warn("[reenviar-sup]",e);setSyncStatus("⚠️ Erro ao reenviar");}
   }
+  // Flag global: notifica/não-notifica supervisor + motoristas (van/caminhão)
+  // ao receberem atribuição. Setado em false a pedido do admin (jun/2026).
+  var _NOTIF_ATRIB_EQUIPE=false;
   async function handleDespachar(agId,motoristaId,tipo){
     await _ensureAuth();
     var mid=motoristaId||null;
@@ -3771,7 +3774,7 @@ export default function App(){
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Motorista despachado!");
       // Push notification to motorista
-      if(mid){var _agItem=agenda.find(function(a){return a.id===agId;});sendPushNotification([mid],"📋 Nova mudança atribuída!","👤 "+(_agItem?_agItem.nome:"Mudança")+" · 📅 "+(_agItem?_agItem.data:"")+" · "+tipo);
+      if(mid&&_NOTIF_ATRIB_EQUIPE){var _agItem=agenda.find(function(a){return a.id===agId;});sendPushNotification([mid],"📋 Nova mudança atribuída!","👤 "+(_agItem?_agItem.nome:"Mudança")+" · 📅 "+(_agItem?_agItem.data:"")+" · "+tipo);
         // AUTO: Gera link de rota + envia WA unica ao motorista
         try{
           var _motR=listaUsuarios.find(function(u){return u.id===mid;});
@@ -3839,7 +3842,7 @@ export default function App(){
       if(!r.ok) throw new Error("HTTP "+r.status);
       setSyncStatus("✅ Supervisor designado!");
       // Push notification to supervisor
-      if(sid&&_ag){sendPushNotification([sid],"📋 Nova mudança atribuída!","👤 "+(_ag.nome||"Mudança")+" · 📅 "+(_ag.data||"")+" · ⏰ "+(_ag.horario||""));
+      if(sid&&_ag&&_NOTIF_ATRIB_EQUIPE){sendPushNotification([sid],"📋 Nova mudança atribuída!","👤 "+(_ag.nome||"Mudança")+" · 📅 "+(_ag.data||"")+" · ⏰ "+(_ag.horario||""));
         // WA auto: atribuida (supervisor dispatch)
         if(cfgWA.whatsapp_ativo==="true"&&cfgWAauto.atribuida&&cfgWAauto.atribuida.ativo){
           var _supU=listaUsuarios.find(function(u){return u.id===sid;});
@@ -3850,7 +3853,7 @@ export default function App(){
           var _nums2=resolverDestinatariosWA(cfgWAauto.atribuida.dest,Object.assign({},_ag,{supervisor_id:sid}));
           _nums2.forEach(function(n){enviarWA(n,substituirVarsWA(cfgWAauto.atribuida.msg,_vars2));});
         }}
-      if(sid&&_ag){var _sup=listaUsuarios.find(function(u){return u.id===sid;});if(_sup&&_sup.email){try{await fetch(SUPA_URL+"/functions/v1/enviar-email-agendamento",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({to:_sup.email,subject:"📋 Designação de Supervisão — "+(_ag.nome||"Mudança"),html:"<h2>Olá "+(_sup.nome||"Supervisor")+"!</h2><p>Você foi designado(a) para supervisionar a seguinte mudança:</p><p><b>👤 Cliente:</b> "+(_ag.nome||"—")+"</p><p><b>📅 Data:</b> "+(_ag.data||"—")+(_ag.horario?" às "+_ag.horario+"h":"")+"</p><p><b>🏷️ Selo:</b> "+(_ag.selo||"—")+"</p><p><b>📦 Saída:</b> "+(_ag.origem||"—")+"</p><p><b>🏘️ Destino:</b> "+(_ag.destino||"—")+"</p><br><p>Acesse o app para mais detalhes.</p><p><b>TELEMIM — PROMORAR</b></p>"})});} catch(e){}}}
+      if(sid&&_ag&&_NOTIF_ATRIB_EQUIPE){var _sup=listaUsuarios.find(function(u){return u.id===sid;});if(_sup&&_sup.email){try{await fetch(SUPA_URL+"/functions/v1/enviar-email-agendamento",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({to:_sup.email,subject:"📋 Designação de Supervisão — "+(_ag.nome||"Mudança"),html:"<h2>Olá "+(_sup.nome||"Supervisor")+"!</h2><p>Você foi designado(a) para supervisionar a seguinte mudança:</p><p><b>👤 Cliente:</b> "+(_ag.nome||"—")+"</p><p><b>📅 Data:</b> "+(_ag.data||"—")+(_ag.horario?" às "+_ag.horario+"h":"")+"</p><p><b>🏷️ Selo:</b> "+(_ag.selo||"—")+"</p><p><b>📦 Saída:</b> "+(_ag.origem||"—")+"</p><p><b>🏘️ Destino:</b> "+(_ag.destino||"—")+"</p><br><p>Acesse o app para mais detalhes.</p><p><b>TELEMIM — PROMORAR</b></p>"})});} catch(e){}}}
     }catch(e){loadAg();setSyncStatus("⚠️ Erro ao designar");}
   }
 
