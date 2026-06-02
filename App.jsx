@@ -964,6 +964,9 @@ export default function App(){
   const [auditSaude,setAuditSaude]=useState(null);
   const [auditMoradorQuery,setAuditMoradorQuery]=useState("");
   const [auditMorador,setAuditMorador]=useState(null);
+  const [toastMsg,setToastMsg]=useState("");
+  const [auditDuplicatas,setAuditDuplicatas]=useState(null);
+  const [mergeAjudantes,setMergeAjudantes]=useState(null);
   const [confirmReenvio,setConfirmReenvio]=useState(null);
   function _confirmarReenvio(opts){
     return new Promise(function(resolve){
@@ -1083,6 +1086,25 @@ export default function App(){
         })
         .on('postgres_changes',{event:'INSERT',schema:'public',table:'gps_tracking'},function(p){
           if(p.new){setGpsPositions(function(prev){var _found=false;var _updated=prev.map(function(g){if(g.motorista_id===p.new.motorista_id&&g.agenda_id===p.new.agenda_id){_found=true;return p.new;}return g;});if(!_found)_updated.push(p.new);return _updated;});}
+        })
+        .on('postgres_changes',{event:'INSERT',schema:'public',table:'solicitacoes_financeiras'},function(p){
+          if(p.new){
+            setSolicitacoesFin(function(prev){return [p.new].concat(prev.filter(function(s){return s.id!==p.new.id;}));});
+            try{
+              var _u=JSON.parse(localStorage.getItem('tmim_u')||'null');
+              if(_u&&_u.perfil==='admin'&&p.new.status==='pendente'){
+                var _tipo=p.new.tipo==='editar_valor'?'✏️ Edição':p.new.tipo==='remover_dia'?'🗑️ Remoção de dia':'🗑️ Remoção';
+                setToastMsg(_tipo+' solicitada por '+(p.new.supervisor_nome||'?')+' — '+(p.new.prestador_nome||p.new.ajudante_nome||''));
+                setTimeout(function(){setToastMsg('');},6000);
+                if('Notification' in window&&Notification.permission==='granted'){
+                  try{new Notification('📩 Nova solicitação',{body:_tipo+' — '+(p.new.supervisor_nome||'?'),icon:'/icons/icon-192.png'});}catch(_){}
+                }
+              }
+            }catch(_){}
+          }
+        })
+        .on('postgres_changes',{event:'UPDATE',schema:'public',table:'solicitacoes_financeiras'},function(p){
+          if(p.new){setSolicitacoesFin(function(prev){return prev.map(function(s){return s.id===p.new.id?p.new:s;});});}
         })
         .subscribe(function(status){
           if(status==='SUBSCRIBED') setSyncStatus('✅ Sincronizado (live)');
@@ -1418,6 +1440,67 @@ export default function App(){
       setAuditMorador({query:query,mudancas:_muds,agendas:_agsNew});
     }catch(e){try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"loadAuditMorador"}});}catch(_){}}
     setAuditLoading(false);
+  }
+  async function loadAuditDuplicatas(){
+    setAuditLoading(true);
+    try{
+      var _r=await fetch(SUPA_URL+"/rest/v1/ajudantes?select=*&order=nome",{headers:getH()});
+      var _ajs=_r.ok?await _r.json():[];
+      var _grupos={};
+      _ajs.forEach(function(aj){
+        var _k=(aj.nome||"").toLowerCase().trim().replace(/\s+/g," ");
+        if(!_grupos[_k])_grupos[_k]={nome:aj.nome,key:_k,membros:[]};
+        _grupos[_k].membros.push(aj);
+      });
+      var _dups=Object.values(_grupos).filter(function(g){return g.membros.length>1;});
+      var _hj=new Date();_hj.setDate(_hj.getDate()-90);
+      var _isoIni=_hj.toISOString().slice(0,10);
+      var _re=await fetch(SUPA_URL+"/rest/v1/equipe_dia?data=gte."+_isoIni+"&select=ajudantes&limit=2000",{headers:getH()});
+      var _eqs=_re.ok?await _re.json():[];
+      var _diasPorId={};
+      _eqs.forEach(function(e){if(Array.isArray(e.ajudantes))e.ajudantes.forEach(function(aj){if(aj&&aj.id){_diasPorId[aj.id]=(_diasPorId[aj.id]||0)+1;}});});
+      _dups.forEach(function(g){g.membros.forEach(function(m){m._dias90=_diasPorId[m.id]||0;});});
+      setAuditDuplicatas({grupos:_dups,total:_dups.length});
+    }catch(e){try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"loadAuditDuplicatas"}});}catch(_){}}
+    setAuditLoading(false);
+  }
+  async function executarMerge(){
+    var m=mergeAjudantes;if(!m)return;
+    try{
+      var _re=await fetch(SUPA_URL+"/rest/v1/equipe_dia?select=id,ajudantes&limit=5000",{headers:getH()});
+      var _eqs=_re.ok?await _re.json():[];
+      var _srcIds=m.sources.map(function(s){return s.id;});
+      var _updates=[];
+      _eqs.forEach(function(e){
+        if(!Array.isArray(e.ajudantes))return;
+        var _changed=false;
+        var _new=e.ajudantes.map(function(aj){
+          if(aj&&_srcIds.includes(aj.id)){_changed=true;return Object.assign({},aj,{id:m.target.id,nome:m.target.nome});}
+          return aj;
+        });
+        if(_changed){
+          var _seen={};
+          _new=_new.filter(function(aj){if(!aj||!aj.id)return true;if(_seen[aj.id])return false;_seen[aj.id]=true;return true;});
+          _updates.push({id:e.id,ajudantes:_new});
+        }
+      });
+      for(var i=0;i<_updates.length;i++){
+        await fetch(SUPA_URL+"/rest/v1/equipe_dia?id=eq."+_updates[i].id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({ajudantes:_updates[i].ajudantes})});
+      }
+      for(var j=0;j<m.sources.length;j++){
+        await fetch(SUPA_URL+"/rest/v1/ajudantes?id=eq."+m.sources[j].id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({ativo:false})});
+      }
+      var _patch={};
+      if(!m.target.telefone){var _withTel=m.sources.find(function(s){return s.telefone;});if(_withTel)_patch.telefone=_withTel.telefone;}
+      if(!m.target.pix){var _withPix=m.sources.find(function(s){return s.pix;});if(_withPix)_patch.pix=_withPix.pix;}
+      if(Object.keys(_patch).length>0){
+        await fetch(SUPA_URL+"/rest/v1/ajudantes?id=eq."+m.target.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_patch)});
+      }
+      setMergeAjudantes(null);
+      setSyncStatus("✅ Merge concluído");
+      loadAuditDuplicatas();
+      loadAjudantes();
+    }catch(e){alert("Erro no merge: "+e.message);try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"executarMerge"}});}catch(_){}}
   }
   function exportAuditCSV(){
     var rows=[["Tipo","ID","Nome","Data","Status","m³","Deletado em","Por (motivo)"]];
@@ -7440,8 +7523,8 @@ return(
                 <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",marginTop:4}}>Lixeira, erros do sistema e histórico de alterações</div>
               </div>
               <div style={{display:"flex",background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
-                {[{id:"saude",l:"🩺 Saúde"},{id:"lixeira",l:"🗑️ Lixeira"},{id:"erros",l:"⚠️ Erros"},{id:"morador",l:"👤 Morador"},{id:"historico",l:"📜 Histórico"}].map(function(s){
-                  return <button key={s.id} onClick={function(){setAuditSubTab(s.id);if(s.id==="lixeira"&&auditLixeira.length===0)loadAuditLixeira();else if(s.id==="erros"&&auditErros.length===0)loadAuditErros();else if(s.id==="saude"&&!auditSaude)loadAuditSaude();}} style={{flex:1,padding:"10px 2px",border:"none",cursor:"pointer",fontSize:11,fontWeight:auditSubTab===s.id?700:500,background:"transparent",borderBottom:auditSubTab===s.id?"3px solid #334155":"3px solid transparent",color:auditSubTab===s.id?"#334155":"#64748b"}}>{s.l}</button>;
+                {[{id:"saude",l:"🩺"},{id:"lixeira",l:"🗑️"},{id:"erros",l:"⚠️"},{id:"morador",l:"👤"},{id:"duplicatas",l:"👥"},{id:"historico",l:"📜"}].map(function(s){
+                  return <button key={s.id} onClick={function(){setAuditSubTab(s.id);if(s.id==="lixeira"&&auditLixeira.length===0)loadAuditLixeira();else if(s.id==="erros"&&auditErros.length===0)loadAuditErros();else if(s.id==="saude"&&!auditSaude)loadAuditSaude();else if(s.id==="duplicatas"&&!auditDuplicatas)loadAuditDuplicatas();}} style={{flex:1,padding:"12px 2px",border:"none",cursor:"pointer",fontSize:18,fontWeight:auditSubTab===s.id?700:500,background:"transparent",borderBottom:auditSubTab===s.id?"3px solid #334155":"3px solid transparent",color:auditSubTab===s.id?"#334155":"#64748b"}} title={s.id}>{s.l}</button>;
                 })}
               </div>
               {auditSubTab==="saude"&&<div style={{padding:14}}>
@@ -7575,6 +7658,57 @@ return(
                     {_dd.sqlstate&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>SQLSTATE: {_dd.sqlstate}</div>}
                   </div>;
                 })}
+              </div>}
+              {auditSubTab==="duplicatas"&&<div style={{padding:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <div><div style={{fontSize:13,fontWeight:800,color:"#1e293b"}}>👥 Ajudantes duplicados</div><div style={{fontSize:10,color:"#64748b"}}>Mesmo nome com IDs diferentes</div></div>
+                  <button onClick={loadAuditDuplicatas} disabled={auditLoading} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #334155",background:"#fff",color:"#334155",fontSize:11,fontWeight:700,cursor:"pointer"}}>{auditLoading?"⏳":"🔄"}</button>
+                </div>
+                {!auditDuplicatas?<div style={{textAlign:"center",padding:30,color:"#94a3b8",fontSize:13}}>{auditLoading?"⏳ Procurando...":"💡 Clique 🔄 pra começar"}</div>:
+                auditDuplicatas.grupos.length===0?<div style={{textAlign:"center",padding:30,color:"#16a34a",fontSize:13}}>✨ Nenhuma duplicata encontrada</div>:
+                <>
+                  <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:10,padding:"10px 12px",marginBottom:12,fontSize:11,color:"#92400e"}}>⚠️ {auditDuplicatas.grupos.length} grupo(s) com duplicatas</div>
+                  {auditDuplicatas.grupos.map(function(g){
+                    return <div key={g.key} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"12px",marginBottom:10}}>
+                      <div style={{fontWeight:800,fontSize:13,color:"#92400e",marginBottom:8}}>👤 {g.nome} <span style={{fontSize:10,color:"#64748b",fontWeight:500}}>({g.membros.length} cadastros)</span></div>
+                      {g.membros.map(function(m){
+                        return <div key={m.id} style={{background:m.ativo?"#f0fdf4":"#f8fafc",border:"1px solid "+(m.ativo?"#bbf7d0":"#e2e8f0"),borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11}}>
+                          <div style={{fontWeight:700,color:m.ativo?"#15803d":"#94a3b8"}}>id={m.id} {m.ativo?"✅ ativo":"❌ inativo"}</div>
+                          <div style={{fontSize:10,color:"#64748b",marginTop:2}}>📞 {m.telefone||"sem tel"} · 💳 {m.pix||"sem pix"}</div>
+                          <div style={{fontSize:10,color:"#1e40af",marginTop:2}}>📅 {m._dias90||0} dia(s) últ. 90d</div>
+                        </div>;
+                      })}
+                      <button onClick={function(){
+                        var _ativos=g.membros.filter(function(m){return m.ativo;});
+                        var _pool=_ativos.length>0?_ativos:g.membros;
+                        var _target=_pool.reduce(function(a,b){return (a._dias90||0)>=(b._dias90||0)?a:b;});
+                        var _sources=g.membros.filter(function(m){return m.id!==_target.id;});
+                        setMergeAjudantes({nome:g.nome,target:_target,sources:_sources});
+                      }} style={{width:"100%",padding:"8px",borderRadius:8,border:"none",background:"#1e40af",color:"#fff",fontSize:12,fontWeight:800,cursor:"pointer",marginTop:6}}>🔀 Mesclar em 1 ajudante</button>
+                    </div>;
+                  })}
+                </>}
+              </div>}
+              {mergeAjudantes&&<div onClick={function(){setMergeAjudantes(null);}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+                <div onClick={function(e){e.stopPropagation();}} style={{background:"#fff",borderRadius:20,padding:"22px",maxWidth:400,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.25)",maxHeight:"80vh",overflow:"auto"}}>
+                  <div style={{fontWeight:900,fontSize:15,color:"#1e40af",marginBottom:12}}>🔀 Confirmar merge</div>
+                  <div style={{background:"#f0fdf4",border:"1.5px solid #bbf7d0",borderRadius:10,padding:"10px 12px",marginBottom:8}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#15803d"}}>MANTÉM (target)</div>
+                    <div style={{fontWeight:700,fontSize:13,color:"#14532d"}}>id={mergeAjudantes.target.id} · {mergeAjudantes.target.nome}</div>
+                    <div style={{fontSize:11,color:"#64748b",marginTop:2}}>📞 {mergeAjudantes.target.telefone||"—"} · 💳 {mergeAjudantes.target.pix||"—"} · 📅 {mergeAjudantes.target._dias90||0} dias</div>
+                  </div>
+                  <div style={{fontSize:10,color:"#94a3b8",textAlign:"center",margin:"6px 0"}}>↓ mesclar nele ↓</div>
+                  {mergeAjudantes.sources.map(function(s){return <div key={s.id} style={{background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:10,padding:"10px 12px",marginBottom:6}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#dc2626"}}>SERÁ DESATIVADO</div>
+                    <div style={{fontWeight:700,fontSize:13,color:"#7f1d1d"}}>id={s.id} · {s.nome}</div>
+                    <div style={{fontSize:11,color:"#64748b",marginTop:2}}>📞 {s.telefone||"—"} · 💳 {s.pix||"—"} · 📅 {s._dias90||0} dias</div>
+                  </div>;})}
+                  <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"8px 10px",fontSize:10,color:"#92400e",marginTop:8,marginBottom:14}}>⚠️ Todos os dias dos sources serão atribuídos ao target.</div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={function(){setMergeAjudantes(null);}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:800,fontSize:13,cursor:"pointer"}}>Cancelar</button>
+                    <button onClick={executarMerge} style={{flex:2,padding:"12px 0",borderRadius:12,border:"none",background:"#1e40af",color:"#fff",fontWeight:900,fontSize:13,cursor:"pointer"}}>🔀 Sim, mesclar</button>
+                  </div>
+                </div>
               </div>}
               {auditSubTab==="historico"&&<div style={{padding:14}}>
                 <div style={{background:"#eff6ff",border:"1.5px solid #bfdbfe",borderRadius:12,padding:"10px 12px",marginBottom:12}}>
@@ -8354,6 +8488,11 @@ return(
         <button onClick={function(){if(!reagendarData){alert("Selecione a nova data.");return;}if(!reagendarMotivo){alert("Selecione o motivo.");return;}handleReagendar(reagendarModal.id,reagendarData,reagendarMotivo);}} disabled={!reagendarData||!reagendarMotivo} style={{flex:2,padding:"11px 0",borderRadius:12,border:"none",background:reagendarData&&reagendarMotivo?"#2563eb":"#94a3b8",color:"#fff",fontWeight:900,fontSize:13,cursor:reagendarData&&reagendarMotivo?"pointer":"not-allowed"}}>📅 Reagendar</button>
       </div>
     </div></div>}
+        {toastMsg&&<div style={{position:"fixed",top:16,left:16,right:16,zIndex:10000,background:"#1e293b",color:"#fff",padding:"12px 16px",borderRadius:12,boxShadow:"0 8px 28px rgba(0,0,0,0.3)",display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={function(){setToastMsg("");setTab("financeiro");}}>
+          <div style={{fontSize:20}}>📩</div>
+          <div style={{flex:1,fontSize:12,fontWeight:600}}>{toastMsg}</div>
+          <div style={{fontSize:10,color:"#94a3b8",fontWeight:700}}>TOQUE</div>
+        </div>}
         {cadastroWarnings&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){if(cadastroWarnings.onCancel)cadastroWarnings.onCancel();}}><div style={{background:"#fff",borderRadius:20,padding:"22px",maxWidth:420,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}} onClick={function(e){e.stopPropagation();}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
             <div style={{fontSize:30}}>⚠️</div>
