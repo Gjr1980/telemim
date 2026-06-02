@@ -952,6 +952,15 @@ export default function App(){
   const [confirmDelete,setConfirmDelete]=useState(null);
   const [confirmDeleteMotivo,setConfirmDeleteMotivo]=useState("");
   const [cadastroWarnings,setCadastroWarnings]=useState(null);
+  // Auditoria (Item 1)
+  const [auditSubTab,setAuditSubTab]=useState("lixeira");
+  const [auditLixeira,setAuditLixeira]=useState([]);
+  const [auditErros,setAuditErros]=useState([]);
+  const [auditHist,setAuditHist]=useState([]);
+  const [auditLoading,setAuditLoading]=useState(false);
+  const [auditFiltro,setAuditFiltro]=useState({periodo:"30d",supervisor:"",busca:""});
+  const [auditHistQuery,setAuditHistQuery]=useState("");
+  const [confirmRestore,setConfirmRestore]=useState(null);
   const [confirmReenvio,setConfirmReenvio]=useState(null);
   function _confirmarReenvio(opts){
     return new Promise(function(resolve){
@@ -1311,6 +1320,65 @@ export default function App(){
     }catch(e){}
   }
 
+  // ═══ AUDITORIA (Item 1) ═══════════════════════════════════════════
+  async function loadAuditLixeira(){
+    setAuditLoading(true);
+    try{
+      var _dt=new Date();
+      var _dias=auditFiltro.periodo==="7d"?7:auditFiltro.periodo==="30d"?30:auditFiltro.periodo==="90d"?90:365;
+      _dt.setDate(_dt.getDate()-_dias);
+      var _iso=_dt.toISOString();
+      var _h=getH();
+      var _q="deleted_at=not.is.null&deleted_at=gte."+_iso+"&order=deleted_at.desc&limit=200";
+      var _r1=await fetch(SUPA_URL+"/rest/v1/mudancas?"+_q,{headers:_h});
+      var _r2=await fetch(SUPA_URL+"/rest/v1/agenda?"+_q,{headers:_h});
+      var _muds=_r1.ok?await _r1.json():[];
+      var _ags=_r2.ok?await _r2.json():[];
+      var _list=_muds.map(function(m){return Object.assign({},m,{_tipo:"mudanca"});}).concat(_ags.map(function(a){return Object.assign({},a,{_tipo:"agenda"});}));
+      _list.sort(function(a,b){return (b.deleted_at||"").localeCompare(a.deleted_at||"");});
+      setAuditLixeira(_list);
+    }catch(e){try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"loadAuditLixeira"}});}catch(_){}}
+    setAuditLoading(false);
+  }
+  async function loadAuditErros(){
+    setAuditLoading(true);
+    try{
+      var _dt=new Date();_dt.setDate(_dt.getDate()-30);
+      var _r=await fetch(SUPA_URL+"/rest/v1/auditoria?acao=in.(trigger_sync_agenda_to_mudancas_erro,sync_erro,trigger_erro)&criado_em=gte."+_dt.toISOString()+"&order=criado_em.desc&limit=200",{headers:getH()});
+      if(_r.ok)setAuditErros(await _r.json());
+    }catch(e){try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"loadAuditErros"}});}catch(_){}}
+    setAuditLoading(false);
+  }
+  async function loadAuditHist(query){
+    if(!query||query.length<2){setAuditHist([]);return;}
+    setAuditLoading(true);
+    try{
+      var _q=/^\d+$/.test(query)?"registro_id=eq."+query:"or=(dados_antes.ilike.*"+query+"*,dados_depois.ilike.*"+query+"*)";
+      var _r=await fetch(SUPA_URL+"/rest/v1/auditoria?"+_q+"&order=criado_em.desc&limit=100",{headers:getH()});
+      if(_r.ok)setAuditHist(await _r.json());
+    }catch(e){try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"loadAuditHist"}});}catch(_){}}
+    setAuditLoading(false);
+  }
+  async function restaurarItem(item){
+    try{
+      var _tbl=item._tipo==="mudanca"?"mudancas":"agenda";
+      var _r=await fetch(SUPA_URL+"/rest/v1/"+_tbl+"?id=eq."+item.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({deleted_at:null,deleted_by:null})});
+      if(_r.ok){
+        setAuditLixeira(function(p){return p.filter(function(x){return!(x._tipo===item._tipo&&x.id===item.id);});});
+        if(item._tipo==="mudanca"){var _rl=await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+item.id,{headers:getH()});if(_rl.ok){var _d=await _rl.json();if(_d&&_d[0])setMudancas(function(p){return [_d[0]].concat(p.filter(function(x){return x.id!==item.id;}));});}}
+        else {var _ra=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+item.id,{headers:getH()});if(_ra.ok){var _da=await _ra.json();if(_da&&_da[0])setAgenda(function(p){return [_da[0]].concat(p.filter(function(x){return x.id!==item.id;}));});}}
+        setSyncStatus("✅ Restaurado!");
+      } else { alert("Erro ao restaurar (HTTP "+_r.status+")"); }
+    }catch(e){alert("Erro: "+e.message);try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"restaurarItem"}});}catch(_){}}
+  }
+  function exportAuditCSV(){
+    var rows=[["Tipo","ID","Nome","Data","Status","m³","Deletado em","Por (motivo)"]];
+    auditLixeira.forEach(function(it){rows.push([it._tipo,it.id,it.nome||"",it.data||"",it.status||"",it.medicao||"",it.deleted_at||"",it.deleted_by||""]);});
+    var csv=rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(",");}).join("\n");
+    var blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
+    var url=URL.createObjectURL(blob);var a=document.createElement("a");a.href=url;a.download="auditoria_lixeira_"+new Date().toISOString().slice(0,10)+".csv";a.click();URL.revokeObjectURL(url);
+  }
+
   // ── DERIVED STATE: useMemo reactivos ─────────────────────────────────
   var custoSemanal=useMemo(function(){
     var _hj=new Date();var _dw=_hj.getDay();var _dif=_dw===0?6:_dw-1;
@@ -1390,7 +1458,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}if((tab==="financeiro_sup"||tab==="financeiro"||tab==="contas")&&!solicitacoesLoaded)loadSolicitacoesFin();if(tab==="financeiro_sup"||(tab==="equipe"&&isSupervisor)){loadAjudantes();loadEquipeDia();loadEquipePadrao();}if(tab==="equipe"||tab==="config"||tab==="social"||tab==="dashboard")loadAssistentesSocial();},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}if((tab==="financeiro_sup"||tab==="financeiro"||tab==="contas")&&!solicitacoesLoaded)loadSolicitacoesFin();if(tab==="auditoria"&&isAdmin){if(auditSubTab==="lixeira"&&auditLixeira.length===0)loadAuditLixeira();else if(auditSubTab==="erros"&&auditErros.length===0)loadAuditErros();}if(tab==="financeiro_sup"||(tab==="equipe"&&isSupervisor)){loadAjudantes();loadEquipeDia();loadEquipePadrao();}if(tab==="equipe"||tab==="config"||tab==="social"||tab==="dashboard")loadAssistentesSocial();},[tab]);
   useEffect(()=>{
     async function load(){
       try{
@@ -4063,7 +4131,7 @@ export default function App(){
     {id:"lista",label:"📋 Registros"},
     {id:"importar_mud",label:"+ Mudanças"},
     ...(!isAdmin?[{id:"social",label:"👩‍⚕️ Social"}]:[]),
-    ...(isAdmin?[{id:"contas",label:"💸 Contas"},{id:"financeiro",label:"💰 Financeiro"},{id:"config",label:"⚙️ Config"}]:[]),
+    ...(isAdmin?[{id:"contas",label:"💸 Contas"},{id:"financeiro",label:"💰 Financeiro"},{id:"auditoria",label:"🗄️ Auditoria"},{id:"config",label:"⚙️ Config"}]:[]),
   ];
 
   // ── BTN STYLES ─────────────────────────────────────────────────────────────
@@ -7307,6 +7375,112 @@ return(
             </div>
           </div>;
         })()}
+        {/* ═══════ AUDITORIA (admin) ═══════ */}
+        {tab==="auditoria"&&isAdmin&&(function(){
+          var _fd=function(d){if(!d)return"";var s=String(d);if(s.includes("T")){var dt=new Date(s);return dt.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"});}var p=s.split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:s;};
+          var _lixFiltrada=auditLixeira.filter(function(it){
+            if(auditFiltro.busca){var b=auditFiltro.busca.toLowerCase();if(!(it.nome||"").toLowerCase().includes(b)&&!(it.deleted_by||"").toLowerCase().includes(b))return false;}
+            if(auditFiltro.supervisor&&it.supervisor_id!==auditFiltro.supervisor)return false;
+            return true;
+          });
+          var _sups=listaUsuarios.filter(function(u){return u.perfil==="supervisor";});
+          return(
+            <div style={{paddingBottom:80}}>
+              <div style={{background:"linear-gradient(135deg,#1e293b,#334155)",padding:"20px 16px 16px"}}>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginBottom:2}}>Administração</div>
+                <div style={{fontSize:20,fontWeight:800,color:"#fff"}}>🗄️ Auditoria</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",marginTop:4}}>Lixeira, erros do sistema e histórico de alterações</div>
+              </div>
+              <div style={{display:"flex",background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
+                {[{id:"lixeira",l:"🗑️ Lixeira"},{id:"erros",l:"⚠️ Erros"},{id:"historico",l:"📜 Histórico"}].map(function(s){
+                  return <button key={s.id} onClick={function(){setAuditSubTab(s.id);if(s.id==="lixeira"&&auditLixeira.length===0)loadAuditLixeira();else if(s.id==="erros"&&auditErros.length===0)loadAuditErros();}} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:auditSubTab===s.id?700:500,background:"transparent",borderBottom:auditSubTab===s.id?"3px solid #334155":"3px solid transparent",color:auditSubTab===s.id?"#334155":"#64748b"}}>{s.l}</button>;
+                })}
+              </div>
+              {auditSubTab==="lixeira"&&<div style={{padding:14}}>
+                <div style={{background:"#f8fafc",borderRadius:12,padding:12,marginBottom:12,display:"flex",flexDirection:"column",gap:8}}>
+                  <div style={{display:"flex",gap:6}}>
+                    {["7d","30d","90d","tudo"].map(function(p){return <button key={p} onClick={function(){setAuditFiltro(function(f){return Object.assign({},f,{periodo:p});});setTimeout(loadAuditLixeira,50);}} style={{flex:1,padding:"7px 4px",borderRadius:8,border:"1.5px solid "+(auditFiltro.periodo===p?"#334155":"#e2e8f0"),background:auditFiltro.periodo===p?"#1e293b":"#fff",color:auditFiltro.periodo===p?"#fff":"#64748b",fontSize:11,fontWeight:700,cursor:"pointer"}}>{p==="tudo"?"📅 Tudo":"📅 "+p}</button>;})}
+                  </div>
+                  <input type="text" value={auditFiltro.busca} onChange={function(e){setAuditFiltro(function(f){return Object.assign({},f,{busca:e.target.value});});}} placeholder="🔍 Buscar por nome ou quem apagou..." style={{padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12,boxSizing:"border-box"}}/>
+                  <select value={auditFiltro.supervisor} onChange={function(e){setAuditFiltro(function(f){return Object.assign({},f,{supervisor:e.target.value});});}} style={{padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12}}>
+                    <option value="">👤 Todos supervisores</option>
+                    {_sups.map(function(s){return <option key={s.id} value={s.id}>{s.nome}</option>;})}
+                  </select>
+                  <div style={{display:"flex",gap:6}}>
+                    <button onClick={loadAuditLixeira} disabled={auditLoading} style={{flex:1,padding:"8px",borderRadius:8,border:"1.5px solid #334155",background:"#f1f5f9",color:"#334155",fontSize:11,fontWeight:700,cursor:auditLoading?"not-allowed":"pointer"}}>{auditLoading?"⏳ Carregando...":"🔄 Atualizar"}</button>
+                    <button onClick={exportAuditCSV} disabled={_lixFiltrada.length===0} style={{flex:1,padding:"8px",borderRadius:8,border:"1.5px solid #16a34a",background:"#f0fdf4",color:"#16a34a",fontSize:11,fontWeight:700,cursor:_lixFiltrada.length===0?"not-allowed":"pointer",opacity:_lixFiltrada.length===0?0.5:1}}>📊 Exportar CSV</button>
+                  </div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                  <div style={{background:"#fef2f2",borderRadius:10,padding:"10px",textAlign:"center",border:"1px solid #fecaca"}}><div style={{fontSize:10,color:"#dc2626",fontWeight:700}}>MUDANÇAS</div><div style={{fontSize:18,fontWeight:900,color:"#dc2626"}}>{_lixFiltrada.filter(function(it){return it._tipo==="mudanca";}).length}</div></div>
+                  <div style={{background:"#fffbeb",borderRadius:10,padding:"10px",textAlign:"center",border:"1px solid #fcd34d"}}><div style={{fontSize:10,color:"#92400e",fontWeight:700}}>AGENDAS</div><div style={{fontSize:18,fontWeight:900,color:"#92400e"}}>{_lixFiltrada.filter(function(it){return it._tipo==="agenda";}).length}</div></div>
+                </div>
+                {_lixFiltrada.length===0?<div style={{textAlign:"center",padding:30,color:"#94a3b8",fontSize:13}}>{auditLoading?"⏳ Carregando...":"✨ Nada na lixeira (com esses filtros)"}</div>:
+                _lixFiltrada.map(function(it){
+                  var _bgT=it._tipo==="mudanca"?"#fef2f2":"#fffbeb";var _bdT=it._tipo==="mudanca"?"#fecaca":"#fcd34d";var _icT=it._tipo==="mudanca"?"🏠":"📅";
+                  return <div key={it._tipo+"-"+it.id} style={{background:_bgT,border:"1px solid "+_bdT,borderRadius:10,padding:"10px 12px",marginBottom:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}><span style={{fontSize:14}}>{_icT}</span><span style={{fontWeight:800,fontSize:12,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis"}}>{it.nome||"(sem nome)"}</span></div>
+                        <div style={{fontSize:10,color:"#64748b",marginLeft:20}}>📅 {_fd(it.data)}{it.status?" · "+it.status:""}{it.medicao&&Number(it.medicao)>0?" · "+it.medicao+" m³":""}</div>
+                        <div style={{fontSize:10,color:"#94a3b8",marginLeft:20,marginTop:2}}>🗑️ {_fd(it.deleted_at)} por {it.deleted_by||"?"}</div>
+                      </div>
+                      <button onClick={function(){setConfirmRestore(it);}} style={{padding:"6px 10px",borderRadius:8,border:"none",background:"#16a34a",color:"#fff",fontSize:11,fontWeight:800,cursor:"pointer",flexShrink:0}}>♻️ Restaurar</button>
+                    </div>
+                  </div>;
+                })}
+              </div>}
+              {auditSubTab==="erros"&&<div style={{padding:14}}>
+                <div style={{background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:12,padding:"10px 12px",marginBottom:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div><div style={{fontSize:11,fontWeight:800,color:"#dc2626"}}>⚠️ Erros silenciosos do sistema (últimos 30 dias)</div><div style={{fontSize:10,color:"#991b1b"}}>Triggers que falharam ao sincronizar agenda → mudanças</div></div>
+                    <button onClick={loadAuditErros} disabled={auditLoading} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #dc2626",background:"#fff",color:"#dc2626",fontSize:11,fontWeight:700,cursor:"pointer"}}>{auditLoading?"⏳":"🔄"}</button>
+                  </div>
+                </div>
+                {auditErros.length===0?<div style={{textAlign:"center",padding:30,color:"#94a3b8",fontSize:13}}>{auditLoading?"⏳ Carregando...":"✨ Nenhum erro nos últimos 30 dias"}</div>:
+                auditErros.map(function(e){
+                  var _dd=(function(){try{return typeof e.dados_depois==="string"?JSON.parse(e.dados_depois):(e.dados_depois||{});}catch(_){return{};}})();
+                  return <div key={e.id} style={{background:"#fff",border:"1.5px solid #fecaca",borderRadius:10,padding:"10px 12px",marginBottom:8}}>
+                    <div style={{fontSize:10,color:"#94a3b8",marginBottom:4}}>📅 {_fd(e.criado_em)} · 🗂️ {e.tabela}#{e.registro_id}</div>
+                    <div style={{fontWeight:700,fontSize:12,color:"#dc2626",marginBottom:4}}>⚠️ {_dd.erro||"erro sem detalhes"}</div>
+                    {_dd.nome&&<div style={{fontSize:11,color:"#64748b"}}>👤 {_dd.nome} · 📅 {_dd.data||"?"}</div>}
+                    {_dd.sqlstate&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>SQLSTATE: {_dd.sqlstate}</div>}
+                  </div>;
+                })}
+              </div>}
+              {auditSubTab==="historico"&&<div style={{padding:14}}>
+                <div style={{background:"#eff6ff",border:"1.5px solid #bfdbfe",borderRadius:12,padding:"10px 12px",marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:800,color:"#1e40af",marginBottom:8}}>📜 Busca no histórico</div>
+                  <input type="text" value={auditHistQuery} onChange={function(e){setAuditHistQuery(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")loadAuditHist(auditHistQuery);}} placeholder="ID do registro ou nome do morador..." style={{width:"100%",padding:"8px 10px",border:"1.5px solid #bfdbfe",borderRadius:8,fontSize:12,boxSizing:"border-box",marginBottom:6}}/>
+                  <button onClick={function(){loadAuditHist(auditHistQuery);}} disabled={auditLoading||auditHistQuery.length<2} style={{width:"100%",padding:"8px",borderRadius:8,border:"none",background:auditHistQuery.length>=2?"#1e40af":"#94a3b8",color:"#fff",fontSize:12,fontWeight:800,cursor:auditHistQuery.length>=2?"pointer":"not-allowed"}}>{auditLoading?"⏳ Buscando...":"🔍 Buscar"}</button>
+                </div>
+                {auditHist.length===0?<div style={{textAlign:"center",padding:30,color:"#94a3b8",fontSize:13}}>{auditLoading?"⏳ Carregando...":"💡 Digite ID numérico ou nome (mín 2 chars)"}</div>:
+                auditHist.map(function(h){
+                  var _antes=(function(){try{return typeof h.dados_antes==="string"?JSON.parse(h.dados_antes):(h.dados_antes||{});}catch(_){return{};}})();
+                  var _depois=(function(){try{return typeof h.dados_depois==="string"?JSON.parse(h.dados_depois):(h.dados_depois||{});}catch(_){return{};}})();
+                  var _diff=[];Object.keys(_depois||{}).forEach(function(k){if(JSON.stringify(_antes[k])!==JSON.stringify(_depois[k])){_diff.push({campo:k,antes:_antes[k],depois:_depois[k]});}});
+                  var _corA=h.acao==="INSERT"?"#16a34a":h.acao==="UPDATE"?"#1e40af":"#dc2626";
+                  return <div key={h.id} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,padding:"10px 12px",marginBottom:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><span style={{fontSize:11,fontWeight:800,color:_corA,background:_corA+"22",padding:"2px 8px",borderRadius:6}}>{h.acao}</span><span style={{fontSize:10,color:"#94a3b8"}}>{_fd(h.criado_em)}</span></div>
+                    <div style={{fontSize:10,color:"#64748b",marginBottom:6}}>🗂️ {h.tabela}#{h.registro_id} · 👤 {h.usuario_nome||"sistema"}</div>
+                    {_diff.length>0?<div style={{background:"#f8fafc",borderRadius:6,padding:"6px 8px",fontSize:10}}>{_diff.slice(0,5).map(function(d,i){return <div key={i} style={{marginBottom:3}}><strong style={{color:"#475569"}}>{d.campo}:</strong> <span style={{color:"#dc2626",textDecoration:"line-through"}}>{JSON.stringify(d.antes)}</span> → <span style={{color:"#16a34a"}}>{JSON.stringify(d.depois)}</span></div>;})}{_diff.length>5&&<div style={{color:"#94a3b8",fontStyle:"italic"}}>+{_diff.length-5} campos</div>}</div>:h.acao==="INSERT"?<div style={{fontSize:11,color:"#16a34a"}}>✨ Criado: {_depois.nome||_depois.id}</div>:<div style={{fontSize:10,color:"#94a3b8"}}>(sem diff visível)</div>}
+                  </div>;
+                })}
+              </div>}
+              {confirmRestore&&<div onClick={function(){setConfirmRestore(null);}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+                <div onClick={function(e){e.stopPropagation();}} style={{background:"#fff",borderRadius:20,padding:"22px",maxWidth:380,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><div style={{fontSize:30}}>♻️</div><div><div style={{fontWeight:900,fontSize:15,color:"#16a34a"}}>Restaurar este item?</div><div style={{fontSize:11,color:"#64748b"}}>Vai voltar à lista ativa</div></div></div>
+                  <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,padding:"10px 12px",marginBottom:14}}><div style={{fontWeight:700,fontSize:13,color:"#14532d"}}>{confirmRestore._tipo==="mudanca"?"🏠 Mudança":"📅 Agenda"}: {confirmRestore.nome}</div><div style={{fontSize:11,color:"#15803d",marginTop:2}}>📅 {_fd(confirmRestore.data)}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>🗑️ Apagado em {_fd(confirmRestore.deleted_at)} por {confirmRestore.deleted_by||"?"}</div></div>
+                  <div style={{display:"flex",gap:10}}>
+                    <button onClick={function(){setConfirmRestore(null);}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:800,fontSize:13,cursor:"pointer"}}>Cancelar</button>
+                    <button onClick={function(){restaurarItem(confirmRestore);setConfirmRestore(null);}} style={{flex:2,padding:"12px 0",borderRadius:12,border:"none",background:"#16a34a",color:"#fff",fontWeight:900,fontSize:13,cursor:"pointer"}}>♻️ Sim, restaurar</button>
+                  </div>
+                </div>
+              </div>}
+            </div>
+          );
+        })()}
+
         {tab==="config"&&<div style={{paddingBottom:80}}><div style={{background:"#1e293b",padding:"20px 16px 14px"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginBottom:2}}>Sistema</div><div style={{fontSize:20,fontWeight:800,color:"#fff"}}>⚙️ Configuração</div></div><div style={{display:"flex",background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}><button onClick={()=>setSubConfig("usuarios")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="usuarios"?700:500,background:"transparent",borderBottom:subConfig==="usuarios"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="usuarios"?"#1e40af":"#64748b"}}>👥 Usuários</button>{isAdmin&&<button onClick={()=>setSubConfig("regras")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="regras"?700:500,background:"transparent",borderBottom:subConfig==="regras"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="regras"?"#1e40af":"#64748b"}}>📊 Regras</button>}{isAdmin&&<button onClick={function(){setSubConfig("social");loadAssistentesSocial();}} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="social"?700:500,background:"transparent",borderBottom:subConfig==="social"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="social"?"#1e40af":"#64748b"}}>👩‍⚕️ Social</button>}</div>{isAdmin&&<button onClick={()=>setSubConfig("backup")} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:subConfig==="backup"?700:500,background:"transparent",borderBottom:subConfig==="backup"?"3px solid #1e40af":"3px solid transparent",color:subConfig==="backup"?"#1e40af":"#64748b"}}>💾 Backup</button>}{subConfig==="social"&&isAdmin&&(<div style={{padding:16,paddingBottom:80}}>
             <Card style={{marginBottom:16}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
