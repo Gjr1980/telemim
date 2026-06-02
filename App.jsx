@@ -961,6 +961,9 @@ export default function App(){
   const [auditFiltro,setAuditFiltro]=useState({periodo:"30d",supervisor:"",busca:""});
   const [auditHistQuery,setAuditHistQuery]=useState("");
   const [confirmRestore,setConfirmRestore]=useState(null);
+  const [auditSaude,setAuditSaude]=useState(null);
+  const [auditMoradorQuery,setAuditMoradorQuery]=useState("");
+  const [auditMorador,setAuditMorador]=useState(null);
   const [confirmReenvio,setConfirmReenvio]=useState(null);
   function _confirmarReenvio(opts){
     return new Promise(function(resolve){
@@ -1371,6 +1374,51 @@ export default function App(){
       } else { alert("Erro ao restaurar (HTTP "+_r.status+")"); }
     }catch(e){alert("Erro: "+e.message);try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"restaurarItem"}});}catch(_){}}
   }
+  async function loadAuditSaude(){
+    setAuditLoading(true);
+    try{
+      var _h=getH();
+      var _hj=new Date();var _ini7=new Date(_hj);_ini7.setDate(_ini7.getDate()-7);
+      var _iso7=_ini7.toISOString().slice(0,10);
+      var _ini24=new Date(_hj);_ini24.setHours(_ini24.getHours()-24);
+      var _iso24=_ini24.toISOString();
+      var _rm=await fetch(SUPA_URL+"/rest/v1/mudancas?data=gte."+_iso7+"&deleted_at=is.null&select=id,data,nome,status,medicao&limit=2000",{headers:_h});
+      var _ra=await fetch(SUPA_URL+"/rest/v1/agenda?data=gte."+_iso7+"&deleted_at=is.null&select=id,data,nome,status,medicao,supervisor_id&limit=2000",{headers:_h});
+      var _re=await fetch(SUPA_URL+"/rest/v1/auditoria?acao=in.(trigger_sync_agenda_to_mudancas_erro,sync_erro)&criado_em=gte."+_iso24+"&select=id,criado_em&limit=500",{headers:_h});
+      var _mud7=_rm.ok?await _rm.json():[];
+      var _ag7=_ra.ok?await _ra.json():[];
+      var _err24=_re.ok?await _re.json():[];
+      var _concl=["concluida","concluída","concluido","concluído","realizada","realizado","executada","executado"];
+      var _agsConcl=_ag7.filter(function(a){return _concl.includes(String(a.status||"").toLowerCase());});
+      var _orphans=[];
+      _agsConcl.forEach(function(a){
+        var _k=(a.nome||"").toLowerCase().trim();
+        var _exists=_mud7.some(function(m){return m.data===a.data&&(m.nome||"").toLowerCase().trim()===_k;});
+        if(!_exists)_orphans.push(a);
+      });
+      var _health=_agsConcl.length>0?Math.round(((_agsConcl.length-_orphans.length)/_agsConcl.length)*100):100;
+      var _porDia={};
+      for(var i=6;i>=0;i--){var d=new Date(_hj);d.setDate(d.getDate()-i);var k=d.toISOString().slice(0,10);_porDia[k]={data:k,mud:0,m3:0};}
+      _mud7.forEach(function(m){if(_porDia[m.data])_porDia[m.data].mud++;if(_porDia[m.data])_porDia[m.data].m3+=Number(m.medicao||0);});
+      setAuditSaude({orphans:_orphans,triggerHealth:_health,erros24h:_err24.length,mudancasSemana:_mud7.length,m3Semana:_mud7.reduce(function(s,m){return s+Number(m.medicao||0);},0),agendasConcluidasSemana:_agsConcl.length,porDia:Object.values(_porDia)});
+    }catch(e){try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"loadAuditSaude"}});}catch(_){}}
+    setAuditLoading(false);
+  }
+  async function loadAuditMorador(query){
+    if(!query||query.trim().length<3){setAuditMorador(null);return;}
+    setAuditLoading(true);
+    try{
+      var _h=getH();
+      var _q=encodeURIComponent("*"+query.trim()+"*");
+      var _rm=await fetch(SUPA_URL+"/rest/v1/mudancas?nome=ilike."+_q+"&order=data.desc&limit=200",{headers:_h});
+      var _ra=await fetch(SUPA_URL+"/rest/v1/agenda?nome=ilike."+_q+"&order=data.desc&limit=200",{headers:_h});
+      var _muds=_rm.ok?await _rm.json():[];
+      var _ags=_ra.ok?await _ra.json():[];
+      var _agsNew=_ags.filter(function(a){return !_muds.some(function(m){return m.data===a.data&&(m.nome||"").toLowerCase().trim()===(a.nome||"").toLowerCase().trim();});});
+      setAuditMorador({query:query,mudancas:_muds,agendas:_agsNew});
+    }catch(e){try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"loadAuditMorador"}});}catch(_){}}
+    setAuditLoading(false);
+  }
   function exportAuditCSV(){
     var rows=[["Tipo","ID","Nome","Data","Status","m³","Deletado em","Por (motivo)"]];
     auditLixeira.forEach(function(it){rows.push([it._tipo,it.id,it.nome||"",it.data||"",it.status||"",it.medicao||"",it.deleted_at||"",it.deleted_by||""]);});
@@ -1458,7 +1506,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}if((tab==="financeiro_sup"||tab==="financeiro"||tab==="contas")&&!solicitacoesLoaded)loadSolicitacoesFin();if(tab==="auditoria"&&isAdmin){if(auditSubTab==="lixeira"&&auditLixeira.length===0)loadAuditLixeira();else if(auditSubTab==="erros"&&auditErros.length===0)loadAuditErros();}if(tab==="financeiro_sup"||(tab==="equipe"&&isSupervisor)){loadAjudantes();loadEquipeDia();loadEquipePadrao();}if(tab==="equipe"||tab==="config"||tab==="social"||tab==="dashboard")loadAssistentesSocial();},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}if((tab==="financeiro_sup"||tab==="financeiro"||tab==="contas")&&!solicitacoesLoaded)loadSolicitacoesFin();if(tab==="auditoria"&&isAdmin){if(auditSubTab==="lixeira"&&auditLixeira.length===0)loadAuditLixeira();else if(auditSubTab==="erros"&&auditErros.length===0)loadAuditErros();else if(auditSubTab==="saude"&&!auditSaude)loadAuditSaude();}if(tab==="financeiro_sup"||(tab==="equipe"&&isSupervisor)){loadAjudantes();loadEquipeDia();loadEquipePadrao();}if(tab==="equipe"||tab==="config"||tab==="social"||tab==="dashboard")loadAssistentesSocial();},[tab]);
   useEffect(()=>{
     async function load(){
       try{
@@ -7392,10 +7440,90 @@ return(
                 <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",marginTop:4}}>Lixeira, erros do sistema e histórico de alterações</div>
               </div>
               <div style={{display:"flex",background:"#f8fafc",borderBottom:"2px solid #e2e8f0"}}>
-                {[{id:"lixeira",l:"🗑️ Lixeira"},{id:"erros",l:"⚠️ Erros"},{id:"historico",l:"📜 Histórico"}].map(function(s){
-                  return <button key={s.id} onClick={function(){setAuditSubTab(s.id);if(s.id==="lixeira"&&auditLixeira.length===0)loadAuditLixeira();else if(s.id==="erros"&&auditErros.length===0)loadAuditErros();}} style={{flex:1,padding:"12px 4px",border:"none",cursor:"pointer",fontSize:12,fontWeight:auditSubTab===s.id?700:500,background:"transparent",borderBottom:auditSubTab===s.id?"3px solid #334155":"3px solid transparent",color:auditSubTab===s.id?"#334155":"#64748b"}}>{s.l}</button>;
+                {[{id:"saude",l:"🩺 Saúde"},{id:"lixeira",l:"🗑️ Lixeira"},{id:"erros",l:"⚠️ Erros"},{id:"morador",l:"👤 Morador"},{id:"historico",l:"📜 Histórico"}].map(function(s){
+                  return <button key={s.id} onClick={function(){setAuditSubTab(s.id);if(s.id==="lixeira"&&auditLixeira.length===0)loadAuditLixeira();else if(s.id==="erros"&&auditErros.length===0)loadAuditErros();else if(s.id==="saude"&&!auditSaude)loadAuditSaude();}} style={{flex:1,padding:"10px 2px",border:"none",cursor:"pointer",fontSize:11,fontWeight:auditSubTab===s.id?700:500,background:"transparent",borderBottom:auditSubTab===s.id?"3px solid #334155":"3px solid transparent",color:auditSubTab===s.id?"#334155":"#64748b"}}>{s.l}</button>;
                 })}
               </div>
+              {auditSubTab==="saude"&&<div style={{padding:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <div style={{fontSize:13,fontWeight:800,color:"#1e293b"}}>🩺 Saúde do sistema</div>
+                  <button onClick={loadAuditSaude} disabled={auditLoading} style={{padding:"6px 10px",borderRadius:8,border:"1.5px solid #334155",background:"#fff",color:"#334155",fontSize:11,fontWeight:700,cursor:"pointer"}}>{auditLoading?"⏳":"🔄"}</button>
+                </div>
+                {!auditSaude?<div style={{textAlign:"center",padding:30,color:"#94a3b8",fontSize:13}}>{auditLoading?"⏳ Carregando...":"💡 Clique 🔄 pra atualizar"}</div>:<>
+                  <div style={{background:auditSaude.triggerHealth>=95?"#f0fdf4":auditSaude.triggerHealth>=80?"#fffbeb":"#fef2f2",border:"2px solid "+(auditSaude.triggerHealth>=95?"#bbf7d0":auditSaude.triggerHealth>=80?"#fcd34d":"#fecaca"),borderRadius:12,padding:"14px 16px",marginBottom:12}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div>
+                        <div style={{fontSize:11,fontWeight:700,color:auditSaude.triggerHealth>=95?"#15803d":auditSaude.triggerHealth>=80?"#92400e":"#dc2626"}}>SAÚDE DO TRIGGER (7 dias)</div>
+                        <div style={{fontSize:10,color:"#64748b",marginTop:2}}>% de agendas concluídas que viraram mudança</div>
+                      </div>
+                      <div style={{fontSize:32,fontWeight:900,color:auditSaude.triggerHealth>=95?"#16a34a":auditSaude.triggerHealth>=80?"#f59e0b":"#dc2626"}}>{auditSaude.triggerHealth}%</div>
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                    <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,padding:"12px"}}><div style={{fontSize:10,color:"#64748b",fontWeight:700}}>MUDANÇAS</div><div style={{fontSize:24,fontWeight:900,color:"#15803d"}}>{auditSaude.mudancasSemana}</div><div style={{fontSize:10,color:"#94a3b8"}}>últimos 7 dias</div></div>
+                    <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,padding:"12px"}}><div style={{fontSize:10,color:"#64748b",fontWeight:700}}>M³ TOTAL</div><div style={{fontSize:24,fontWeight:900,color:"#1e40af"}}>{auditSaude.m3Semana.toFixed(0)}</div><div style={{fontSize:10,color:"#94a3b8"}}>últimos 7 dias</div></div>
+                    <div style={{background:auditSaude.orphans.length>0?"#fef2f2":"#f0fdf4",border:"1.5px solid "+(auditSaude.orphans.length>0?"#fecaca":"#bbf7d0"),borderRadius:10,padding:"12px"}}><div style={{fontSize:10,color:auditSaude.orphans.length>0?"#dc2626":"#15803d",fontWeight:700}}>ÓRFÃOS</div><div style={{fontSize:24,fontWeight:900,color:auditSaude.orphans.length>0?"#dc2626":"#16a34a"}}>{auditSaude.orphans.length}</div><div style={{fontSize:10,color:"#94a3b8"}}>agenda sem mudança</div></div>
+                    <div style={{background:auditSaude.erros24h>0?"#fef2f2":"#f0fdf4",border:"1.5px solid "+(auditSaude.erros24h>0?"#fecaca":"#bbf7d0"),borderRadius:10,padding:"12px"}}><div style={{fontSize:10,color:auditSaude.erros24h>0?"#dc2626":"#15803d",fontWeight:700}}>ERROS 24H</div><div style={{fontSize:24,fontWeight:900,color:auditSaude.erros24h>0?"#dc2626":"#16a34a"}}>{auditSaude.erros24h}</div><div style={{fontSize:10,color:"#94a3b8"}}>triggers falhos</div></div>
+                  </div>
+                  <div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:10,padding:"12px",marginBottom:12}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#475569",marginBottom:8}}>📊 Mudanças por dia (últimos 7)</div>
+                    <div style={{display:"flex",alignItems:"flex-end",gap:4,height:80}}>
+                      {auditSaude.porDia.map(function(d,i){
+                        var _max=Math.max.apply(null,auditSaude.porDia.map(function(x){return x.mud;}))||1;
+                        var _h=Math.round((d.mud/_max)*70)+5;
+                        var _dt=new Date(d.data+"T12:00:00");
+                        return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center"}}>
+                          <div style={{fontSize:9,fontWeight:700,color:"#1e40af",marginBottom:2}}>{d.mud}</div>
+                          <div style={{width:"100%",background:"linear-gradient(180deg,#3b82f6,#1e40af)",borderRadius:"4px 4px 0 0",height:_h}}/>
+                          <div style={{fontSize:9,color:"#94a3b8",marginTop:3}}>{_dt.getDate()}/{_dt.getMonth()+1}</div>
+                        </div>;
+                      })}
+                    </div>
+                  </div>
+                  {auditSaude.orphans.length>0&&<div style={{background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:10,padding:"12px"}}>
+                    <div style={{fontSize:11,fontWeight:800,color:"#dc2626",marginBottom:8}}>⚠️ Agendas órfãs ({auditSaude.orphans.length})</div>
+                    <div style={{fontSize:10,color:"#991b1b",marginBottom:8}}>Agenda concluída mas sem mudança correspondente</div>
+                    {auditSaude.orphans.slice(0,10).map(function(o){
+                      var _pts=String(o.data).split("-");
+                      return <div key={o.id} style={{background:"#fff",border:"1px solid #fecaca",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11}}><div style={{fontWeight:700,color:"#7f1d1d"}}>{o.nome}</div><div style={{fontSize:10,color:"#991b1b",marginTop:2}}>📅 {_pts[2]+"/"+_pts[1]+"/"+_pts[0]} · status: {o.status}{o.medicao?" · "+o.medicao+" m³":""}</div></div>;
+                    })}
+                    {auditSaude.orphans.length>10&&<div style={{fontSize:10,color:"#94a3b8",textAlign:"center",fontStyle:"italic"}}>+{auditSaude.orphans.length-10} outros...</div>}
+                  </div>}
+                </>}
+              </div>}
+              {auditSubTab==="morador"&&<div style={{padding:14}}>
+                <div style={{background:"#eff6ff",border:"1.5px solid #bfdbfe",borderRadius:12,padding:"10px 12px",marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:800,color:"#1e40af",marginBottom:8}}>👤 Buscar histórico do morador</div>
+                  <input type="text" value={auditMoradorQuery} onChange={function(e){setAuditMoradorQuery(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")loadAuditMorador(auditMoradorQuery);}} placeholder="Nome completo ou parte (mín 3 chars)" style={{width:"100%",padding:"8px 10px",border:"1.5px solid #bfdbfe",borderRadius:8,fontSize:12,boxSizing:"border-box",marginBottom:6}}/>
+                  <button onClick={function(){loadAuditMorador(auditMoradorQuery);}} disabled={auditLoading||auditMoradorQuery.trim().length<3} style={{width:"100%",padding:"8px",borderRadius:8,border:"none",background:auditMoradorQuery.trim().length>=3?"#1e40af":"#94a3b8",color:"#fff",fontSize:12,fontWeight:800,cursor:auditMoradorQuery.trim().length>=3?"pointer":"not-allowed"}}>{auditLoading?"⏳ Buscando...":"🔍 Buscar"}</button>
+                </div>
+                {!auditMorador?<div style={{textAlign:"center",padding:30,color:"#94a3b8",fontSize:13}}>💡 Digite o nome do morador pra ver TODAS as mudanças e agendas dele</div>:<>
+                  <div style={{background:"#f8fafc",borderRadius:10,padding:"10px 12px",marginBottom:12}}>
+                    <div style={{fontSize:11,color:"#64748b"}}>Buscando: <strong>{auditMorador.query}</strong></div>
+                    <div style={{fontSize:11,color:"#15803d",marginTop:2}}>{auditMorador.mudancas.length} mudança(s) · {auditMorador.agendas.length} agenda(s) não realizada(s)</div>
+                  </div>
+                  {(function(){
+                    var _all=auditMorador.mudancas.map(function(m){return Object.assign({},m,{_tipo:"mudanca"});}).concat(auditMorador.agendas.map(function(a){return Object.assign({},a,{_tipo:"agenda"});}));
+                    _all.sort(function(a,b){return (b.data||"").localeCompare(a.data||"");});
+                    if(_all.length===0)return <div style={{textAlign:"center",padding:30,color:"#94a3b8",fontSize:13}}>Nenhum registro encontrado.</div>;
+                    return _all.map(function(it){
+                      var _pts=String(it.data||"").split("-");var _dfmt=_pts.length===3?_pts[2]+"/"+_pts[1]+"/"+_pts[0]:it.data;
+                      var _del=it.deleted_at;
+                      var _bg=_del?"#fef2f2":it._tipo==="mudanca"?"#f0fdf4":"#fffbeb";
+                      var _bd=_del?"#fecaca":it._tipo==="mudanca"?"#bbf7d0":"#fcd34d";
+                      var _ic=_del?"🗑️":it._tipo==="mudanca"?"✅":"📅";
+                      var _sup=listaUsuarios.find(function(u){return u.id===it.supervisor_id;});
+                      return <div key={it._tipo+"-"+it.id} style={{background:_bg,border:"1px solid "+_bd,borderRadius:10,padding:"10px 12px",marginBottom:8,opacity:_del?0.7:1}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}><span style={{fontSize:14}}>{_ic}</span><span style={{fontWeight:800,fontSize:12,color:"#1e293b"}}>{_dfmt}</span><span style={{fontSize:9,fontWeight:700,background:_del?"#fee2e2":it._tipo==="mudanca"?"#dcfce7":"#fef3c7",color:_del?"#dc2626":it._tipo==="mudanca"?"#15803d":"#92400e",padding:"2px 6px",borderRadius:4}}>{_del?"DELETADO":it._tipo==="mudanca"?"REALIZADA":"AGENDA"}</span></div>
+                        <div style={{fontSize:11,color:"#475569",marginLeft:20}}>{it.status||"?"}{it.medicao&&Number(it.medicao)>0?" · "+it.medicao+" m³":""}{_sup?" · 👤 "+_sup.nome:""}</div>
+                        {it.origem&&<div style={{fontSize:10,color:"#64748b",marginLeft:20,marginTop:2}}>📦 {String(it.origem).substring(0,60)}{String(it.origem).length>60?"...":""}</div>}
+                        {it.destino&&<div style={{fontSize:10,color:"#64748b",marginLeft:20}}>🏠 {String(it.destino).substring(0,60)}{String(it.destino).length>60?"...":""}</div>}
+                        {_del&&<div style={{fontSize:10,color:"#dc2626",marginLeft:20,marginTop:2}}>🗑️ {it.deleted_by||"?"}</div>}
+                      </div>;
+                    });
+                  })()}
+                </>}
+              </div>}
               {auditSubTab==="lixeira"&&<div style={{padding:14}}>
                 <div style={{background:"#f8fafc",borderRadius:12,padding:12,marginBottom:12,display:"flex",flexDirection:"column",gap:8}}>
                   <div style={{display:"flex",gap:6}}>
