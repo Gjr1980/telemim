@@ -779,6 +779,13 @@ function RotaTerceirizada({token}){
                     {msgSentStatus[r.id]&&<div style={{padding:"8px 12px",borderRadius:10,fontSize:12,fontWeight:700,textAlign:"center",marginBottom:10,background:msgSentStatus[r.id].startsWith("✅")?"#dcfce7":msgSentStatus[r.id].startsWith("⚠️")?"#fef3c7":"#eff6ff",color:msgSentStatus[r.id].startsWith("✅")?"#15803d":msgSentStatus[r.id].startsWith("⚠️")?"#92400e":"#1e40af",border:"1px solid "+(msgSentStatus[r.id].startsWith("✅")?"#86efac":msgSentStatus[r.id].startsWith("⚠️")?"#fcd34d":"#bfdbfe")}}>{msgSentStatus[r.id]}</div>}
                   </div>);
                 })()}
+                {/* ↶ Desfazer início (terceirizado) */}
+                {(r.inicio_van_em||r.van_saiu_em||r.inicio_caminhao_em||r.caminhao_saiu_em||r.inicio_mudanca_em||r.inicio_carregamento_em)&&String(r.status||"").toLowerCase()!=="concluida"&&String(r.status||"").toLowerCase()!=="concluído"&&!r.termino_em&&<button disabled={!!updating[r.id]} onClick={function(){
+                  if(!window.confirm("↶ Desfazer início desta mudança?\n\nVai limpar todos os timestamps de início. Use APENAS se iniciou por engano."))return;
+                  var motivo=window.prompt("Motivo do desfazer (será registrado):");
+                  if(!motivo||motivo.trim().length<5){alert("Motivo obrigatório (mín 5 chars).");return;}
+                  atualizarStatus({id:r.id,_tabela:"agenda"},{status:"confirmado",inicio_van_em:null,van_saiu_em:null,chegada_van_em:null,termino_van_em:null,chegou_origem_van_em:null,saiu_destino_van_em:null,van_caminho_social_em:null,inicio_caminhao_em:null,caminhao_saiu_em:null,chegada_caminhao_em:null,termino_caminhao_em:null,chegou_origem_cam_em:null,saiu_destino_cam_em:null,inicio_carregamento_em:null,inicio_carregamento_por:null,inicio_mudanca_em:null,termino_em:null,inicio_em:null});
+                }} style={{width:"100%",padding:"10px 0",background:"#fff",color:"#1e40af",border:"1.5px solid #1e40af",borderRadius:10,fontWeight:700,fontSize:12,cursor:updating[r.id]?"not-allowed":"pointer",marginBottom:10}}>↶ Desfazer início (iniciei por engano)</button>}
                 {r.contato&&<a href={"https://wa.me/55"+(r.contato||"").replace(/\D/g,"")} target="_blank" rel="noopener" style={{display:"block",textAlign:"center",padding:14,background:"#25d366",color:"#fff",borderRadius:12,fontWeight:800,fontSize:14,textDecoration:"none",boxShadow:"0 4px 12px rgba(37,211,102,0.3)",marginBottom:10}}>📱 WhatsApp do Beneficiário</a>}
               </div>
             );
