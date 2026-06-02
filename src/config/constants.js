@@ -1,5 +1,7 @@
 // ── PUSH NOTIFICATIONS ───────────────────────────────────────────────────────
-export const VAPID_PUBLIC="BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjZEuEguqec8LTygq7UQTqp8-XWo4";
+// VAPID keys Promorar (gerado jun/2026).
+// Secret correspondente no Supabase: VAPID_PRIVATE_KEY (Functions → Secrets)
+export const VAPID_PUBLIC="BFkpj0LUuPrSFCH2pB2rzqvh2XCjJTAp1SwCGYAFERKvLRdF-XpJQTJ1Sq_HkKIh31iyXPO0ETv9YJ4wRm7_gVE";
 
 // ── THEME & RULES ─────────────────────────────────────────────────────────────
 export const COLORS = {
