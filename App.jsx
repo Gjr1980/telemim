@@ -967,6 +967,10 @@ export default function App(){
   const [toastMsg,setToastMsg]=useState("");
   const [auditDuplicatas,setAuditDuplicatas]=useState(null);
   const [mergeAjudantes,setMergeAjudantes]=useState(null);
+  // Desfazer início (jun/2026)
+  const [foraOrdemModal,setForaOrdemModal]=useState(null);
+  const [desfazerInicioModal,setDesfazerInicioModal]=useState(null);
+  const [desfazerInicioMotivo,setDesfazerInicioMotivo]=useState("");
   const [confirmReenvio,setConfirmReenvio]=useState(null);
   function _confirmarReenvio(opts){
     return new Promise(function(resolve){
@@ -1470,6 +1474,63 @@ export default function App(){
       setAuditDuplicatas({grupos:_dups,total:_dups.length});
     }catch(e){try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"loadAuditDuplicatas"}});}catch(_){}}
     setAuditLoading(false);
+  }
+  // ── Detecção fora-de-ordem + desfazer início (jun/2026) ──
+  function _detectarForaDeOrdem(ag){
+    if(!ag||!ag.data||!ag.horario)return [];
+    var _hora=ag.horario;var _meuId=ag.id;
+    var _campo=null;
+    if(usuario){
+      if(usuario.perfil==="motorista"){_campo=usuario.tipo_veiculo==="VAN"?"motorista_van_id":"motorista_caminhao_id";}
+      else if(usuario.perfil==="supervisor")_campo="supervisor_id";
+    }
+    if(!_campo)return [];
+    var _meuUid=usuario.id;
+    return (agenda||[]).filter(function(a){
+      if(!a||a.deleted_at||a.id===_meuId||a.data!==ag.data||a[_campo]!==_meuUid)return false;
+      if(!a.horario||a.horario>=_hora)return false;
+      var _iniciada=a.inicio_van_em||a.van_saiu_em||a.inicio_caminhao_em||a.caminhao_saiu_em||a.inicio_mudanca_em||a.inicio_carregamento_em||(a.status&&String(a.status).toLowerCase()==="realizando");
+      if(_iniciada)return false;
+      var _st=String(a.status||"").toLowerCase();
+      if(_st==="concluida"||_st==="concluída"||_st==="concluido"||_st==="concluído"||_st==="cancelada"||_st==="cancelado")return false;
+      return true;
+    }).sort(function(a,b){return (a.horario||"").localeCompare(b.horario||"");});
+  }
+  async function solicitarDesfazerInicio(){
+    var d=desfazerInicioModal;if(!d)return;
+    var motivo=desfazerInicioMotivo.trim();
+    if(motivo.length<5){alert("Informe o motivo (mín 5 chars).");return;}
+    var ag=d.ag;
+    var sol={supervisor_id:usuario.id,supervisor_nome:usuario.nome,tipo:"desfazer_inicio",data_ref:ag.data,prestador_nome:ag.nome,cargo:usuario.perfil,agenda_id:String(ag.id),motivo:motivo,status:"pendente"};
+    var ok=await criarSolicitacao(sol);
+    if(ok){setDesfazerInicioModal(null);setDesfazerInicioMotivo("");alert("✅ Pedido enviado ao admin.");}else alert("Erro ao enviar.");
+  }
+  async function aprovarDesfazerInicio(sol){
+    if(!sol||!sol.agenda_id)return;
+    try{
+      var _payload={status:"confirmado",inicio_em:null,termino_em:null,van_caminho_social_em:null,inicio_van_em:null,van_saiu_em:null,chegada_van_em:null,termino_van_em:null,chegou_origem_van_em:null,saiu_destino_van_em:null,inicio_caminhao_em:null,caminhao_saiu_em:null,chegada_caminhao_em:null,termino_caminhao_em:null,chegou_origem_cam_em:null,saiu_destino_cam_em:null,inicio_carregamento_em:null,inicio_carregamento_por:null,inicio_mudanca_em:null};
+      var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+sol.agenda_id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_payload)});
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      setAgenda(function(prev){return prev.map(function(a){return String(a.id)===String(sol.agenda_id)?Object.assign({},a,_payload):a;});});
+      await responderSolicitacao(sol.id,"aprovado",usuario.id,usuario.nome);
+      try{if(sol.supervisor_id)sendPushNotification([sol.supervisor_id],"✅ Desfazer aprovado!","A mudança "+(sol.prestador_nome||"")+" foi revertida.");}catch(_){}
+      setSyncStatus("✅ Início desfeito");
+    }catch(e){alert("Erro: "+e.message);try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"aprovarDesfazerInicio"}});}catch(_){}}
+  }
+  async function adminDesfazerInicio(ag){
+    if(!ag)return;
+    var _hj=new Date();var _hjStr=_hj.toISOString().slice(0,10);
+    if(ag.data!==_hjStr){if(!window.confirm("⚠️ Esta mudança não é de hoje ("+ag.data+"). Tem CERTEZA?"))return;}
+    var motivo=window.prompt("Motivo do desfazer (obrigatório):");
+    if(!motivo||motivo.trim().length<5){alert("Motivo obrigatório (mín 5 chars).");return;}
+    try{
+      var _payload={status:"confirmado",inicio_em:null,termino_em:null,van_caminho_social_em:null,inicio_van_em:null,van_saiu_em:null,chegada_van_em:null,termino_van_em:null,chegou_origem_van_em:null,saiu_destino_van_em:null,inicio_caminhao_em:null,caminhao_saiu_em:null,chegada_caminhao_em:null,termino_caminhao_em:null,chegou_origem_cam_em:null,saiu_destino_cam_em:null,inicio_carregamento_em:null,inicio_carregamento_por:null,inicio_mudanca_em:null};
+      var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(_payload)});
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      setAgenda(function(prev){return prev.map(function(a){return a.id===ag.id?Object.assign({},a,_payload):a;});});
+      try{var _alvos=[ag.motorista_van_id,ag.motorista_caminhao_id,ag.supervisor_id].filter(Boolean);if(_alvos.length>0)sendPushNotification(_alvos,"🚨 Início desfeito pelo admin","A mudança "+(ag.nome||"")+" foi revertida. Motivo: "+motivo.trim());}catch(_){}
+      setSyncStatus("✅ Início desfeito");
+    }catch(e){alert("Erro: "+e.message);try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"adminDesfazerInicio"}});}catch(_){}}
   }
   async function executarMerge(){
     var m=mergeAjudantes;if(!m)return;
@@ -3313,7 +3374,17 @@ export default function App(){
   async function handleFinalizeOS(m,pdfB64){if(isUploading) return;setIsUploading(true);setSyncStatus("⏳ A guardar canhoto...");try{var r=await fetch(SUPA_URL+"/functions/v1/salvar-canhoto",{method:"POST",headers:{"Content-Type":"application/json",apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},body:JSON.stringify({osId:m.id,pdfBase64:pdfB64,nome:m.nome||""})});var j=await r.json();if(j&&j.sucesso){setSyncStatus("✅ Canhoto guardado!");setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);}else{console.warn("[Canhoto] erro:",j);setSyncStatus("✅ OS Concluída");setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);}}catch(e){console.warn("[Canhoto] Erro:",e);setSyncStatus("✅ OS Concluída!");setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);}finally{setIsUploading(false);}}
 
   // 🚚 MÁQUINA DE ESTADOS DO MOTORISTA ???????????????????????????????????
-  async function handleStatusMotorista(ag, novoStatus){
+  async function handleStatusMotorista(ag, novoStatus, _bypassFOCheck){
+    if(!_bypassFOCheck&&ag&&(novoStatus==="Caminho Social"||novoStatus==="Em Deslocamento")){
+      var _antesO=_detectarForaDeOrdem(ag);
+      if(_antesO.length>0){
+        setForaOrdemModal({ag:ag,anteriores:_antesO,onConfirm:function(){setForaOrdemModal(null);handleStatusMotorista(ag,novoStatus,true);},onCancel:function(){setForaOrdemModal(null);}});
+        return;
+      }
+    }
+    return _handleStatusMotoristaOriginal(ag,novoStatus);
+  }
+  async function _handleStatusMotoristaOriginal(ag, novoStatus){
     if(!ag||!ag.id) return;
     var agora=new Date().toISOString();
     var _isVanMot=usuario&&(usuario.tipo_veiculo==="VAN"||ag.motorista_van_id===usuario.id);
@@ -5924,7 +5995,7 @@ export default function App(){
                   return <div key={s.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"12px",marginBottom:8,boxShadow:"0 2px 8px rgba(245,158,11,0.1)"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                       <div>
-                        <div style={{fontWeight:800,fontSize:12,color:"#1e293b"}}>{s.tipo==="editar_valor"?"✏️ Edição de Valor":(s.tipo==="remover_dia"?"🗑️ Remoção de Dia":"🗑️ Remoção de Ajudante")}</div>
+                        <div style={{fontWeight:800,fontSize:12,color:"#1e293b"}}>{s.tipo==="editar_valor"?"✏️ Edição de Valor":s.tipo==="remover_dia"?"🗑️ Remoção de Dia":s.tipo==="desfazer_inicio"?"↶ Desfazer Início":"🗑️ Remoção de Ajudante"}</div>
                         <div style={{fontSize:11,color:"#64748b",marginTop:2}}>Por: <strong>{s.supervisor_nome}</strong></div>
                       </div>
                       <span style={{background:"#fef3c7",border:"1px solid #fcd34d",borderRadius:6,padding:"2px 8px",fontSize:9,fontWeight:700,color:"#92400e"}}>⏳ Pendente</span>
@@ -5946,11 +6017,17 @@ export default function App(){
                       <div style={{fontSize:11,color:"#dc2626",fontWeight:700}}>Remover: {s.prestador_nome}</div>
                       <div style={{fontSize:10,color:"#991b1b",marginTop:2}}>Dia: {s.data_ref?String(s.data_ref).split("-").reverse().join("/"):""} · {s.num_mud_antigo||0} mud · {_fvA(s.valor_antigo)}</div>
                     </div>}
+                    {s.tipo==="desfazer_inicio"&&<div style={{background:"#eff6ff",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
+                      <div style={{fontSize:11,color:"#1e40af",fontWeight:700}}>↶ Reverter início de: {s.prestador_nome}</div>
+                      <div style={{fontSize:10,color:"#1e3a8a",marginTop:2}}>Dia: {s.data_ref?String(s.data_ref).split("-").reverse().join("/"):""} · Agenda #{s.agenda_id}</div>
+                      <div style={{fontSize:10,color:"#3730a3",marginTop:2}}>Solicitado por: {s.supervisor_nome} ({s.cargo})</div>
+                    </div>}
                     <div style={{fontSize:10,color:"#64748b",marginBottom:8}}>💬 Motivo: {s.motivo}</div>
                     <div style={{display:"flex",gap:8}}>
                       <button onClick={function(){
                         if(!confirm("Aprovar esta solicitação?"))return;
-                        responderSolicitacao(s.id,"aprovado",usuario.id,usuario.nome);
+                        if(s.tipo==="desfazer_inicio"){aprovarDesfazerInicio(s);}
+                        else responderSolicitacao(s.id,"aprovado",usuario.id,usuario.nome);
                       }} style={{flex:1,padding:"10px",borderRadius:10,border:"none",background:"#16a34a",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer"}}>✅ Aprovar</button>
                       <button onClick={function(){
                         if(!confirm("Rejeitar esta solicitação?"))return;
@@ -8513,6 +8590,50 @@ return(
         <button onClick={function(){if(!reagendarData){alert("Selecione a nova data.");return;}if(!reagendarMotivo){alert("Selecione o motivo.");return;}handleReagendar(reagendarModal.id,reagendarData,reagendarMotivo);}} disabled={!reagendarData||!reagendarMotivo} style={{flex:2,padding:"11px 0",borderRadius:12,border:"none",background:reagendarData&&reagendarMotivo?"#2563eb":"#94a3b8",color:"#fff",fontWeight:900,fontSize:13,cursor:reagendarData&&reagendarMotivo?"pointer":"not-allowed"}}>📅 Reagendar</button>
       </div>
     </div></div>}
+        {foraOrdemModal&&<div style={{position:"fixed",inset:0,background:"rgba(127,29,29,0.7)",zIndex:10001,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={function(){foraOrdemModal.onCancel();}}>
+          <div onClick={function(e){e.stopPropagation();}} style={{background:"#fff",borderRadius:20,padding:"22px",maxWidth:420,width:"100%",boxShadow:"0 8px 40px rgba(127,29,29,0.5)",border:"3px solid #dc2626"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <div style={{fontSize:36}}>🚨</div>
+              <div>
+                <div style={{fontWeight:900,fontSize:16,color:"#dc2626"}}>ATENÇÃO — Início fora de ordem</div>
+                <div style={{fontSize:11,color:"#991b1b"}}>Você tem mudança(s) anterior(es) não iniciada(s)</div>
+              </div>
+            </div>
+            <div style={{background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:10,padding:"10px 12px",marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#7f1d1d",marginBottom:6}}>📋 Não iniciadas hoje (anteriores):</div>
+              {foraOrdemModal.anteriores.map(function(a){return <div key={a.id} style={{fontSize:12,color:"#7f1d1d",padding:"4px 0",borderBottom:"1px dashed #fca5a5"}}>⏰ {a.horario||"?"} — {a.nome||"?"}</div>;})}
+            </div>
+            <div style={{background:"#fffbeb",border:"1.5px solid #fcd34d",borderRadius:10,padding:"10px 12px",marginBottom:14}}>
+              <div style={{fontSize:11,color:"#92400e"}}>Esta é a de <strong>⏰ {foraOrdemModal.ag.horario||"?"} — {foraOrdemModal.ag.nome||"?"}</strong></div>
+            </div>
+            <div style={{fontSize:12,color:"#7f1d1d",marginBottom:12,fontWeight:600,textAlign:"center"}}>❓ Tem certeza que quer iniciar ESTA mudança?</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={function(){foraOrdemModal.onCancel();}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"2px solid #16a34a",background:"#f0fdf4",color:"#15803d",fontWeight:900,fontSize:13,cursor:"pointer"}}>❌ Não, cancelar</button>
+              <button onClick={function(){foraOrdemModal.onConfirm();}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"none",background:"#dc2626",color:"#fff",fontWeight:900,fontSize:13,cursor:"pointer"}}>⚠️ Sim, iniciar mesmo</button>
+            </div>
+          </div>
+        </div>}
+        {desfazerInicioModal&&<div onClick={function(){setDesfazerInicioModal(null);setDesfazerInicioMotivo("");}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:10001,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div onClick={function(e){e.stopPropagation();}} style={{background:"#fff",borderRadius:20,padding:"22px",maxWidth:380,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <div style={{fontSize:30}}>↶</div>
+              <div>
+                <div style={{fontWeight:900,fontSize:15,color:"#1e40af"}}>Desfazer início?</div>
+                <div style={{fontSize:11,color:"#64748b"}}>Pedido vai ao admin pra aprovação</div>
+              </div>
+            </div>
+            <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,padding:"10px 12px",marginBottom:12}}>
+              <div style={{fontSize:12,color:"#1e3a8a",fontWeight:700}}>🏠 {desfazerInicioModal.ag.nome||"?"}</div>
+              <div style={{fontSize:11,color:"#1e40af",marginTop:2}}>📅 {desfazerInicioModal.ag.data||"?"} {desfazerInicioModal.ag.horario?"⏰ "+desfazerInicioModal.ag.horario:""}</div>
+            </div>
+            <div style={{fontSize:11,fontWeight:700,color:"#1e40af",marginBottom:6}}>Motivo * <span style={{color:"#94a3b8",fontWeight:500}}>(mín 5 chars)</span></div>
+            <input type="text" value={desfazerInicioMotivo} onChange={function(e){setDesfazerInicioMotivo(e.target.value);}} placeholder="Ex: cliquei errado" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #bfdbfe",borderRadius:10,fontSize:13,boxSizing:"border-box",marginBottom:14}} autoFocus/>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={function(){setDesfazerInicioModal(null);setDesfazerInicioMotivo("");}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:800,fontSize:13,cursor:"pointer"}}>Cancelar</button>
+              <button disabled={desfazerInicioMotivo.trim().length<5} onClick={solicitarDesfazerInicio} style={{flex:2,padding:"12px 0",borderRadius:12,border:"none",background:desfazerInicioMotivo.trim().length>=5?"#1e40af":"#94a3b8",color:"#fff",fontWeight:900,fontSize:13,cursor:desfazerInicioMotivo.trim().length>=5?"pointer":"not-allowed"}}>📩 Enviar pedido</button>
+            </div>
+          </div>
+        </div>}
         {toastMsg&&<div style={{position:"fixed",top:16,left:16,right:16,zIndex:10000,background:"#1e293b",color:"#fff",padding:"12px 16px",borderRadius:12,boxShadow:"0 8px 28px rgba(0,0,0,0.3)",display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={function(){setToastMsg("");setTab("financeiro");}}>
           <div style={{fontSize:20}}>📩</div>
           <div style={{flex:1,fontSize:12,fontWeight:600}}>{toastMsg}</div>
