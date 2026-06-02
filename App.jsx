@@ -4581,6 +4581,8 @@ export default function App(){
                       <span style={{fontSize:_dest?12:11,fontWeight:700,color:"#854d0e"}}>📦 Descarregando no destino...</span>
                     </div>
                   )}
+                  {/* ── ↶ DESFAZER INÍCIO (jun/2026) ── */}
+                  {(a.inicio_van_em||a.van_saiu_em||a.inicio_caminhao_em||a.caminhao_saiu_em||a.inicio_mudanca_em||a.inicio_carregamento_em)&&!_statusRealizados.includes(a.status)&&!a.termino_em&&(isMotorista||isSupervisor||isAdmin)&&<button onClick={function(){if(isAdmin){adminDesfazerInicio(a);}else{setDesfazerInicioModal({ag:a});setDesfazerInicioMotivo("");}}} style={{width:"100%",marginTop:8,background:"#fff",color:"#1e40af",border:"1.5px solid #1e40af",borderRadius:10,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>↶ {isAdmin?"Desfazer início":"Pedir admin desfazer início"}</button>}
                   {/* ── CONCLUÍDA banner ── */}
                   {(function(){var _done=_statusRealizados.includes(a.status)||a.termino_em||(_stMot==="Concluido");
                     return _done?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#dcfce7",border:"2px solid #86efac",borderRadius:_dest?12:10,padding:_dest?"12px 0":"9px 0"}}><span style={{fontSize:_dest?18:15}}>✅</span><span style={{fontWeight:800,fontSize:_dest?15:13,color:"#15803d"}}>Mudança Concluída</span></div>:null;})()}
