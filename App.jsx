@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { SUPA_URL, SUPA_KEY, _getValidToken, _fmtDate, getSupaClient, getH, _ensureAuth, dbGet, dbUpsert, dbDelete, dbGetContas, dbInsertConta, dbPagarConta, dbGetCustos, dbUpsertCusto, FORNECEDORES } from "./src/config/supabase.js";
 import { VAPID_PUBLIC, COLORS, RULES, DADOS_INICIAIS, AGENDA_INICIAIS, initForm } from "./src/config/constants.js";
 import { urlBase64ToUint8Array, subscribePush, sendPushNotification } from "./src/utils/push.js";
-import { idbSet, idbGet, addToSyncQueue, processSyncQueue } from "./src/utils/offline.js";
+import { idbSet, idbGet, addToSyncQueue, processSyncQueue, getSyncQueueCount, clearSyncQueue, onQueueChange } from "./src/utils/offline.js";
 import { _calcDiario, _calcCustos } from "./src/utils/calcCustos.js";
 import { exportarPDF, exportarExcel } from "./src/utils/exportar.js";
 import { Badge, Card, Inp, InpEndereco, Tog, playNotifSound } from "./src/components/shared.jsx";
@@ -1117,6 +1117,13 @@ export default function App(){
   const [flash,setFlash]=useState("");
   const [showNotifBanner,setShowNotifBanner]=useState(false);
   const [isOffline,setIsOffline]=useState(!navigator.onLine);
+  const [syncQueueCount,setSyncQueueCount]=useState(0);
+  const [syncing,setSyncing]=useState(false);
+  useEffect(function(){
+    getSyncQueueCount().then(setSyncQueueCount);
+    var _unsub=onQueueChange(function(n){setSyncQueueCount(n);});
+    return _unsub;
+  },[]);
   const [expand,setExpand]=useState(null);
   const [search,setSearch]=useState("");
   const [filtroMes,setFiltroMes]=useState("semana");
@@ -4348,8 +4355,23 @@ export default function App(){
           </div></>}
         </div>
 
-        {/* ══ OFFLINE INDICATOR ══ */}
-        {isOffline&&<div style={{margin:"0 12px 8px",background:"#fef2f2",border:"2px solid #dc2626",borderRadius:10,padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
+        {/* ══ OFFLINE / SYNC QUEUE INDICATOR (Item 8) ══ */}
+        {(isOffline||syncQueueCount>0)&&<div style={{margin:"0 12px 8px",background:isOffline?"#fef2f2":"#fffbeb",border:"2px solid "+(isOffline?"#dc2626":"#f59e0b"),borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:18}}>{isOffline?"📡":syncing?"🔄":"⏳"}</span>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:800,fontSize:12,color:isOffline?"#991b1b":"#92400e"}}>{isOffline?"Sem conexão":syncing?"Sincronizando...":syncQueueCount+" operação(ões) pendente(s)"}</div>
+            <div style={{fontSize:10,color:isOffline?"#dc2626":"#a16207"}}>{isOffline?"Suas ações ficam na fila e enviam quando voltar online":"Aguardando sincronização"}</div>
+          </div>
+          {!isOffline&&syncQueueCount>0&&<button onClick={async function(){
+            setSyncing(true);
+            try{var r=await processSyncQueue();setSyncing(false);if(r.ok>0)setSyncStatus("✅ "+r.ok+" sincronizada(s)");else if(r.failed>0)setSyncStatus("⚠️ "+r.failed+" ainda pendente(s)");}catch(e){setSyncing(false);}
+          }} disabled={syncing} style={{padding:"6px 12px",borderRadius:8,border:"1.5px solid #92400e",background:"#fff",color:"#92400e",fontSize:11,fontWeight:800,cursor:syncing?"not-allowed":"pointer"}}>{syncing?"⏳":"🔄"}</button>}
+          {!isOffline&&syncQueueCount>0&&<button onClick={async function(){
+            if(!window.confirm("Descartar "+syncQueueCount+" operação(ões) pendente(s)?"))return;
+            await clearSyncQueue();setSyncStatus("🗑️ Queue descartada");
+          }} style={{padding:"6px 8px",borderRadius:8,border:"1.5px solid #dc2626",background:"#fef2f2",color:"#dc2626",fontSize:11,fontWeight:800,cursor:"pointer"}}>🗑️</button>}
+        </div>}
+        {false&&isOffline&&<div style={{margin:"0 12px 8px",background:"#fef2f2",border:"2px solid #dc2626",borderRadius:10,padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:16}}>📡</span>
           <div style={{flex:1}}>
             <div style={{fontWeight:800,fontSize:12,color:"#991b1b"}}>Sem conexão</div>
