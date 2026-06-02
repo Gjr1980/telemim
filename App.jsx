@@ -550,8 +550,30 @@ function RotaTerceirizada({token}){
     fetch(SUPA_URL+"/rest/v1/assistentes_social?select=id,nome,contato&ativo=eq.true",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY}})
       .then(function(r){return r.json();}).then(function(d){if(Array.isArray(d))setAssistSociais(d);}).catch(function(){});
   },[]);
-  function atualizarStatus(item,campos){
+  var [foraOrdemTerc,setForaOrdemTerc]=useState(null);
+  function _detectarForaOrdemTerc(item){
+    if(!dados||!dados.rotas)return [];
+    return dados.rotas.filter(function(r){
+      if(!r||r.id===item.id)return false;
+      if(!item.horario)return false;
+      if(r.horario&&r.horario>=item.horario)return false;
+      var _iniciada=r.inicio_van_em||r.van_saiu_em||r.inicio_caminhao_em||r.caminhao_saiu_em||r.inicio_mudanca_em||r.inicio_carregamento_em;
+      if(_iniciada)return false;
+      var _st=String(r.status||"").toLowerCase();
+      if(_st==="concluida"||_st==="concluído"||_st==="concluido"||_st==="cancelada")return false;
+      return true;
+    }).sort(function(a,b){return (a.horario||"").localeCompare(b.horario||"");});
+  }
+  function atualizarStatus(item,campos,_bypassFOCheck){
     if(updating[item.id]) return;
+    var _isInicio=campos&&typeof campos==="object"&&(campos.inicio_van_em==="NOW"||campos.inicio_caminhao_em==="NOW"||campos.van_caminho_social_em==="NOW");
+    if(!_bypassFOCheck&&_isInicio){
+      var _antes=_detectarForaOrdemTerc(item);
+      if(_antes.length>0){
+        setForaOrdemTerc({item:item,campos:campos,anteriores:_antes});
+        return;
+      }
+    }
     setUpdating(function(p){var n={...p};n[item.id]=true;return n;});
     var tabela=item._tabela||"agenda";
     // Detectar formato antigo (novo_status + campo_tempo) ou novo (campos)
@@ -796,6 +818,25 @@ function RotaTerceirizada({token}){
         </div>
         <div style={{textAlign:"center",fontSize:10,color:"#94a3b8",marginTop:8}}>🔄 Atualiza automaticamente a cada 30s</div>
       </div>
+      {foraOrdemTerc&&<div onClick={function(){setForaOrdemTerc(null);}} style={{position:"fixed",inset:0,background:"rgba(127,29,29,0.7)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div onClick={function(e){e.stopPropagation();}} style={{background:"#fff",borderRadius:20,padding:"22px",maxWidth:380,width:"100%",boxShadow:"0 8px 40px rgba(127,29,29,0.5)",border:"3px solid #dc2626"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+            <div style={{fontSize:36}}>🚨</div>
+            <div><div style={{fontWeight:900,fontSize:16,color:"#dc2626"}}>ATENÇÃO — Fora de ordem</div><div style={{fontSize:11,color:"#991b1b"}}>Há mudança(s) anterior(es) não iniciada(s)</div></div>
+          </div>
+          <div style={{background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:10,padding:"10px 12px",marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#7f1d1d",marginBottom:6}}>📋 Anteriores não iniciadas:</div>
+            {foraOrdemTerc.anteriores.map(function(a){return <div key={a.id} style={{fontSize:12,color:"#7f1d1d",padding:"4px 0",borderBottom:"1px dashed #fca5a5"}}>⏰ {a.horario||"?"} — {a.nome||"?"}</div>;})}
+          </div>
+          <div style={{background:"#fffbeb",border:"1.5px solid #fcd34d",borderRadius:10,padding:"10px 12px",marginBottom:14}}>
+            <div style={{fontSize:11,color:"#92400e"}}>Esta é a de <strong>⏰ {foraOrdemTerc.item.horario||"?"} — {foraOrdemTerc.item.nome||"?"}</strong></div>
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={function(){setForaOrdemTerc(null);}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"2px solid #16a34a",background:"#f0fdf4",color:"#15803d",fontWeight:900,fontSize:13,cursor:"pointer"}}>❌ Não, voltar</button>
+            <button onClick={function(){var t=foraOrdemTerc;setForaOrdemTerc(null);atualizarStatus(t.item,t.campos,true);}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"none",background:"#dc2626",color:"#fff",fontWeight:900,fontSize:13,cursor:"pointer"}}>⚠️ Iniciar mesmo</button>
+          </div>
+        </div>
+      </div>}
       {contatoPopup&&<div onClick={function(){setContatoPopup(null);}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div onClick={function(e){e.stopPropagation();}} style={{background:"#fff",borderRadius:20,padding:"24px 20px",width:"100%",maxWidth:340,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}><div style={{textAlign:"center",marginBottom:16}}><div style={{fontSize:12,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:8}}>{contatoPopup.tipo}</div><div style={{fontSize:20,fontWeight:900,color:"#1e293b"}}>{contatoPopup.nome}</div></div>{contatoPopup.contato?<div><div style={{background:"#f0fdf4",border:"1.5px solid #bbf7d0",borderRadius:12,padding:"12px 16px",textAlign:"center",marginBottom:16}}><div style={{fontSize:11,fontWeight:600,color:"#64748b",marginBottom:4}}>📞 Telefone</div><div style={{fontSize:18,fontWeight:800,color:"#15803d"}}>{contatoPopup.contato}</div></div><div style={{display:"flex",gap:10}}><a href={"tel:"+contatoPopup.contato} style={{flex:1,display:"block",textAlign:"center",padding:"12px 0",background:"#2563eb",color:"#fff",borderRadius:12,fontWeight:800,fontSize:14,textDecoration:"none",boxShadow:"0 4px 12px rgba(37,99,235,0.3)"}}>📞 Ligar</a><a href={"https://wa.me/55"+(contatoPopup.contato||"").replace(/\D/g,"")} target="_blank" style={{flex:1,display:"block",textAlign:"center",padding:"12px 0",background:"#25d366",color:"#fff",borderRadius:12,fontWeight:800,fontSize:14,textDecoration:"none",boxShadow:"0 4px 12px rgba(37,211,102,0.3)"}}>📲 WhatsApp</a></div></div>:<div style={{background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:12,padding:"12px 16px",textAlign:"center",marginBottom:16}}><div style={{fontSize:13,fontWeight:700,color:"#dc2626"}}>📵 Telefone não cadastrado</div></div>}<button onClick={function(){setContatoPopup(null);}} style={{width:"100%",marginTop:12,padding:"10px 0",background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>✕ Fechar</button></div></div>}
     </div>
   );
@@ -5704,6 +5745,11 @@ export default function App(){
                         {m.selo&&<span style={{fontSize:12,color:"rgba(255,255,255,0.85)",fontWeight:600}}>🏷️ {m.selo}</span>}
                         {m.data&&<span style={{fontSize:12,color:"rgba(255,255,255,0.85)",fontWeight:600}}>📅 {m.data.slice(8)+"/"+m.data.slice(5,7)+"/"+m.data.slice(0,4)}</span>}
                       </div>
+                      {(function(){
+                        var _desfCount=(solicitacoesFin||[]).filter(function(s){return s&&s.tipo==="desfazer_inicio"&&s.status==="aprovado"&&String(s.agenda_id)===String(m.id);}).length;
+                        if(_desfCount===0)return null;
+                        return <div style={{marginTop:5}}><span style={{background:"#fef2f2",border:"1.5px solid #dc2626",color:"#dc2626",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:800}}>↶ Desfeita {_desfCount}× (engano)</span></div>;
+                      })()}
                     </div>
                     {!isMotorista&&verMed&&m.medicao&&<div style={{background:"rgba(255,255,255,0.2)",borderRadius:8,padding:"4px 10px",marginLeft:8}}><span style={{fontSize:13,fontWeight:800,color:"#fff"}}>📐 {m.medicao} m³</span></div>}
                   </div>
