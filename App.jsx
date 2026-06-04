@@ -1481,9 +1481,23 @@ export default function App(){
       var _porDia={};
       for(var i=6;i>=0;i--){var d=new Date(_hj);d.setDate(d.getDate()-i);var k=d.toISOString().slice(0,10);_porDia[k]={data:k,mud:0,m3:0};}
       _mud7.forEach(function(m){if(_porDia[m.data])_porDia[m.data].mud++;if(_porDia[m.data])_porDia[m.data].m3+=Number(m.medicao||0);});
-      setAuditSaude({orphans:_orphans,triggerHealth:_health,erros24h:_err24.length,mudancasSemana:_mud7.length,m3Semana:_mud7.reduce(function(s,m){return s+Number(m.medicao||0);},0),agendasConcluidasSemana:_agsConcl.length,porDia:Object.values(_porDia)});
+      // Mudanças sem supervisor (Nível 3)
+      var _ini30=new Date(_hj);_ini30.setDate(_ini30.getDate()-30);
+      var _iso30=_ini30.toISOString().slice(0,10);
+      var _rOrph=await fetch(SUPA_URL+"/rest/v1/mudancas?data=gte."+_iso30+"&deleted_at=is.null&supervisor_id=is.null&select=id,data,nome,medicao,status&order=data.desc&limit=100",{headers:_h});
+      var _orphSup=_rOrph.ok?await _rOrph.json():[];
+      setAuditSaude({orphans:_orphans,triggerHealth:_health,erros24h:_err24.length,mudancasSemana:_mud7.length,m3Semana:_mud7.reduce(function(s,m){return s+Number(m.medicao||0);},0),agendasConcluidasSemana:_agsConcl.length,porDia:Object.values(_porDia),semSupervisor:_orphSup});
     }catch(e){try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"loadAuditSaude"}});}catch(_){}}
     setAuditLoading(false);
+  }
+  async function atribuirSupervisorMud(mudId,supId){
+    try{
+      var r=await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+mudId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({supervisor_id:supId})});
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      setMudancas(function(prev){return prev.map(function(m){return m.id===mudId?Object.assign({},m,{supervisor_id:supId}):m;});});
+      setAuditSaude(function(p){if(!p)return p;return Object.assign({},p,{semSupervisor:(p.semSupervisor||[]).filter(function(x){return x.id!==mudId;})});});
+      setSyncStatus("✅ Supervisor atribuído");
+    }catch(e){alert("Erro: "+e.message);try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"atribuirSupervisorMud"}});}catch(_){}}
   }
   async function loadAuditMorador(query){
     if(!query||query.trim().length<3){setAuditMorador(null);return;}
@@ -2711,6 +2725,11 @@ export default function App(){
     if(form.nome&&form.nome.trim().length<6) _ws.push({tipo:"nome_curto",msg:"👤 Nome parece incompleto. Confirma?"});
     if(!form.origem||form.origem.trim().length<8) _ws.push({tipo:"origem_curta",msg:"📦 Endereço de origem vazio/curto. Confirma?"});
     if(!form.destino||form.destino.trim().length<8) _ws.push({tipo:"destino_curto",msg:"🏠 Endereço de destino vazio/curto. Confirma?"});
+    // Supervisor (Nível 1): aviso se há mais de 1 supervisor ativo e nenhum foi selecionado
+    if(!form.supervisor_id){
+      var _supsAtivos=(listaUsuarios||[]).filter(function(u){return u.perfil==="supervisor"&&u.ativo;});
+      if(_supsAtivos.length>1) _ws.push({tipo:"sem_supervisor",msg:"👷 Nenhum supervisor selecionado. Sem isso não conta no financeiro dele. Confirma?"});
+    }
     return _ws;
   }
   async function handleAddAg(){
@@ -7899,6 +7918,22 @@ return(
                       return <div key={o.id} style={{background:"#fff",border:"1px solid #fecaca",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11}}><div style={{fontWeight:700,color:"#7f1d1d"}}>{o.nome}</div><div style={{fontSize:10,color:"#991b1b",marginTop:2}}>📅 {_pts[2]+"/"+_pts[1]+"/"+_pts[0]} · status: {o.status}{o.medicao?" · "+o.medicao+" m³":""}</div></div>;
                     })}
                     {auditSaude.orphans.length>10&&<div style={{fontSize:10,color:"#94a3b8",textAlign:"center",fontStyle:"italic"}}>+{auditSaude.orphans.length-10} outros...</div>}
+                  </div>}
+                  {auditSaude.semSupervisor&&auditSaude.semSupervisor.length>0&&<div style={{background:"#fffbeb",border:"1.5px solid #fcd34d",borderRadius:10,padding:"12px",marginTop:10}}>
+                    <div style={{fontSize:11,fontWeight:800,color:"#92400e",marginBottom:6}}>⚠️ {auditSaude.semSupervisor.length} mudança(s) sem supervisor</div>
+                    <div style={{fontSize:10,color:"#a16207",marginBottom:10}}>Atribua o supervisor pra contar no financeiro. Mudanças últimos 30 dias.</div>
+                    {auditSaude.semSupervisor.slice(0,15).map(function(o){
+                      var _pts=String(o.data).split("-");
+                      var _sups=(listaUsuarios||[]).filter(function(u){return u.perfil==="supervisor"&&u.ativo;});
+                      return <div key={o.id} style={{background:"#fff",border:"1px solid #fcd34d",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"#78350f"}}>{o.nome}</div>
+                        <div style={{fontSize:10,color:"#92400e",marginTop:2,marginBottom:6}}>📅 {_pts[2]+"/"+_pts[1]+"/"+_pts[0]}{o.medicao&&Number(o.medicao)>0?" · "+o.medicao+" m³":""} · {o.status||"?"}</div>
+                        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                          {_sups.map(function(s){return <button key={s.id} onClick={function(){atribuirSupervisorMud(o.id,s.id);}} style={{padding:"4px 10px",borderRadius:6,border:"1.5px solid #f59e0b",background:"#fffbeb",color:"#92400e",fontSize:10,fontWeight:700,cursor:"pointer"}}>👷 {s.nome}</button>;})}
+                        </div>
+                      </div>;
+                    })}
+                    {auditSaude.semSupervisor.length>15&&<div style={{fontSize:10,color:"#94a3b8",textAlign:"center",fontStyle:"italic",marginTop:6}}>+{auditSaude.semSupervisor.length-15} outras...</div>}
                   </div>}
                 </>}
               </div>}
