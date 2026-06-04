@@ -2988,9 +2988,11 @@ export default function App(){
     var iI=mk("input","flex:1;padding:6px 8px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:12px;color:#334155");iI.type="date";iI.value=relDataIni||"";
     var iF=mk("input","flex:1;padding:6px 8px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:12px;color:#334155");iF.type="date";iF.value=relDataFim||"";
     var fmt=["premium"];
-    function _resetBtns(){bPrem.style.border="1.5px solid #e2e8f0";bPrem.style.background="#f8fafc";bPrem.children[1].style.color="#64748b";bExec.style.border="1.5px solid #e2e8f0";bExec.style.background="#f8fafc";bExec.children[1].style.color="#64748b";bPdf.style.border="1.5px solid #e2e8f0";bPdf.style.background="#f8fafc";bPdf.children[1].style.color="#64748b";bWpp.style.border="1.5px solid #e2e8f0";bWpp.style.background="#f8fafc";bWpp.children[1].style.color="#64748b";}
+    function _resetBtns(){bPrem.style.border="1.5px solid #e2e8f0";bPrem.style.background="#f8fafc";bPrem.children[1].style.color="#64748b";bCon.style.border="1.5px solid #e2e8f0";bCon.style.background="#f8fafc";bCon.children[1].style.color="#64748b";bExec.style.border="1.5px solid #e2e8f0";bExec.style.background="#f8fafc";bExec.children[1].style.color="#64748b";bPdf.style.border="1.5px solid #e2e8f0";bPdf.style.background="#f8fafc";bPdf.children[1].style.color="#64748b";bWpp.style.border="1.5px solid #e2e8f0";bWpp.style.background="#f8fafc";bWpp.children[1].style.color="#64748b";}
     var bPrem=mk("button","flex:1;padding:14px 8px;border-radius:12px;border:2.5px solid #1e3a8a;background:linear-gradient(135deg,#eff6ff,#dbeafe);display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer");
     bPrem.appendChild(mk("span","font-size:26px","✨"));bPrem.appendChild(mk("span","font-size:11px;font-weight:800;color:#1e3a8a","Premium"));bPrem.appendChild(mk("span","font-size:9px;color:#1e40af","Capa + KPIs + Tabela"));
+    var bCon=mk("button","flex:1;padding:14px 8px;border-radius:12px;border:1.5px solid #e2e8f0;background:#f8fafc;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer");
+    bCon.appendChild(mk("span","font-size:26px","📋"));bCon.appendChild(mk("span","font-size:11px;font-weight:800;color:#64748b","Consolidado"));bCon.appendChild(mk("span","font-size:9px;color:#94a3b8","1 linha + assinaturas"));
     var bExec=mk("button","flex:1;padding:14px 8px;border-radius:12px;border:1.5px solid #e2e8f0;background:#f8fafc;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer");
     bExec.appendChild(mk("span","font-size:26px","📊"));bExec.appendChild(mk("span","font-size:11px;font-weight:800;color:#64748b","Executivo"));bExec.appendChild(mk("span","font-size:9px;color:#94a3b8","KPIs + Equipes"));
     var bPdf=mk("button","flex:1;padding:14px 8px;border-radius:12px;border:1.5px solid #e2e8f0;background:#f8fafc;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer");
@@ -2999,6 +3001,7 @@ export default function App(){
     bWpp.appendChild(mk("span","font-size:26px","💬"));bWpp.appendChild(mk("span","font-size:11px;font-weight:800;color:#64748b","WhatsApp"));bWpp.appendChild(mk("span","font-size:9px;color:#94a3b8","Copiar texto"));
     var bAc=mk("button","flex:2;padding:12px 0;border-radius:12px;border:none;background:#1e3a8a;color:#fff;font-weight:800;font-size:13px;cursor:pointer","✨ Baixar Premium");
     bPrem.onclick=function(){fmt[0]="premium";_resetBtns();bPrem.style.border="2.5px solid #1e3a8a";bPrem.style.background="#dbeafe";bPrem.children[1].style.color="#1e3a8a";bAc.textContent="✨ Baixar Premium";bAc.style.background="#1e3a8a";};
+    bCon.onclick=function(){fmt[0]="cons";_resetBtns();bCon.style.border="2.5px solid #2563eb";bCon.style.background="#eff6ff";bCon.children[1].style.color="#2563eb";bAc.textContent="📋 Baixar Consolidado";bAc.style.background="#2563eb";};
     bExec.onclick=function(){fmt[0]="exec";_resetBtns();bExec.style.border="2.5px solid #2563eb";bExec.style.background="#eff6ff";bExec.children[1].style.color="#2563eb";bAc.textContent="📥 Baixar Executivo";bAc.style.background="#2563eb";};
     bPdf.onclick=function(){fmt[0]="pdf";_resetBtns();bPdf.style.border="2.5px solid #3b82f6";bPdf.style.background="#eff6ff";bPdf.children[1].style.color="#3b82f6";bAc.textContent="📥 Baixar Detalhado";bAc.style.background="#3b82f6";};
     bWpp.onclick=function(){fmt[0]="wpp";_resetBtns();bWpp.style.border="2.5px solid #25d366";bWpp.style.background="#f0fdf4";bWpp.children[1].style.color="#25d366";bAc.textContent="💬 Gerar Texto p/Copiar";bAc.style.background="#25d366";};
@@ -3017,13 +3020,13 @@ export default function App(){
           var cb=function(){setToast({msg:"📋 Copiado! Cole no WhatsApp"});setTimeout(function(){setToast(null);},4000);};
           if(navigator.clipboard){navigator.clipboard.writeText(txt).then(cb).catch(function(){var t=mk("textarea","","");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();});}
           else{var t=mk("textarea","","");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");document.body.removeChild(t);cb();}
-        },100);}else if(fmt[0]==="premium"){var listaP=_filterByPeriod(window.__mudancas||[],iI.value,iF.value);if(!listaP.length){alert("Nenhuma mudança neste período.");return;}gerarPDFRelatorioPremium(listaP,iI.value,iF.value,bAc);close();}else if(fmt[0]==="exec"){var listaE=_filterByPeriod(window.__mudancas||[],iI.value,iF.value);if(!listaE.length){alert("Nenhuma mudança neste período.");return;}gerarPDFExecutivo(listaE,iI.value,iF.value,bAc);close();}else{gerarPDFRelatorio(_filterByPeriod(window.__mudancas||[],iI.value,iF.value),iI.value,iF.value,bAc);close();}
+        },100);}else if(fmt[0]==="premium"){var listaP=_filterByPeriod(window.__mudancas||[],iI.value,iF.value);if(!listaP.length){alert("Nenhuma mudança neste período.");return;}gerarPDFRelatorioPremium(listaP,iI.value,iF.value,bAc);close();}else if(fmt[0]==="cons"){var listaC=_filterByPeriod(window.__mudancas||[],iI.value,iF.value);if(!listaC.length){alert("Nenhuma mudança neste período.");return;}gerarPDFConsolidado(listaC,iI.value,iF.value,bAc);close();}else if(fmt[0]==="exec"){var listaE=_filterByPeriod(window.__mudancas||[],iI.value,iF.value);if(!listaE.length){alert("Nenhuma mudança neste período.");return;}gerarPDFExecutivo(listaE,iI.value,iF.value,bAc);close();}else{gerarPDFRelatorio(_filterByPeriod(window.__mudancas||[],iI.value,iF.value),iI.value,iF.value,bAc);close();}
     };
     var r1=mk("div","display:flex;gap:6px;margin-bottom:10px");
     function bS(txt2,fn2){var b=mk("button","flex:1;padding:7px 2px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-size:11px;font-weight:700;cursor:pointer;color:#334155",txt2);b.onclick=fn2;return b;}
     r1.appendChild(bS("Hoje",function(){var d=new Date().toISOString().slice(0,10);iI.value=d;iF.value=d;}));r1.appendChild(bS("Semana",function(){var d=new Date();var dw=d.getDay();var dif=dw===0?6:dw-1;var s0=new Date(d.getFullYear(),d.getMonth(),d.getDate()-dif);var s6=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+6);var _p2=function(n){return String(n).padStart(2,"0");};iI.value=s0.getFullYear()+"-"+_p2(s0.getMonth()+1)+"-"+_p2(s0.getDate());iF.value=s6.getFullYear()+"-"+_p2(s6.getMonth()+1)+"-"+_p2(s6.getDate());}));r1.appendChild(bS("Mês",function(){var d=new Date();var y=d.getFullYear();var m=String(d.getMonth()+1).padStart(2,"0");iI.value=y+"-"+m+"-01";iF.value=d.toISOString().slice(0,10);}));r1.appendChild(bS("Tudo",function(){iI.value="";iF.value="";}));
     var rD=mk("div","display:flex;gap:6px;align-items:center;margin-bottom:18px");rD.appendChild(iI);rD.appendChild(mk("span","color:#94a3b8;font-size:11px","a"));rD.appendChild(iF);
-    var rF=mk("div","display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px");rF.appendChild(bPrem);rF.appendChild(bExec);rF.appendChild(bPdf);rF.appendChild(bWpp);
+    var rF=mk("div","display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px");rF.appendChild(bPrem);rF.appendChild(bCon);rF.appendChild(bExec);rF.appendChild(bPdf);rF.appendChild(bWpp);
     var rA=mk("div","display:flex;gap:8px");var bCn=mk("button","flex:1;padding:12px 0;border-radius:12px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;font-weight:700;font-size:13px;cursor:pointer","Cancelar");bCn.onclick=close;rA.appendChild(bCn);rA.appendChild(bAc);
     box.appendChild(mk("div","font-weight:800;font-size:16px;color:#1e293b;margin-bottom:16px;text-align:center","📊 Gerar Relatório"));
     box.appendChild(mk("div","font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase","Período"));
@@ -3177,8 +3180,68 @@ export default function App(){
     doc.setTextColor(30,41,59);
   }
 
+  // ═══ RELATÓRIO CONSOLIDADO (uma linha por mudança + assinaturas) ═══
+  async function gerarPDFConsolidado(lista,dataIni,dataFim,btnRef){
+    if(btnRef){btnRef.disabled=true;btnRef.textContent='⏳ Gerando consolidado...';}
+    try{
+      var JsPDF=await _loadJsPDF();
+      var doc=new JsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+      var pgW=doc.internal.pageSize.getWidth();
+      var pgH=doc.internal.pageSize.getHeight();
+      var now=new Date();
+      var extractStr=now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      var perStr=dataIni&&dataFim?(_fmtDateISO(dataIni)+' a '+_fmtDateISO(dataFim)):dataIni?('A partir de '+_fmtDateISO(dataIni)):dataFim?('Até '+_fmtDateISO(dataFim)):'Todo o período';
+      var _totM3=(lista||[]).reduce(function(s,m){return s+(parseFloat(m.medicao)||0);},0);
+      var _totMud=(lista||[]).length;
+      var _fmtNum=function(v){return (v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+      var _nomeUser=function(uid){if(!uid)return'—';var u=(listaUsuarios||[]).find(function(x){return x.id===uid;});return u?u.nome:'—';};
+
+      _addPDFHeader(doc,'RELATÓRIO CONSOLIDADO DE MUDANÇAS','Contrato: PROMORAR  |  Período: '+perStr);
+
+      var rows=(lista||[]).sort(function(a,b){return (a.data||'').localeCompare(b.data||'')||(a.horario||'').localeCompare(b.horario||'');}).map(function(m){
+        var d=m.data?m.data.split('-').reverse().join('/').slice(0,5):'—';
+        return [d, m.horario||'—', (m.nome||'—').toUpperCase(), _fmtNum(parseFloat(m.medicao)||0), m.assist_social||'—', _nomeUser(m.supervisor_id), _nomeUser(m.motorista_caminhao_id), _nomeUser(m.motorista_van_id)];
+      });
+
+      doc.autoTable({
+        startY:34,margin:{bottom:55,left:10,right:10},
+        head:[['Data','Hora','Morador','m³','Social','Supervisor','Caminhão','Van']],
+        body:rows,theme:'grid',
+        styles:{fontSize:8,cellPadding:1.8,overflow:'linebreak',font:'helvetica',lineColor:[226,232,240]},
+        headStyles:{fillColor:[30,58,138],textColor:[255,255,255],fontStyle:'bold',fontSize:9,halign:'center'},
+        alternateRowStyles:{fillColor:[248,250,252]},
+        columnStyles:{0:{cellWidth:18,halign:'center'},1:{cellWidth:16,halign:'center'},2:{cellWidth:62},3:{cellWidth:18,halign:'right',fontStyle:'bold'},4:{cellWidth:38},5:{cellWidth:38},6:{cellWidth:38},7:{cellWidth:38}},
+        didDrawPage:function(){_addPDFFooter(doc,extractStr);}
+      });
+
+      var finalY=doc.lastAutoTable.finalY||(pgH-60);
+      if(finalY>pgH-65){doc.addPage();_addPDFHeader(doc,'RESUMO E ASSINATURAS','Contrato: PROMORAR  |  Período: '+perStr);finalY=38;}
+
+      var bxY=finalY+8;
+      doc.setFillColor(30,58,138);doc.roundedRect(pgW/2-60,bxY,120,22,3,3,'F');
+      doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(191,219,254);
+      doc.text('TOTAL DO PERÍODO',pgW/2,bxY+6,{align:'center'});
+      doc.setFontSize(14);doc.setTextColor(255,255,255);
+      doc.text(_totMud+' mudança'+(_totMud!==1?'s':'')+'  ·  '+_fmtNum(_totM3)+' m³',pgW/2,bxY+15,{align:'center'});
+
+      var sigY=bxY+38;var sigW=70;var gap=20;
+      var x1=(pgW/2)-sigW-(gap/2);var x2=(pgW/2)+(gap/2);
+      doc.setDrawColor(30,41,59);doc.setLineWidth(0.4);
+      doc.line(x1,sigY,x1+sigW,sigY);doc.line(x2,sigY,x2+sigW,sigY);
+      doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(30,41,59);
+      doc.text('Assinatura PROMORAR',x1+sigW/2,sigY+5,{align:'center'});
+      doc.text('Assinatura TELEMIM',x2+sigW/2,sigY+5,{align:'center'});
+      doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(100,116,139);
+      doc.text('Fiscal do Contrato',x1+sigW/2,sigY+9,{align:'center'});
+      doc.text('G. de Souza Adm. de Obras',x2+sigW/2,sigY+9,{align:'center'});
+
+      doc.save('Relatorio_Consolidado_TELEMIM_'+now.toISOString().slice(0,10)+'.pdf');
+    }finally{
+      if(btnRef){btnRef.disabled=false;btnRef.textContent='📋 Baixar Consolidado';}
+    }
+  }
+
   // ═══ RELATÓRIO PREMIUM ═══════════════════════════════════════════════
-  // Capa colorida com marca + KPIs em destaque + tabela elegante
   async function gerarPDFRelatorioPremium(lista,dataIni,dataFim,btnRef){
     if(btnRef){btnRef.disabled=true;btnRef.textContent='⏳ Gerando relatório premium...';}
     try{
