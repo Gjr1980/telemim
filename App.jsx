@@ -1296,7 +1296,17 @@ export default function App(){
 
   // ── GPS: Load latest positions for admin (optionally filter by motorista) ──
   async function gpsLoadPositions(agId,motoristaId){
-    // Try Traccar first (background GPS)
+    // Supabase gps_tracking PRIMEIRO (dados frescos gravados pelo Traccar de fundo)
+    try{
+      var url=SUPA_URL+"/rest/v1/gps_tracking?agenda_id=eq."+agId+"&order=created_at.desc&limit=1";
+      if(motoristaId) url+="&motorista_id=eq."+motoristaId;
+      var r=await fetch(url,{headers:getH()});
+      if(r.ok){
+        var d=await r.json();
+        if(d&&d.length>0) return Object.assign({},d[0],{source:"supabase"});
+      }
+    }catch(e){}
+    // Reserva: Traccar direto (caso ainda nao haja posicao no Supabase para esta agenda)
     try{
       var _devId=_traccarDevId(motoristaId||(usuario&&usuario.id));
       var tr=await fetch(SUPA_URL+"/functions/v1/traccar-position",{method:"POST",headers:{...getH(),"Content-Type":"application/json"},body:JSON.stringify({deviceId:_devId})});
@@ -1305,15 +1315,7 @@ export default function App(){
         if(td.ok&&td.position){return {lat:td.position.lat,lng:td.position.lng,speed:td.position.speed,battery:td.position.battery,created_at:td.position.time,source:"traccar"};}
       }
     }catch(e){}
-    // Fallback to Supabase gps_tracking (PWA GPS)
-    try{
-      var url=SUPA_URL+"/rest/v1/gps_tracking?agenda_id=eq."+agId+"&order=created_at.desc&limit=1";
-      if(motoristaId) url+="&motorista_id=eq."+motoristaId;
-      var r=await fetch(url,{headers:getH()});
-      if(!r.ok) return null;
-      var d=await r.json();
-      return d&&d.length>0?d[0]:null;
-    }catch(e){return null;}
+    return null;
   }
 
   // ── GPS: Clean address for geocoding ────────────────────────────────────────
