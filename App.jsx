@@ -542,7 +542,7 @@ function RotaTerceirizada({token}){
       .catch(function(){if(!dados){setErro("Erro de conexão.");}setLoading(false);});
   }
   useEffect(function(){carregarDados();},[token]);
-  useEffect(function(){var iv=setInterval(carregarDados,30000);return function(){clearInterval(iv);};},[token]);
+  useEffect(function(){var iv=setInterval(carregarDados,120000);return function(){clearInterval(iv);};},[token]);
   var [assistSociais,setAssistSociais]=useState([]);
   useEffect(function(){
     fetch(SUPA_URL+"/rest/v1/usuarios?select=id,nome,perfil,tipo_veiculo,placa_veiculo,contato&ativo=eq.true",{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY}})
@@ -855,7 +855,7 @@ function MudancaTerceirizada({token}){
   }
   useEffect(function(){carregarDados();},[token]);
   // Auto-refresh a cada 30s
-  useEffect(function(){var iv=setInterval(carregarDados,30000);return function(){clearInterval(iv);};},[token]);
+  useEffect(function(){var iv=setInterval(carregarDados,120000);return function(){clearInterval(iv);};},[token]);
   function handleIniciar(){
     setIniciando(true);
     fetch(SUPA_URL+"/functions/v1/iniciar-mudanca-terceirizada",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({token:token})})
@@ -1298,7 +1298,7 @@ export default function App(){
   async function gpsLoadPositions(agId,motoristaId){
     // Supabase gps_tracking PRIMEIRO (dados frescos gravados pelo Traccar de fundo)
     try{
-      var url=SUPA_URL+"/rest/v1/gps_tracking?agenda_id=eq."+agId+"&order=created_at.desc&limit=1";
+      var url=SUPA_URL+"/rest/v1/gps_tracking?agenda_id=eq."+agId+"&select=lat,lng,speed,heading,created_at&order=created_at.desc&limit=1";
       if(motoristaId) url+="&motorista_id=eq."+motoristaId;
       var r=await fetch(url,{headers:getH()});
       if(r.ok){
@@ -1793,7 +1793,7 @@ export default function App(){
           }).catch(function(){});
         }
       });
-    },15000);
+    },60000);
     var onVisible=function(){if(document.visibilityState==="visible"){loadMud();loadAg();}};
     document.addEventListener("visibilitychange",onVisible);
     return function(){clearInterval(pollId);clearInterval(gpsPollId);document.removeEventListener("visibilitychange",onVisible);if(ws&&ws.readyState===1)ws.close();};
@@ -2113,7 +2113,7 @@ export default function App(){
     }
     // Initial poll after a small delay to let map render
     setTimeout(_poll,800);
-    var _tid=setInterval(_poll,10000);
+    var _tid=setInterval(_poll,30000);
     return function(){_cancelled=true;clearInterval(_tid);};
   },[showGpsMap,gpsMapAgenda]);
 
@@ -2218,7 +2218,7 @@ export default function App(){
       }
     }
     setTimeout(_pollAll,1200);
-    var _tid2=setInterval(_pollAll,10000);
+    var _tid2=setInterval(_pollAll,30000);
     return function(){_cancelled=true;clearInterval(_tid2);};
   },[tab,liveMapOpen,agenda,mudancas]);
 
@@ -9069,3 +9069,4 @@ return(
     </div>
   );
 }
+
