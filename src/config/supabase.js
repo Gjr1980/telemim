@@ -1,5 +1,6 @@
 // ── SUPABASE CONFIG ──────────────────────────────────────────────────────────
 import { createClient } from "@supabase/supabase-js";
+import { addToSyncQueue } from "../utils/offline.js";
 
 export const SUPA_URL = "https://netoufukpmmfhzwirogi.supabase.co";
 export const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ldG91ZnVrcG1tZmh6d2lyb2dpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTkwOTksImV4cCI6MjA4OTg5NTA5OX0.iapL70SiL_GV4XvmXRNcjlK_Sc-P2-esJzuLQvovdGQ";
@@ -49,14 +50,27 @@ export async function dbGet(table,extraParams) {
   return r.json();
 }
 export async function dbUpsert(table, rows) {
-  await fetch(`${SUPA_URL}/rest/v1/${table}`, {
-    method: "POST",
-    headers: { ...getH(), "Prefer": "resolution=merge-duplicates" },
-    body: JSON.stringify(rows),
-  });
+  const _url=`${SUPA_URL}/rest/v1/${table}`;
+  const _h={ ...getH(), "Prefer": "resolution=merge-duplicates" };
+  const _b=JSON.stringify(rows);
+  try {
+    const r=await fetch(_url,{method:"POST",headers:_h,body:_b});
+    if(!r.ok && r.status>=500) await addToSyncQueue({url:_url,method:"POST",headers:_h,body:_b});
+  } catch(e) {
+    await addToSyncQueue({url:_url,method:"POST",headers:_h,body:_b});
+    throw e;
+  }
 }
 export async function dbDelete(table, id) {
-  await fetch(`${SUPA_URL}/rest/v1/${table}?id=eq.${id}`, { method: "DELETE", headers: getH() });
+  const _url=`${SUPA_URL}/rest/v1/${table}?id=eq.${id}`;
+  const _h=getH();
+  try {
+    const r=await fetch(_url,{method:"DELETE",headers:_h});
+    if(!r.ok && r.status>=500) await addToSyncQueue({url:_url,method:"DELETE",headers:_h});
+  } catch(e) {
+    await addToSyncQueue({url:_url,method:"DELETE",headers:_h});
+    throw e;
+  }
 }
 
 export async function dbGetContas(status){
@@ -70,7 +84,16 @@ export async function dbInsertConta(row){
   const d=await r.json();return d[0]||null;
 }
 export async function dbPagarConta(id,agora){
-  await fetch(`${SUPA_URL}/rest/v1/contas_pagar?id=eq.${id}`,{method:"PATCH",headers:{...getH(),"Prefer":"return=minimal"},body:JSON.stringify({status:"pago",pago_em:agora})});
+  const _url=`${SUPA_URL}/rest/v1/contas_pagar?id=eq.${id}`;
+  const _h={...getH(),"Prefer":"return=minimal"};
+  const _b=JSON.stringify({status:"pago",pago_em:agora});
+  try {
+    const r=await fetch(_url,{method:"PATCH",headers:_h,body:_b});
+    if(!r.ok && r.status>=500) await addToSyncQueue({url:_url,method:"PATCH",headers:_h,body:_b});
+  } catch(e) {
+    await addToSyncQueue({url:_url,method:"PATCH",headers:_h,body:_b});
+    throw e;
+  }
 }
 // ── CUSTOS DIÁRIOS ───────────────────────────────────────────────────────────
 export async function dbGetCustos() {
@@ -79,14 +102,20 @@ export async function dbGetCustos() {
   return r.json();
 }
 export async function dbUpsertCusto(row) {
-  await fetch(`${SUPA_URL}/rest/v1/custos_diarios`, {
-    method: "POST",
-    headers: { ...getH(), "Prefer": "resolution=merge-duplicates" },
-    body: JSON.stringify([row]),
-  });
+  const _url=`${SUPA_URL}/rest/v1/custos_diarios`;
+  const _h={ ...getH(), "Prefer": "resolution=merge-duplicates" };
+  const _b=JSON.stringify([row]);
+  try {
+    const r=await fetch(_url,{method:"POST",headers:_h,body:_b});
+    if(!r.ok && r.status>=500) await addToSyncQueue({url:_url,method:"POST",headers:_h,body:_b});
+  } catch(e) {
+    await addToSyncQueue({url:_url,method:"POST",headers:_h,body:_b});
+    throw e;
+  }
 }
 
 export const FORNECEDORES = {
   van:      { tel: "" },
   caminhao: { tel: "" },
 };
+
