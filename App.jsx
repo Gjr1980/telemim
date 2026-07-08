@@ -2830,8 +2830,9 @@ export default function App(){
       if(_agItem.status==="concluida"||_agItem.status==="realizada"){setSyncStatus("⛔ Não é possível excluir — mudança já concluída.");return;}
       if(_agItem.inicio_van_em||_agItem.van_saiu_em||_agItem.inicio_caminhao_em||_agItem.caminhao_saiu_em||_agItem.inicio_mudanca_em){setSyncStatus("⛔ Não é possível excluir — veículos já em operação.");return;}
       if(_agItem.termino_em||_agItem.termino_van_em||_agItem.termino_caminhao_em){setSyncStatus("⛔ Não é possível excluir — mudança já finalizada.");return;}
-      // Confirmar se tem motoristas atribuídos
-      if((_agItem.motorista_van_id||_agItem.motorista_caminhao_id)&&!window.confirm("⚠️ Esta agenda tem motoristas atribuídos ("+(_agItem.nome||"?")+"). Deseja realmente excluir?")){return;}
+      // Nota: agendas com motoristas atribuídos podem ser excluídas direto pelo admin
+      // (o modal de confirmação já valida a intenção; o window.confirm nativo era
+      //  instável em PWA/celular e impedia a exclusão mesmo ao tocar OK).
     }
     var nome=usuario&&usuario.nome?usuario.nome:"Admin";
     var _delBy=motivo?nome+" — "+motivo:nome;
@@ -8995,18 +8996,17 @@ return(
             {confirmDelete.data&&<div style={{fontSize:11,color:"#991b1b",marginTop:2}}>📅 {String(confirmDelete.data).split("-").reverse().join("/")}{confirmDelete.status?" · "+confirmDelete.status:""}</div>}
             {confirmDelete.medicao!=null&&Number(confirmDelete.medicao)>0&&<div style={{fontSize:11,color:"#991b1b",marginTop:2}}>📐 {confirmDelete.medicao} m³</div>}
           </div>
-          <div style={{fontSize:11,fontWeight:700,color:"#dc2626",marginBottom:6}}>Motivo da exclusão * <span style={{color:"#94a3b8",fontWeight:500}}>(mín. 5 caracteres)</span></div>
+          <div style={{fontSize:11,fontWeight:700,color:"#dc2626",marginBottom:6}}>Motivo da exclusão <span style={{color:"#94a3b8",fontWeight:500}}>(opcional)</span></div>
           <input type="text" value={confirmDeleteMotivo} onChange={function(e){setConfirmDeleteMotivo(e.target.value);}} placeholder="Ex: morador cancelou, duplicata, ..." style={{width:"100%",padding:"10px 12px",border:"1.5px solid #fca5a5",borderRadius:10,fontSize:13,boxSizing:"border-box",marginBottom:14}} autoFocus/>
           <div style={{display:"flex",gap:10}}>
             <button onClick={function(){setConfirmDelete(null);setConfirmDeleteMotivo("");}} style={{flex:1,padding:"12px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:800,fontSize:13,cursor:"pointer"}}>Cancelar</button>
-            <button disabled={confirmDeleteMotivo.trim().length<5} onClick={function(){
+            <button onClick={function(){
               var _motivo=confirmDeleteMotivo.trim();
-              if(_motivo.length<5){alert("Informe o motivo (mín. 5 caracteres).");return;}
               var _cd=confirmDelete;
               if(_cd.tipo==="mud")handleDelMud(_cd.id,_motivo);
               else handleDelAg(_cd.id,_motivo);
               setConfirmDelete(null);setConfirmDeleteMotivo("");
-            }} style={{flex:2,padding:"12px 0",borderRadius:12,border:"none",background:confirmDeleteMotivo.trim().length>=5?"#dc2626":"#fca5a5",color:"#fff",fontWeight:900,fontSize:13,cursor:confirmDeleteMotivo.trim().length>=5?"pointer":"not-allowed"}}>🗑️ Apagar</button>
+            }} style={{flex:2,padding:"12px 0",borderRadius:12,border:"none",background:"#dc2626",color:"#fff",fontWeight:900,fontSize:13,cursor:"pointer"}}>🗑️ Apagar</button>
           </div>
         </div></div>}
     {/* ── MODAL TERCEIRIZAR MUDANÇA ── */}
