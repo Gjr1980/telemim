@@ -1310,6 +1310,58 @@ export default function App(){
     return null;
   }
 
+  // ── GPS: Load traveled trail (breadcrumb) for an agenda ────────────────────
+  // Histórico de posições da mudança, em ordem cronológica, para desenhar o
+  // trajeto percorrido. Aplica filtro leve de jitter (pula pontos <8 m).
+  async function gpsLoadTrail(agId,motoristaId){
+    try{
+      var url=SUPA_URL+"/rest/v1/gps_tracking?agenda_id=eq."+agId+"&select=lat,lng,created_at&order=created_at.asc&limit=1000";
+      if(motoristaId) url+="&motorista_id=eq."+motoristaId;
+      var r=await fetch(url,{headers:getH()});
+      if(r.ok){
+        var d=await r.json();
+        if(Array.isArray(d)&&d.length>0){
+          var coords=[];var _last=null;
+          for(var i=0;i<d.length;i++){
+            var p=d[i];
+            if(typeof p.lng!=="number"||typeof p.lat!=="number") continue;
+            if(_last){
+              var dx=(p.lng-_last[0])*111320*Math.cos(p.lat*Math.PI/180);
+              var dy=(p.lat-_last[1])*110540;
+              if(Math.sqrt(dx*dx+dy*dy)<8) continue; // <8 m: descarta drift parado
+            }
+            coords.push([p.lng,p.lat]);_last=[p.lng,p.lat];
+          }
+          return coords;
+        }
+      }
+    }catch(e){}
+    return [];
+  }
+
+  // ── GPS: Draw traveled trail as a line layer on a mapbox map ───────────────
+  function _gpsDrawTrail(map,coords){
+    if(!map||!coords||coords.length<2) return;
+    if(!map.isStyleLoaded()){map.once("load",function(){_gpsDrawTrail(map,coords);});return;}
+    var data={type:"Feature",geometry:{type:"LineString",coordinates:coords}};
+    try{
+      if(map.getSource("trail")){map.getSource("trail").setData(data);}
+      else{
+        map.addSource("trail",{type:"geojson",data:data});
+        map.addLayer({id:"trail",type:"line",source:"trail",layout:{"line-join":"round","line-cap":"round"},paint:{"line-color":"#f59e0b","line-width":4,"line-opacity":0.9}});
+      }
+    }catch(e){}
+  }
+
+  // Atualiza o trajeto percorrido no mapa individual (busca + desenha)
+  function _gpsRefreshTrail(){
+    if(!gpsMapAgenda) return;
+    gpsLoadTrail(gpsMapAgenda.id,gpsMapAgenda._trackMotoristaId||null).then(function(tc){
+      var el=document.getElementById("gps-map-container");
+      if(el&&el._map) _gpsDrawTrail(el._map,tc);
+    });
+  }
+
   // ── GPS: Clean address for geocoding ────────────────────────────────────────
   function _cleanAddressForGeo(addr){
     if(!addr)return "";
@@ -2094,6 +2146,7 @@ export default function App(){
       gpsLoadPositions(gpsMapAgenda.id,gpsMapAgenda._trackMotoristaId||null).then(function(pos){
         if(_cancelled||!pos) return;
         setGpsPositions([pos]);
+        _gpsRefreshTrail();
         if(gpsMapAgenda.destino){
           gpsCalcEta(pos.lat,pos.lng,gpsMapAgenda.destino).then(function(eta){
             if(_cancelled) return;
@@ -8405,6 +8458,8 @@ return(
                 el._marker=new window.mapboxgl.Marker({element:markerEl}).setLngLat([pos.lng,pos.lat]).addTo(map);
                 // Draw route on map load if ETA already available
                 map.on("load",function(){
+                  // Trajeto percorrido (breadcrumb) — histórico da mudança
+                  gpsLoadTrail(gpsMapAgenda.id,gpsMapAgenda._trackMotoristaId||null).then(function(tc){_gpsDrawTrail(map,tc);});
                   if(gpsEta&&gpsEta.route){
                     try{
                       map.addSource("route",{type:"geojson",data:{type:"Feature",geometry:gpsEta.route}});
@@ -8421,11 +8476,18 @@ return(
                 });
               }}></div>
             )}
+            {gpsPositions.length>0&&(
+              <div style={{background:"#1e293b",padding:"6px 16px",display:"flex",gap:16,justifyContent:"center",fontSize:11,color:"#cbd5e1",borderTop:"1px solid #334155"}}>
+                <span><span style={{display:"inline-block",width:14,height:3,background:"#f59e0b",verticalAlign:"middle",marginRight:5,borderRadius:2}}></span>Trajeto percorrido</span>
+                <span><span style={{display:"inline-block",width:14,height:3,background:"#2563eb",verticalAlign:"middle",marginRight:5,borderRadius:2}}></span>Rota planejada</span>
+              </div>
+            )}
             <div style={{background:"#1e293b",padding:"10px 16px",display:"flex",gap:8}}>
               <button onClick={function(){
                 gpsLoadPositions(gpsMapAgenda.id,gpsMapAgenda._trackMotoristaId||null).then(function(pos){
                   if(!pos) return;
                   setGpsPositions([pos]);
+                  _gpsRefreshTrail();
                   var _el=document.getElementById("gps-map-container");
                   if(gpsMapAgenda.destino){
                     gpsCalcEta(pos.lat,pos.lng,gpsMapAgenda.destino).then(function(eta){
