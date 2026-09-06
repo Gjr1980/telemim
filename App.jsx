@@ -2816,8 +2816,8 @@ export default function App(){
           await _ensureAuth();
           // Validar token antes do POST
           var _hTest=getH();
-          if(_hTest.Authorization==="Bearer "+SUPA_KEY){
-            // Token expirado mesmo após refresh — forçar re-login
+          // Verificar apenas se não há token algum (não comparar com SUPA_KEY pois promorar usa JWT próprio)
+          if(!_hTest.Authorization||_hTest.Authorization==="Bearer "){
             throw new Error("TOKEN_EXPIRED");
           }
           var _nomeLog=usuario&&(usuario.nome||usuario.email)||"";var _perfilLog=usuario&&usuario.perfil||"";
