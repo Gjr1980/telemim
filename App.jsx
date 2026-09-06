@@ -5476,7 +5476,149 @@ export default function App(){
 })()}
         </div>
       )}
-        {tab==="dashboard"&&isAdmin&&notificacoes.length>0&&(<div style={{padding:"0 12px 16px"}}><div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:14,padding:"14px 14px 10px"}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",letterSpacing:0.3,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>{"🔔 CENTRAL DE NOTIFICACOES"}</div>{notificacoes.slice(0,notifLimit).map(function(n){var ico=n.tipo==="concluida"?"🟢":n.tipo==="cubagem"?"📐":"✏️";var tit=n.tipo==="concluida"?"Mudanca concluida":n.tipo==="cubagem"?"Cubagem alterada":"Mudanca editada";var dt=n.criado_em?new Date(n.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";return(<div key={n.id} style={{padding:"8px 0",borderBottom:"1px solid #f1f5f9"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}><span style={{fontSize:14}}>{ico}</span><span style={{fontSize:12,fontWeight:700,color:"#334155"}}>{tit}</span></div><div style={{fontSize:11,color:"#475569",marginLeft:22}}>{n.mudanca_nome||""}{n.descricao&&n.descricao!==tit?(" - "+n.descricao):""}</div><div style={{fontSize:10,color:"#94a3b8",marginLeft:22,marginTop:2}}>{"por "}<b>{n.usuario_nome||"Sistema"}</b>{" · "+dt}</div></div>);})}{notificacoes.length>notifLimit&&(<div style={{textAlign:"center",paddingTop:8}}><button onClick={function(){setNotifLimit(function(p){return p+10;});}} style={{background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:8,padding:"6px 16px",fontSize:11,fontWeight:700,color:"#64748b",cursor:"pointer"}}>{"Ver mais ("+(notificacoes.length-notifLimit)+" anteriores)"}</button></div>)}</div></div>)}
+        {{(isAdmin||isPromorar)&&(function(){
+        var _solPend=(solicitacoesAgenda||[]).filter(function(s){return s.status==='pendente';});
+        if(_solPend.length===0) return null;
+
+        async function _aprovarSolic(solId){
+          try{
+            var _perApr=usuario&&usuario.perfil||'';
+            var _nomApr=usuario&&(usuario.nome||usuario.email)||'';
+            var _upd={};
+            if(_perApr==='admin') _upd={aprovado_admin:true,aprovado_admin_por:_nomApr};
+            else if(_perApr==='promorar') _upd={aprovado_promorar:true,aprovado_promorar_por:_nomApr};
+            // Verificar se ja tem todas as aprovacoes necessarias
+            var _sol=_solPend.find(function(s){return s.id===solId;});
+            var _solicitadoPor=_sol&&_sol.solicitado_por||'';
+            var _precisaAdmin=true;
+            var _precisaPromorar=_solicitadoPor==='coordenador';
+            var _jaAdm=_sol&&_sol.aprovado_admin;
+            var _jaPro=_sol&&_sol.aprovado_promorar;
+            var _novoAdm=_perApr==='admin'?true:_jaAdm;
+            var _novoPro=_perApr==='promorar'?true:_jaPro;
+            var _aprovadoTotal=_novoAdm&&(!_precisaPromorar||_novoPro);
+            var _novoStatus=_aprovadoTotal?'aprovado':'pendente';
+            Object.assign(_upd,{status:_novoStatus,updated_at:new Date().toISOString()});
+            // PATCH na solicitacao
+            await fetch(SUPA_URL+'/rest/v1/solicitacoes_agenda?id=eq.'+solId,{
+              method:'PATCH',
+              headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=minimal'}),
+              body:JSON.stringify(_upd)
+            });
+            // Se aprovado total: executar a accao
+            if(_aprovadoTotal&&_sol){
+              if(_sol.tipo==='add'&&_sol.novo_valor){
+                // Inserir a nova agenda
+                var _rowNova=_sol.novo_valor;
+                _rowNova.adm_approved=true;
+                _rowNova.adm_approved_by=_nomApr;
+                _rowNova.status='confirmado';
+                await fetch(SUPA_URL+'/rest/v1/agenda',{
+                  method:'POST',
+                  headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=representation'}),
+                  body:JSON.stringify(_rowNova)
+                });
+                loadAg();
+              } else if(_sol.tipo==='delete'&&_sol.agenda_id){
+                // Soft delete
+                await fetch(SUPA_URL+'/rest/v1/agenda?id=eq.'+_sol.agenda_id,{
+                  method:'PATCH',
+                  headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=minimal'}),
+                  body:JSON.stringify({deleted_at:new Date().toISOString()})
+                });
+                setAgenda(function(prev){return prev.map(function(a){return a.id===_sol.agenda_id?{...a,deleted_at:new Date().toISOString()}:a;});});
+              } else if(_sol.tipo==='update_data'&&_sol.agenda_id&&_sol.novo_valor){
+                // Alterar data/hora
+                await fetch(SUPA_URL+'/rest/v1/agenda?id=eq.'+_sol.agenda_id,{
+                  method:'PATCH',
+                  headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=minimal'}),
+                  body:JSON.stringify({data:_sol.novo_valor.data,horario:_sol.novo_valor.horario})
+                });
+                setAgenda(function(prev){return prev.map(function(a){return a.id===_sol.agenda_id?{...a,data:_sol.novo_valor.data,horario:_sol.novo_valor.horario}:a;});});
+              }
+              // Notificar solicitante por WA
+              var _numSolic=_sol.solicitado_por==='coordenador'?null:null; // coordenador sem contato
+              // Actualizar lista local
+              setSolicitacoesAgenda(function(prev){return prev.filter(function(s){return s.id!==solId;});});
+              setSyncStatus('✅ Solicitacao aprovada e executada.');
+            } else {
+              setSolicitacoesAgenda(function(prev){return prev.map(function(s){return s.id===solId?{...s,..._upd}:s;});});
+              setSyncStatus('✅ Aprovacao registada. Aguarda outra aprovacao.');
+            }
+          }catch(e){setSyncStatus('⚠️ Erro ao aprovar.');console.error('[aprovarSolic]',e);}
+        }
+
+        async function _rejeitarSolic(solId, motivo){
+          try{
+            var _nomRej=usuario&&(usuario.nome||usuario.email)||'';
+            await fetch(SUPA_URL+'/rest/v1/solicitacoes_agenda?id=eq.'+solId,{
+              method:'PATCH',
+              headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=minimal'}),
+              body:JSON.stringify({status:'rejeitado',rejeitado:true,rejeitado_por:_nomRej,motivo_rejeicao:motivo||'',updated_at:new Date().toISOString()})
+            });
+            setSolicitacoesAgenda(function(prev){return prev.filter(function(s){return s.id!==solId;});});
+            setSyncStatus('❌ Solicitação rejeitada.');
+          }catch(e){setSyncStatus('⚠️ Erro ao rejeitar.');}
+        }
+
+        return(
+          <div style={{margin:'0 12px 14px',background:'#fff',border:'2px solid #f59e0b',borderRadius:14,overflow:'hidden'}}>
+            <div style={{background:'linear-gradient(135deg,#fef3c7,#fde68a)',padding:'10px 14px',display:'flex',alignItems:'center',gap:8,borderBottom:'1px solid #f59e0b'}}>
+              <span style={{fontSize:16}}>⚠️</span>
+              <div style={{fontWeight:900,fontSize:13,color:'#92400e'}}>☁️ SOLICITAÇÕES PENDENTES DE APROVAÇÃO</div>
+              <span style={{marginLeft:'auto',background:'#92400e',color:'#fff',borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:700}}>{_solPend.length}</span>
+            </div>
+            <div style={{padding:'10px 12px',display:'flex',flexDirection:'column',gap:10}}>
+              {_solPend.map(function(s){
+                var _tipoLabel=s.tipo==='add'?'🔔 Novo agendamento':s.tipo==='delete'?'🗑️ Exclusão':'✏️ Alteração data/hora';
+                var _dadosNome=s.tipo==='add'&&s.novo_valor?s.novo_valor.nome:'';
+                var _dadosData=s.tipo==='add'&&s.novo_valor?s.novo_valor.data:s.novo_valor&&s.novo_valor.data?s.novo_valor.data:'';
+                var _dadosHora=s.tipo==='add'&&s.novo_valor?s.novo_valor.horario:s.novo_valor&&s.novo_valor.horario?s.novo_valor.horario:'';
+                var _df=_dadosData?_dadosData.split('-').reverse().join('/'):'--/--/----';
+                // Se alterar data: mostrar data anterior -> nova
+                var _dataAnterior=s.novo_valor&&s.novo_valor.data_anterior?s.novo_valor.data_anterior.split('-').reverse().join('/'):'?';
+                // Buscar nome da agenda para delete/update
+                var _agRef=s.agenda_id?agenda.find(function(a){return a.id===s.agenda_id;}):null;
+                var _nomeRef=s.tipo==='add'?_dadosNome:(_agRef?_agRef.nome:'--');
+                // Aprovacoes ja feitas
+                var _jaAdm=s.aprovado_admin;
+                var _jaPro=s.aprovado_promorar;
+                var _precisaPro=s.solicitado_por==='coordenador';
+                return(
+                  <div key={s.id} style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:10,padding:'10px 12px'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:700,color:'#92400e'}}>{_tipoLabel}</div>
+                        <div style={{fontSize:13,fontWeight:800,color:'#1e293b',marginTop:2}}>{_nomeRef}</div>
+                        {s.tipo==='update_data'?
+                          <div style={{fontSize:11,color:'#64748b',marginTop:2}}>{_dataAnterior} → {_df} {_dadosHora&&'| '+_dadosHora}</div>
+                        :
+                          <div style={{fontSize:11,color:'#64748b',marginTop:2}}>{_df}{_dadosHora?' às '+_dadosHora:''}</div>
+                        }
+                        <div style={{fontSize:11,color:'#78716c',marginTop:2}}>📋 Solicitado por: <strong>{s.solicitado_por_nome}</strong></div>
+                      </div>
+                      <div style={{display:'flex',flexDirection:'column',gap:4,alignItems:'flex-end'}}>
+                        {_precisaPro&&<span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:_jaPro?'#d1fae5':'#fee2e2',color:_jaPro?'#065f46':'#991b1b',fontWeight:700}}>Promorar: {_jaPro?'✅':'pendente'}</span>}
+                        <span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:_jaAdm?'#d1fae5':'#fee2e2',color:_jaAdm?'#065f46':'#991b1b',fontWeight:700}}>Admin: {_jaAdm?'✅':'pendente'}</span>
+                      </div>
+                    </div>
+                    <div style={{display:'flex',gap:8,marginTop:8}}>
+                      {/* Botao aprovar - so aparece se ainda nao aprovou */}
+                      {((isAdmin&&!_jaAdm)||( isPromorar&&!_jaPro&&_precisaPro))&&(
+                        <button onClick={function(){_aprovarSolic(s.id);}} style={{flex:1,padding:'8px 0',borderRadius:8,border:'none',background:'#059669',color:'#fff',fontWeight:800,fontSize:12,cursor:'pointer'}}>✅ Aprovar</button>
+                      )}
+                      {isAdmin&&(
+                        <button onClick={function(){var _m=window.prompt('Motivo da rejeição (opcional):','');_rejeitarSolic(s.id,_m||'');}} style={{flex:1,padding:'8px 0',borderRadius:8,border:'none',background:'#dc2626',color:'#fff',fontWeight:800,fontSize:12,cursor:'pointer'}}>❌ Rejeitar</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+      tab==="dashboard"&&isAdmin&&notificacoes.length>0&&(<div style={{padding:"0 12px 16px"}}><div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:14,padding:"14px 14px 10px"}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",letterSpacing:0.3,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>{"🔔 CENTRAL DE NOTIFICACOES"}</div>{notificacoes.slice(0,notifLimit).map(function(n){var ico=n.tipo==="concluida"?"🟢":n.tipo==="cubagem"?"📐":"✏️";var tit=n.tipo==="concluida"?"Mudanca concluida":n.tipo==="cubagem"?"Cubagem alterada":"Mudanca editada";var dt=n.criado_em?new Date(n.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";return(<div key={n.id} style={{padding:"8px 0",borderBottom:"1px solid #f1f5f9"}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}><span style={{fontSize:14}}>{ico}</span><span style={{fontSize:12,fontWeight:700,color:"#334155"}}>{tit}</span></div><div style={{fontSize:11,color:"#475569",marginLeft:22}}>{n.mudanca_nome||""}{n.descricao&&n.descricao!==tit?(" - "+n.descricao):""}</div><div style={{fontSize:10,color:"#94a3b8",marginLeft:22,marginTop:2}}>{"por "}<b>{n.usuario_nome||"Sistema"}</b>{" · "+dt}</div></div>);})}{notificacoes.length>notifLimit&&(<div style={{textAlign:"center",paddingTop:8}}><button onClick={function(){setNotifLimit(function(p){return p+10;});}} style={{background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:8,padding:"6px 16px",fontSize:11,fontWeight:700,color:"#64748b",cursor:"pointer"}}>{"Ver mais ("+(notificacoes.length-notifLimit)+" anteriores)"}</button></div>)}</div></div>)}
         {tab==="dashboard"&&activityLogs.length>0&&<div style={{padding:"0 12px 16px"}}><div style={{background:"#fff",border:"1.5px solid #e2e8f0",borderRadius:14,padding:"12px 14px"}}><div style={{fontWeight:800,fontSize:12,color:"#64748b",letterSpacing:0.5,marginBottom:8,display:"flex",alignItems:"center",gap:5}}>🔔 ÚNTIMAS ATUALIZAÇÕES</div>{activityLogs.slice(0,5).map(function(log){return(<div key={log.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #f8fafc"}}><span style={{fontSize:13,flexShrink:0}}>✅</span><div style={{flex:1,fontSize:11,color:"#334155",lineHeight:1.5}}>{log.msg}<span style={{color:"#94a3b8",marginLeft:6,fontSize:10}}>{log.hora}h</span></div></div>);})}</div></div>}
 {/* ══ ABA MONITORAMENTO — Torre de Controle ══ */}
 {tab==="monitoramento"&&!isMotorista&&(function(){
