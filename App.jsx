@@ -526,6 +526,51 @@ function RotaTerceirizada({token}){
   var [sendingMsg,setSendingMsg]=useState(null);
   var [msgSentStatus,setMsgSentStatus]=useState({});
   // ── Helper: dispara WhatsApp via edge function enviar-whatsapp-publico (sem JWT) ──
+  // ── Helper: cria solicitacao de agenda pendente de aprovacao ──
+  async function _criarSolicitacaoAgenda(tipo, agendaId, dados, solicitadoPor, solicitadoPorNome){
+    try{
+      var _hSol = Object.assign({}, getH(), {'Content-Type':'application/json','Prefer':'return=representation'});
+      var _solRow = {
+        tipo: tipo,
+        agenda_id: agendaId,
+        solicitado_por: solicitadoPor,
+        solicitado_por_nome: solicitadoPorNome,
+        novo_valor: dados || null,
+        status: 'pendente'
+      };
+      var _rSol = await fetch(SUPA_URL+'/rest/v1/solicitacoes_agenda', {
+        method: 'POST', headers: _hSol, body: JSON.stringify(_solRow)
+      });
+      var _dSol = await _rSol.json();
+      var _solId = Array.isArray(_dSol) ? _dSol[0]?.id : _dSol?.id;
+      return _solId;
+    } catch(e){ console.warn('[solicitacao]', e); return null; }
+  }
+
+  // ── Helper: envia WA de solicitacao pendente ──
+  async function _enviarWASolicitacao(tipo, nomeAg, dataAg, horarioAg, solicitadoPorNome, destinatarios){
+    var _tipoLabel = tipo==='add'?'NOVO AGENDAMENTO':tipo==='delete'?'EXCLUSÃO DE AGENDAMENTO':'ALTERAÇÃO DE DATA/HORA';
+    var _emoji = tipo==='add'?'🔔':tipo==='delete'?'🗑️':'✏️';
+    var _df = dataAg ? dataAg.split('-').reverse().join('/') : '';
+    var _msg =
+      _emoji+' *TELEMIM — '+_tipoLabel+'*
+'+
+      '━━━━━━━━━━━━━━━━━━━━
+'+
+      '👤 *Beneficiário:* '+nomeAg+'
+'+
+      '📅 *Data/Hora:* '+_df+' às '+horarioAg+'
+'+
+      '📋 *Solicitado por:* '+solicitadoPorNome+'
+'+
+      '━━━━━━━━━━━━━━━━━━━━
+'+
+      '⚠️ Aguarda sua *aprovação* no app TELEMIM.';
+    for(var _num of destinatarios){
+      if(_num) await enviarWAPublico(_num, _msg);
+    }
+  }
+
   function enviarWAPublico(numero, mensagem){
     if(!numero || !mensagem) return Promise.resolve({ok:false,error:"sem numero/mensagem"});
     return fetch(SUPA_URL+"/functions/v1/enviar-whatsapp-publico",{
@@ -1065,6 +1110,7 @@ export default function App(){
   const [bioLock,setBioLock]=useState(localStorage.getItem('tmim_bio_enabled')==='true'&&!!localStorage.getItem('tmim_u'));
   const [mudancas,setMudancas]=useState([]);
   const [agenda,setAgenda]=useState([]);
+  const [solicitacoesAgenda,setSolicitacoesAgenda]=useState([]);
   const [_agendaRemovidaIds,_setAgendaRemovidaIds]=useState(new Set());
   const [custosDiarios,setCustosDiarios]=useState([]);
   const [showImport,setShowImport]=useState(false);
@@ -1843,6 +1889,12 @@ export default function App(){
     return function(){clearInterval(pollId);clearInterval(gpsPollId);document.removeEventListener("visibilitychange",onVisible);if(ws&&ws.readyState===1)ws.close();};
   },[]);
   async function loadMud(){try{const r=await dbGet("mudancas","deleted_at=is.null");if(r){setMudancas(r);idbSet("mudancas",r);}}catch(e){var cached=await idbGet("mudancas");if(cached)setMudancas(cached);}}
+  async function loadSolicitacoesAg(){
+    try{
+      var _rSol=await fetch(SUPA_URL+'/rest/v1/solicitacoes_agenda?status=eq.pendente&order=id.desc',{headers:getH()});
+      if(_rSol.ok){var _dSol=await _rSol.json();setSolicitacoesAgenda(_dSol||[]);}
+    }catch(e){console.warn('[loadSolicitacoesAg]',e);}
+  }
   async function loadAg(){try{const r=await dbGet("agenda");if(r){var mapped=r.map(function(x){return {...x,_dbId:x.id};});setAgenda(mapped);idbSet("agenda",mapped);}}catch(e){var cached=await idbGet("agenda");if(cached)setAgenda(cached);}}
   async function loadCfgWA(){
     try{
@@ -2604,6 +2656,25 @@ export default function App(){
       setSyncStatus("⚠️ Erro ao validar");
     }
   }
+  // ── Alterar data/hora: Coordenador/Promorar criam solicitacao ──
+  async function handleAlterarDataHoraAg(agId, novaData, novoHorario){
+    var _perfAlt=usuario&&usuario.perfil||'';
+    var _nomeAlt=usuario&&(usuario.nome||usuario.email)||'';
+    var _agAlt=agenda.find(function(a){return a.id===agId;});
+    if(!_agAlt){setSyncStatus('⛔ Agenda não encontrada.');return;}
+    if(_perfAlt==='coordenador'||_perfAlt==='promorar'){
+      await _criarSolicitacaoAgenda('update_data',agId,{data:novaData,horario:novoHorario,data_anterior:_agAlt.data,horario_anterior:_agAlt.horario},_perfAlt,_nomeAlt);
+      var _numAdmin3='81992440900';
+      var _numPromorar3='81987596340';
+      var _dests3=_perfAlt==='coordenador'?[_numAdmin3,_numPromorar3]:[_numAdmin3];
+      await _enviarWASolicitacao('update_data',_agAlt.nome,novaData,novoHorario,_nomeAlt,_dests3);
+      setSyncStatus('⏳ Solicitação de alteração enviada. Aguarda aprovação.');
+      return;
+    }
+    // Admin: alterar directamente
+    await saveAg(agenda.map(function(a){return a.id===agId?{...a,data:novaData,horario:novoHorario}:a;}),{...(_agAlt),data:novaData,horario:novoHorario});
+  }
+
   async function saveAg(list,changed){
     await _ensureAuth();
     setAgenda(list);
@@ -2808,6 +2879,27 @@ export default function App(){
     }
     var _pa=usuario&&usuario.perfil||"";var _na=usuario&&(usuario.nome||usuario.email)||"";var _isSocialAg=_pa==="social"||_pa==="coordenador";const nova={...agForm,id:Date.now(),requires_validation:true,social_approved:_isSocialAg,social_approved_by:_isSocialAg?_na:null,promorar_approved:_pa==="promorar",promorar_approved_by:_pa==="promorar"?_na:null,adm_approved:_pa==="admin"||_pa==="telemim",adm_approved_by:(_pa==="admin"||_pa==="telemim")?_na:null,status:_isSocialAg?"pendente_social":"confirmado"};
     // POST directo para nova agenda — email + flash SÓ após confirmação do banco
+    // Coordenador e Promorar: criar solicitacao pendente de aprovacao
+    (async function(){
+      var _pa2=usuario&&usuario.perfil||'';
+      var _paNome2=usuario&&(usuario.nome||usuario.email)||'';
+      if(_pa2==="coordenador"||_pa2==="promorar"){
+        // Guardar dados da nova agenda para aprovacao
+        var _dadosNova={nome:nova.nome,selo:nova.selo,comunidade:nova.comunidade,data:nova.data,horario:nova.horario,origem:nova.origem,destino:nova.destino,contato:nova.contato,van:nova.van,caminhao:nova.caminhao,medicao:nova.medicao,ajudantes:nova.ajudantes,observacao:nova.observacao||''};
+        await _criarSolicitacaoAgenda('add',null,_dadosNova,_pa2,_paNome2);
+        // Carregar numeros WA
+        var _cfgWA=configuracoes||{};
+        var _numAdmin='81992440900';
+        var _numPromorar='81987596340';
+        var _dests=_pa2==="coordenador"?[_numAdmin,_numPromorar]:[_numAdmin];
+        await _enviarWASolicitacao('add',nova.nome,nova.data,nova.horario,_paNome2,_dests);
+        // Mostrar mensagem e NAO prosseguir com o POST
+        setFlash('⏳ Solicitação enviada! Aguarda aprovação.');
+        setTimeout(function(){setFlash('');},3000);
+        setTab('agenda');
+        return;
+      }
+    })().then(function(){});
     setSyncStatus("⏳ Salvando...");
     (async function(){
       var _maxRetries=2;var _tentativa=0;var _saved=false;
@@ -2863,6 +2955,22 @@ export default function App(){
     })();
   }
   async function handleDelAg(id,motivo){
+    var _perfDelAg=usuario&&usuario.perfil||'';
+    var _nomeDelAg=usuario&&(usuario.nome||usuario.email)||'';
+    if(!usuario||!['admin','promorar','coordenador'].includes(_perfDelAg)){setSyncStatus("⛔ Sem permissão para excluir agendas.");return;}
+    // Coordenador e Promorar: criar solicitacao de exclusao
+    if(_perfDelAg==="coordenador"||_perfDelAg==="promorar"){
+      var _agDel=agenda.find(function(a){return a.id===id;});
+      if(!_agDel){setSyncStatus("⛔ Agenda não encontrada.");return;}
+      await _criarSolicitacaoAgenda('delete',id,{motivo:motivo},_perfDelAg,_nomeDelAg);
+      var _numAdmin2='81992440900';
+      var _numPromorar2='81987596340';
+      var _dests2=_perfDelAg==="coordenador"?[_numAdmin2,_numPromorar2]:[_numAdmin2];
+      await _enviarWASolicitacao('delete',_agDel.nome,_agDel.data,_agDel.horario,_nomeDelAg,_dests2);
+      setSyncStatus("⏳ Solicitação de exclusão enviada. Aguarda aprovação.");
+      setConfirmDelete(null);setConfirmDeleteMotivo('');
+      return;
+    }
     if(!usuario||usuario.perfil!=="admin"){setSyncStatus("⛔ Apenas o administrador pode excluir agendas.");return;}
     // PROTEÇÃO: Bloquear exclusão de mudanças concluídas ou em andamento
     var _agItem=agenda.find(function(a){return a.id===id;});
