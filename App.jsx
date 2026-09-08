@@ -2882,7 +2882,7 @@ export default function App(){
     // Coordenador e Promorar: criar solicitacao pendente de aprovacao
     var _pa2=usuario&&usuario.perfil||'';
     var _paNome2=usuario&&(usuario.nome||usuario.email)||'';
-    if(_pa2==="coordenador"||_pa2==="promorar"){
+    if(_pa2==="coordenador"||_pa2==="promorar"||_pa2==="social"){
       var _dadosNova={nome:nova.nome,selo:nova.selo,comunidade:nova.comunidade,data:nova.data,horario:nova.horario,origem:nova.origem,destino:nova.destino,contato:nova.contato,van:nova.van,caminhao:nova.caminhao,medicao:nova.medicao,ajudantes:nova.ajudantes,observacao:nova.observacao||''};
       await _criarSolicitacaoAgenda('add',null,_dadosNova,_pa2,_paNome2);
       var _numAdmin='81992440900';
