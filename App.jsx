@@ -2880,26 +2880,20 @@ export default function App(){
     var _pa=usuario&&usuario.perfil||"";var _na=usuario&&(usuario.nome||usuario.email)||"";var _isSocialAg=_pa==="social"||_pa==="coordenador";const nova={...agForm,id:Date.now(),requires_validation:true,social_approved:_isSocialAg,social_approved_by:_isSocialAg?_na:null,promorar_approved:_pa==="promorar",promorar_approved_by:_pa==="promorar"?_na:null,adm_approved:_pa==="admin"||_pa==="telemim",adm_approved_by:(_pa==="admin"||_pa==="telemim")?_na:null,status:_isSocialAg?"pendente_social":"confirmado"};
     // POST directo para nova agenda — email + flash SÓ após confirmação do banco
     // Coordenador e Promorar: criar solicitacao pendente de aprovacao
-    (async function(){
-      var _pa2=usuario&&usuario.perfil||'';
-      var _paNome2=usuario&&(usuario.nome||usuario.email)||'';
-      if(_pa2==="coordenador"||_pa2==="promorar"){
-        // Guardar dados da nova agenda para aprovacao
-        var _dadosNova={nome:nova.nome,selo:nova.selo,comunidade:nova.comunidade,data:nova.data,horario:nova.horario,origem:nova.origem,destino:nova.destino,contato:nova.contato,van:nova.van,caminhao:nova.caminhao,medicao:nova.medicao,ajudantes:nova.ajudantes,observacao:nova.observacao||''};
-        await _criarSolicitacaoAgenda('add',null,_dadosNova,_pa2,_paNome2);
-        // Carregar numeros WA
-        var _cfgWA=configuracoes||{};
-        var _numAdmin='81992440900';
-        var _numPromorar='81987596340';
-        var _dests=_pa2==="coordenador"?[_numAdmin,_numPromorar]:[_numAdmin];
-        await _enviarWASolicitacao('add',nova.nome,nova.data,nova.horario,_paNome2,_dests);
-        // Mostrar mensagem e NAO prosseguir com o POST
-        setFlash('⏳ Solicitação enviada! Aguarda aprovação.');
-        setTimeout(function(){setFlash('');},3000);
-        setTab('agenda');
-        return;
-      }
-    })().then(function(){});
+    var _pa2=usuario&&usuario.perfil||'';
+    var _paNome2=usuario&&(usuario.nome||usuario.email)||'';
+    if(_pa2==="coordenador"||_pa2==="promorar"){
+      var _dadosNova={nome:nova.nome,selo:nova.selo,comunidade:nova.comunidade,data:nova.data,horario:nova.horario,origem:nova.origem,destino:nova.destino,contato:nova.contato,van:nova.van,caminhao:nova.caminhao,medicao:nova.medicao,ajudantes:nova.ajudantes,observacao:nova.observacao||''};
+      await _criarSolicitacaoAgenda('add',null,_dadosNova,_pa2,_paNome2);
+      var _numAdmin='81992440900';
+      var _numPromorar='81987596340';
+      var _dests=_pa2==="coordenador"?[_numAdmin,_numPromorar]:[_numAdmin];
+      await _enviarWASolicitacao('add',nova.nome,nova.data,nova.horario,_paNome2,_dests);
+      setFlash('⏳ Solicitação enviada! Aguarda aprovação.');
+      setTimeout(function(){setFlash('');},3000);
+      setTab('agenda');
+      return; // para o handler principal
+    }
     setSyncStatus("⏳ Salvando...");
     (async function(){
       var _maxRetries=2;var _tentativa=0;var _saved=false;
