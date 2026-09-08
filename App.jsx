@@ -1149,7 +1149,7 @@ export default function App(){
   async function cobrarRastreio(){if(!confirm("Enviar WhatsApp de cobranca para todos os motoristas sem rastreamento ativo?"))return;setRastreioCobrando(true);try{var r=await fetch(SUPA_URL+"/rest/v1/rpc/cobrar_traccar_motoristas",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json"}),body:"{}"});if(r.ok){var d=await r.json();var _c=(d&&d[0]&&d[0].cobrados)||0;alert("\u2705 "+_c+" motorista(s) cobrado(s) por WhatsApp.");loadRastreio();}else{alert("\u26a0\ufe0f Servico indisponivel no momento.");}}catch(e){alert("\u26a0\ufe0f Erro ao cobrar.");}setRastreioCobrando(false);}
   const [importTextAg,setImportTextAg]=useState("");
   const [form,setForm]=useState(initForm);
-  const [agForm,setAgForm]=useState({...initForm,status:"confirmado"});
+  const [agForm,setAgForm]=useState({...initForm,status:"confirmado",caminhao:true,van:true});
   const [rel,setRel]=useState(null);
   const [relDataIni,setRelDataIni]=useState("");
   const [relDataFim,setRelDataFim]=useState("");
