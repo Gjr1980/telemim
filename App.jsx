@@ -4971,7 +4971,7 @@ export default function App(){
         <div style={{paddingBottom:16}}>
         {(()=>{var _p=usuario&&usuario.perfil||"";var _campoMeu=_p==="admin"?"approved_by_admin":_p==="promorar"?"approved_by_promorar":_p==="supervisor"?"approved_by_supervisor":(_p==="social"||_p==="coordenador")?"approved_by_social":null;if(!_campoMeu)return null;var _pend=[...agenda].filter(function(x){if(!x.data||x.deleted_at)return false;if(x.status==="pendente_social")return false;if(x[_campoMeu])return false;return true;});if(!_pend.length)return null;return(<div style={{margin:"0 12px 16px",background:"#fffbeb",border:"2.5px solid #f59e0b",borderRadius:16,padding:"14px 16px",boxShadow:"0 4px 20px rgba(245,158,11,0.25)"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><span style={{fontSize:22}}>🔔</span><div><div style={{fontWeight:800,fontSize:14,color:"#92400e"}}>Notificações ({_pend.length})</div><div style={{fontWeight:600,fontSize:11,color:"#b45309"}}>Confirme o recebimento das mudanças agendadas</div></div></div><div style={{display:"flex",flexDirection:"column",gap:8}}>{_pend.map(function(x){var _quem=x.created_by||x.approved_by_admin||x.approved_by_social||x.approved_by_promorar||"Sistema";var _perfQuem=x.creator_role||"";return(<div key={x.id} style={{background:"#fff",border:"1.5px solid #fcd34d",borderRadius:12,padding:"10px 12px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontWeight:800,fontSize:13,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>👤 {x.nome}</div><div style={{fontSize:10,color:"#64748b",marginTop:2}}>📅 {x.data?new Date(x.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"}):"?"} · 🏷️ {x.selo||"—"}</div><div style={{fontSize:10,color:"#64748b",marginTop:1}}>Agendado por: <strong>{_quem}</strong>{_perfQuem?" ("+_perfQuem+")":""}</div></div><button onClick={function(e){e.stopPropagation();handleApproveAgenda(x.id);}} disabled={!!isApproving[x.id]} style={{padding:"7px 14px",background:isApproving[x.id]?"#94a3b8":"#16a34a",color:"#fff",border:"none",borderRadius:999,fontWeight:800,fontSize:11,cursor:isApproving[x.id]?"not-allowed":"pointer",whiteSpace:"nowrap",flexShrink:0,boxShadow:"0 2px 8px rgba(22,163,74,0.3)"}}>{isApproving[x.id]?"⏳":"✅ Confirmar"}</button></div></div>);})}</div></div>);})()}
         {(isAdmin||isPromorar)&&(function(){
-          var _pendSocial=agenda.filter(function(a){return !a.deleted_at&&a.status==="pendente_social";});
+          var _pendSocial=agenda.filter(function(a){if(a.requires_validation&&!a.adm_approved&&!isAdmin&&!isPromorar)return false;return !a.deleted_at&&a.status==="pendente_social";});
           if(_pendSocial.length===0)return null;
           function _aprovarSocial(xId){_ensureAuth().then(function(){fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+xId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({status:"confirmado"})}).then(function(r){if(r.ok){setAgenda(function(prev){return prev.map(function(a){return a.id===xId?Object.assign({},a,{status:"confirmado"}):a;});});}}).catch(function(){alert("Erro ao aprovar.");});});}
           function _recusarSocial(xId,xNome){if(!confirm("Recusar agendamento de "+xNome+"?"))return;_ensureAuth().then(function(){fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+xId,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({status:"cancelada",deleted_at:new Date().toISOString()})}).then(function(r){if(r.ok){setAgenda(function(prev){return prev.map(function(a){return a.id===xId?Object.assign({},a,{status:"cancelada",deleted_at:new Date().toISOString()}):a;});});}}).catch(function(){alert("Erro ao recusar.");});});}
@@ -5528,6 +5528,15 @@ export default function App(){
             });
             // Se aprovado total: executar a accao
             if(_aprovadoTotal&&_sol){
+              // Actualizar a agenda para marcar como aprovado
+              if(_sol.agenda_id){
+                await fetch(SUPA_URL+'/rest/v1/agenda?id=eq.'+_sol.agenda_id,{
+                  method:'PATCH',
+                  headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=minimal'}),
+                  body:JSON.stringify({adm_approved:true,adm_approved_by:_nomApr,requires_validation:false,status:'confirmado'})
+                });
+                setAgenda(function(prev){return prev.map(function(a){return a.id===_sol.agenda_id?{...a,adm_approved:true,requires_validation:false,status:'confirmado'}:a;});});
+              }
               if(_sol.tipo==='add'&&_sol.novo_valor){
                 // Inserir a nova agenda
                 var _rowNova=_sol.novo_valor;
@@ -5577,6 +5586,16 @@ export default function App(){
               headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=minimal'}),
               body:JSON.stringify({status:'rejeitado',rejeitado:true,rejeitado_por:_nomRej,motivo_rejeicao:motivo||'',updated_at:new Date().toISOString()})
             });
+            // Soft-delete na agenda se a solicitação for do tipo 'add'
+            var _solRej=solicitacoesAgenda.find(function(s){return s.id===solId;});
+            if(_solRej&&_solRej.agenda_id){
+              await fetch(SUPA_URL+'/rest/v1/agenda?id=eq.'+_solRej.agenda_id,{
+                method:'PATCH',
+                headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=minimal'}),
+                body:JSON.stringify({deleted_at:new Date().toISOString()})
+              });
+              setAgenda(function(prev){return prev.map(function(a){return a.id===_solRej.agenda_id?{...a,deleted_at:new Date().toISOString()}:a;});});
+            }
             setSolicitacoesAgenda(function(prev){return prev.filter(function(s){return s.id!==solId;});});
             setSyncStatus('❌ Solicitação rejeitada.');
           }catch(e){setSyncStatus('⚠️ Erro ao rejeitar.');}
