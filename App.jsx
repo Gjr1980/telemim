@@ -2921,6 +2921,33 @@ export default function App(){
             return [{...nova,id:_bdId||nova.id},...sem];
           });
           _saved=true;
+          // WA para Admin+Promorar quando Social ou Coordenador agenda
+          if(L){
+            try{
+              var _dfWA=nova.data?nova.data.split('-').reverse().join('/'):'';
+              var _nomeUser=usuario&&(usuario.nome||usuario.email)||'';
+              var _perfilUser=usuario&&usuario.perfil||'';
+              var _msgWA='🔔 *TELEMIM — NOVO AGENDAMENTO*
+' +
+              '━━━━━━━━━━━━━━━━━━━━
+' +
+              '👤 *Beneficiário:* '+nova.nome+'
+' +
+              '📅 *Data/Hora:* '+_dfWA+' às '+(nova.horario||'')+'
+' +
+              '🏘️ *Comunidade:* '+(nova.comunidade||'')+'
+' +
+              '📋 *Registado por:* '+_nomeUser+' ('+_perfilUser+')
+' +
+              '━━━━━━━━━━━━━━━━━━━━
+' +
+              '⚠️ Novo agendamento no app TELEMIM.';
+              var _numAdmin='81992440900';
+              var _numPromorar='81987596340';
+              await enviarWAPublico(_numAdmin, _msgWA);
+              await enviarWAPublico(_numPromorar, _msgWA);
+            }catch(_eWA){console.warn('[WA novaAgenda]',_eWA);}
+          }
           // Email SÓ após POST confirmado no banco
           try{
             fetch(SUPA_URL+'/functions/v1/enviar-email-agendamento',{
