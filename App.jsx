@@ -2929,39 +2929,20 @@ export default function App(){
             var _numAdminWA='5581992440900';
             var _numPromorarWA='5581987596340';
             var _destsWA=[];
-            var _msgWANova='';
-            if(_perfilUser==='social'||_perfilUser==='coordenador'){
-              _destsWA=[_numAdminWA,_numPromorarWA];
-              _msgWANova=`⚠️ *TELEMIM — SOLICITAÇÃO PENDENTE*
+            if(_perfilUser==='social'||_perfilUser==='coordenador') _destsWA=[_numAdminWA,_numPromorarWA];
+            else if(_perfilUser==='promorar') _destsWA=[_numAdminWA];
+            else if(_perfilUser==='admin'||_perfilUser==='telemim') _destsWA=[_numPromorarWA];
+            if(_destsWA.length>0){
+              var _msgWANova=`🔔 *TELEMIM — NOVO AGENDAMENTO*
 ━━━━━━━━━━━━━━━━━━━━
 👤 *Beneficiário:* ${nova.nome}
 📅 *Data/Hora:* ${_dfWA} às ${nova.horario||''}
 🏘️ *Comunidade:* ${nova.comunidade||''}
-📋 *Solicitado por:* ${_nomeUser} (${_perfilUser})
-━━━━━━━━━━━━━━━━━━━━
-⏳ Há uma mudança aguardando aprovação no app TELEMIM.`;
-            } else if(_perfilUser==='promorar'){
-              _destsWA=[_numAdminWA];
-              _msgWANova=`🔔 *TELEMIM — NOVO AGENDAMENTO*
-━━━━━━━━━━━━━━━━━━━━
-👤 *Beneficiário:* ${nova.nome}
-📅 *Data/Hora:* ${_dfWA} às ${nova.horario||''}
-🏘️ *Comunidade:* ${nova.comunidade||''}
-📋 *Agendado por:* ${_nomeUser} (Promorar)
+📋 *Registado por:* ${_nomeUser} (${_perfilUser})
 ━━━━━━━━━━━━━━━━━━━━
 📲 Verifique o app TELEMIM.`;
-            } else if(_perfilUser==='admin'||_perfilUser==='telemim'){
-              _destsWA=[_numPromorarWA];
-              _msgWANova=`🔔 *TELEMIM — NOVO AGENDAMENTO*
-━━━━━━━━━━━━━━━━━━━━
-👤 *Beneficiário:* ${nova.nome}
-📅 *Data/Hora:* ${_dfWA} às ${nova.horario||''}
-🏘️ *Comunidade:* ${nova.comunidade||''}
-📋 *Agendado por:* ${_nomeUser} (Admin)
-━━━━━━━━━━━━━━━━━━━━
-📲 Verifique o app TELEMIM.`;
+              for(var _dWA of _destsWA){ await enviarWAPublico(_dWA,_msgWANova); }
             }
-            if(_destsWA.length>0){ for(var _dWA of _destsWA){ await enviarWAPublico(_dWA,_msgWANova); } }
           }catch(_eWA){console.warn('[WA novaAgenda]',_eWA);}
           }
           // Email SÓ após POST confirmado no banco
@@ -5626,6 +5607,30 @@ setSyncStatus("✅ Status actualizado!");
               // Actualizar lista local
               setSolicitacoesAgenda(function(prev){return prev.filter(function(s){return s.id!==solId;});});
               setSyncStatus('✅ Solicitacao aprovada e executada.');
+              // WA aprovacao -- notificar promorar e solicitante
+              try{
+                var _solAprWA=(_solPend||[]).find(function(s){return s.id===solId;});
+                if(_solAprWA){
+                  var _agAprWA=agenda.find(function(a){return a.id===_solAprWA.agenda_id;});
+                  var _nomeAg2=_agAprWA&&_agAprWA.nome||(_solAprWA.novo_valor&&_solAprWA.novo_valor.nome)||'';
+                  var _dfApr2=_agAprWA&&_agAprWA.data?_agAprWA.data.split('-').reverse().join('/'):(_solAprWA.novo_valor&&_solAprWA.novo_valor.data?_solAprWA.novo_valor.data.split('-').reverse().join('/'):'');
+                  var _horAg2=_agAprWA&&_agAprWA.horario||(_solAprWA.novo_valor&&_solAprWA.novo_valor.horario)||'';
+                  var _msgAprov2='✅ *TELEMIM — MUDANÇA APROVADA*\n' +
+                    '━━━━━━━━━━━━━━━━━━━━\n' +
+                    '👤 *Beneficiário:* '+_nomeAg2+'\n' +
+                    '📅 *Data/Hora:* '+_dfApr2+' às '+_horAg2+'\n' +
+                    '📋 *Aprovado por:* '+_nomApr+' (Admin)\n' +
+                    '━━━━━━━━━━━━━━━━━━━━\n' +
+                    '📲 A mudança foi confirmada no app TELEMIM.';
+                  // Sempre notificar Promorar
+                  await enviarWAPublico('5581987596340',_msgAprov2);
+                  // Notificar solicitante (social/coordenador) se tiver numero
+                  var _usSol=usuarios&&usuarios.find&&usuarios.find(function(u){return u.perfil===_solAprWA.solicitado_por;});
+                  if(_usSol&&_usSol.contato&&_usSol.contato.replace(/\D/g,'').length>7){
+                    await enviarWAPublico('55'+_usSol.contato.replace(/\D/g,''),_msgAprov2);
+                  }
+                }
+              }catch(_eAprov){console.warn('[WA aprovacao]',_eAprov);}
             } else {
               setSolicitacoesAgenda(function(prev){return prev.map(function(s){return s.id===solId?{...s,..._upd}:s;});});
               setSyncStatus('✅ Aprovacao registada. Aguarda outra aprovacao.');
