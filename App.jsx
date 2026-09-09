@@ -2929,20 +2929,39 @@ export default function App(){
             var _numAdminWA='5581992440900';
             var _numPromorarWA='5581987596340';
             var _destsWA=[];
-            if(_perfilUser==='social'||_perfilUser==='coordenador') _destsWA=[_numAdminWA,_numPromorarWA];
-            else if(_perfilUser==='promorar') _destsWA=[_numAdminWA];
-            else if(_perfilUser==='admin'||_perfilUser==='telemim') _destsWA=[_numPromorarWA];
-            if(_destsWA.length>0){
-              var _msgWANova=`🔔 *TELEMIM — NOVO AGENDAMENTO*
+            var _msgWANova='';
+            if(_perfilUser==='social'||_perfilUser==='coordenador'){
+              _destsWA=[_numAdminWA,_numPromorarWA];
+              _msgWANova=`⚠️ *TELEMIM — SOLICITAÇÃO PENDENTE*
 ━━━━━━━━━━━━━━━━━━━━
 👤 *Beneficiário:* ${nova.nome}
 📅 *Data/Hora:* ${_dfWA} às ${nova.horario||''}
 🏘️ *Comunidade:* ${nova.comunidade||''}
-📋 *Registado por:* ${_nomeUser} (${_perfilUser})
+📋 *Solicitado por:* ${_nomeUser} (${_perfilUser})
+━━━━━━━━━━━━━━━━━━━━
+⏳ Há uma mudança aguardando aprovação no app TELEMIM.`;
+            } else if(_perfilUser==='promorar'){
+              _destsWA=[_numAdminWA];
+              _msgWANova=`🔔 *TELEMIM — NOVO AGENDAMENTO*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Beneficiário:* ${nova.nome}
+📅 *Data/Hora:* ${_dfWA} às ${nova.horario||''}
+🏘️ *Comunidade:* ${nova.comunidade||''}
+📋 *Agendado por:* ${_nomeUser} (Promorar)
 ━━━━━━━━━━━━━━━━━━━━
 📲 Verifique o app TELEMIM.`;
-              for(var _dWA of _destsWA){ await enviarWAPublico(_dWA,_msgWANova); }
+            } else if(_perfilUser==='admin'||_perfilUser==='telemim'){
+              _destsWA=[_numPromorarWA];
+              _msgWANova=`🔔 *TELEMIM — NOVO AGENDAMENTO*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Beneficiário:* ${nova.nome}
+📅 *Data/Hora:* ${_dfWA} às ${nova.horario||''}
+🏘️ *Comunidade:* ${nova.comunidade||''}
+📋 *Agendado por:* ${_nomeUser} (Admin)
+━━━━━━━━━━━━━━━━━━━━
+📲 Verifique o app TELEMIM.`;
             }
+            if(_destsWA.length>0){ for(var _dWA of _destsWA){ await enviarWAPublico(_dWA,_msgWANova); } }
           }catch(_eWA){console.warn('[WA novaAgenda]',_eWA);}
           }
           // Email SÓ após POST confirmado no banco
