@@ -3911,7 +3911,46 @@ export default function App(){
         body:JSON.stringify(body)
       });
       if(!r.ok) throw new Error("HTTP "+r.status);
-      setSyncStatus("✅ Status actualizado!");
+      // WA supervisor: notificar admin, promorar e social
+      if((novoStatus==="Realizando"||novoStatus==="Concluido"||novoStatus==="realizado")&&cfgWA.whatsapp_ativo==="true"){
+        try{
+          var _supNomeWA=usuario&&(usuario.nome||usuario.email)||"Supervisor";
+          var _dfWA2=ag.data?ag.data.split('-').reverse().join('/'):ag.data||'';
+          var _isRealizando=novoStatus==="Realizando";
+          var _emoji=_isRealizando?'🚛':'✅';
+          var _titulo=_isRealizando?'MUDÂNÇA INICIADA':'MUDÂNÇA CONCLUÍDA';
+          var _hora=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+          var _msgSup=_emoji+' *TELEMIM — '+_titulo+'*
+' +
+            '━━━━━━━━━━━━━━━━━━━━
+' +
+            '👤 *Morador:* '+(ag.nome||'')+'
+' +
+            '📅 *Data:* '+_dfWA2+' às '+(ag.horario||'')+'
+' +
+            '🏘️ *Comunidade:* '+(ag.comunidade||'')+'
+' +
+            (_isRealizando?'🚛 *Supervisor iniciou:* ':'✅ *Supervisor finalizou:* ')+_supNomeWA+'
+' +
+            '⏰ *Hora:* '+_hora+'
+' +
+            '━━━━━━━━━━━━━━━━━━━━
+' +
+            '🔧 TELEMIM PROMORAR';
+          var _numsWA=['5581992440900','5581987596340']; // admin + promorar
+          // Adicionar social se existir na agenda
+          if(ag.assist_social_num) _numsWA.push(ag.assist_social_num);
+          else if(ag.assist_social){
+            // Tentar buscar numero do social
+            var _usrSoc=usuarios&&usuarios.find&&usuarios.find(function(u){return u.nome===ag.assist_social;});
+            if(_usrSoc&&_usrSoc.contato) _numsWA.push('55'+_usrSoc.contato.replace(/\D/g,''));
+          }
+          for(var _nWA of _numsWA){
+            if(_nWA) await enviarWAPublico(_nWA, _msgSup);
+          }
+        }catch(_eWASup){console.warn('[WA supervisor]',_eWASup);}
+      }
+setSyncStatus("✅ Status actualizado!");
       // WA auto: iniciada (motorista começou)
       if(novoStatus==="Em Deslocamento"&&cfgWA.whatsapp_ativo==="true"){
         var _evI=cfgWAauto.iniciada;if(_evI&&_evI.ativo){
