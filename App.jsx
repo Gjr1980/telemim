@@ -2921,32 +2921,29 @@ export default function App(){
             return [{...nova,id:_bdId||nova.id},...sem];
           });
           _saved=true;
-          // WA para Admin+Promorar quando Social ou Coordenador agenda
-          if(L){
-            try{
-              var _dfWA=nova.data?nova.data.split('-').reverse().join('/'):'';
-              var _nomeUser=usuario&&(usuario.nome||usuario.email)||'';
-              var _perfilUser=usuario&&usuario.perfil||'';
-              var _msgWA='🔔 *TELEMIM — NOVO AGENDAMENTO*
-' +
-              '━━━━━━━━━━━━━━━━━━━━
-' +
-              '👤 *Beneficiário:* '+nova.nome+'
-' +
-              '📅 *Data/Hora:* '+_dfWA+' às '+(nova.horario||'')+'
-' +
-              '🏘️ *Comunidade:* '+(nova.comunidade||'')+'
-' +
-              '📋 *Registado por:* '+_nomeUser+' ('+_perfilUser+')
-' +
-              '━━━━━━━━━━━━━━━━━━━━
-' +
-              '⚠️ Novo agendamento no app TELEMIM.';
-              var _numAdmin='81992440900';
-              var _numPromorar='81987596340';
-              await enviarWAPublico(_numAdmin, _msgWA);
-              await enviarWAPublico(_numPromorar, _msgWA);
-            }catch(_eWA){console.warn('[WA novaAgenda]',_eWA);}
+          // WA novo agendamento -- regras por perfil
+          try{
+            var _dfWA=nova.data?nova.data.split('-').reverse().join('/'):'';
+            var _nomeUser=usuario&&(usuario.nome||usuario.email)||'';
+            var _perfilUser=usuario&&usuario.perfil||'';
+            var _numAdminWA='5581992440900';
+            var _numPromorarWA='5581987596340';
+            var _destsWA=[];
+            if(_perfilUser==='social'||_perfilUser==='coordenador') _destsWA=[_numAdminWA,_numPromorarWA];
+            else if(_perfilUser==='promorar') _destsWA=[_numAdminWA];
+            else if(_perfilUser==='admin'||_perfilUser==='telemim') _destsWA=[_numPromorarWA];
+            if(_destsWA.length>0){
+              var _msgWANova=`🔔 *TELEMIM — NOVO AGENDAMENTO*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Beneficiário:* ${nova.nome}
+📅 *Data/Hora:* ${_dfWA} às ${nova.horario||''}
+🏘️ *Comunidade:* ${nova.comunidade||''}
+📋 *Registado por:* ${_nomeUser} (${_perfilUser})
+━━━━━━━━━━━━━━━━━━━━
+📲 Verifique o app TELEMIM.`;
+              for(var _dWA of _destsWA){ await enviarWAPublico(_dWA,_msgWANova); }
+            }
+          }catch(_eWA){console.warn('[WA novaAgenda]',_eWA);}
           }
           // Email SÓ após POST confirmado no banco
           try{
