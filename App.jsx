@@ -1989,27 +1989,27 @@ export default function App(){
 
     // NOME: "Sr./Sra. Nome - Selo X" ou "O Sr. Nome - Selo X" ou primeiro nome:valor
     var nome="";
-    var nomeM=full.match(/Beneficiário\s*[:\-]\s*([^\n]+)/i)
+    var nomeM=full.match(/Beneficiário\s*[:\-][ \t]*([^\n]+)/i)
       ||full.match(/(?:O\s+)?Sr[a]?\.?\s+([^\n\-]+?)\s*[-\u2013]\s*Selo/i)
       ||full.match(/(?:O\s+)?Sr[a]?\.?\s+([^\n]+)/i);
     if(nomeM) nome=nomeM[1].replace(/[-\u2013].*$/,"").trim();
 
     // SELO: "Selo XXXX" ou nome - Selo X ou padrão alfanumérico próximo de "Selo"
     var selo="";
-    var seloM=full.match(/[Ss]elo\s*[:\-]?\s*([\w\d][\w\d\-\.]+)/)
+    var seloM=full.match(/[Ss]elo\s*[:\-]?[ \t]*([\w\d][\w\d\-\.]+)/)
       ||full.match(/[-\u2013]\s*[Ss]elo\s+([\w\d][\w\d\-\.]+)/i)
       ||full.match(/\b([A-Z]{1,4}[\d][\w\-]*)\b/);
     if(seloM) selo=seloM[1].trim();
 
     // CONTATO: aceita "Contato:", "Telefone:", "Celular:", "Tel:", "Fone:"
     var contato="";
-    var contatoM=full.match(/(?:Contato|Telefone|Celular|Tel|Fone)\s*[:\-]\s*([^\n]+)/i);
+    var contatoM=full.match(/(?:Contato|Telefone|Celular|Tel|Fone)\s*[:\-][ \t]*([^\n]+)/i);
     if(contatoM) contato=contatoM[1].replace(/[*\s]/g," ").trim();
 
     // COMUNIDADE: aceita "CIS:", "Comunidade:", "(nome da comunidade)"
     var comunidade="";
-    var comM=full.match(/CIS\s*[:\-]\s*([^\n]+)/i)
-      ||full.match(/[Cc]omunidade\s*[:\-]\s*([^\n]+)/i)
+    var comM=full.match(/CIS\s*[:\-][ \t]*([^\n]+)/i)
+      ||full.match(/[Cc]omunidade\s*[:\-][ \t]*([^\n]+)/i)
       ||full.match(/\(([^)\d][^)]+)\)/);
     if(comM) comunidade=comM[1].trim();
 
@@ -2049,12 +2049,12 @@ export default function App(){
     if(origM) origem=origM[1].replace(/\*+/g,"").trim();
 
     // CEP: anexar ao endereço de origem se encontrado
-    var cepM=full.match(/[Cc]ep\s*[:\-]\s*([\d\.\-]{8,10})/);
+    var cepM=full.match(/[Cc]ep\s*[:\-][ \t]*([\d\.\-]{8,10})/);
     if(cepM && origem){ origem = origem + " - CEP: " + cepM[1].trim(); }
 
     // DESTINO: aceita "Endereço Final:", "Destino:", "Endereço de destino:"
     var destino="";
-    var destM=full.match(/[Cc]hegada\s*[:\-]\s*([^\n]+)/)
+    var destM=full.match(/[Cc]hegada\s*[:\-][ \t]*([^\n]+)/)
       ||full.match(/[Ee]ndere[cç]o\s+[Ff]inal\s*[:\-]\s*([^\n]+)/)
       ||full.match(/[Ee]ndere[cç]o\s+(?:de\s+)?[Dd]estino\s*[:\-]\s*([^\n]+)/)
       ||full.match(/[Dd]estino\s*[:\-]\s*([^\n]+)/);
