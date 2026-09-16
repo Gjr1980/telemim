@@ -2893,7 +2893,7 @@ export default function App(){
       await _criarSolicitacaoAgenda('add',null,_dadosNova,_pa2,_paNome2);
       var _numAdmin='81992440900';
       var _numPromorar='81987596340';
-      var _dests=_pa2==="coordenador"?[_numAdmin,_numPromorar]:[_numAdmin];
+      var _dests=(_pa2==="coordenador"||_pa2==="social")?[_numAdmin,_numPromorar]:[_numAdmin];
       await _enviarWASolicitacao('add',nova.nome,nova.data,nova.horario,_paNome2,_dests);
       setFlash('⏳ Solicitação enviada! Aguarda aprovação.');
       setTimeout(function(){setFlash('');},3000);
