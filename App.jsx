@@ -580,37 +580,6 @@ function RotaTerceirizada({token}){
     }).then(function(r){return r.json().catch(function(){return{ok:false,error:"resposta inválida"};});})
       .catch(function(e){return {ok:false, error:e.message};});
   }
-
-  // ── A caminho da origem: Admin sempre, Morador+Social só o primeiro ──
-  async function _notificarACaminhoOrigem(ag, quemLabel, quemNome){
-    try{
-      var _dfACO=ag.data?ag.data.split('-').reverse().join('/'):(ag.data||'');
-      var _msgAdminACO='🚗 *TELEMIM — A CAMINHO DA ORIGEM*\n'+
-        quemLabel+': *'+quemNome+'*\n'+
-        '👤 Morador: '+(ag.nome||'')+'\n'+
-        '📅 '+_dfACO+' às '+(ag.horario||'');
-      await enviarWAPublico('5581992440900', _msgAdminACO);
-
-      // Trava atomica: só o primeiro a chegar aqui notifica Morador+Social
-      var _rTrava=await fetch(SUPA_URL+'/rest/v1/agenda?id=eq.'+ag.id+'&wa_iniciado_enviado=eq.false',{
-        method:'PATCH',
-        headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=representation'}),
-        body:JSON.stringify({wa_iniciado_enviado:true})
-      });
-      var _dTrava=await _rTrava.json().catch(function(){return [];});
-      if(Array.isArray(_dTrava)&&_dTrava.length>0){
-        var _msgPrim='Olá! 🚚\nPassando para avisar que a nossa equipe de mudança já está a caminho da residência de *'+(ag.nome||'')+'*. Eu ('+quemNome+') já estou me deslocando para lá também.';
-        if(ag.contato){
-          var _cNumACO='55'+ag.contato.replace(/\D/g,'');
-          if(_cNumACO.length>=12) await enviarWAPublico(_cNumACO,_msgPrim);
-        }
-        if(ag.assist_social){
-          var _usrSocACO=usuarios&&usuarios.find&&usuarios.find(function(u){return u.nome===ag.assist_social;});
-          if(_usrSocACO&&_usrSocACO.contato) await enviarWAPublico('55'+_usrSocACO.contato.replace(/\D/g,''),_msgPrim);
-        }
-      }
-    }catch(_eACO){console.warn('[WA a caminho origem]',_eACO);}
-  }
   function carregarDados(){
     fetch(SUPA_URL+"/functions/v1/consumir-magic-link?token="+encodeURIComponent(token),{headers:{"apikey":SUPA_KEY}})
       .then(function(r){return r.json();})
@@ -3956,6 +3925,17 @@ export default function App(){
         body:JSON.stringify(body)
       });
       if(!r.ok) throw new Error("HTTP "+r.status);
+      // A caminho da origem: Van, Caminhao ou Supervisor (Realizando)
+      if(cfgWA.whatsapp_ativo==="true"){
+        var _quemNomeACO=usuario&&(usuario.nome||usuario.email)||'';
+        if(novoStatus==="Em Deslocamento"&&_isVanMot){
+          _notificarACaminhoOrigem(ag,'🚐 Van',_quemNomeACO);
+        } else if(novoStatus==="Em Deslocamento"&&_isCamMot){
+          _notificarACaminhoOrigem(ag,'🚛 Caminhão',_quemNomeACO);
+        } else if(novoStatus==="Realizando"&&!_isVanMot&&!_isCamMot){
+          _notificarACaminhoOrigem(ag,'👷 Supervisor',_quemNomeACO);
+        }
+      }
       // WA supervisor: notificar admin, promorar e social
       if((novoStatus==="Realizando"||novoStatus==="Concluido"||novoStatus==="realizado")&&cfgWA.whatsapp_ativo==="true"){
         try{
