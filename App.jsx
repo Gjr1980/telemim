@@ -1989,7 +1989,8 @@ export default function App(){
 
     // NOME: "Sr./Sra. Nome - Selo X" ou "O Sr. Nome - Selo X" ou primeiro nome:valor
     var nome="";
-    var nomeM=full.match(/(?:O\s+)?Sr[a]?\.?\s+([^\n\-]+?)\s*[-\u2013]\s*Selo/i)
+    var nomeM=full.match(/Beneficiário\s*[:\-]\s*([^\n]+)/i)
+      ||full.match(/(?:O\s+)?Sr[a]?\.?\s+([^\n\-]+?)\s*[-\u2013]\s*Selo/i)
       ||full.match(/(?:O\s+)?Sr[a]?\.?\s+([^\n]+)/i);
     if(nomeM) nome=nomeM[1].replace(/[-\u2013].*$/,"").trim();
 
@@ -2047,9 +2048,14 @@ export default function App(){
       ||full.match(/[Ss]a[íi]da\s*[:\-]\s*([^\n]+)/);
     if(origM) origem=origM[1].replace(/\*+/g,"").trim();
 
+    // CEP: anexar ao endereço de origem se encontrado
+    var cepM=full.match(/[Cc]ep\s*[:\-]\s*([\d\.\-]{8,10})/);
+    if(cepM && origem){ origem = origem + " - CEP: " + cepM[1].trim(); }
+
     // DESTINO: aceita "Endereço Final:", "Destino:", "Endereço de destino:"
     var destino="";
-    var destM=full.match(/[Ee]ndere[cç]o\s+[Ff]inal\s*[:\-]\s*([^\n]+)/)
+    var destM=full.match(/[Cc]hegada\s*[:\-]\s*([^\n]+)/)
+      ||full.match(/[Ee]ndere[cç]o\s+[Ff]inal\s*[:\-]\s*([^\n]+)/)
       ||full.match(/[Ee]ndere[cç]o\s+(?:de\s+)?[Dd]estino\s*[:\-]\s*([^\n]+)/)
       ||full.match(/[Dd]estino\s*[:\-]\s*([^\n]+)/);
     if(destM) destino=destM[1].replace(/\*+/g,"").trim();
