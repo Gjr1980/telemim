@@ -2939,7 +2939,17 @@ export default function App(){
             else if(_perfilUser==='promorar') _destsWA=[_numAdminWA];
             else if(_perfilUser==='admin'||_perfilUser==='telemim') _destsWA=[_numPromorarWA];
             if(_destsWA.length>0){
-              var _msgWANova=`🔔 *TELEMIM — NOVO AGENDAMENTO*
+              var _msgWANova;
+              if(_perfilUser==='admin'||_perfilUser==='telemim'){
+                _msgWANova=`✅ *TELEMIM — MUDANÇA CADASTRADA COM SUCESSO*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Nome:* ${nova.nome}
+📅 *Data:* ${_dfWA}
+⏰ *Horário:* ${nova.horario||''}
+━━━━━━━━━━━━━━━━━━━━
+📲 Verifique o app TELEMIM.`;
+              } else {
+                _msgWANova=`🔔 *TELEMIM — NOVO AGENDAMENTO*
 ━━━━━━━━━━━━━━━━━━━━
 👤 *Beneficiário:* ${nova.nome}
 📅 *Data/Hora:* ${_dfWA} às ${nova.horario||''}
@@ -2947,6 +2957,7 @@ export default function App(){
 📋 *Registado por:* ${_nomeUser} (${_perfilUser})
 ━━━━━━━━━━━━━━━━━━━━
 📲 Verifique o app TELEMIM.`;
+              }
               for(var _dWA of _destsWA){ await enviarWAPublico(_dWA,_msgWANova); }
             }
           }catch(_eWA){console.warn('[WA novaAgenda]',_eWA);}
