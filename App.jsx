@@ -2991,7 +2991,6 @@ export default function App(){
               for(var _dWA of _destsWA){ await enviarWAPublico(_dWA,_msgWANova); }
             }
           }catch(_eWA){console.warn('[WA novaAgenda]',_eWA);}
-          }
           // Email SÓ após POST confirmado no banco
           try{
             fetch(SUPA_URL+'/functions/v1/enviar-email-agendamento',{
