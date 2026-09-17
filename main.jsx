@@ -135,8 +135,24 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
       .then(function(reg) {
         console.log('[SW] registrado', reg.scope);
-        setInterval(function(){ reg.update().catch(function(){}); }, 60 * 60 * 1000);
+        // Verificar actualizacoes a cada 5 min (antes era 60 min)
+        setInterval(function(){ reg.update().catch(function(){}); }, 5 * 60 * 1000);
+        // Verificar quando o app volta ao primeiro plano (mobile)
+        document.addEventListener('visibilitychange', function(){
+          if(document.visibilityState === 'visible') reg.update().catch(function(){});
+        });
       })
       .catch(function(e) { console.warn('[SW] erro', e); });
+
+    // Auto-reload quando um novo Service Worker assume o controlo
+    // Isso garante que TODOS os utilizadores recebem a versao mais recente
+    // automaticamente, sem precisar limpar cache manualmente
+    var _swRefreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+      if (_swRefreshing) return;
+      _swRefreshing = true;
+      console.log('[SW] nova versao detectada, recarregando...');
+      window.location.reload();
+    });
   });
 }
