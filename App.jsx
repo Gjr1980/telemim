@@ -751,7 +751,6 @@ function RotaTerceirizada({token}){
                   if(_isFinalNow) return(<div style={{textAlign:"center",padding:"14px",background:"#dcfce7",borderRadius:12,border:"2px solid #86efac",marginBottom:10}}><div style={{fontSize:14,fontWeight:800,color:"#15803d"}}>✅ Mudança Finalizada!</div></div>);
                   if(!_proxBtn) return null;
                   var _handleClickProm=async function(){
-                    if(_proxBtn.label==="🚗 Em Deslocamento"&&(!r.ajudantes||r.ajudantes<=0)){alert("⚠️ Cadastre o número de ajudantes do dia antes de iniciar.");return;}
                     atualizarStatus({id:r.id,_tabela:"agenda"},_proxBtn.campos);
                     // Envio automático de mensagem para o morador quando caminhão sai p/ origem
                     if(_proxBtn._waMsg==="desloc_origem"){
@@ -5228,7 +5227,7 @@ setSyncStatus("✅ Status actualizado!");
                         ✅ Finalizar Mudança
                       </button>
                     ):(
-                      <button onClick={function(){var agora=new Date().toISOString();var body={status:"Realizando",inicio_mudanca_em:agora};
+                      <button onClick={function(){if(!a.ajudantes||a.ajudantes<=0){alert("⚠️ Cadastre o número de ajudantes do dia antes de iniciar.");return;}var agora=new Date().toISOString();var body={status:"Realizando",inicio_mudanca_em:agora};
                         setAgenda(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,body):x;});});
                         fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok)setSyncStatus("✅ Mudança iniciada!");setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);}).catch(function(){setSyncStatus("⚠️ Erro");});
                       }} style={{width:"100%",background:"#7c3aed",border:"none",borderRadius:_dest?12:10,padding:_dest?"14px 0":"10px 0",fontSize:_dest?15:13,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
