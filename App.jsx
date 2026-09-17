@@ -674,7 +674,9 @@ function RotaTerceirizada({token}){
             var _supN=_gN(r.supervisor_id);
             var _temEquipe=_vanN||_camN||_supN||r.assist_social;
             var _steps=[];
-            _steps.push({key:"deslocamento",label:"Deslocamento p/ Origem",icon:"🚐",time:r.inicio_van_em||r.van_saiu_em||r.inicio_caminhao_em||r.caminhao_saiu_em||r.inicio_em});
+            var _deslocTime=r.inicio_van_em||r.van_saiu_em||r.inicio_caminhao_em||r.caminhao_saiu_em||r.inicio_em;
+            var _deslocPorSup=!(r.inicio_van_em||r.van_saiu_em||r.inicio_caminhao_em||r.caminhao_saiu_em)&&r.inicio_em;
+            _steps.push({key:"deslocamento",label:_deslocPorSup?("Deslocamento p/ Origem (Supervisor"+(_supN?": "+_supN:"")+")"):"Deslocamento p/ Origem",icon:_deslocPorSup?"👷":"🚐",time:_deslocTime});
             _steps.push({key:"origem",label:"Chegou na Origem",icon:"📍",time:r.chegou_origem_van_em||r.chegou_origem_cam_em});
             _steps.push({key:"carregando",label:"Carregamento Concluído",icon:"📦",time:(r.saiu_destino_van_em||r.saiu_destino_cam_em)?(r.chegou_origem_van_em||r.chegou_origem_cam_em):null});
             _steps.push({key:"rumo_destino",label:"Deslocamento ao Destino",icon:"🚚",time:r.saiu_destino_van_em||r.saiu_destino_cam_em});
