@@ -1041,6 +1041,41 @@ export default function App(){
   const [mudancaCanhoto, setMudancaCanhoto] = useState(null);
   const [loginForm,setLoginForm]=useState({email:"",senha:""});
   const [loginErro,setLoginErro]=useState("");
+  const [showEsqSenha,setShowEsqSenha]=useState(false);
+  const [esqStep,setEsqStep]=useState(1);
+  const [esqTel,setEsqTel]=useState("");
+  const [esqCodigo,setEsqCodigo]=useState("");
+  const [esqSenha1,setEsqSenha1]=useState("");
+  const [esqSenha2,setEsqSenha2]=useState("");
+  const [esqMsg,setEsqMsg]=useState("");
+  const [esqErro,setEsqErro]=useState("");
+  const [esqLoad,setEsqLoad]=useState(false);
+  async function _esqSolicitar(){
+    if(!esqTel||esqTel.replace(/\D/g,'').length<10){setEsqErro('Informe um telefone válido.');return;}
+    setEsqLoad(true);setEsqErro('');
+    try{
+      var r=await fetch(SUPA_URL+'/functions/v1/recuperar-senha',{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPA_KEY},body:JSON.stringify({acao:'solicitar',telefone:esqTel})});
+      var d=await r.json();
+      if(d.ok){setEsqStep(2);setEsqMsg('Código enviado via WhatsApp!');}
+      else setEsqErro(d.erro||'Erro ao enviar código.');
+    }catch(e){setEsqErro('Erro de conexão.');}
+    setEsqLoad(false);
+  }
+  async function _esqConfirmar(){
+    if(!esqCodigo||esqCodigo.length<6){setEsqErro('Informe o código de 6 dígitos.');return;}
+    if(!esqSenha1||esqSenha1.length<6){setEsqErro('A senha deve ter pelo menos 6 caracteres.');return;}
+    if(esqSenha1!==esqSenha2){setEsqErro('As senhas não coincidem.');return;}
+    setEsqLoad(true);setEsqErro('');
+    try{
+      var r=await fetch(SUPA_URL+'/functions/v1/recuperar-senha',{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPA_KEY},body:JSON.stringify({acao:'confirmar',telefone:esqTel,codigo:esqCodigo,novaSenha:esqSenha1})});
+      var d=await r.json();
+      if(d.ok){
+        setEsqMsg('✅ Senha alterada! Pode fazer login.');
+        setTimeout(function(){setShowEsqSenha(false);setEsqStep(1);setEsqTel('');setEsqCodigo('');setEsqSenha1('');setEsqSenha2('');setEsqMsg('');},2500);
+      } else setEsqErro(d.erro||'Erro ao confirmar.');
+    }catch(e){setEsqErro('Erro de conexão.');}
+    setEsqLoad(false);
+  }
   const [loginLoad,setLoginLoad]=useState(false);
   const [authChecked,setAuthChecked]=useState(true);
   const [listaUsuarios,setListaUsuarios]=useState([])
@@ -4967,7 +5002,7 @@ setSyncStatus("✅ Status actualizado!");
   );
 
   if(!authChecked)return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f8fafc",color:"#64748b"}}>⏳ Carregando...</div>);
-  if(!usuario)return(<div style={{minHeight:"100vh",background:"linear-gradient(135deg,#1e293b,#1e40af)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div style={{background:"#fff",borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}><div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:44,marginBottom:8}}>🚛</div><div style={{fontSize:24,fontWeight:900,color:"#1e293b"}}>TELEMIM</div><div style={{fontSize:11,color:"#64748b",fontWeight:600,letterSpacing:2,marginTop:2}}>GESTÃO DE MUDANÇAS · PROMORAR</div></div><div style={{marginBottom:14}}><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>EMAIL</label><input value={loginForm.email} onChange={e=>setLoginForm(f=>({...f,email:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="seu@email.com" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/></div><div style={{marginBottom:8}}><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>SENHA</label><input type="password" value={loginForm.senha} onChange={e=>setLoginForm(f=>({...f,senha:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/></div>{loginErro&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#dc2626",marginBottom:10}}>{loginErro}</div>}<button onClick={handleLogin} disabled={loginLoad} style={{width:"100%",padding:13,borderRadius:12,background:loginLoad?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:loginLoad?"not-allowed":"pointer",marginTop:8}}>{loginLoad?"⏳ Entrando...":"🔐 Entrar"}</button><div style={{textAlign:"center",marginTop:16,fontSize:10,color:"#94a3b8"}}>TELEMIM v2.0 · Acesso restrito</div></div></div>);
+  if(!usuario)return(<div style={{minHeight:"100vh",background:"linear-gradient(135deg,#1e293b,#1e40af)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div style={{background:"#fff",borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}><div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:44,marginBottom:8}}>🚛</div><div style={{fontSize:24,fontWeight:900,color:"#1e293b"}}>TELEMIM</div><div style={{fontSize:11,color:"#64748b",fontWeight:600,letterSpacing:2,marginTop:2}}>GESTÃO DE MUDANÇAS · PROMORAR</div></div><div style={{marginBottom:14}}><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>EMAIL</label><input value={loginForm.email} onChange={e=>setLoginForm(f=>({...f,email:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="seu@email.com" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/></div><div style={{marginBottom:8}}><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>SENHA</label><input type="password" value={loginForm.senha} onChange={e=>setLoginForm(f=>({...f,senha:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/></div>{loginErro&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#dc2626",marginBottom:10}}>{loginErro}</div>}<button onClick={handleLogin} disabled={loginLoad} style={{width:"100%",padding:13,borderRadius:12,background:loginLoad?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:loginLoad?"not-allowed":"pointer",marginTop:8}}>{loginLoad?"⏳ Entrando...":"🔐 Entrar"}</button><div style={{textAlign:"center",marginTop:12}}><span onClick={function(){setShowEsqSenha(true);setEsqStep(1);setEsqErro('');setEsqMsg('');}} style={{fontSize:12,color:"#1e40af",fontWeight:700,cursor:"pointer",textDecoration:"underline"}}>Esqueci minha senha</span></div><div style={{textAlign:"center",marginTop:16,fontSize:10,color:"#94a3b8"}}>TELEMIM v2.0 · Acesso restrito</div></div></div>);
     return(
     <div style={{minHeight:"100vh",background:COLORS.bg,fontFamily:"'Segoe UI',system-ui,sans-serif",color:COLORS.text,paddingBottom:50}}>
 
