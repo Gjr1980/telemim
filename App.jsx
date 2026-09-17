@@ -4595,6 +4595,14 @@ setSyncStatus("✅ Status actualizado!");
       try{
         var _pdfB64=doc.output("datauristring").split(",")[1];
         var _adminTel=(cfgWA.admin_whatsapp||"").replace(/\D/g,"");
+        // Enviar e-mail automatico para o Promorar com o termo assinado em PDF
+        try{
+          await fetch(SUPA_URL+"/functions/v1/enviar-email-termo-assinado",{
+            method:"POST",
+            headers:{"Content-Type":"application/json",apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},
+            body:JSON.stringify({nome:m.nome||"",selo:m.selo||"",data:m.data||"",origem:m.origem||"",destino:m.destino||"",pdfBase64:_pdfB64})
+          });
+        }catch(_eEmailTermo){console.warn("[email termo assinado]",_eEmailTermo);}
         var _clienteTel=(m.contato||"").replace(/\D/g,"");
         var _supTel=(cfgWA.supervisor_whatsapp||"").replace(/\D/g,"");
         var _msg="\uD83D\uDCCB *OS #"+m.id+" - Canhoto Assinado*\n\n\uD83D\uDC64 Cliente: "+m.nome+"\n\uD83D\uDCC5 Data: "+(m.data||"")+"\n\uD83D\uDCCD Destino: "+(m.destino||"-")+"\n\n\u2705 O canhoto electrónico foi assinado. O PDF já foi guardado. Partilhe o ficheiro em anexo.";
@@ -4959,43 +4967,7 @@ setSyncStatus("✅ Status actualizado!");
   );
 
   if(!authChecked)return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f8fafc",color:"#64748b"}}>⏳ Carregando...</div>);
-  if(!usuario)return(<div style={{minHeight:"100vh",background:"linear-gradient(135deg,#1e293b,#1e40af)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div style={{background:"#fff",borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}><div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:44,marginBottom:8}}>🚛</div><div style={{fontSize:24,fontWeight:900,color:"#1e293b"}}>TELEMIM</div><div style={{fontSize:11,color:"#64748b",fontWeight:600,letterSpacing:2,marginTop:2}}>GESTÃO DE MUDANÇAS · PROMORAR</div></div><div style={{marginBottom:14}}><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>EMAIL</label><input value={loginForm.email} onChange={e=>setLoginForm(f=>({...f,email:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="seu@email.com" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/></div><div style={{marginBottom:8}}><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>SENHA</label><input type="password" value={loginForm.senha} onChange={e=>setLoginForm(f=>({...f,senha:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/></div>{loginErro&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#dc2626",marginBottom:10}}>{loginErro}</div>}<button onClick={handleLogin} disabled={loginLoad} style={{width:"100%",padding:13,borderRadius:12,background:loginLoad?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:loginLoad?"not-allowed":"pointer",marginTop:8}}>{loginLoad?"⏳ Entrando...":"🔐 Entrar"}</button><div style={{textAlign:"center",marginTop:16,fontSize:10,color:"#94a3b8"}}>TELEMIM v2.0 · Acesso restrito</div>{showEsqSenha&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-          <div style={{background:"#fff",borderRadius:16,padding:20,maxWidth:360,width:"100%"}}>
-            <div style={{fontWeight:900,fontSize:16,marginBottom:4,color:"#1e293b"}}>🔐 Recuperar Senha</div>
-            <div style={{fontSize:12,color:"#64748b",marginBottom:14}}>{esqEtapa===1?"Digite o telefone cadastrado no sistema.":"Digite o código recebido por WhatsApp e a nova senha."}</div>
-            {esqEtapa===1&&(<div>
-              <input type="tel" placeholder="Ex: 81992440900" value={esqTelefone} onChange={function(e){setEsqTelefone(e.target.value);}} style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box",marginBottom:10}}/>
-              {esqMsg&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#dc2626",marginBottom:10}}>{esqMsg}</div>}
-              <button disabled={esqLoad} onClick={function(){
-                if(!esqTelefone||esqTelefone.replace(/\D/g,'').length<8){setEsqMsg('Informe um telefone válido.');return;}
-                setEsqLoad(true);setEsqMsg('');
-                fetch(SUPA_URL+'/functions/v1/solicitar-recuperacao-senha',{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPA_KEY},body:JSON.stringify({telefone:esqTelefone})})
-                  .then(function(r){return r.json();})
-                  .then(function(d){setEsqLoad(false);if(d&&d.ok){setEsqEtapa(2);setEsqMsg('');}else{setEsqMsg((d&&d.erro)||'Erro ao enviar código.');}})
-                  .catch(function(){setEsqLoad(false);setEsqMsg('Erro de conexão.');});
-              }} style={{width:"100%",padding:12,borderRadius:10,background:esqLoad?"#94a3b8":"#1e40af",color:"#fff",fontWeight:800,fontSize:14,border:"none",cursor:esqLoad?"not-allowed":"pointer"}}>{esqLoad?"⏳ Enviando...":"Enviar código por WhatsApp"}</button>
-            </div>)}
-            {esqEtapa===2&&(<div>
-              <input type="text" placeholder="Código de 6 dígitos" value={esqCodigo} maxLength={6} onChange={function(e){setEsqCodigo(e.target.value.replace(/\D/g,''));}} style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:16,letterSpacing:4,textAlign:"center",outline:"none",boxSizing:"border-box",marginBottom:10}}/>
-              <input type="password" placeholder="Nova senha (mín. 6 caracteres)" value={esqNovaSenha} onChange={function(e){setEsqNovaSenha(e.target.value);}} style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box",marginBottom:10}}/>
-              <input type="password" placeholder="Confirmar nova senha" value={esqConfirmaSenha} onChange={function(e){setEsqConfirmaSenha(e.target.value);}} style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box",marginBottom:10}}/>
-              {esqMsg&&<div style={{background:esqMsg.indexOf('sucesso')>=0?"#f0fdf4":"#fef2f2",border:"1px solid "+(esqMsg.indexOf('sucesso')>=0?"#86efac":"#fca5a5"),borderRadius:8,padding:"8px 12px",fontSize:12,color:esqMsg.indexOf('sucesso')>=0?"#15803d":"#dc2626",marginBottom:10}}>{esqMsg}</div>}
-              <button disabled={esqLoad} onClick={function(){
-                if(esqCodigo.length!==6){setEsqMsg('Digite o código de 6 dígitos.');return;}
-                if(esqNovaSenha.length<6){setEsqMsg('A senha deve ter pelo menos 6 caracteres.');return;}
-                if(esqNovaSenha!==esqConfirmaSenha){setEsqMsg('As senhas não coincidem.');return;}
-                setEsqLoad(true);setEsqMsg('');
-                fetch(SUPA_URL+'/functions/v1/validar-codigo-recuperacao',{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPA_KEY},body:JSON.stringify({telefone:esqTelefone,codigo:esqCodigo,novaSenha:esqNovaSenha})})
-                  .then(function(r){return r.json();})
-                  .then(function(d){setEsqLoad(false);if(d&&d.ok){setEsqMsg('Senha alterada com sucesso! Faça login.');setTimeout(function(){setShowEsqSenha(false);},2500);}else{setEsqMsg((d&&d.erro)||'Erro ao validar código.');}})
-                  .catch(function(){setEsqLoad(false);setEsqMsg('Erro de conexão.');});
-              }} style={{width:"100%",padding:12,borderRadius:10,background:esqLoad?"#94a3b8":"#059669",color:"#fff",fontWeight:800,fontSize:14,border:"none",cursor:esqLoad?"not-allowed":"pointer"}}>{esqLoad?"⏳ Validando...":"Alterar senha"}</button>
-            </div>)}
-            <button onClick={function(){setShowEsqSenha(false);}} style={{width:"100%",padding:10,borderRadius:10,background:"none",color:"#64748b",fontWeight:700,fontSize:13,border:"none",cursor:"pointer",marginTop:8}}>Cancelar</button>
-          </div>
-        </div>
-      )}</div></div>);
+  if(!usuario)return(<div style={{minHeight:"100vh",background:"linear-gradient(135deg,#1e293b,#1e40af)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div style={{background:"#fff",borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}><div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:44,marginBottom:8}}>🚛</div><div style={{fontSize:24,fontWeight:900,color:"#1e293b"}}>TELEMIM</div><div style={{fontSize:11,color:"#64748b",fontWeight:600,letterSpacing:2,marginTop:2}}>GESTÃO DE MUDANÇAS · PROMORAR</div></div><div style={{marginBottom:14}}><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>EMAIL</label><input value={loginForm.email} onChange={e=>setLoginForm(f=>({...f,email:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="seu@email.com" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/></div><div style={{marginBottom:8}}><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",marginBottom:5}}>SENHA</label><input type="password" value={loginForm.senha} onChange={e=>setLoginForm(f=>({...f,senha:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••" style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box"}}/></div>{loginErro&&<div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#dc2626",marginBottom:10}}>{loginErro}</div>}<button onClick={handleLogin} disabled={loginLoad} style={{width:"100%",padding:13,borderRadius:12,background:loginLoad?"#94a3b8":"#1e40af",color:"#fff",fontWeight:900,fontSize:15,border:"none",cursor:loginLoad?"not-allowed":"pointer",marginTop:8}}>{loginLoad?"⏳ Entrando...":"🔐 Entrar"}</button><div style={{textAlign:"center",marginTop:16,fontSize:10,color:"#94a3b8"}}>TELEMIM v2.0 · Acesso restrito</div></div></div>);
     return(
     <div style={{minHeight:"100vh",background:COLORS.bg,fontFamily:"'Segoe UI',system-ui,sans-serif",color:COLORS.text,paddingBottom:50}}>
 
