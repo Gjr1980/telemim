@@ -3982,23 +3982,15 @@ export default function App(){
           var _emoji=_isRealizando?'🚛':'✅';
           var _titulo=_isRealizando?'MUDÂNÇA INICIADA':'MUDÂNÇA CONCLUÍDA';
           var _hora=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-          var _msgSup=_emoji+' *TELEMIM — '+_titulo+'*
-' +
-            '━━━━━━━━━━━━━━━━━━━━
-' +
-            '👤 *Morador:* '+(ag.nome||'')+'
-' +
-            '📅 *Data:* '+_dfWA2+' às '+(ag.horario||'')+'
-' +
-            '🏘️ *Comunidade:* '+(ag.comunidade||'')+'
-' +
-            (_isRealizando?'🚛 *Supervisor iniciou:* ':'✅ *Supervisor finalizou:* ')+_supNomeWA+'
-' +
-            '⏰ *Hora:* '+_hora+'
-' +
-            '━━━━━━━━━━━━━━━━━━━━
-' +
-            '🔧 TELEMIM PROMORAR';
+          var _msgSup=`${_emoji} *TELEMIM — ${_titulo}*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Morador:* ${ag.nome||''}
+📅 *Data:* ${_dfWA2} às ${ag.horario||''}
+🏘️ *Comunidade:* ${ag.comunidade||''}
+${_isRealizando?'🚛 *Supervisor iniciou:* ':'✅ *Supervisor finalizou:* '}${_supNomeWA}
+⏰ *Hora:* ${_hora}
+━━━━━━━━━━━━━━━━━━━━
+🔧 TELEMIM PROMORAR`;
           var _numsWA=['5581992440900','5581987596340']; // admin + promorar
           // Adicionar social se existir na agenda
           if(ag.assist_social_num) _numsWA.push(ag.assist_social_num);
