@@ -552,7 +552,13 @@ function RotaTerceirizada({token}){
     var _tipoLabel = tipo==='add'?'NOVO AGENDAMENTO':tipo==='delete'?'EXCLUSÃO DE AGENDAMENTO':'ALTERAÇÃO DE DATA/HORA';
     var _emoji = tipo==='add'?'🔔':tipo==='delete'?'🗑️':'✏️';
     var _df = dataAg ? dataAg.split('-').reverse().join('/') : '';
-    var _msg =\n      _emoji+' *TELEMIM — '+_tipoLabel+'*\n'+\n      '━━━━━━━━━━━━━━━━━━━━\n'+\n      '👤 *Beneficiário:* '+nomeAg+'\n'+\n      '📅 *Data/Hora:* '+_df+' às '+horarioAg+'\n'+\n      '📋 *Solicitado por:* '+solicitadoPorNome+'\n'+\n      '━━━━━━━━━━━━━━━━━━━━\n'+\n      '⚠️ Aguarda sua *aprovação* no app TELEMIM.';
+    var _msg = _emoji+' *TELEMIM — '+_tipoLabel+`*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Beneficiário:* ${nomeAg}
+📅 *Data/Hora:* ${_df} às ${horarioAg}
+📋 *Solicitado por:* ${solicitadoPorNome}
+━━━━━━━━━━━━━━━━━━━━
+⚠️ Aguarda sua *aprovação* no app TELEMIM.`;
     for(var _num of destinatarios){
       if(_num) await enviarWAPublico(_num, _msg);
     }
