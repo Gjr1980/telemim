@@ -3115,6 +3115,14 @@ export default function App(){
       const pdfFinal=doc.output("datauristring").split(",")[1];
       const nm="Canhoto_"+(ag.nome||"morador").replace(/\s+/g,"_")+"_"+(ag.data||"sem-data")+".pdf";
       await salvarCanhotoNoDrive(ag.id,pdfFinal,nm);
+      // E-mail automatico para Promorar com o termo assinado
+      try{
+        fetch(SUPA_URL+'/functions/v1/enviar-email-canhoto',{
+          method:'POST',
+          headers:{'Content-Type':'application/json',apikey:SUPA_KEY},
+          body:JSON.stringify({pdfBase64:pdfFinal,clienteNome:ag.nome||'',data:ag.data||'',selo:ag.selo||''})
+        }).catch(function(_eEmail){console.warn('[email canhoto]',_eEmail);});
+      }catch(_eEmail2){console.warn('[email canhoto]',_eEmail2);}
     }catch(err){console.warn("[assinatura-pdf]",err);}
   }
   function converterEmMudanca(ag){
