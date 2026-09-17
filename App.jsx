@@ -5598,7 +5598,7 @@ setSyncStatus("✅ Status actualizado!");
 })()}
         </div>
       )}
-        {{(isAdmin||isPromorar)&&(function(){
+        {(isAdmin||isPromorar)&&(function(){
         var _solPend=(solicitacoesAgenda||[]).filter(function(s){return s.status==='pendente';});
         if(_solPend.length===0) return null;
 
