@@ -169,12 +169,12 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
       if(_isAj){
         var aj=parseInt(d.numAj)||1;
         var porAj=aj>0?(parseFloat(d.val)||0)/aj:0;
-        txtDiario+="Data "+df+" - "+d.numMud+" mudanças x "+aj+" "+(aj===1?"ajudante":"ajudantes")+" = R$ "+_fvs(d.val)+" (R$ "+_fvs(porAj)+"/ajudante)"+NL;
+        txtDiario+="Data *"+df+"* - "+d.numMud+" mudanças x "+aj+" "+(aj===1?"ajudante":"ajudantes")+" = R$ "+_fvs(d.val)+" (R$ "+_fvs(porAj)+"/ajudante)"+NL+NL;
         _somaAj+=parseFloat(d.val)||0;_qtdAj+=aj;
       }else if(p.cargo==="van"){
-        txtDiario+="Data "+df+" - Diária - R$ "+_fvs(d.val)+NL;
+        txtDiario+="Data *"+df+"* - Diária - R$ "+_fvs(d.val)+NL+NL;
       }else{
-        txtDiario+="Data "+df+" - "+d.numMud+" mudanças - R$ "+_fvs(d.val)+NL;
+        txtDiario+="Data *"+df+"* - "+d.numMud+" mudanças - R$ "+_fvs(d.val)+NL+NL;
       }
     });
     var ico=_ico[p.cargo]||"📋";
