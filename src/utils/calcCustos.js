@@ -62,14 +62,14 @@ export function _calcCustos(mudP, cdP, cpP, RULES, mudDesp, eqDiaP, solFin){
     if(numMud===0) return;
     var cdDia=(cdP||[]).find(function(cd){return cd.data===data;})||{custo_almoco:0,despesa_extra:0};
     // VEÍCULOS: só cobra se teve veículo naquele dia
-    var numMudCam=mudDia.filter(function(m){return m.caminhao||m.motorista_caminhao_id;}).length;
+    var mudCamList=mudDia.filter(function(m){return m.caminhao||m.motorista_caminhao_id;});var numMudCam=mudCamList.length;var _capCam=parseFloat(RULES.capacidadeCaminhaoM3)||32;var _extraViagens=mudCamList.reduce(function(s,m){var med=_fv(m.medicao);var viag=med>_capCam?Math.ceil(med/_capCam):1;return s+Math.max(0,viag-1);},0);var _camAddViagem=_fv(RULES.camAddViagem)||120;
     var numMudVan=mudDia.filter(function(m){return m.van||m.motorista_van_id;}).length;
-    if(numMudCam>0){var camVal=_calcDiario(numMudCam,0,"caminhao",RULES);cCam+=camVal;_camDias.push({data:data,numMud:numMudCam,valor:camVal});}
+    if(numMudCam>0){var camVal=_calcDiario(numMudCam,0,"caminhao",RULES)+_extraViagens*_camAddViagem;cCam+=camVal;_camDias.push({data:data,numMud:numMudCam,valor:camVal,extraViagens:_extraViagens});}
     if(numMudVan>0){var vanVal=_calcDiario(numMudVan,0,"van",RULES);cVan+=vanVal;_vanDias.push({data:data,numMud:numMudVan,valor:vanVal});}
     // AJUDANTES: só se tem equipe_dia (sem fallback inventado)
     var _eqDia=(eqDiaP||[]).find(function(e){return e.data===data&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
     if(_eqDia){
-      var valPorAj=_aj1a+Math.max(0,numMud-1)*_ajAdd;
+      var valPorAj=_aj1a+Math.max(0,numMud-1)*_ajAdd+_extraViagens*_ajAdd;
       _eqDia.ajudantes.forEach(function(aj){
         var _ajKeyNorm=_norm(aj.nome);
         if(_remAjSet[_ajKeyNorm])return;
