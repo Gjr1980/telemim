@@ -2003,7 +2003,7 @@ export default function App(){
       if(d==="admin"){var _aw=cfgWA.admin_whatsapp;if(!_aw){var _au=listaUsuarios.find(function(x){return x.perfil==="admin"&&x.ativo&&x.contato;});if(_au)_aw=_au.contato;}if(_aw)nums.push(_aw);}
       if(d==="supervisor"&&ag.supervisor_id){var u=listaUsuarios.find(function(x){return x.id===ag.supervisor_id;});if(u&&u.contato)nums.push(u.contato);}
       if(d==="promorar"){listaUsuarios.filter(function(x){return x.perfil==="promorar"&&x.ativo&&x.contato;}).forEach(function(x){nums.push(x.contato);});}
-      if(d==="social"){listaUsuarios.filter(function(x){return x.perfil==="social"&&x.ativo&&x.contato;}).forEach(function(x){nums.push(x.contato);});}
+      if(d==="social"&&ag.assist_social){var _uSoc=listaUsuarios.find(function(x){return x.nome===ag.assist_social&&x.perfil==="social"&&x.ativo&&x.contato;});if(_uSoc)nums.push(_uSoc.contato);}
       if(d==="cliente"&&ag.contato){nums.push(ag.contato);}
       if(d==="assist_social"&&ag.assist_social){var _asFind=assistSocialList.find(function(x){return x.nome===ag.assist_social;});if(_asFind&&_asFind.contato)nums.push(_asFind.contato);}
     });
