@@ -5679,6 +5679,8 @@ setSyncStatus("✅ Status actualizado!");
               }
               if(_sol.tipo==='add'&&_sol.novo_valor){
                 var _rowNova=_sol.novo_valor;
+                _rowNova.medicao=parseFloat(_rowNova.medicao)||0;
+                _rowNova.ajudantes=parseInt(_rowNova.ajudantes)||0;
                 _rowNova.adm_approved=true;
                 _rowNova.adm_approved_by=_nomApr;
                 _rowNova.status='confirmado';
