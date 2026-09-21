@@ -1819,12 +1819,11 @@ export default function App(){
       var _terminou=item.termino_em||item.termino_van_em||item.termino_caminhao_em;
       return d.indexOf("concluido")>=0||_terminou||["Concluido","Concluído","concluido","concluida","realizado","realizada"].indexOf(_st)>=0;
     }
+    // PROTOCOLO: Monitoramento reflete APENAS a Agenda (o que ainda esta em andamento).
+    // Uma vez finalizada, a mudanca sai da Agenda (deleted_at) e passa a existir so em Registros (mudancas) -
+    // NAO deve voltar a aparecer aqui, para nao duplicar com a aba Registros.
     var _todayAg=(agenda||[]).filter(function(a){return a.data===_hj&&!a.deleted_at&&a.supervisor_id;});
-    var _todayMud=(mudancas||[]).filter(function(m){return m.data===_hj&&!m.deleted_at&&m.supervisor_id;});
-    var _seen={};
-    var _all=[];
-    _todayAg.forEach(function(a){var key=(a.nome||"").toLowerCase().trim()+"|"+a.data;_seen[key]=true;_all.push(a);});
-    _todayMud.forEach(function(m){var key=(m.nome||"").toLowerCase().trim()+"|"+m.data;if(!_seen[key]){_seen[key]=true;_all.push(m);}});
+    var _all=_todayAg;
     var _groups={};
     _all.forEach(function(item){
       var sid=item.supervisor_id;
