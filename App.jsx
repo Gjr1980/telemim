@@ -1183,6 +1183,7 @@ export default function App(){
   async function cobrarRastreio(){if(!confirm("Enviar WhatsApp de cobranca para todos os motoristas sem rastreamento ativo?"))return;setRastreioCobrando(true);try{var r=await fetch(SUPA_URL+"/rest/v1/rpc/cobrar_traccar_motoristas",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json"}),body:"{}"});if(r.ok){var d=await r.json();var _c=(d&&d[0]&&d[0].cobrados)||0;alert("\u2705 "+_c+" motorista(s) cobrado(s) por WhatsApp.");loadRastreio();}else{alert("\u26a0\ufe0f Servico indisponivel no momento.");}}catch(e){alert("\u26a0\ufe0f Erro ao cobrar.");}setRastreioCobrando(false);}
   const [importTextAg,setImportTextAg]=useState("");
   const [form,setForm]=useState(initForm);
+  const [agFormErrors,setAgFormErrors]=useState({});
   const [agForm,setAgForm]=useState({...initForm,status:"confirmado",caminhao:true,van:true});
   const [rel,setRel]=useState(null);
   const [relDataIni,setRelDataIni]=useState("");
@@ -2887,7 +2888,15 @@ export default function App(){
     return _ws;
   }
   async function handleAddAg(){
-    if(!agForm.nome||!agForm.data) return;
+    var _errsAg={};
+    if(!agForm.nome||!agForm.nome.trim()) _errsAg.nome=true;
+    if(!agForm.data) _errsAg.data=true;
+    if(Object.keys(_errsAg).length>0){
+      setAgFormErrors(_errsAg);
+      alert("⚠️ Preencha os campos obrigatórios destacados em vermelho.");
+      return;
+    }
+    setAgFormErrors({});
     var _warnings=_validarCadastroAg(agForm);
     if(_warnings.length>0){
       setCadastroWarnings({warnings:_warnings,onConfirm:function(){setCadastroWarnings(null);_doAddAg();},onCancel:function(){setCadastroWarnings(null);}});
@@ -6750,21 +6759,14 @@ setSyncStatus("✅ Status actualizado!");
           <Card>
             <div style={{fontSize:17,fontWeight:800,marginBottom:14,color:COLORS.purple}}>📅 Novo Agendamento</div>
             <button onClick={()=>{setShowImportAg(true);setImportTextAg("");}} style={{background:"#f5f3ff",border:"1.5px solid "+COLORS.purple,color:COLORS.purple,borderRadius:10,padding:"7px 14px",fontWeight:800,fontSize:12,cursor:"pointer"}}>📥 Importar Solicitação</button>
-            <Inp label="Nome" icon="👤" value={agForm.nome} onChange={v=>setAgForm(f=>({...f,nome:v}))} placeholder="Nome completo"/>
+            <Inp label="Nome" icon="👤" value={agForm.nome} onChange={v=>setAgForm(f=>({...f,nome:v}))} placeholder="Nome completo" error={agFormErrors.nome}/>
             <Inp label="Selo" icon="🏷️" value={agForm.selo||""} onChange={v=>setAgForm(f=>({...f,selo:v}))} placeholder="Ex: VT-020-021-A"/>
             <Inp label="Comunidade" icon="📍" value={agForm.comunidade||""} onChange={v=>setAgForm(f=>({...f,comunidade:v}))} placeholder="Nome da comunidade"/>
-            <Inp label="Data" icon="📅" type="date" value={agForm.data} onChange={v=>setAgForm(f=>({...f,data:v}))}/>
+            <Inp label="Data" icon="📅" type="date" value={agForm.data} onChange={v=>setAgForm(f=>({...f,data:v}))} error={agFormErrors.data}/>
             <Inp label="Horário" icon="⏰" type="time" value={agForm.horario||""} onChange={v=>setAgForm(f=>({...f,horario:v}))}/>
             <InpEndereco label="Saída" icon="📦" value={agForm.origem||""} onChange={v=>setAgForm(f=>({...f,origem:v}))} placeholder="Endereço de origem" mapboxToken={MAPBOX_TOKEN}/>
             <InpEndereco label="Chegada" icon="🏠" value={agForm.destino||""} onChange={v=>setAgForm(f=>({...f,destino:v}))} placeholder="Endereço de destino" mapboxToken={MAPBOX_TOKEN}/>
             <Inp label="Contato" icon="📞" value={agForm.contato||""} onChange={v=>setAgForm(f=>({...f,contato:v}))} placeholder="Ex: 81 99999-9999"/>
-            <div style={{marginBottom:12}}>
-              <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:5,textTransform:"uppercase"}}>📝 Observação</label>
-              <textarea value={agForm.observacao||""} onChange={e=>setAgForm(f=>({...f,observacao:e.target.value}))} placeholder="Observações adicionais (opcional)" rows={3}
-                style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:10,color:COLORS.text,padding:"10px 13px",fontSize:14,outline:"none",boxSizing:"border-box",resize:"vertical",fontFamily:"inherit"}}
-                onFocus={e=>e.target.style.border=`1.5px solid ${COLORS.accent}`}
-                onBlur={e=>e.target.style.border=`1.5px solid ${COLORS.cardBorder}`}/>
-            </div>
             <Tog label="🚐 Van" value={agForm.van} onChange={v=>setAgForm(f=>({...f,van:v}))}/>
             <Tog label="🚚 Caminhão" value={agForm.caminhao||false} onChange={v=>setAgForm(f=>({...f,caminhao:v}))}/>
             <div style={{marginBottom:12}}>
