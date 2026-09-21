@@ -2635,7 +2635,7 @@ export default function App(){
     setSavingUser(true);setUserMsg("");
     try{
       var _body={nome:novoUser.nome,email:novoUser.email,senha:novoUser.senha,perfil:novoUser.perfil};
-      if(novoUser.contato)_body.contato=novoUser.contato.trim();
+      if(novoUser.contato){var _telLimpo=novoUser.contato.replace(/\D/g,"");if(_telLimpo.length<10||_telLimpo.length>11){setUserMsg("⚠️ Telefone inválido. Use DDD + número, ex: 81991234567");setSavingUser(false);return;}_body.contato=_telLimpo;}
       if(novoUser.perfil==="motorista"){_body.tipo_veiculo=novoUser.tipo_veiculo;if(novoUser.placa_veiculo)_body.placa_veiculo=novoUser.placa_veiculo.toUpperCase().trim();}
       const res=await fetch(SUPA_URL+"/functions/v1/criar-usuario",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+(usuario?.token||''),"Content-Type":"application/json"},body:JSON.stringify(_body)});
       const d=await res.json();
