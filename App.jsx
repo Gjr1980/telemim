@@ -6,7 +6,7 @@ import { VAPID_PUBLIC, COLORS, RULES, DADOS_INICIAIS, AGENDA_INICIAIS, initForm 
 import { urlBase64ToUint8Array, subscribePush, sendPushNotification } from "./src/utils/push.js";
 import { idbSet, idbGet, addToSyncQueue, processSyncQueue, getSyncQueueCount, clearSyncQueue, onQueueChange } from "./src/utils/offline.js";
 import { _calcDiario, _calcCustos } from "./src/utils/calcCustos.js";
-import { exportarPDF, exportarExcel } from "./src/utils/exportar.js";
+// exportarPDF/exportarExcel agora carregados dinamicamente (lazy) para reduzir bundle inicial
 import { Badge, Card, Inp, InpEndereco, Tog, playNotifSound } from "./src/components/shared.jsx";
 
 // ── Globais a nível de módulo ────────────────────────────────────────
@@ -6854,8 +6854,8 @@ setSyncStatus("✅ Status actualizado!");
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px"}}>📊 Gerencial — {_nm}</div>
                 <div style={{display:"flex",gap:6}}>
-                  <button onClick={function(){exportarPDF(_r,_nm,_r.detAjudantes,_r.detCamDias,_r.detVanDias,"Promorar");}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #dc2626",background:"#fef2f2",color:"#dc2626",fontSize:10,fontWeight:700,cursor:"pointer"}}>📄 PDF</button>
-                  <button onClick={function(){exportarExcel(_r,_nm,_r.detAjudantes,_r.detCamDias,_r.detVanDias,_mudM,"Promorar");}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #16a34a",background:"#f0fdf4",color:"#16a34a",fontSize:10,fontWeight:700,cursor:"pointer"}}>📊 Excel</button>
+                  <button onClick={async function(){var _mod=await import("./src/utils/exportar.js");_mod.exportarPDF(_r,_nm,_r.detAjudantes,_r.detCamDias,_r.detVanDias,"Promorar");}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #dc2626",background:"#fef2f2",color:"#dc2626",fontSize:10,fontWeight:700,cursor:"pointer"}}>📄 PDF</button>
+                  <button onClick={async function(){var _mod=await import("./src/utils/exportar.js");_mod.exportarExcel(_r,_nm,_r.detAjudantes,_r.detCamDias,_r.detVanDias,_mudM,"Promorar");}} style={{padding:"5px 10px",borderRadius:8,border:"1.5px solid #16a34a",background:"#f0fdf4",color:"#16a34a",fontSize:10,fontWeight:700,cursor:"pointer"}}>📊 Excel</button>
                 </div>
               </div>
               {(function(){
