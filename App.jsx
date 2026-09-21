@@ -4622,6 +4622,7 @@ setSyncStatus("✅ Status actualizado!");
             body:JSON.stringify({nome:m.nome||"",selo:m.selo||"",data:m.data||"",origem:m.origem||"",destino:m.destino||"",pdfBase64:_pdfB64})
           });
         }catch(_eEmailTermo){console.warn("[email termo assinado]",_eEmailTermo);}
+        try{await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+m.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json"}),body:JSON.stringify({assinado_em:new Date().toISOString()})});}catch(_eAssinEm){console.warn("[assinado_em]",_eAssinEm);}
         var _clienteTel=(m.contato||"").replace(/\D/g,"");
         var _supTel=(cfgWA.supervisor_whatsapp||"").replace(/\D/g,"");
         var _msg="\uD83D\uDCCB *OS #"+m.id+" - Canhoto Assinado*\n\n\uD83D\uDC64 Cliente: "+m.nome+"\n\uD83D\uDCC5 Data: "+(m.data||"")+"\n\uD83D\uDCCD Destino: "+(m.destino||"-")+"\n\n\u2705 O canhoto electrónico foi assinado. O PDF já foi guardado. Partilhe o ficheiro em anexo.";
