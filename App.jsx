@@ -2881,10 +2881,6 @@ export default function App(){
     if(!form.origem||form.origem.trim().length<8) _ws.push({tipo:"origem_curta",msg:"📦 Endereço de origem vazio/curto. Confirma?"});
     if(!form.destino||form.destino.trim().length<8) _ws.push({tipo:"destino_curto",msg:"🏠 Endereço de destino vazio/curto. Confirma?"});
     // Supervisor (Nível 1): aviso se há mais de 1 supervisor ativo e nenhum foi selecionado
-    if(!form.supervisor_id){
-      var _supsAtivos=(listaUsuarios||[]).filter(function(u){return u.perfil==="supervisor"&&u.ativo;});
-      if(_supsAtivos.length>1) _ws.push({tipo:"sem_supervisor",msg:"👷 Nenhum supervisor selecionado. Sem isso não conta no financeiro dele. Confirma?"});
-    }
     return _ws;
   }
   async function handleAddAg(){
