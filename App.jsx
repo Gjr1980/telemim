@@ -5679,25 +5679,39 @@ setSyncStatus("✅ Status actualizado!");
               }
               if(_sol.tipo==='add'&&_sol.novo_valor){
                 var _rowNova=_sol.novo_valor;
-                _rowNova.medicao=parseFloat(_rowNova.medicao)||0;
-                _rowNova.ajudantes=parseInt(_rowNova.ajudantes)||0;
                 _rowNova.adm_approved=true;
                 _rowNova.adm_approved_by=_nomApr;
                 _rowNova.status='confirmado';
+                var _rAgWrite;
                 if(_sol.agenda_id){
                   // Ja existe o registo provisorio (AGUARDANDO APROVACAO) - apenas atualizar
                   delete _rowNova.observacao;
-                  await fetch(SUPA_URL+'/rest/v1/agenda?id=eq.'+_sol.agenda_id,{
+                  _rAgWrite=await fetch(SUPA_URL+'/rest/v1/agenda?id=eq.'+_sol.agenda_id,{
                     method:'PATCH',
-                    headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=minimal'}),
+                    headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=representation'}),
                     body:JSON.stringify(Object.assign({},_rowNova,{observacao:(_sol.novo_valor.observacao||'')}))
                   });
                 }else{
-                  await fetch(SUPA_URL+'/rest/v1/agenda',{
+                  _rAgWrite=await fetch(SUPA_URL+'/rest/v1/agenda',{
                     method:'POST',
                     headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=representation'}),
                     body:JSON.stringify(_rowNova)
                   });
+                }
+                if(!_rAgWrite.ok){
+                  var _errAgTxt='';
+                  try{ var _errAgJson=await _rAgWrite.json(); _errAgTxt=_errAgJson.message||JSON.stringify(_errAgJson); }catch(_e3){ _errAgTxt='HTTP '+_rAgWrite.status; }
+                  alert('❌ Solicitação marcada como aprovada, mas FALHOU ao criar/atualizar o registo na Agenda:\n\n'+_errAgTxt+'\n\nAvise o desenvolvedor com este erro.');
+                  console.error('[aprovar agenda]',_errAgTxt);
+                }else{
+                  var _dAgWrite=await _rAgWrite.json().catch(function(){return null;});
+                  var _novoReg=Array.isArray(_dAgWrite)?_dAgWrite[0]:_dAgWrite;
+                  if(_novoReg){
+                    setAgenda(function(prev){
+                      var _existe=prev.some(function(a){return a.id===_novoReg.id;});
+                      return _existe?prev.map(function(a){return a.id===_novoReg.id?_novoReg:a;}):[_novoReg].concat(prev);
+                    });
+                  }
                 }
                 loadAg();
               } else if(_sol.tipo==='delete'&&_sol.agenda_id){
