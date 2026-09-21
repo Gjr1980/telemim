@@ -11,7 +11,4 @@ export default defineConfig({
     minify: 'esbuild',
     target: 'es2015',
   },
-  esbuild: {
-    keepNames: true,
-  },
 })
