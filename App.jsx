@@ -528,23 +528,26 @@ function RotaTerceirizada({token}){
   // ── Helper: dispara WhatsApp via edge function enviar-whatsapp-publico (sem JWT) ──
   // ── Helper: cria solicitacao de agenda pendente de aprovacao ──
   async function _criarSolicitacaoAgenda(tipo, agendaId, dados, solicitadoPor, solicitadoPorNome){
-    try{
-      var _hSol = Object.assign({}, getH(), {'Content-Type':'application/json','Prefer':'return=representation'});
-      var _solRow = {
-        tipo: tipo,
-        agenda_id: agendaId,
-        solicitado_por: solicitadoPor,
-        solicitado_por_nome: solicitadoPorNome,
-        novo_valor: dados || null,
-        status: 'pendente'
-      };
-      var _rSol = await fetch(SUPA_URL+'/rest/v1/solicitacoes_agenda', {
-        method: 'POST', headers: _hSol, body: JSON.stringify(_solRow)
-      });
-      var _dSol = await _rSol.json();
-      var _solId = Array.isArray(_dSol) ? _dSol[0]?.id : _dSol?.id;
-      return _solId;
-    } catch(e){ console.warn('[solicitacao]', e); return null; }
+    var _hSol = Object.assign({}, getH(), {'Content-Type':'application/json','Prefer':'return=representation'});
+    var _solRow = {
+      tipo: tipo,
+      agenda_id: agendaId,
+      solicitado_por: solicitadoPor,
+      solicitado_por_nome: solicitadoPorNome,
+      novo_valor: dados || null,
+      status: 'pendente'
+    };
+    var _rSol = await fetch(SUPA_URL+'/rest/v1/solicitacoes_agenda', {
+      method: 'POST', headers: _hSol, body: JSON.stringify(_solRow)
+    });
+    if(!_rSol.ok){
+      var _errTxt='';
+      try{ var _errJson=await _rSol.json(); _errTxt=_errJson.message||_errJson.error||JSON.stringify(_errJson); }catch(_e2){ _errTxt='HTTP '+_rSol.status; }
+      throw new Error('Falha ao gravar solicitacao ('+_rSol.status+'): '+_errTxt);
+    }
+    var _dSol = await _rSol.json();
+    var _solId = Array.isArray(_dSol) ? _dSol[0]?.id : _dSol?.id;
+    return _solId;
   }
 
   // ── Helper: envia WA de solicitacao pendente ──
