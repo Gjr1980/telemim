@@ -751,6 +751,7 @@ function RotaTerceirizada({token}){
                   if(_isFinalNow) return(<div style={{textAlign:"center",padding:"14px",background:"#dcfce7",borderRadius:12,border:"2px solid #86efac",marginBottom:10}}><div style={{fontSize:14,fontWeight:800,color:"#15803d"}}>✅ Mudança Finalizada!</div></div>);
                   if(!_proxBtn) return null;
                   var _handleClickProm=async function(){
+                    if(_proxBtn.label==="🚗 Em Deslocamento"&&(!r.ajudantes||r.ajudantes<=0)){alert("⚠️ Cadastre o número de ajudantes do dia antes de iniciar.");}
                     atualizarStatus({id:r.id,_tabela:"agenda"},_proxBtn.campos);
                     // Envio automático de mensagem para o morador quando caminhão sai p/ origem
                     if(_proxBtn._waMsg==="desloc_origem"){
