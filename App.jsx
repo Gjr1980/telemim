@@ -1843,7 +1843,7 @@ export default function App(){
 
   // ── useEffect REACTIVO: recarregar contasSemana quando contas mudam ──
   useEffect(function(){loadContasSemana();},[contasPagar,contasHist]);
-  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();});}if((tab==="financeiro_sup"||tab==="financeiro"||tab==="contas")&&!solicitacoesLoaded)loadSolicitacoesFin();if(tab==="auditoria"&&isAdmin){if(auditSubTab==="lixeira"&&auditLixeira.length===0)loadAuditLixeira();else if(auditSubTab==="erros"&&auditErros.length===0)loadAuditErros();else if(auditSubTab==="saude"&&!auditSaude)loadAuditSaude();}if(tab==="financeiro_sup"||(tab==="equipe"&&isSupervisor)){loadAjudantes();loadEquipeDia();loadEquipePadrao();}if(tab==="equipe"||tab==="config"||tab==="social"||tab==="dashboard")loadAssistentesSocial();},[tab]);
+  useEffect(function(){if(prestadores.length===0)loadPrestadores();if((isAdmin||isPromorar||isSocial||isSupervisor)&&listaUsuarios.length===0&&(tab==="dashboard"||tab==="monitoramento"||tab==="agenda"||tab==="lista"||tab==="contas"||tab==="financeiro"||tab==="financeiro_sup"))carregarUsuarios();if(isMotorista&&(tab==="dashboard"||tab==="fin_mot"||tab==="registros_mot")){_ensureAuth().catch(function(){}).then(function(){loadMud();loadAg();loadSolicitacoesAg();});}if((tab==="financeiro_sup"||tab==="financeiro"||tab==="contas")&&!solicitacoesLoaded)loadSolicitacoesFin();if(tab==="auditoria"&&isAdmin){if(auditSubTab==="lixeira"&&auditLixeira.length===0)loadAuditLixeira();else if(auditSubTab==="erros"&&auditErros.length===0)loadAuditErros();else if(auditSubTab==="saude"&&!auditSaude)loadAuditSaude();}if(tab==="financeiro_sup"||(tab==="equipe"&&isSupervisor)){loadAjudantes();loadEquipeDia();loadEquipePadrao();}if(tab==="equipe"||tab==="config"||tab==="social"||tab==="dashboard")loadAssistentesSocial();},[tab]);
   useEffect(()=>{
     async function load(){
       try{
@@ -1906,7 +1906,7 @@ export default function App(){
       ws.onerror=function(){};
     }catch(err){}
     /* Polling fallback: aumentado de 30s para 5min (Realtime via WebSocket cobre o caso normal) */
-    var pollId=setInterval(function(){if(document.visibilityState==="visible"){loadMud();loadAg();}},5*60*1000);
+    var pollId=setInterval(function(){if(document.visibilityState==="visible"){loadMud();loadAg();loadSolicitacoesAg();}},5*60*1000);
     // GPS positions auto-refresh every 15s for monitoring
     var gpsPollId=setInterval(function(){
       if(document.visibilityState!=="visible") return;
@@ -1920,7 +1920,7 @@ export default function App(){
         }
       });
     },60000);
-    var onVisible=function(){if(document.visibilityState==="visible"){loadMud();loadAg();}};
+    var onVisible=function(){if(document.visibilityState==="visible"){loadMud();loadAg();loadSolicitacoesAg();}};
     document.addEventListener("visibilitychange",onVisible);
     return function(){clearInterval(pollId);clearInterval(gpsPollId);document.removeEventListener("visibilitychange",onVisible);if(ws&&ws.readyState===1)ws.close();};
   },[]);
