@@ -5227,6 +5227,20 @@ setSyncStatus("✅ Status actualizado!");
                       <button onClick={function(){var agora=new Date().toISOString();var body={status:"concluida",termino_em:agora};
                         setAgenda(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,body):x;});});
                         fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok){setSyncStatus("✅ Mudança finalizada!");
+                        try{
+                          if(cfgWA&&cfgWA.whatsapp_ativo==="true"){
+                            var _supNomeFin=usuario&&(usuario.nome||usuario.email)||"Supervisor";
+                            var _dfFin=a.data?a.data.split('-').reverse().join('/'):(a.data||'');
+                            var _horaFin=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+                            var _msgFin=`✅ *TELEMIM — MUDANÇA CONCLUÍDA*\n━━━━━━━━━━━━━━━━━━━━\n👤 *Morador:* ${a.nome||''}\n📅 *Data:* ${_dfFin} às ${a.horario||''}\n🏘️ *Comunidade:* ${a.comunidade||''}\n✅ *Supervisor finalizou:* ${_supNomeFin}\n⏰ *Hora:* ${_horaFin}\n━━━━━━━━━━━━━━━━━━━━\n🔧 TELEMIM PROMORAR`;
+                            var _numsFin=['5581992440900','5581987596340'];
+                            if(a.assist_social){
+                              var _uSocFin=(listaUsuarios||[]).find(function(u){return u.nome===a.assist_social&&u.perfil==="social"&&u.ativo&&u.contato;});
+                              if(_uSocFin) _numsFin.push('55'+_uSocFin.contato.replace(/\D/g,''));
+                            }
+                            for(var _nFin of _numsFin){ enviarWAPublico(_nFin,_msgFin); }
+                          }
+                        }catch(_eFinWA){console.warn('[WA finalizar]',_eFinWA);}
                           // Create mudancas record for Registros tab
                           var _numAj=parseInt(a.ajudantes)||0;
                           var _novaM={nome:a.nome||"",selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,origem:a.origem||"",destino:a.destino||"",contato:a.contato||null,van:a.van||false,caminhao:a.caminhao||false,medicao:parseFloat(a.medicao)||0,ajudantes:_numAj,observacao:a.observacao||"",status:"Concluído",termino_em:agora,criado_em:agora,motorista_van_id:a.motorista_van_id||null,motorista_caminhao_id:a.motorista_caminhao_id||null,supervisor_id:a.supervisor_id||null,approved_by_admin:a.approved_by_admin||null,approved_by_social:a.approved_by_social||null,approved_by_promorar:a.approved_by_promorar||null,approved_by_supervisor:a.approved_by_supervisor||null,inicio_van_em:a.inicio_van_em||null,chegou_origem_van_em:a.chegou_origem_van_em||null,saiu_destino_van_em:a.saiu_destino_van_em||null,chegada_van_em:a.chegada_van_em||null,inicio_caminhao_em:a.inicio_caminhao_em||null,chegou_origem_cam_em:a.chegou_origem_cam_em||null,saiu_destino_cam_em:a.saiu_destino_cam_em||null,chegada_caminhao_em:a.chegada_caminhao_em||null};
