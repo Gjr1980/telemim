@@ -1927,8 +1927,14 @@ export default function App(){
   async function loadMud(){try{const r=await dbGet("mudancas","deleted_at=is.null");if(r){setMudancas(r);idbSet("mudancas",r);}}catch(e){var cached=await idbGet("mudancas");if(cached)setMudancas(cached);}}
   async function loadSolicitacoesAg(){
     try{
+      await _ensureAuth();
       var _rSol=await fetch(SUPA_URL+'/rest/v1/solicitacoes_agenda?status=eq.pendente&order=id.desc',{headers:getH()});
-      if(_rSol.ok){var _dSol=await _rSol.json();setSolicitacoesAgenda(_dSol||[]);}
+      if(_rSol.ok){
+        var _dSol=await _rSol.json();
+        setSolicitacoesAgenda(_dSol||[]);
+      }else{
+        console.warn('[loadSolicitacoesAg] HTTP',_rSol.status, await _rSol.text().catch(function(){return '';}));
+      }
     }catch(e){console.warn('[loadSolicitacoesAg]',e);}
   }
   async function loadAg(){try{const r=await dbGet("agenda");if(r){var mapped=r.map(function(x){return {...x,_dbId:x.id};});setAgenda(mapped);idbSet("agenda",mapped);}}catch(e){var cached=await idbGet("agenda");if(cached)setAgenda(cached);}}
