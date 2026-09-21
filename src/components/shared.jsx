@@ -7,14 +7,15 @@ export function Badge({children,color=COLORS.accent}){
 export function Card({children,style={}}){
   return <div style={{background:COLORS.card,border:`1px solid ${COLORS.cardBorder}`,borderRadius:16,padding:18,boxShadow:COLORS.shadow,...style}}>{children}</div>;
 }
-export function Inp({label,type="text",value,onChange,placeholder,icon}){
+export function Inp({label,type="text",value,onChange,placeholder,icon,error}){
+  var _errColor="#dc2626";
   return(
     <div style={{marginBottom:12}}>
-      <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:5,textTransform:"uppercase"}}>{icon} {label}</label>
+      <label style={{display:"block",color:error?_errColor:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:5,textTransform:"uppercase"}}>{icon} {label}{error?" ⚠️ obrigatório":""}</label>
       <input type={type} value={value} onChange={e=>onChange(e.target.value)} onInput={e=>onChange(e.target.value)} placeholder={placeholder}
-        style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:10,color:COLORS.text,padding:"10px 13px",fontSize:14,outline:"none",boxSizing:"border-box"}}
+        style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${error?_errColor:COLORS.cardBorder}`,borderRadius:10,color:COLORS.text,padding:"10px 13px",fontSize:14,outline:"none",boxSizing:"border-box"}}
         onFocus={e=>e.target.style.border=`1.5px solid ${COLORS.accent}`}
-        onBlur={e=>e.target.style.border=`1.5px solid ${COLORS.cardBorder}`}/>
+        onBlur={e=>e.target.style.border=`1.5px solid ${error?_errColor:COLORS.cardBorder}`}/>
     </div>
   );
 }
