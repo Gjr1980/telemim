@@ -2938,8 +2938,9 @@ export default function App(){
         try{ await _enviarWASolicitacao('add',nova.nome,nova.data,nova.horario,_paNome2,_dests); }catch(_eWaSol){ console.warn('[WA solicitacao]',_eWaSol); }
       }catch(_eSolGeral){
         console.warn('[solicitacao geral]',_eSolGeral);
-        setFlash('⚠️ Erro ao enviar solicitação. Tente novamente ou avise o Admin.');
-        setTimeout(function(){setFlash('');},4000);
+        var _msgErrDetalhe=(_eSolGeral&&_eSolGeral.message)||String(_eSolGeral)||'erro desconhecido';
+        setFlash('⚠️ Erro: '+_msgErrDetalhe);
+        setTimeout(function(){setFlash('');},8000);
         return;
       }
       setFlash('⏳ Solicitação enviada! Aguarda aprovação.');
