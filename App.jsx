@@ -2928,11 +2928,20 @@ export default function App(){
     // Coordenador e Promorar: criar solicitacao pendente de aprovacao
     var _pa2=usuario&&usuario.perfil||'';
     var _paNome2=usuario&&(usuario.nome||usuario.email)||'';
-    if(_pa2==="coordenador"||_pa2==="promorar"||_pa2==="social"){
+    if(_pa2==="coordenador"||_pa2==="promorar"||_pa2==="social"||_pa2==="supervisor"){
       try{
         await _ensureAuth();
+        var _obsComAguardo=(nova.observacao?nova.observacao+" — ":"")+"⏳ AGUARDANDO APROVAÇÃO";
+        var _rowProvisorio={nome:nova.nome,selo:nova.selo||"",comunidade:nova.comunidade||"",data:nova.data,horario:nova.horario||"",origem:nova.origem||"",destino:nova.destino||"",contato:nova.contato||"",van:nova.van||false,caminhao:nova.caminhao||false,medicao:nova.medicao||0,ajudantes:nova.ajudantes||0,observacao:_obsComAguardo,status:"pendente"};
+        var _agProvId=null;
+        try{
+          var _rProv=await fetch(SUPA_URL+"/rest/v1/agenda",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"}),body:JSON.stringify(_rowProvisorio)});
+          var _dProv=await _rProv.json();
+          _agProvId=Array.isArray(_dProv)?_dProv[0]?.id:_dProv?.id;
+          if(_agProvId){ setAgenda(function(prev){return [{..._rowProvisorio,id:_agProvId}].concat(prev);}); }
+        }catch(_eProv){ console.warn('[agenda provisoria]',_eProv); }
         var _dadosNova={nome:nova.nome,selo:nova.selo,comunidade:nova.comunidade,data:nova.data,horario:nova.horario,origem:nova.origem,destino:nova.destino,contato:nova.contato,van:nova.van,caminhao:nova.caminhao,medicao:nova.medicao,ajudantes:nova.ajudantes,observacao:nova.observacao||''};
-        await _criarSolicitacaoAgenda('add',null,_dadosNova,_pa2,_paNome2);
+        await _criarSolicitacaoAgenda('add',_agProvId,_dadosNova,_pa2,_paNome2);
         var _numAdmin='81992440900';
         var _numPromorar='81987596340';
         var _dests=(_pa2==="coordenador"||_pa2==="social")?[_numAdmin,_numPromorar]:[_numAdmin];
