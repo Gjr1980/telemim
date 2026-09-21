@@ -517,17 +517,7 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
     </div>
   );
 }
-function RotaTerceirizada({token}){
-  var [dados,setDados]=useState(null);
-  var [erro,setErro]=useState(null);
-  var [loading,setLoading]=useState(true);
-  var [updating,setUpdating]=useState({});
-  var [usuarios,setUsuarios]=useState([]);
-  var [sendingMsg,setSendingMsg]=useState(null);
-  var [msgSentStatus,setMsgSentStatus]=useState({});
-  // ── Helper: dispara WhatsApp via edge function enviar-whatsapp-publico (sem JWT) ──
-  // ── Helper: cria solicitacao de agenda pendente de aprovacao ──
-  async function _criarSolicitacaoAgenda(tipo, agendaId, dados, solicitadoPor, solicitadoPorNome){
+async function _criarSolicitacaoAgenda(tipo, agendaId, dados, solicitadoPor, solicitadoPorNome){
     var _hSol = Object.assign({}, getH(), {'Content-Type':'application/json','Prefer':'return=representation'});
     var _solRow = {
       tipo: tipo,
@@ -576,6 +566,17 @@ function RotaTerceirizada({token}){
     }).then(function(r){return r.json().catch(function(){return{ok:false,error:"resposta inválida"};});})
       .catch(function(e){return {ok:false, error:e.message};});
   }
+  
+function RotaTerceirizada({token}){
+  var [dados,setDados]=useState(null);
+  var [erro,setErro]=useState(null);
+  var [loading,setLoading]=useState(true);
+  var [updating,setUpdating]=useState({});
+  var [usuarios,setUsuarios]=useState([]);
+  var [sendingMsg,setSendingMsg]=useState(null);
+  var [msgSentStatus,setMsgSentStatus]=useState({});
+  // ── Helper: dispara WhatsApp via edge function enviar-whatsapp-publico (sem JWT) ──
+  // ── Helper: cria solicitacao de agenda pendente de aprovacao ──
   function carregarDados(){
     fetch(SUPA_URL+"/functions/v1/consumir-magic-link?token="+encodeURIComponent(token),{headers:{"apikey":SUPA_KEY}})
       .then(function(r){return r.json();})
