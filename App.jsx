@@ -2920,12 +2920,19 @@ export default function App(){
     var _pa2=usuario&&usuario.perfil||'';
     var _paNome2=usuario&&(usuario.nome||usuario.email)||'';
     if(_pa2==="coordenador"||_pa2==="promorar"||_pa2==="social"){
-      var _dadosNova={nome:nova.nome,selo:nova.selo,comunidade:nova.comunidade,data:nova.data,horario:nova.horario,origem:nova.origem,destino:nova.destino,contato:nova.contato,van:nova.van,caminhao:nova.caminhao,medicao:nova.medicao,ajudantes:nova.ajudantes,observacao:nova.observacao||''};
-      await _criarSolicitacaoAgenda('add',null,_dadosNova,_pa2,_paNome2);
-      var _numAdmin='81992440900';
-      var _numPromorar='81987596340';
-      var _dests=(_pa2==="coordenador"||_pa2==="social")?[_numAdmin,_numPromorar]:[_numAdmin];
-      await _enviarWASolicitacao('add',nova.nome,nova.data,nova.horario,_paNome2,_dests);
+      try{
+        var _dadosNova={nome:nova.nome,selo:nova.selo,comunidade:nova.comunidade,data:nova.data,horario:nova.horario,origem:nova.origem,destino:nova.destino,contato:nova.contato,van:nova.van,caminhao:nova.caminhao,medicao:nova.medicao,ajudantes:nova.ajudantes,observacao:nova.observacao||''};
+        await _criarSolicitacaoAgenda('add',null,_dadosNova,_pa2,_paNome2);
+        var _numAdmin='81992440900';
+        var _numPromorar='81987596340';
+        var _dests=(_pa2==="coordenador"||_pa2==="social")?[_numAdmin,_numPromorar]:[_numAdmin];
+        try{ await _enviarWASolicitacao('add',nova.nome,nova.data,nova.horario,_paNome2,_dests); }catch(_eWaSol){ console.warn('[WA solicitacao]',_eWaSol); }
+      }catch(_eSolGeral){
+        console.warn('[solicitacao geral]',_eSolGeral);
+        setFlash('⚠️ Erro ao enviar solicitação. Tente novamente ou avise o Admin.');
+        setTimeout(function(){setFlash('');},4000);
+        return;
+      }
       setFlash('⏳ Solicitação enviada! Aguarda aprovação.');
       setTimeout(function(){setFlash('');},3000);
       setTab('agenda');
