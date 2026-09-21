@@ -10,5 +10,8 @@ export default defineConfig({
     outDir: 'dist',
     minify: 'esbuild',
     target: 'es2015',
+    esbuild: {
+      keepNames: true,
+    },
   },
 })
