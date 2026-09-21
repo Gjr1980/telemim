@@ -6758,6 +6758,13 @@ setSyncStatus("✅ Status actualizado!");
             <InpEndereco label="Saída" icon="📦" value={agForm.origem||""} onChange={v=>setAgForm(f=>({...f,origem:v}))} placeholder="Endereço de origem" mapboxToken={MAPBOX_TOKEN}/>
             <InpEndereco label="Chegada" icon="🏠" value={agForm.destino||""} onChange={v=>setAgForm(f=>({...f,destino:v}))} placeholder="Endereço de destino" mapboxToken={MAPBOX_TOKEN}/>
             <Inp label="Contato" icon="📞" value={agForm.contato||""} onChange={v=>setAgForm(f=>({...f,contato:v}))} placeholder="Ex: 81 99999-9999"/>
+            <div style={{marginBottom:12}}>
+              <label style={{display:"block",color:COLORS.muted,fontSize:11,fontWeight:700,letterSpacing:0.5,marginBottom:5,textTransform:"uppercase"}}>📝 Observação</label>
+              <textarea value={agForm.observacao||""} onChange={e=>setAgForm(f=>({...f,observacao:e.target.value}))} placeholder="Observações adicionais (opcional)" rows={3}
+                style={{width:"100%",background:COLORS.inputBg,border:`1.5px solid ${COLORS.cardBorder}`,borderRadius:10,color:COLORS.text,padding:"10px 13px",fontSize:14,outline:"none",boxSizing:"border-box",resize:"vertical",fontFamily:"inherit"}}
+                onFocus={e=>e.target.style.border=`1.5px solid ${COLORS.accent}`}
+                onBlur={e=>e.target.style.border=`1.5px solid ${COLORS.cardBorder}`}/>
+            </div>
             <Tog label="🚐 Van" value={agForm.van} onChange={v=>setAgForm(f=>({...f,van:v}))}/>
             <Tog label="🚚 Caminhão" value={agForm.caminhao||false} onChange={v=>setAgForm(f=>({...f,caminhao:v}))}/>
             <div style={{marginBottom:12}}>
