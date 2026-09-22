@@ -3919,6 +3919,31 @@ export default function App(){
         didParseCell:function(data){if(data.section==='body'&&data.row.index===0&&data.column.index===1){data.cell.styles.fontStyle='bold';data.cell.styles.fontSize=12;}},
         didDrawPage:function(){_addPDFFooter(doc,extractStr);}
       });
+      if(m.signature_data){
+        doc.addPage();
+        _addPDFHeader(doc,'RECIBO DE ENTREGA ASSINADO','Contrato: PROMORAR');
+        doc.setFontSize(11);
+        doc.setFont(undefined,'normal');
+        doc.text('Confirmo o recebimento dos itens referentes à mudança de:',14,42);
+        doc.setFont(undefined,'bold');
+        doc.setFontSize(13);
+        doc.text(m.nome||'',14,50);
+        doc.setFont(undefined,'normal');
+        doc.setFontSize(10);
+        var _assinadoTxt=m.assinado_em?new Date(m.assinado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
+        doc.text('Assinado digitalmente em: '+_assinadoTxt,14,58);
+        doc.setFontSize(11);
+        doc.text('Assinatura do morador:',14,75);
+        try{
+          doc.addImage(m.signature_data,'PNG',14,80,90,40);
+        }catch(_eImgSig){}
+        doc.setDrawColor(150,150,150);
+        doc.line(14,124,104,124);
+        doc.setFontSize(9);
+        doc.setTextColor(100,100,100);
+        doc.text(m.nome||'',14,130);
+        doc.setTextColor(0,0,0);
+      }
       var n=(m.nome||'').replace(/\s+/g,'_')||'Cliente';
       doc.save('Detalhe_'+n+'.pdf');
     }finally{
