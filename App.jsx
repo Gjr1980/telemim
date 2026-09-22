@@ -4673,6 +4673,14 @@ setSyncStatus("✅ Status actualizado!");
     try{
       var _driveB64=doc.output("datauristring").split(",")[1];
       handleFinalizeOS(m,_driveB64);
+      // E-mail automatico para Promorar + Admin com o termo assinado
+      try{
+        fetch(SUPA_URL+'/functions/v1/enviar-email-canhoto',{
+          method:'POST',
+          headers:{'Content-Type':'application/json',apikey:SUPA_KEY},
+          body:JSON.stringify({pdfBase64:_driveB64,clienteNome:m.nome||'',data:m.data||'',selo:m.selo||''})
+        }).catch(function(_eEmailCanh){console.warn('[email canhoto]',_eEmailCanh);});
+      }catch(_eEmailCanh2){console.warn('[email canhoto]',_eEmailCanh2);}
     }catch(e){console.warn("[Drive] Erro ao obter PDF base64:",e);}
     // WhatsApp: envio automático após assinar canhoto
     if(cfgWA&&cfgWA.whatsapp_ativo==="true"){
