@@ -567,6 +567,20 @@ async function _criarSolicitacaoAgenda(tipo, agendaId, dados, solicitadoPor, sol
       .catch(function(e){return {ok:false, error:e.message};});
   }
   
+async function _notificarACaminhoOrigem(ag, quemLabel, quemNome){
+  try{
+    var _dfNAO=ag.data?ag.data.split('-').reverse().join('/'):(ag.data||'');
+    var _msgNAO=`🚗 *TELEMIM — A CAMINHO*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Morador:* ${ag.nome||''}
+📅 *Data:* ${_dfNAO} às ${ag.horario||''}
+${quemLabel}${quemNome?(' *'+quemNome+'*'):''} está a caminho da origem.
+━━━━━━━━━━━━━━━━━━━━
+🔧 TELEMIM PROMORAR`;
+    await enviarWAPublico('5581992440900', _msgNAO);
+  }catch(e){console.warn('[notificarACaminhoOrigem]',e);}
+}
+
 function RotaTerceirizada({token}){
   var [dados,setDados]=useState(null);
   var [erro,setErro]=useState(null);
@@ -3994,6 +4008,8 @@ export default function App(){
         } else if(novoStatus==="Em Deslocamento"&&_isCamMot){
           _notificarACaminhoOrigem(ag,'🚛 Caminhão',_quemNomeACO);
         } else if(novoStatus==="Realizando"&&!_isVanMot&&!_isCamMot){
+          _notificarACaminhoOrigem(ag,'👷 Supervisor iniciou a mudança:',_quemNomeACO);
+        } else if(novoStatus==="Em Deslocamento"&&!_isVanMot&&!_isCamMot){
           _notificarACaminhoOrigem(ag,'👷 Supervisor',_quemNomeACO);
         }
       }
@@ -5267,7 +5283,7 @@ setSyncStatus("✅ Status actualizado!");
                     ):(
                       <button onClick={function(){if(!a.ajudantes||a.ajudantes<=0){alert("⚠️ Cadastre o número de ajudantes do dia antes de iniciar.");}var agora=new Date().toISOString();var body={status:"Realizando",inicio_mudanca_em:agora};
                         setAgenda(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,body):x;});});
-                        fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok)setSyncStatus("✅ Mudança iniciada!");setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);}).catch(function(){setSyncStatus("⚠️ Erro");});
+                        fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok){setSyncStatus("✅ Mudança iniciada!");if(cfgWA.whatsapp_ativo==="true"){_notificarACaminhoOrigem(a,'👷 Supervisor iniciou a mudança:',(usuario&&usuario.nome)||'Supervisor');}}setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);}).catch(function(){setSyncStatus("⚠️ Erro");});
                       }} style={{width:"100%",background:"#7c3aed",border:"none",borderRadius:_dest?12:10,padding:_dest?"14px 0":"10px 0",fontSize:_dest?15:13,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                         🔧 Iniciar Mudança
                       </button>
