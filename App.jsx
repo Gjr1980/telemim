@@ -3997,7 +3997,7 @@ export default function App(){
     if(novoStatus==="Em Deslocamento"){
       if(_isVanMot){body.inicio_van_em=agora;body.van_saiu_em=agora;}
       else if(_isCamMot){body.inicio_caminhao_em=agora;body.caminhao_saiu_em=agora;}
-      else{body.status=novoStatus;body.inicio_em=agora;}
+      else{body.status=novoStatus;body.inicio_em=agora;_addNotif("desloc_origem","Saiu para a origem",ag.nome);}
       gpsStart(ag.id,_veiTipo);
     }
     // Step 2: Chegou na Origem → GPS para (carregamento)
@@ -5301,7 +5301,7 @@ setSyncStatus("✅ Status actualizado!");
                     return _isIniciada?(
                       <button onClick={function(){var agora=new Date().toISOString();var body={status:"concluida",termino_em:agora};
                         setAgenda(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,body):x;});});
-                        fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok){setSyncStatus("✅ Mudança finalizada!");
+                        fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok){setSyncStatus("✅ Mudança finalizada!");_addNotif("finalizacao","Finalizou a mudança",a.nome);
                         try{
                           if(cfgWA&&cfgWA.whatsapp_ativo==="true"){
                             var _supNomeFin=usuario&&(usuario.nome||usuario.email)||"Supervisor";
@@ -5329,7 +5329,7 @@ setSyncStatus("✅ Status actualizado!");
                     ):(
                       <button onClick={function(){if(!a.ajudantes||a.ajudantes<=0){alert("⚠️ Cadastre o número de ajudantes do dia antes de iniciar.");}var agora=new Date().toISOString();var body={status:"Realizando",inicio_mudanca_em:agora};
                         setAgenda(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,body):x;});});
-                        fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok){setSyncStatus("✅ Mudança iniciada!");if(cfgWA.whatsapp_ativo==="true"){_notificarACaminhoOrigem(a,'👷 Supervisor iniciou a mudança:',(usuario&&usuario.nome)||'Supervisor');}}setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);}).catch(function(){setSyncStatus("⚠️ Erro");});
+                        fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok){setSyncStatus("✅ Mudança iniciada!");_addNotif("inicio_mudanca","Iniciou a mudança",a.nome);if(cfgWA.whatsapp_ativo==="true"){_notificarACaminhoOrigem(a,'👷 Supervisor iniciou a mudança:',(usuario&&usuario.nome)||'Supervisor');}}setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);}).catch(function(){setSyncStatus("⚠️ Erro");});
                       }} style={{width:"100%",background:"#7c3aed",border:"none",borderRadius:_dest?12:10,padding:_dest?"14px 0":"10px 0",fontSize:_dest?15:13,fontWeight:800,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
                         🔧 Iniciar Mudança
                       </button>
