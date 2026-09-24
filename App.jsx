@@ -4695,6 +4695,15 @@ setSyncStatus("✅ Status actualizado!");
           headers:{'Content-Type':'application/json',apikey:SUPA_KEY},
           body:JSON.stringify({pdfBase64:_driveB64,clienteNome:m.nome||'',data:m.data||'',selo:m.selo||''})
         }).then(function(_rEmailCanh){if(!_rEmailCanh.ok){console.warn('[email canhoto] HTTP',_rEmailCanh.status);_addNotif('falha_email','E-mail do canhoto NÃO enviado (erro '+_rEmailCanh.status+')',m.nome||'');}}).catch(function(_eEmailCanh){console.warn('[email canhoto]',_eEmailCanh);_addNotif('falha_email','E-mail do canhoto NÃO enviado (falha de rede)',m.nome||'');});
+      // Backup automatico no Google Drive (pasta Promorar)
+      try{
+        var _nomeArqDrive='Termo_Entrega_'+(m.nome||'morador').replace(/\s+/g,'_')+'_'+(m.data||'').split('/').join('-')+'.pdf';
+        fetch('https://script.google.com/macros/s/AKfycbycmFseF5A-Cz9CTdF8uttRhWGihI9BRntXlcTWLLlPMyq4C0iZThJGypPupvdBQGrB/exec',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({pdfBase64:_driveB64,filename:_nomeArqDrive})
+        }).then(function(_rDrive){if(!_rDrive.ok){console.warn('[drive backup] HTTP',_rDrive.status);_addNotif('falha_drive','Backup no Drive NÃO enviado (erro '+_rDrive.status+')',m.nome||'');}}).catch(function(_eDrive){console.warn('[drive backup]',_eDrive);_addNotif('falha_drive','Backup no Drive NÃO enviado (falha de rede)',m.nome||'');});
+      }catch(_eDrive2){console.warn('[drive backup]',_eDrive2);}
       }catch(_eEmailCanh2){console.warn('[email canhoto]',_eEmailCanh2);}
     }catch(e){console.warn("[Drive] Erro ao obter PDF base64:",e);}
     // WhatsApp: envio automático após assinar canhoto
