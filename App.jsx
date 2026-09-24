@@ -2021,7 +2021,7 @@ export default function App(){
     return msg;
   }
   // Envia em sequencia (um de cada vez), com 1 nova tentativa e alerta visivel se falhar
-  async function _enviarWASeq(nums,msg){
+  async function _enviarWASeq(nums,msg,ctxNome){
     var falhas=[];
     for(var i=0;i<nums.length;i++){
       var n=nums[i];
@@ -2031,6 +2031,7 @@ export default function App(){
     }
     if(falhas.length>0){
       alert("⚠️ Mensagem de WhatsApp NÃO enviada para: "+falhas.join(", ")+"\n\nAvise manualmente estes números.");
+      _addNotif("falha_whatsapp","WhatsApp NÃO enviado para: "+falhas.join(", "),ctxNome||"");
     }
   }
   function resolverDestinatariosWA(destArray,ag){
@@ -4088,7 +4089,7 @@ setSyncStatus("✅ Status actualizado!");
         var _evI=cfgWAauto.iniciada;if(_evI&&_evI.ativo){
           var _iVars={cliente:ag.nome||"",data:ag.data||"",hora:ag.horario||"",origem:ag.origem||"",destino:ag.destino||"",motorista:(usuario&&usuario.nome)||"Motorista",metragem:ag.medicao||"",assistente:ag.assist_social||"",supervisor:(function(){if(ag.supervisor_id){var s=listaUsuarios.find(function(u){return u.id===ag.supervisor_id;});return s?s.nome:"";}return "";})()};
           var _iNums=resolverDestinatariosWA(_evI.dest,ag);
-          _enviarWASeq(_iNums,substituirVarsWA(_evI.msg,_iVars));
+          _enviarWASeq(_iNums,substituirVarsWA(_evI.msg,_iVars),ag.nome);
         }
       }
       // WA auto: no_destino (motorista chegou ao destino)
@@ -4096,7 +4097,7 @@ setSyncStatus("✅ Status actualizado!");
         var _evND=cfgWAauto.no_destino;if(_evND&&_evND.ativo){
           var _ndVars={cliente:ag.nome||"",data:ag.data||"",hora:ag.horario||"",origem:ag.origem||"",destino:ag.destino||"",motorista:(usuario&&usuario.nome)||"Motorista",metragem:ag.medicao||"",assistente:ag.assist_social||"",supervisor:(function(){if(ag.supervisor_id){var s=listaUsuarios.find(function(u){return u.id===ag.supervisor_id;});return s?s.nome:"";}return "";})()};
           var _ndNums=resolverDestinatariosWA(_evND.dest,ag);
-          _enviarWASeq(_ndNums,substituirVarsWA(_evND.msg,_ndVars));
+          _enviarWASeq(_ndNums,substituirVarsWA(_evND.msg,_ndVars),ag.nome);
         }
       }
       // If concluded, create mudancas record for Registros tab
@@ -4693,7 +4694,7 @@ setSyncStatus("✅ Status actualizado!");
           method:'POST',
           headers:{'Content-Type':'application/json',apikey:SUPA_KEY},
           body:JSON.stringify({pdfBase64:_driveB64,clienteNome:m.nome||'',data:m.data||'',selo:m.selo||''})
-        }).catch(function(_eEmailCanh){console.warn('[email canhoto]',_eEmailCanh);});
+        }).then(function(_rEmailCanh){if(!_rEmailCanh.ok){console.warn('[email canhoto] HTTP',_rEmailCanh.status);_addNotif('falha_email','E-mail do canhoto NÃO enviado (erro '+_rEmailCanh.status+')',m.nome||'');}}).catch(function(_eEmailCanh){console.warn('[email canhoto]',_eEmailCanh);_addNotif('falha_email','E-mail do canhoto NÃO enviado (falha de rede)',m.nome||'');});
       }catch(_eEmailCanh2){console.warn('[email canhoto]',_eEmailCanh2);}
     }catch(e){console.warn("[Drive] Erro ao obter PDF base64:",e);}
     // WhatsApp: envio automático após assinar canhoto
