@@ -2020,6 +2020,21 @@ export default function App(){
     Object.keys(vars).forEach(function(k){msg=msg.replace(new RegExp("\\{"+k+"\\}","g"),vars[k]||"");});
     return msg;
   }
+  // Envia em sequencia (um de cada vez), com 1 nova tentativa e alerta visivel se falhar
+  async function _enviarWASeq(nums,msg){
+    var falhas=[];
+    for(var i=0;i<nums.length;i++){
+      var n=nums[i];
+      var ok=await enviarWA(n,msg);
+      if(!ok) ok=await enviarWA(n,msg);
+      if(!ok) falhas.push(n);
+    }
+    if(falhas.length>0){
+      alert("⚠️ Mensagem de WhatsApp NÃO enviada para: "+falhas.join(", ")+"
+
+Avise manualmente estes números.");
+    }
+  }
   function resolverDestinatariosWA(destArray,ag){
     var nums=[];
     (destArray||[]).forEach(function(d){
@@ -4075,7 +4090,7 @@ setSyncStatus("✅ Status actualizado!");
         var _evI=cfgWAauto.iniciada;if(_evI&&_evI.ativo){
           var _iVars={cliente:ag.nome||"",data:ag.data||"",hora:ag.horario||"",origem:ag.origem||"",destino:ag.destino||"",motorista:(usuario&&usuario.nome)||"Motorista",metragem:ag.medicao||"",assistente:ag.assist_social||"",supervisor:(function(){if(ag.supervisor_id){var s=listaUsuarios.find(function(u){return u.id===ag.supervisor_id;});return s?s.nome:"";}return "";})()};
           var _iNums=resolverDestinatariosWA(_evI.dest,ag);
-          _iNums.forEach(function(n){enviarWA(n,substituirVarsWA(_evI.msg,_iVars));});
+          _enviarWASeq(_iNums,substituirVarsWA(_evI.msg,_iVars));
         }
       }
       // WA auto: no_destino (motorista chegou ao destino)
@@ -4083,7 +4098,7 @@ setSyncStatus("✅ Status actualizado!");
         var _evND=cfgWAauto.no_destino;if(_evND&&_evND.ativo){
           var _ndVars={cliente:ag.nome||"",data:ag.data||"",hora:ag.horario||"",origem:ag.origem||"",destino:ag.destino||"",motorista:(usuario&&usuario.nome)||"Motorista",metragem:ag.medicao||"",assistente:ag.assist_social||"",supervisor:(function(){if(ag.supervisor_id){var s=listaUsuarios.find(function(u){return u.id===ag.supervisor_id;});return s?s.nome:"";}return "";})()};
           var _ndNums=resolverDestinatariosWA(_evND.dest,ag);
-          _ndNums.forEach(function(n){enviarWA(n,substituirVarsWA(_evND.msg,_ndVars));});
+          _enviarWASeq(_ndNums,substituirVarsWA(_evND.msg,_ndVars));
         }
       }
       // If concluded, create mudancas record for Registros tab
