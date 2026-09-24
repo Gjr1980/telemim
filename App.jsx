@@ -2030,9 +2030,7 @@ export default function App(){
       if(!ok) falhas.push(n);
     }
     if(falhas.length>0){
-      alert("⚠️ Mensagem de WhatsApp NÃO enviada para: "+falhas.join(", ")+"
-
-Avise manualmente estes números.");
+      alert("⚠️ Mensagem de WhatsApp NÃO enviada para: "+falhas.join(", ")+"\n\nAvise manualmente estes números.");
     }
   }
   function resolverDestinatariosWA(destArray,ag){
