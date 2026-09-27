@@ -1285,7 +1285,6 @@ export default function App(){
   const [filtroSup,setFiltroSup]=useState("");
   const [editMud,setEditMud]=useState(null);
   const [viewMud,setViewMud]=useState(null);
-  const [convertModal,setConvertModal]=useState(null);
   const [editAg,setEditAg]=useState(null);
   const [syncStatus,setSyncStatus]=useState("✅ Sincronizado");
   const [soundEnabled,setSoundEnabled]=useState(true);
@@ -3215,18 +3214,6 @@ export default function App(){
   function converterEmMudanca(ag){
     if(!ag.medicao){alert('Informe a medição (m³) antes de finalizar.');return;}
     pedirFinalizacao(ag);
-  }
-
-  async function confirmarConversao(ag, medicao){
-    if(!medicao){ alert("Informe a medição em m³!"); return; }
-    const nova = { id: Date.now(), nome:ag.nome, selo:ag.selo||"", comunidade:ag.comunidade||"", data:ag.data, origem:ag.origem||"", destino:ag.destino||"", medicao:parseFloat(medicao)||0, van:ag.van||false };
-    await saveMud([...mudancas, nova]);
-    const updated = agenda.map(a => a.id===ag.id ? {...a,status:"realizado"} : a);
-    await saveAg(updated);
-    setConvertModal(null);
-    setTab("lista");
-    setFlash("✅ Mudança registrada!"); setTimeout(()=>setFlash(""),2000);
-    try{_addNotif("concluida","Mudanca concluida",ag.nome);}catch(e){}
   }
 
   async function toggleStatus(id){
