@@ -275,7 +275,7 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
       .then(function(res){
         if(res&&!res.ok) res.text().then(function(t){console.warn("Supabase save erro:",t);});
       })
-      .catch(function(err){console.warn("Supabase save falhou:",err);});
+      .catch(function(err){console.warn("Supabase save falhou:",err);_addNotif('falha_sistema','Falha ao salvar dados no servidor',);});
     // PROTOCOLO 6: Sync contas_semana → Financeiro (robusto)
     (function(){
       try{
@@ -307,7 +307,7 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
             return [...prev,{semana_inicio:_si6,semana_fim:_sf6,tipo:_tipo6,valor_calculado:String(_tot6),status:"pendente"}];
           });
         }
-      }catch(_e6){console.warn("[Proto6]",_e6);}
+      }catch(_e6){console.warn("[Proto6]",_e6);_addNotif('falha_sistema','Falha ao calcular protocolo semanal',);}
     })();
     }
   function _cancelarEdit(){setEditIdx(null);setEditVals({});}
@@ -438,7 +438,7 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
               var body={};body[field]=numVal;
               if(rows&&rows.length>0){return fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+dt,{method:"PATCH",headers:_hd2,body:JSON.stringify(body)});}
               else{body.data=dt;return fetch(SUPA_URL+"/rest/v1/custos_diarios",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(body)});}
-            }).catch(function(e){console.warn(e);});
+            }).catch(function(e){console.warn(e);_addNotif('falha_sistema','Falha ao salvar custo diário',);});
           // Sync to contas_semana para Financeiro refletir
           if(field==="custo_almoco"){
             var _almTot=0;
@@ -467,7 +467,7 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
             .then(function(rows){
               if(rows&&rows.length>0){return fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+dt,{method:"PATCH",headers:_hd2,body:JSON.stringify({descricao_extra:val})});}
               else{return fetch(SUPA_URL+"/rest/v1/custos_diarios",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify({data:dt,descricao_extra:val})});}
-            }).catch(function(e){console.warn(e);});
+            }).catch(function(e){console.warn(e);_addNotif('falha_sistema','Falha ao salvar descrição extra de custo',);});
         }
         return(
           <div style={{marginTop:10,paddingTop:10,borderTop:"2px solid #f1f5f9"}}>
@@ -578,7 +578,7 @@ ${quemLabel}${quemNome?(' *'+quemNome+'*'):''} está a caminho da origem.
 ━━━━━━━━━━━━━━━━━━━━
 🔧 TELEMIM PROMORAR`;
     await enviarWAPublico('5581992440900', _msgNAO);
-  }catch(e){console.warn('[notificarACaminhoOrigem]',e);}
+  }catch(e){console.warn('[notificarACaminhoOrigem]',e);_addNotif('falha_whatsapp','Falha ao notificar "a caminho da origem"',ag.nome||'');}
 }
 
 function RotaTerceirizada({token}){
@@ -808,7 +808,7 @@ function RotaTerceirizada({token}){
                         if(Array.isArray(_prList)){
                           _prList.forEach(function(u){if(u.contato)_destinatarios.push({nome:u.nome,contato:u.contato,tipo:"Promorar"});});
                         }
-                      }catch(_e1){console.warn("[van-desloc] erro buscando promorar:",_e1);}
+                      }catch(_e1){console.warn("[van-desloc] erro buscando promorar:",_e1);_addNotif('falha_whatsapp','Falha ao buscar contactos Promorar (desloc. van)',);}
                       if(r.assist_social){
                         try{
                           var _asRes=await fetch(SUPA_URL+"/rest/v1/assistentes_social?nome=eq."+encodeURIComponent(r.assist_social)+"&ativo=eq.true&select=nome,contato",{headers:_anonH});
@@ -816,7 +816,7 @@ function RotaTerceirizada({token}){
                           if(Array.isArray(_asList)&&_asList[0]&&_asList[0].contato){
                             _destinatarios.push({nome:_asList[0].nome,contato:_asList[0].contato,tipo:"Social"});
                           }
-                        }catch(_e2){console.warn("[van-desloc] erro buscando social:",_e2);}
+                        }catch(_e2){console.warn("[van-desloc] erro buscando social:",_e2);_addNotif('falha_whatsapp','Falha ao buscar contacto Social (desloc. van)',);}
                       }
                       if(_destinatarios.length===0){
                         setMsgSentStatus(function(p){var n={...p};n[r.id]="⚠️ Nenhum destinatário cadastrado (Promorar/Social)";return n;});
@@ -1948,7 +1948,7 @@ export default function App(){
       }else{
         console.warn('[loadSolicitacoesAg] HTTP',_rSol.status, await _rSol.text().catch(function(){return '';}));
       }
-    }catch(e){console.warn('[loadSolicitacoesAg]',e);}
+    }catch(e){console.warn('[loadSolicitacoesAg]',e);_addNotif('falha_sistema','Falha ao carregar solicitações pendentes',);}
   }
   async function loadAg(){try{const r=await dbGet("agenda");if(r){var mapped=r.map(function(x){return {...x,_dbId:x.id};});setAgenda(mapped);idbSet("agenda",mapped);}}catch(e){var cached=await idbGet("agenda");if(cached)setAgenda(cached);}}
   async function loadCfgWA(){
@@ -1985,12 +1985,12 @@ export default function App(){
           delete _parsed.finalizada_admin;delete _parsed.finalizada_cliente;delete _parsed.finalizada_supervisor;
         }
         setCfgWAauto(_parsed);}catch(e){}}
-    }catch(e){console.warn("loadCfgWA:",e);}
+    }catch(e){console.warn("loadCfgWA:",e);_addNotif('falha_sistema','Falha ao carregar configuração de WhatsApp',);}
     // Also load restaurant config
     try{
       var r2=await fetch(SUPA_URL+"/rest/v1/configuracoes?chave=in.(restaurante_nome,restaurante_contato)&select=chave,valor",{headers:getH()});
       if(r2.ok){var rows2=await r2.json();if(Array.isArray(rows2))setConfiguracoes(function(prev){return prev.concat(rows2);});}
-    }catch(e2){console.warn("loadRestCfg:",e2);}
+    }catch(e2){console.warn("loadRestCfg:",e2);_addNotif('falha_sistema','Falha ao carregar configurações gerais',);}
   }
   // ── ENVIAR WHATSAPP VIA EVOLUTION API ─────────────────────────────────────────
   async function enviarWA(numero,mensagem){
@@ -2257,7 +2257,7 @@ export default function App(){
         bounds.extend([pos.lng,pos.lat]);
         if(eta.destCoords) bounds.extend(eta.destCoords);
         map.fitBounds(bounds,{padding:60,duration:1000});
-      }catch(e){console.warn("[GPS map] route error:",e);}
+      }catch(e){console.warn("[GPS map] route error:",e);_addNotif('falha_mapa','Falha ao traçar rota no mapa GPS',);}
     }
     function _updateMap(pos,eta){
       var el=_getMapEl();
@@ -2877,7 +2877,7 @@ export default function App(){
             return fetch(SUPA_URL+"/rest/v1/custos_diarios?data=eq."+_data,{method:"PATCH",headers:_hd,body:JSON.stringify({ajudantes:_aj})});
           }
           return fetch(SUPA_URL+"/rest/v1/custos_diarios",{method:"POST",headers:_hd,body:JSON.stringify({data:_data,ajudantes:_aj})});
-        }).catch(function(err){console.warn("save qtdAj err:",err);});
+        }).catch(function(err){console.warn("save qtdAj err:",err);_addNotif('falha_sistema','Falha ao salvar quantidade de ajudantes',);});
     }
     setEditMud(null);
   }
@@ -2969,7 +2969,7 @@ export default function App(){
         var _numAdmin='81992440900';
         var _numPromorar='81987596340';
         var _dests=(_pa2==="coordenador"||_pa2==="social")?[_numAdmin,_numPromorar]:[_numAdmin];
-        try{ await _enviarWASolicitacao('add',nova.nome,nova.data,nova.horario,_paNome2,_dests); }catch(_eWaSol){ console.warn('[WA solicitacao]',_eWaSol); }
+        try{ await _enviarWASolicitacao('add',nova.nome,nova.data,nova.horario,_paNome2,_dests); }catch(_eWaSol){ console.warn('[WA solicitacao]',_eWaSol); _addNotif('falha_whatsapp','Falha ao notificar nova solicitação de agenda',nova.nome||'');}
       }catch(_eSolGeral){
         console.warn('[solicitacao geral]',_eSolGeral);
         var _msgErrDetalhe=(_eSolGeral&&_eSolGeral.message)||String(_eSolGeral)||'erro desconhecido';
@@ -3042,14 +3042,14 @@ export default function App(){
               }
               for(var _dWA of _destsWA){ await enviarWAPublico(_dWA,_msgWANova); }
             }
-          }catch(_eWA){console.warn('[WA novaAgenda]',_eWA);}
+          }catch(_eWA){console.warn('[WA novaAgenda]',_eWA);_addNotif('falha_whatsapp','Falha ao notificar nova mudança agendada',);}
           // Email SÓ após POST confirmado no banco
           try{
             fetch(SUPA_URL+'/functions/v1/enviar-email-agendamento',{
               method:'POST',
               headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY},
               body:JSON.stringify({agenda:{...nova,id:_bdId||nova.id},agendadoPor:{nome:usuario&&usuario.nome,email:usuario&&usuario.email,perfil:usuario&&usuario.perfil}})
-            }).catch(function(e){console.warn('[email agendamento]',e);});
+            }).catch(function(e){console.warn('[email agendamento]',e);_addNotif('falha_email','Falha ao enviar e-mail de novo agendamento',);});
           }catch(eE){}
           setAgForm({...initForm,status:"confirmado"});
           setFlash(_isSocialAg?"⏳ Enviado! Aguardando aprovação do Promorar.":"✅ Agendado!");setTimeout(function(){setFlash("");},3000);
@@ -3161,7 +3161,7 @@ export default function App(){
         body:JSON.stringify({agenda_id:agId,pdf_base64:pdfB64,nome_arquivo:nome})});
       const d=await res.json();
       if(d.ok){setMsgSucesso("✅ Canhoto salvo no Drive!");setTimeout(()=>setMsgSucesso(""),3000);}
-    }catch(e){console.warn("[canhoto-drive]",e);}
+    }catch(e){console.warn("[canhoto-drive]",e);_addNotif('falha_drive','Falha ao salvar canhoto no Drive (fluxo antigo)',ag.nome||'');}
   }
   async function confirmarComAssinatura(assinB64){
     const ag=mudancaCanhoto;
@@ -3200,9 +3200,9 @@ export default function App(){
           method:'POST',
           headers:{'Content-Type':'application/json',apikey:SUPA_KEY},
           body:JSON.stringify({pdfBase64:pdfFinal,clienteNome:ag.nome||'',data:ag.data||'',selo:ag.selo||''})
-        }).catch(function(_eEmail){console.warn('[email canhoto]',_eEmail);});
-      }catch(_eEmail2){console.warn('[email canhoto]',_eEmail2);}
-    }catch(err){console.warn("[assinatura-pdf]",err);}
+        }).catch(function(_eEmail){console.warn('[email canhoto]',_eEmail);_addNotif('falha_email','Falha ao enviar e-mail do canhoto (fluxo antigo)',ag.nome||'');});
+      }catch(_eEmail2){console.warn('[email canhoto]',_eEmail2);_addNotif('falha_email','Falha ao enviar e-mail do canhoto (fluxo antigo, retry)',ag.nome||'');}
+    }catch(err){console.warn("[assinatura-pdf]",err);_addNotif('falha_sistema','Falha geral ao gerar PDF de assinatura (fluxo antigo)',ag.nome||'');}
   }
   function converterEmMudanca(ag){
     if(!ag.medicao){alert('Informe a medição (m³) antes de finalizar.');return;}
@@ -4081,7 +4081,7 @@ ${_isRealizando?'🚛 *Supervisor iniciou:* ':'✅ *Supervisor finalizou:* '}${_
           for(var _nWA of _numsWA){
             if(_nWA) await enviarWAPublico(_nWA, _msgSup);
           }
-        }catch(_eWASup){console.warn('[WA supervisor]',_eWASup);}
+        }catch(_eWASup){console.warn('[WA supervisor]',_eWASup);_addNotif('falha_whatsapp','Falha ao notificar Admin/Promorar/Social',ag.nome||'');}
       }
 setSyncStatus("✅ Status actualizado!");
       // WA auto: iniciada (motorista começou)
@@ -4555,9 +4555,9 @@ setSyncStatus("✅ Status actualizado!");
               var _msgRota=_ico+" *TELEMIM — SUA ROTA*\n━━━━━━━━━━━━━━\nOlá *"+(_motR.nome||"")+"*!\n\nVocê foi designado(a) como motorista "+(tipo==="VAN"?"da *VAN*":"do *CAMINHÃO*")+"."+_resumo+"\n\n🔗 *Ver detalhes completos:*\n"+_linkUrl+"\n━━━━━━━━━━━━━━\n_Link válido até meia-noite_";
               var _otBloco=await _owntracksBloco(mid);
               enviarWA(_motR.contato,_msgRota+(_otBloco||""));
-            }).catch(function(e){console.warn("[auto-magic-link]",e);});
+            }).catch(function(e){console.warn("[auto-magic-link]",e);_addNotif('falha_whatsapp','Falha ao enviar link de rota ao motorista',);});
           }
-        }catch(e){console.warn("[auto-magic-link]",e);}
+        }catch(e){console.warn("[auto-magic-link]",e);_addNotif('falha_whatsapp','Falha ao enviar link de rota ao motorista (retry)',);}
       }
     }catch(e){
       loadAg();
@@ -4703,9 +4703,9 @@ setSyncStatus("✅ Status actualizado!");
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({pdfBase64:_driveB64,filename:_nomeArqDrive})
         }).then(function(_rDrive){if(!_rDrive.ok){console.warn('[drive backup] HTTP',_rDrive.status);_addNotif('falha_drive','Backup no Drive NÃO enviado (erro '+_rDrive.status+')',m.nome||'');}}).catch(function(_eDrive){console.warn('[drive backup]',_eDrive);_addNotif('falha_drive','Backup no Drive NÃO enviado (falha de rede)',m.nome||'');});
-      }catch(_eDrive2){console.warn('[drive backup]',_eDrive2);}
-      }catch(_eEmailCanh2){console.warn('[email canhoto]',_eEmailCanh2);}
-    }catch(e){console.warn("[Drive] Erro ao obter PDF base64:",e);}
+      }catch(_eDrive2){console.warn('[drive backup]',_eDrive2);_addNotif('falha_drive','Falha geral no backup do Drive',m.nome||'');}
+      }catch(_eEmailCanh2){console.warn('[email canhoto]',_eEmailCanh2);_addNotif('falha_email','Falha geral no e-mail do canhoto',m.nome||'');}
+    }catch(e){console.warn("[Drive] Erro ao obter PDF base64:",e);_addNotif('falha_sistema','Falha ao gerar PDF para backup/e-mail',m.nome||'');}
     // WhatsApp: envio automático após assinar canhoto
     if(cfgWA&&cfgWA.whatsapp_ativo==="true"){
       try{
@@ -4718,7 +4718,7 @@ setSyncStatus("✅ Status actualizado!");
             headers:{"Content-Type":"application/json",apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},
             body:JSON.stringify({nome:m.nome||"",selo:m.selo||"",data:m.data||"",origem:m.origem||"",destino:m.destino||"",pdfBase64:_pdfB64})
           });
-        }catch(_eEmailTermo){console.warn("[email termo assinado]",_eEmailTermo);}
+        }catch(_eEmailTermo){console.warn("[email termo assinado]",_eEmailTermo);_addNotif('falha_email','Falha ao enviar e-mail do termo assinado (fluxo antigo)',m.nome||'');}
         var _clienteTel=(m.contato||"").replace(/\D/g,"");
         var _supTel=(cfgWA.supervisor_whatsapp||"").replace(/\D/g,"");
         var _msg="\uD83D\uDCCB *OS #"+m.id+" - Canhoto Assinado*\n\n\uD83D\uDC64 Cliente: "+m.nome+"\n\uD83D\uDCC5 Data: "+(m.data||"")+"\n\uD83D\uDCCD Destino: "+(m.destino||"-")+"\n\n\u2705 O canhoto electrónico foi assinado. O PDF já foi guardado. Partilhe o ficheiro em anexo.";
@@ -4749,7 +4749,7 @@ setSyncStatus("✅ Status actualizado!");
             setSyncStatus("📲 WhatsApp aberto para Admin!");
           }
         });
-      }catch(e){console.warn("[WA] erro:",e);}
+      }catch(e){console.warn("[WA] erro:",e);_addNotif('falha_whatsapp','Falha ao abrir WhatsApp manual para Admin',);}
     }
   }
 
@@ -5326,7 +5326,7 @@ setSyncStatus("✅ Status actualizado!");
                             }
                             for(var _nFin of _numsFin){ enviarWAPublico(_nFin,_msgFin); }
                           }
-                        }catch(_eFinWA){console.warn('[WA finalizar]',_eFinWA);}
+                        }catch(_eFinWA){console.warn('[WA finalizar]',_eFinWA);_addNotif('falha_whatsapp','Falha ao notificar finalização da mudança',);}
                           // Create mudancas record for Registros tab
                           var _numAj=parseInt(a.ajudantes)||0;
                           var _novaM={nome:a.nome||"",selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,origem:a.origem||"",destino:a.destino||"",contato:a.contato||null,van:a.van||false,caminhao:a.caminhao||false,medicao:parseFloat(a.medicao)||0,ajudantes:_numAj,observacao:a.observacao||"",status:"Concluído",termino_em:agora,criado_em:agora,motorista_van_id:a.motorista_van_id||null,motorista_caminhao_id:a.motorista_caminhao_id||null,supervisor_id:a.supervisor_id||null,approved_by_admin:a.approved_by_admin||null,approved_by_social:a.approved_by_social||null,approved_by_promorar:a.approved_by_promorar||null,approved_by_supervisor:a.approved_by_supervisor||null,inicio_van_em:a.inicio_van_em||null,chegou_origem_van_em:a.chegou_origem_van_em||null,saiu_destino_van_em:a.saiu_destino_van_em||null,chegada_van_em:a.chegada_van_em||null,inicio_caminhao_em:a.inicio_caminhao_em||null,chegou_origem_cam_em:a.chegou_origem_cam_em||null,saiu_destino_cam_em:a.saiu_destino_cam_em||null,chegada_caminhao_em:a.chegada_caminhao_em||null};
@@ -5831,7 +5831,7 @@ setSyncStatus("✅ Status actualizado!");
                     await enviarWAPublico('55'+_usSol.contato.replace(/\D/g,''),_msgAprov2);
                   }
                 }
-              }catch(_eAprov){console.warn('[WA aprovacao]',_eAprov);}
+              }catch(_eAprov){console.warn('[WA aprovacao]',_eAprov);_addNotif('falha_whatsapp','Falha ao notificar aprovação de solicitação',);}
             } else {
               setSolicitacoesAgenda(function(prev){return prev.map(function(s){return s.id===solId?{...s,..._upd}:s;});});
               setSyncStatus('✅ Aprovacao registada. Aguarda outra aprovacao.');
@@ -8835,7 +8835,7 @@ return(
             <div style={{marginTop:20,background:"#f0fdf4",borderRadius:12,padding:16,border:"1px solid #bbf7d0"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                 <div style={{fontSize:13,fontWeight:800,color:"#15803d"}}>📲 Automação WhatsApp</div>
-                <button onClick={function(){var v=cfgWA.whatsapp_ativo==="true"?"false":"true";setCfgWA(function(p){return {...p,whatsapp_ativo:v};});fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.whatsapp_ativo",{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:v})}).catch(function(e){console.warn(e);});}} style={{padding:"4px 12px",borderRadius:20,border:"none",background:cfgWA.whatsapp_ativo==="true"?"#16a34a":"#e2e8f0",color:cfgWA.whatsapp_ativo==="true"?"#fff":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                <button onClick={function(){var v=cfgWA.whatsapp_ativo==="true"?"false":"true";setCfgWA(function(p){return {...p,whatsapp_ativo:v};});fetch(SUPA_URL+"/rest/v1/configuracoes?chave=eq.whatsapp_ativo",{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({valor:v})}).catch(function(e){console.warn(e);_addNotif('falha_config','Falha ao salvar interruptor de WhatsApp (Config)',);});}} style={{padding:"4px 12px",borderRadius:20,border:"none",background:cfgWA.whatsapp_ativo==="true"?"#16a34a":"#e2e8f0",color:cfgWA.whatsapp_ativo==="true"?"#fff":"#64748b",fontWeight:700,fontSize:11,cursor:"pointer"}}>
                   {cfgWA.whatsapp_ativo==="true"?"✅ Ativo":"⭕ Inativo"}
                 </button>
               </div>
@@ -8922,7 +8922,7 @@ return(
                 setWaLoading(true);
                 try{
                   var pairs=[["admin_whatsapp",cfgWA.admin_whatsapp||""],["supervisor_whatsapp",cfgWA.supervisor_whatsapp||""],["whatsapp_ativo",cfgWA.whatsapp_ativo||"false"],["evolution_api_url",cfgWA.evolution_api_url||""],["evolution_api_key",cfgWA.evolution_api_key||""],["evolution_instance",cfgWA.evolution_instance||""],["wa_auto_config",JSON.stringify(cfgWAauto)]];
-                  for(var i=0;i<pairs.length;i++){await fetch(SUPA_URL+"/rest/v1/configuracoes",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({chave:pairs[i][0],valor:pairs[i][1]})}).catch(function(e){console.warn("WA save:",e);});}
+                  for(var i=0;i<pairs.length;i++){await fetch(SUPA_URL+"/rest/v1/configuracoes",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({chave:pairs[i][0],valor:pairs[i][1]})}).catch(function(e){console.warn("WA save:",e);_addNotif('falha_config','Falha ao salvar configuração de evento WhatsApp',);});}
                   setSyncStatus("📲 Configurações WhatsApp salvas!");
                   setTimeout(function(){setSyncStatus("✅ Sincronizado");},3000);
                 }catch(e){setSyncStatus("⚠️ Erro: "+e.message);}
@@ -9168,16 +9168,16 @@ return(
                 if(_isAgenda){
                   // Item veio da agenda: marcar agenda como concluída + criar registro em mudancas
                   setAgenda(function(prev){return prev.map(function(a){return a.id===_mId?{...a,status:"concluida"}:a;});});
-                  fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+_mId,{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"concluida"})}).catch(function(e){console.warn("agenda status patch:",e);});
+                  fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+_mId,{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"concluida"})}).catch(function(e){console.warn("agenda status patch:",e);_addNotif('falha_sistema','Falha ao marcar agenda como concluída',);});
                   var _agItem=agenda.find(function(a){return a.id===_mId;});
                   if(_agItem){
                     var _novaM={nome:_agItem.nome,selo:_agItem.selo||"",comunidade:_agItem.comunidade||"",data:_agItem.data,origem:_agItem.origem||"",destino:_agItem.destino||"",contato:_agItem.contato||null,van:_agItem.van||false,caminhao:_agItem.caminhao||false,medicao:parseFloat(_agItem.medicao)||0,ajudantes:parseInt(_agItem.ajudantes)||0,observacao:_agItem.observacao||"",status:"Concluído",signature_data:_sigB64,assinado_em:_agora,motorista_van_id:_agItem.motorista_van_id||null,motorista_caminhao_id:_agItem.motorista_caminhao_id||null,supervisor_id:_agItem.supervisor_id||null,approved_by_admin:_agItem.approved_by_admin||null,approved_by_social:_agItem.approved_by_social||null,approved_by_promorar:_agItem.approved_by_promorar||null,approved_by_supervisor:_agItem.approved_by_supervisor||null};
-                    fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(_novaM)}).then(function(r){return r.json();}).then(function(d){if(Array.isArray(d)&&d[0]){setMudancas(function(prev){return[d[0]].concat(prev);});}}).catch(function(e){console.warn("create mud from agenda:",e);});
+                    fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(_novaM)}).then(function(r){return r.json();}).then(function(d){if(Array.isArray(d)&&d[0]){setMudancas(function(prev){return[d[0]].concat(prev);});}}).catch(function(e){console.warn("create mud from agenda:",e);_addNotif('falha_sistema','Falha ao criar registo de mudança a partir da agenda',);});
                   }
                 } else {
                   // Item já existe em mudancas: PATCH direto com signature_data + assinado_em
                   setMudancas(function(prev){return prev.map(function(m){return m.id===_mId?{...m,status:"Concluído",signature_data:_sigB64,assinado_em:_agora}:m;});});
-                  fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+_mId,{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"Concluído",signature_data:_sigB64,assinado_em:_agora})}).catch(function(e){console.warn("sig patch:",e);});
+                  fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+_mId,{method:"PATCH",headers:{...getH(),"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({status:"Concluído",signature_data:_sigB64,assinado_em:_agora})}).catch(function(e){console.warn("sig patch:",e);_addNotif('falha_sistema','Falha ao salvar assinatura no registo',);});
                 }
                 try{_addNotif("concluida","Mudanca concluida e assinada",mudAssinatura.nome);}catch(e){}
                 await _gerarPDFComAssinatura(mudAssinatura,assinB64,ressalvas);
