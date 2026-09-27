@@ -3193,16 +3193,24 @@ export default function App(){
       _addPDFFooter(doc,_canhotoStr);
       const pdfFinal=doc.output("datauristring").split(",")[1];
       const nm="Canhoto_"+(ag.nome||"morador").replace(/\s+/g,"_")+"_"+(ag.data||"sem-data")+".pdf";
-      await salvarCanhotoNoDrive(ag.id,pdfFinal,nm);
+      handleFinalizeOS(ag,pdfFinal);
       // E-mail automatico para Promorar com o termo assinado
       try{
         fetch(SUPA_URL+'/functions/v1/enviar-email-canhoto',{
           method:'POST',
           headers:{'Content-Type':'application/json',apikey:SUPA_KEY},
           body:JSON.stringify({pdfBase64:pdfFinal,clienteNome:ag.nome||'',data:ag.data||'',selo:ag.selo||''})
-        }).catch(function(_eEmail){console.warn('[email canhoto]',_eEmail);_addNotif('falha_email','Falha ao enviar e-mail do canhoto (fluxo antigo)',ag.nome||'');});
-      }catch(_eEmail2){console.warn('[email canhoto]',_eEmail2);_addNotif('falha_email','Falha ao enviar e-mail do canhoto (fluxo antigo, retry)',ag.nome||'');}
-    }catch(err){console.warn("[assinatura-pdf]",err);_addNotif('falha_sistema','Falha geral ao gerar PDF de assinatura (fluxo antigo)',ag.nome||'');}
+        }).catch(function(_eEmail){console.warn('[email canhoto]',_eEmail);_addNotif('falha_email','Falha ao enviar e-mail do canhoto',ag.nome||'');});
+      }catch(_eEmail2){console.warn('[email canhoto]',_eEmail2);_addNotif('falha_email','Falha ao enviar e-mail do canhoto (retry)',ag.nome||'');}
+      // Backup automatico no Google Drive (pasta Promorar) - unificado com o fluxo principal
+      try{
+        fetch('https://script.google.com/macros/s/AKfycbycmFseF5A-Cz9CTdF8uttRhWGihI9BRntXlcTWLLlPMyq4C0iZThJGypPupvdBQGrB/exec',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({pdfBase64:pdfFinal,filename:nm})
+        }).then(function(_rDrive){if(!_rDrive.ok){console.warn('[drive backup]',_rDrive.status);_addNotif('falha_drive','Backup no Drive NÃO enviado (erro '+_rDrive.status+')',ag.nome||'');}}).catch(function(_eDrive){console.warn('[drive backup]',_eDrive);_addNotif('falha_drive','Backup no Drive NÃO enviado (falha de rede)',ag.nome||'');});
+      }catch(_eDrive2){console.warn('[drive backup]',_eDrive2);}
+    }catch(err){console.warn("[assinatura-pdf]",err);_addNotif('falha_sistema','Falha geral ao gerar PDF de assinatura',ag.nome||'');}
   }
   function converterEmMudanca(ag){
     if(!ag.medicao){alert('Informe a medição (m³) antes de finalizar.');return;}
