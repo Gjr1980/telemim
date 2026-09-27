@@ -3161,7 +3161,7 @@ export default function App(){
         body:JSON.stringify({agenda_id:agId,pdf_base64:pdfB64,nome_arquivo:nome})});
       const d=await res.json();
       if(d.ok){setMsgSucesso("✅ Canhoto salvo no Drive!");setTimeout(()=>setMsgSucesso(""),3000);}
-    }catch(e){console.warn("[canhoto-drive]",e);_addNotif('falha_drive','Falha ao salvar canhoto no Drive (fluxo antigo)',ag.nome||'');}
+    }catch(e){console.warn("[canhoto-drive]",e);_addNotif('falha_drive','Falha ao salvar canhoto no Drive (fluxo antigo)',nome||'');}
   }
   async function confirmarComAssinatura(assinB64){
     const ag=mudancaCanhoto;
