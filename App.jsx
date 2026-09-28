@@ -2945,7 +2945,7 @@ export default function App(){
       var _s=(m.selo||"").toLowerCase().trim();
       return (_nomeAF&&_n===_nomeAF)||(_seloAF&&_s===_seloAF);
     });
-    var _isDupAgAg=agenda.some(function(a){
+    var _isDupAgAg=agenda.some(function(a){if(a.deleted_at)return false;
       if(a.data!==_dataAF)return false;
       var _n=(a.nome||"").toLowerCase().trim();
       var _s=(a.selo||"").toLowerCase().trim();
@@ -2961,10 +2961,28 @@ export default function App(){
     var _pa2=usuario&&usuario.perfil||'';
     var _paNome2=usuario&&(usuario.nome||usuario.email)||'';
     if(_pa2==="coordenador"||_pa2==="promorar"||_pa2==="social"){
+      if(window.__agSubmitting){setFlash('⏳ A enviar o pedido... aguarde.');return;}
+      window.__agSubmitting=true;
+      setFlash('⏳ A enviar o pedido... aguarde.');
       try{
         await _ensureAuth();
-        var _dadosNova={nome:nova.nome,selo:nova.selo,comunidade:nova.comunidade,data:nova.data,horario:nova.horario,origem:nova.origem,destino:nova.destino,contato:nova.contato,van:nova.van,caminhao:nova.caminhao,medicao:nova.medicao,ajudantes:nova.ajudantes,observacao:nova.observacao||''};
-        await _criarSolicitacaoAgenda('add',null,_dadosNova,_pa2,_paNome2);
+        var _dadosNova={nome:nova.nome,selo:nova.selo,comunidade:nova.comunidade,data:nova.data,horario:nova.horario,origem:nova.origem,destino:nova.destino,contato:nova.contato,van:nova.van,caminhao:nova.caminhao,medicao:parseFloat(nova.medicao)||0,ajudantes:parseInt(nova.ajudantes)||0,observacao:nova.observacao||''};
+        var _agIdProv=null;
+        try{
+          var _obsAguardo=(nova.observacao?nova.observacao+' — ':'')+'⏳ AGUARDANDO APROVAÇÃO';
+          var _rowProv=Object.assign({},_dadosNova,{observacao:_obsAguardo,status:'pendente',requires_validation:true,adm_approved:false});
+          var _rProv=await fetch(SUPA_URL+'/rest/v1/agenda',{method:'POST',headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=representation'}),body:JSON.stringify(_rowProv)});
+          if(_rProv.ok){
+            var _dProv=await _rProv.json();
+            var _regProv=Array.isArray(_dProv)?_dProv[0]:_dProv;
+            if(_regProv&&_regProv.id){_agIdProv=_regProv.id;setAgenda(function(prev){return [_regProv].concat(prev.filter(function(a){return a.id!==_regProv.id;}));});}
+          }else{
+            var _tProv='';try{_tProv=await _rProv.text();}catch(_e0){}
+            console.warn('[registo provisorio] HTTP',_rProv.status,_tProv);
+            _addNotif('falha_sistema','Falha ao criar registo provisório na Agenda (erro '+_rProv.status+')',nova.nome||'');
+          }
+        }catch(_eProv){console.warn('[registo provisorio]',_eProv);_addNotif('falha_sistema','Falha ao criar registo provisório na Agenda',nova.nome||'');}
+        await _criarSolicitacaoAgenda('add',_agIdProv,_dadosNova,_pa2,_paNome2);
         var _numAdmin='81992440900';
         var _numPromorar='81987596340';
         var _dests=(_pa2==="coordenador"||_pa2==="social")?[_numAdmin,_numPromorar]:[_numAdmin];
@@ -2972,11 +2990,11 @@ export default function App(){
       }catch(_eSolGeral){
         console.warn('[solicitacao geral]',_eSolGeral);
         var _msgErrDetalhe=(_eSolGeral&&_eSolGeral.message)||String(_eSolGeral)||'erro desconhecido';
-        setFlash('⚠️ Erro: '+_msgErrDetalhe);
+        window.__agSubmitting=false;setFlash('⚠️ Erro: '+_msgErrDetalhe);
         setTimeout(function(){setFlash('');},8000);
         return;
       }
-      setFlash('⏳ Solicitação enviada! Aguarda aprovação.');
+      window.__agSubmitting=false;setFlash('⏳ Solicitação enviada! Aguarda aprovação.');
       setTimeout(function(){setFlash('');},3000);
       setTab('agenda');
       return; // para o handler principal
@@ -5746,6 +5764,8 @@ setSyncStatus("✅ Status actualizado!");
               }
               if(_sol.tipo==='add'&&_sol.novo_valor){
                 var _rowNova=_sol.novo_valor;
+                _rowNova.medicao=parseFloat(_rowNova.medicao)||0;
+                _rowNova.ajudantes=parseInt(_rowNova.ajudantes)||0;
                 _rowNova.adm_approved=true;
                 _rowNova.adm_approved_by=_nomApr;
                 _rowNova.status='confirmado';
