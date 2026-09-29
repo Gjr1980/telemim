@@ -4673,9 +4673,7 @@ setSyncStatus("✅ Status actualizado!");
           var _nums2=resolverDestinatariosWA(cfgWAauto.atribuida.dest,Object.assign({},_ag,{supervisor_id:sid}));
           _nums2.forEach(function(n){enviarWA(n,substituirVarsWA(cfgWAauto.atribuida.msg,_vars2));});
         }}
-      if(sid&&_ag&&_NOTIF_ATRIB_EQUIPE){var _sup=listaUsuarios.find(function(u){return u.id===sid;});if(_sup&&_sup.contato){try{var _otBlocoSup=await _owntracksBloco(sid);if(_otBlocoSup){var _msgSupOT="👷 *TELEMIM — NOVA MUDANÇA*
-━━━━━━━━━━━━━━━━━━━━
-Olá *"+(_sup.nome||"")+"*!
+      if(sid&&_ag&&_NOTIF_ATRIB_EQUIPE){var _sup=listaUsuarios.find(function(u){return u.id===sid;});if(_sup&&_sup.contato){try{var _otBlocoSup=await _owntracksBloco(sid);if(_otBlocoSup){var _msgSupOT="👷 *TELEMIM — NOVA MUDANÇA*\n━━━━━━━━━━━━━━━━━━━━\nOlá *"+(_sup.nome||"")+"*!
 
 Você foi designado(a) como supervisor de:
 👤 "+(_ag.nome||"")+"
