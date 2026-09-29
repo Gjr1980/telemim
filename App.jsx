@@ -4663,7 +4663,14 @@ setSyncStatus("✅ Status actualizado!");
           var _nums2=resolverDestinatariosWA(cfgWAauto.atribuida.dest,Object.assign({},_ag,{supervisor_id:sid}));
           _nums2.forEach(function(n){enviarWA(n,substituirVarsWA(cfgWAauto.atribuida.msg,_vars2));});
         }}
-      if(sid&&_ag&&_NOTIF_ATRIB_EQUIPE){var _sup=listaUsuarios.find(function(u){return u.id===sid;});if(_sup&&_sup.email){try{await fetch(SUPA_URL+"/functions/v1/enviar-email-agendamento",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({to:_sup.email,subject:"📋 Designação de Supervisão — "+(_ag.nome||"Mudança"),html:"<h2>Olá "+(_sup.nome||"Supervisor")+"!</h2><p>Você foi designado(a) para supervisionar a seguinte mudança:</p><p><b>👤 Cliente:</b> "+(_ag.nome||"—")+"</p><p><b>📅 Data:</b> "+(_ag.data||"—")+(_ag.horario?" às "+_ag.horario+"h":"")+"</p><p><b>🏷️ Selo:</b> "+(_ag.selo||"—")+"</p><p><b>📦 Saída:</b> "+(_ag.origem||"—")+"</p><p><b>🏘️ Destino:</b> "+(_ag.destino||"—")+"</p><br><p>Acesse o app para mais detalhes.</p><p><b>TELEMIM — PROMORAR</b></p>"})});} catch(e){}}}
+      if(sid&&_ag&&_NOTIF_ATRIB_EQUIPE){var _sup=listaUsuarios.find(function(u){return u.id===sid;});if(_sup&&_sup.contato){try{var _otBlocoSup=await _owntracksBloco(sid);if(_otBlocoSup){var _msgSupOT="👷 *TELEMIM — NOVA MUDANÇA*
+━━━━━━━━━━━━━━━━━━━━
+Olá *"+(_sup.nome||"")+"*!
+
+Você foi designado(a) como supervisor de:
+👤 "+(_ag.nome||"")+"
+📅 "+(_ag.data||"")+(_ag.horario?" às "+_ag.horario+"h":"")+"
+📍 "+(_ag.comunidade||"")+_otBlocoSup;enviarWA(_sup.contato,_msgSupOT);}}catch(_eOTsup){console.warn("[owntracks supervisor]",_eOTsup);}}if(_sup&&_sup.email){try{await fetch(SUPA_URL+"/functions/v1/enviar-email-agendamento",{method:"POST",headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({to:_sup.email,subject:"📋 Designação de Supervisão — "+(_ag.nome||"Mudança"),html:"<h2>Olá "+(_sup.nome||"Supervisor")+"!</h2><p>Você foi designado(a) para supervisionar a seguinte mudança:</p><p><b>👤 Cliente:</b> "+(_ag.nome||"—")+"</p><p><b>📅 Data:</b> "+(_ag.data||"—")+(_ag.horario?" às "+_ag.horario+"h":"")+"</p><p><b>🏷️ Selo:</b> "+(_ag.selo||"—")+"</p><p><b>📦 Saída:</b> "+(_ag.origem||"—")+"</p><p><b>🏘️ Destino:</b> "+(_ag.destino||"—")+"</p><br><p>Acesse o app para mais detalhes.</p><p><b>TELEMIM — PROMORAR</b></p>"})});} catch(e){}}}
     }catch(e){loadAg();setSyncStatus("⚠️ Erro ao designar");}
   }
 
