@@ -12,6 +12,37 @@ import { Badge, Card, Inp, InpEndereco, Tog, playNotifSound } from "./src/compon
 // ── Globais a nível de módulo ────────────────────────────────────────
 const MAPBOX_TOKEN_GLOBAL = ["pk.eyJ1IjoidGVsZW1pbSIsImEiOiJjbW9yd","HJzMmcwNW8yMndwdnZ1bDFoOXZ2In0.","4MHg1RPF_jFgiQt4Ax4Psw"].join("");
 
+// ── Helpers: GPS real + geocodificacao reversa + distancia por rota (Mapbox) ──
+function _getGPSPositionOnce(){
+  return new Promise(function(resolve){
+    if(typeof navigator==="undefined"||!navigator.geolocation){resolve(null);return;}
+    navigator.geolocation.getCurrentPosition(
+      function(pos){resolve({lat:pos.coords.latitude,lng:pos.coords.longitude});},
+      function(){resolve(null);},
+      {enableHighAccuracy:true,maximumAge:10000,timeout:8000}
+    );
+  });
+}
+async function _reverseGeocodeMapbox(lat,lng){
+  try{
+    var url="https://api.mapbox.com/geocoding/v5/mapbox.places/"+lng+","+lat+".json?access_token="+MAPBOX_TOKEN_GLOBAL+"&limit=1";
+    var r=await fetch(url);
+    var d=await r.json();
+    if(d.features&&d.features.length>0) return d.features[0].place_name;
+    return null;
+  }catch(e){console.warn("[reverseGeocodeMapbox]",e);return null;}
+}
+async function _calcKmRotaReal(lat1,lng1,lat2,lng2){
+  try{
+    var url="https://api.mapbox.com/directions/v5/mapbox/driving/"+lng1+","+lat1+";"+lng2+","+lat2+"?overview=false&access_token="+MAPBOX_TOKEN_GLOBAL;
+    var r=await fetch(url);
+    var d=await r.json();
+    if(d.routes&&d.routes.length>0) return parseFloat((d.routes[0].distance/1000).toFixed(1));
+    return null;
+  }catch(e){console.warn("[calcKmRotaReal]",e);return null;}
+}
+
+
 // ── Helper GPS+ETA reutilizável (escopo de módulo) ─────────────────
 // Pega GPS atual do navegador e calcula ETA até o endereço via Mapbox driving-traffic.
 async function calcETAGpsParaEndereco(toAddress, opts = {}) {
@@ -4019,6 +4050,15 @@ export default function App(){
       if(_isVanMot) body.chegou_origem_van_em=agora;
       else if(_isCamMot) body.chegou_origem_cam_em=agora;
       gpsStop(_veiTipo);
+      try{
+        var _posOrig=await _getGPSPositionOnce();
+        if(_posOrig){
+          body.origem_real_lat=_posOrig.lat;
+          body.origem_real_lng=_posOrig.lng;
+          var _endOrig=await _reverseGeocodeMapbox(_posOrig.lat,_posOrig.lng);
+          if(_endOrig) body.origem_real_endereco=_endOrig;
+        }
+      }catch(_eGpsOrig){console.warn("[gps origem real]",_eGpsOrig);}
     }
     // Step 3: Deslocamento Destino → GPS reativa rumo ao DESTINO
     if(novoStatus==="Deslocamento Destino"){
@@ -4031,6 +4071,20 @@ export default function App(){
       if(_isVanMot){body.chegada_van_em=agora;}
       else if(_isCamMot){body.chegada_caminhao_em=agora;}
       gpsStop(_veiTipo);
+      try{
+        var _posDest=await _getGPSPositionOnce();
+        if(_posDest){
+          body.destino_real_lat=_posDest.lat;
+          body.destino_real_lng=_posDest.lng;
+          var _endDest=await _reverseGeocodeMapbox(_posDest.lat,_posDest.lng);
+          if(_endDest) body.destino_real_endereco=_endDest;
+          var _origLatKm=ag.origem_real_lat, _origLngKm=ag.origem_real_lng;
+          if(_origLatKm&&_origLngKm){
+            var _kmReal=await _calcKmRotaReal(_origLatKm,_origLngKm,_posDest.lat,_posDest.lng);
+            if(_kmReal!=null) body.km_calculado=_kmReal;
+          }
+        }
+      }catch(_eGpsDest){console.warn("[gps destino real]",_eGpsDest);}
     }
     // Step 6: Concluído (set by Finalizar Mudança button)
     if(novoStatus==="Concluido"||novoStatus==="realizado"){
@@ -5342,7 +5396,7 @@ setSyncStatus("✅ Status actualizado!");
                         }catch(_eFinWA){console.warn('[WA finalizar]',_eFinWA);_addNotif('falha_whatsapp','Falha ao notificar finalização da mudança',);}
                           // Create mudancas record for Registros tab
                           var _numAj=parseInt(a.ajudantes)||0;
-                          var _novaM={nome:a.nome||"",selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,origem:a.origem||"",destino:a.destino||"",contato:a.contato||null,van:a.van||false,caminhao:a.caminhao||false,medicao:parseFloat(a.medicao)||0,ajudantes:_numAj,observacao:a.observacao||"",status:"Concluído",termino_em:agora,criado_em:agora,motorista_van_id:a.motorista_van_id||null,motorista_caminhao_id:a.motorista_caminhao_id||null,supervisor_id:a.supervisor_id||null,approved_by_admin:a.approved_by_admin||null,approved_by_social:a.approved_by_social||null,approved_by_promorar:a.approved_by_promorar||null,approved_by_supervisor:a.approved_by_supervisor||null,inicio_van_em:a.inicio_van_em||null,chegou_origem_van_em:a.chegou_origem_van_em||null,saiu_destino_van_em:a.saiu_destino_van_em||null,chegada_van_em:a.chegada_van_em||null,inicio_caminhao_em:a.inicio_caminhao_em||null,chegou_origem_cam_em:a.chegou_origem_cam_em||null,saiu_destino_cam_em:a.saiu_destino_cam_em||null,chegada_caminhao_em:a.chegada_caminhao_em||null};
+                          var _novaM={nome:a.nome||"",selo:a.selo||"",comunidade:a.comunidade||"",data:a.data,origem:a.origem||"",destino:a.destino||"",contato:a.contato||null,van:a.van||false,caminhao:a.caminhao||false,medicao:parseFloat(a.medicao)||0,ajudantes:_numAj,observacao:a.observacao||"",status:"Concluído",termino_em:agora,criado_em:agora,motorista_van_id:a.motorista_van_id||null,motorista_caminhao_id:a.motorista_caminhao_id||null,supervisor_id:a.supervisor_id||null,approved_by_admin:a.approved_by_admin||null,approved_by_social:a.approved_by_social||null,approved_by_promorar:a.approved_by_promorar||null,approved_by_supervisor:a.approved_by_supervisor||null,km_calculado:a.km_calculado||null,origem_real_endereco:a.origem_real_endereco||null,destino_real_endereco:a.destino_real_endereco||null,inicio_van_em:a.inicio_van_em||null,chegou_origem_van_em:a.chegou_origem_van_em||null,saiu_destino_van_em:a.saiu_destino_van_em||null,chegada_van_em:a.chegada_van_em||null,inicio_caminhao_em:a.inicio_caminhao_em||null,chegou_origem_cam_em:a.chegou_origem_cam_em||null,saiu_destino_cam_em:a.saiu_destino_cam_em||null,chegada_caminhao_em:a.chegada_caminhao_em||null};
                           fetch(SUPA_URL+"/rest/v1/mudancas",{method:"POST",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=representation"}),body:JSON.stringify(_novaM)}).then(function(r2){return r2.json();}).then(function(d){if(Array.isArray(d)&&d[0]){setMudancas(function(prev){return[d[0]].concat(prev);});}}).catch(function(){});
                           // Auto-create custosDiarios entry for financial calculations
                           if(_numAj>0&&a.data){var _cdExist=(custosDiarios||[]).find(function(cd){return cd.data===a.data;});if(!_cdExist){saveCustoDia(a.data,_numAj,0);}}
