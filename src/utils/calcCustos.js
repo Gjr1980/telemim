@@ -42,7 +42,16 @@ export function _calcCustos(mudP, cdP, cpP, RULES, mudDesp, eqDiaP, solFin){
   var diasU=[...new Set(mudP.map(function(m){return m.data;}))];
   var m3Total=mudP.reduce(function(s,m){return s+_fv(m.medicao);},0);
   var numVan=mudP.filter(function(m){return m.van;}).length;
-  var fatBruto=diasU.length*_fv(RULES.van1a)+m3Total*_fv(RULES.medicaoPorM3);
+  function _taxaCaminhaoKm(km,RULES){var t=RULES.tabelaCaminhaoKm||[];for(var i=0;i<t.length;i++){if(km<=t[i].ate)return t[i].valor;}return t.length?t[t.length-1].valor:_fv(RULES.medicaoPorM3);}
+  function _taxaVanKm(km,RULES){var t=RULES.tabelaVanKm||[];for(var i=0;i<t.length;i++){if(km<=t[i].ate)return t[i].valor;}return t.length?t[t.length-1].valor:0;}
+  var _dataCorteKm=RULES.dataInicioTabelaKm||'9999-99-99';
+  var _mudAntigasFat=mudP.filter(function(m){return m.data<_dataCorteKm;});
+  var _mudNovasFat=mudP.filter(function(m){return m.data>=_dataCorteKm;});
+  var _diasAntigosFat=[...new Set(_mudAntigasFat.map(function(m){return m.data;}))];
+  var _m3AntigoFat=_mudAntigasFat.reduce(function(s,m){return s+_fv(m.medicao);},0);
+  var _fatAntigo=_diasAntigosFat.length*_fv(RULES.van1a)+_m3AntigoFat*_fv(RULES.medicaoPorM3);
+  var _fatNovo=_mudNovasFat.reduce(function(s,m){var km=_fv(m.km_calculado);var usaCam=m.caminhao||m.motorista_caminhao_id;var usaVan=m.van||m.motorista_van_id;var v=0;if(usaCam)v+=_fv(m.medicao)*_taxaCaminhaoKm(km,RULES);if(usaVan)v+=_taxaVanKm(km,RULES);return s+v;},0);
+  var fatBruto=_fatAntigo+_fatNovo;
   var imposto=fatBruto*_fv(RULES.imposto);
   var fatLiq=fatBruto-imposto;
   // --- CUSTOS (todas realizadas, não-canceladas, não-pendentes) ---
