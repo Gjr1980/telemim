@@ -4057,8 +4057,11 @@ export default function App(){
           body.origem_real_lng=_posOrig.lng;
           var _endOrig=await _reverseGeocodeMapbox(_posOrig.lat,_posOrig.lng);
           if(_endOrig) body.origem_real_endereco=_endOrig;
+        }else{
+          console.warn("[gps origem real] posicao nao obtida (permissao negada ou sem sinal)");
+          _addNotif("falha_gps","Não foi possível captar o GPS na origem (permissão negada ou sem sinal)",ag.nome||"");
         }
-      }catch(_eGpsOrig){console.warn("[gps origem real]",_eGpsOrig);}
+      }catch(_eGpsOrig){console.warn("[gps origem real]",_eGpsOrig);_addNotif("falha_gps","Erro ao captar GPS na origem: "+String(_eGpsOrig).substring(0,100),ag.nome||"");}
     }
     // Step 3: Deslocamento Destino → GPS reativa rumo ao DESTINO
     if(novoStatus==="Deslocamento Destino"){
@@ -4081,10 +4084,17 @@ export default function App(){
           var _origLatKm=ag.origem_real_lat, _origLngKm=ag.origem_real_lng;
           if(_origLatKm&&_origLngKm){
             var _kmReal=await _calcKmRotaReal(_origLatKm,_origLngKm,_posDest.lat,_posDest.lng);
-            if(_kmReal!=null) body.km_calculado=_kmReal;
+            if(_kmReal!=null){body.km_calculado=_kmReal;}
+            else{console.warn("[km real] Mapbox nao retornou rota");_addNotif("falha_gps","Mapbox não conseguiu calcular a rota (origem/destino)",ag.nome||"");}
+          }else{
+            console.warn("[km real] sem coordenadas de origem para calcular");
+            _addNotif("falha_gps","Não foi possível calcular km: GPS da origem não foi captado nesta mudança",ag.nome||"");
           }
+        }else{
+          console.warn("[gps destino real] posicao nao obtida (permissao negada ou sem sinal)");
+          _addNotif("falha_gps","Não foi possível captar o GPS no destino (permissão negada ou sem sinal)",ag.nome||"");
         }
-      }catch(_eGpsDest){console.warn("[gps destino real]",_eGpsDest);}
+      }catch(_eGpsDest){console.warn("[gps destino real]",_eGpsDest);_addNotif("falha_gps","Erro ao captar GPS no destino: "+String(_eGpsDest).substring(0,100),ag.nome||"");}
     }
     // Step 6: Concluído (set by Finalizar Mudança button)
     if(novoStatus==="Concluido"||novoStatus==="realizado"){
