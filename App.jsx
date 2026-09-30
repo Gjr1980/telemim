@@ -3096,7 +3096,7 @@ export default function App(){
             fetch(SUPA_URL+'/functions/v1/enviar-email-agendamento',{
               method:'POST',
               headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY},
-              body:JSON.stringify({agenda:{...nova,id:_bdId||nova.id},agendadoPor:{nome:usuario&&usuario.nome,email:usuario&&usuario.email,perfil:usuario&&usuario.perfil}})
+              body:JSON.stringify({agenda:{...nova,id:_bdId||nova.id},agendadoPor:{nome:usuario&&usuario.nome,email:usuario&&usuario.email,perfil:usuario&&usuario.perfil},precisaAprovacao:(_perfilUser==='social'||_perfilUser==='coordenador'||_perfilUser==='promorar')})
             }).then(function(_rEmailAg2){if(!_rEmailAg2.ok){console.warn('[email agendamento] HTTP',_rEmailAg2.status);_addNotif('falha_email','Falha ao enviar e-mail de novo agendamento (erro '+_rEmailAg2.status+')',nova.nome||'');}}).catch(function(e){console.warn('[email agendamento]',e);_addNotif('falha_email','Falha ao enviar e-mail de novo agendamento (rede)',nova.nome||'');});
             // Admin cadastrou direto: avisar Promorar tambem com o e-mail verde de aprovacao
             if(_perfilUser==='admin'){
