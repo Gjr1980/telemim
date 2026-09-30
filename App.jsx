@@ -2681,7 +2681,7 @@ export default function App(){
             if(!aj.telefone)return;
             var _foneConv="55"+aj.telefone.replace(/\D/g,"");
             _mudDiaConv.forEach(function(m){
-              var _msgConv="Olá, "+(aj.nome||"")+"!\n\n📋 *CONVOCAÇÃO DE TRABALHO*\n\n📅 "+_fmtDate(data)+"\n⏰ "+(m.horario||"")+"\n👤 "+(m.nome||"")+"\n📦 Saída da garagem da empresa\n\nResponda *ACEITO* ou *NÃO ACEITO* em até 1 dia útil.\nSem resposta = recusa, sem penalidade.\n\n👷 TELEMIM";
+              var _msgConv="Olá, "+(aj.nome||"")+"!\n\n📋 *CONVOCAÇÃO DE TRABALHO*\n\n📅 "+(String(data).split("-").reverse().join("/"))+"\n⏰ "+(m.horario||"")+"\n👤 "+(m.nome||"")+"\n📦 Saída da garagem da empresa\n\nResponda *ACEITO* ou *NÃO ACEITO* em até 1 dia útil.\nSem resposta = recusa, sem penalidade.\n\n👷 TELEMIM";
               enviarWAPublico(_foneConv,_msgConv).catch(function(_eConv){console.warn("[convocacao ajudante]",_eConv);_addNotif("falha_whatsapp","Falha ao convocar ajudante "+(aj.nome||""),m.nome||"");});
             });
           });
