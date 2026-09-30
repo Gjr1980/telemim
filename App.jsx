@@ -2655,6 +2655,9 @@ export default function App(){
   async function salvarEquipeDia(data,ajudantesArr){
     // 🛡️ Camada 1: dedupe antes de enviar (defesa em profundidade)
     var _ajsLimpos=_dedupeAjs(ajudantesArr);
+    var _eqAnterior=(equipeDiaList.find(function(e){return e.data===data;})||{}).ajudantes||[];
+    var _idsAnteriores=_eqAnterior.map(function(a){return String(a.id);});
+    var _novosConvocar=_ajsLimpos.filter(function(a){return a.id!=null&&_idsAnteriores.indexOf(String(a.id))===-1;});
     // Upsert via on_conflict=data para evitar erro de unique constraint independente do estado local
     var _hd=Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=representation"});
     try{
@@ -2672,6 +2675,17 @@ export default function App(){
         setEquipeDiaCheck(_ajsLimpos);
         setSyncStatus("✅ Equipe do dia salva!");
         setEquipeSalvaMsg("✅ Equipe salva com sucesso!");
+        if(_novosConvocar.length>0){
+          var _mudDiaConv=agenda.filter(function(a){return a.data===data&&!a.deleted_at;});
+          _novosConvocar.forEach(function(aj){
+            if(!aj.telefone)return;
+            var _foneConv="55"+aj.telefone.replace(/\D/g,"");
+            _mudDiaConv.forEach(function(m){
+              var _msgConv="Olá, "+(aj.nome||"")+"!\n\n📋 *CONVOCAÇÃO DE TRABALHO*\n\n📅 "+_fmtDate(data)+"\n⏰ "+(m.horario||"")+"\n👤 "+(m.nome||"")+"\n📦 Saída da garagem da empresa\n\nResponda *ACEITO* ou *NÃO ACEITO* em até 1 dia útil.\nSem resposta = recusa, sem penalidade.\n\n👷 TELEMIM";
+              enviarWAPublico(_foneConv,_msgConv).catch(function(_eConv){console.warn("[convocacao ajudante]",_eConv);_addNotif("falha_whatsapp","Falha ao convocar ajudante "+(aj.nome||""),m.nome||"");});
+            });
+          });
+        }
         setTimeout(function(){setEquipeSalvaMsg("");},3000);
       } else {
         var _errBody="";
