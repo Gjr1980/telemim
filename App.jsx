@@ -5913,7 +5913,7 @@ setSyncStatus("✅ Status actualizado!");
                   // Sempre notificar Promorar
                   await enviarWAPublico('5581987596340',_msgAprov2);
                   // Notificar solicitante (social/coordenador) se tiver numero
-                  var _usSol=usuarios&&usuarios.find&&usuarios.find(function(u){return u.perfil===_solAprWA.solicitado_por;});
+                  var _usSol=usuarios&&usuarios.find&&usuarios.find(function(u){return u.nome===_solAprWA.solicitado_por_nome;});
                   if(_usSol&&_usSol.contato&&_usSol.contato.replace(/\D/g,'').length>7){
                     await enviarWAPublico('55'+_usSol.contato.replace(/\D/g,''),_msgAprov2);
                   }
