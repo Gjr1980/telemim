@@ -5909,6 +5909,14 @@ setSyncStatus("✅ Status actualizado!");
                   if(_usSol&&_usSol.contato&&_usSol.contato.replace(/\D/g,'').length>7){
                     await enviarWAPublico('55'+_usSol.contato.replace(/\D/g,''),_msgAprov2);
                   }
+                try{
+                  var _agEmailApr=Object.assign({},_solAprWA.novo_valor||{},_agAprWA||{});
+                  fetch(SUPA_URL+'/functions/v1/enviar-email-aprovacao',{
+                    method:'POST',
+                    headers:{'Content-Type':'application/json',apikey:SUPA_KEY},
+                    body:JSON.stringify({agenda:_agEmailApr,aprovadoPor:{nome:_nomApr,perfil:_perApr},solicitanteNome:_solAprWA.solicitado_por_nome||''})
+                  }).then(function(_rEmailApr){if(!_rEmailApr.ok){console.warn('[email aprovacao] HTTP',_rEmailApr.status);_addNotif('falha_email','Falha ao enviar e-mail de aprovacao',_nomeAg2);}}).catch(function(_eEmailApr){console.warn('[email aprovacao]',_eEmailApr);_addNotif('falha_email','Falha ao enviar e-mail de aprovacao',_nomeAg2);});
+                }catch(_eEmailApr2){console.warn('[email aprovacao]',_eEmailApr2);}
                 }
               }catch(_eAprov){console.warn('[WA aprovacao]',_eAprov);_addNotif('falha_whatsapp','Falha ao notificar aprovação de solicitação',);}
             } else {
