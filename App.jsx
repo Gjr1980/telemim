@@ -3018,6 +3018,13 @@ export default function App(){
         var _numPromorar='81987596340';
         var _dests=(_pa2==="coordenador"||_pa2==="social")?[_numAdmin,_numPromorar]:[_numAdmin];
         try{ await _enviarWASolicitacao('add',nova.nome,nova.data,nova.horario,_paNome2,_dests); }catch(_eWaSol){ console.warn('[WA solicitacao]',_eWaSol); _addNotif('falha_whatsapp','Falha ao notificar nova solicitação de agenda',nova.nome||'');}
+        try{
+          fetch(SUPA_URL+'/functions/v1/enviar-email-agendamento',{
+            method:'POST',
+            headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY},
+            body:JSON.stringify({agenda:{...nova,id:_agIdProv},agendadoPor:{nome:_paNome2,email:usuario&&usuario.email,perfil:_pa2},precisaAprovacao:true})
+          }).then(function(_rEmailSol){if(!_rEmailSol.ok){console.warn('[email solicitacao] HTTP',_rEmailSol.status);_addNotif('falha_email','Falha ao enviar e-mail de aprovação pendente (erro '+_rEmailSol.status+')',nova.nome||'');}}).catch(function(_eEmailSol){console.warn('[email solicitacao]',_eEmailSol);_addNotif('falha_email','Falha ao enviar e-mail de aprovação pendente (rede)',nova.nome||'');});
+        }catch(_eEmailSol2){console.warn('[email solicitacao]',_eEmailSol2);}
       }catch(_eSolGeral){
         console.warn('[solicitacao geral]',_eSolGeral);
         var _msgErrDetalhe=(_eSolGeral&&_eSolGeral.message)||String(_eSolGeral)||'erro desconhecido';
