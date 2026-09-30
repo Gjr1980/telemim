@@ -1903,7 +1903,7 @@ export default function App(){
         }catch(_re){}
         // Carregar mudancas e agenda em paralelo
         try{
-          var p=await Promise.all([dbGet("mudancas"),dbGet("agenda","deleted_at=is.null"),loadCfgWA()]);
+          var p=await Promise.all([dbGet("mudancas"),dbGet("agenda","deleted_at=is.null"),loadCfgWA(),loadSolicitacoesAg()]);
           var mRows=p[0]||[];var aRows=p[1]||[];
           var _perfLoad=(JSON.parse(localStorage.getItem('tmim_u')||'{}')).perfil||"";
           if(mRows.length===0&&_perfLoad!=="motorista"){await dbUpsert("mudancas",DADOS_INICIAIS);mRows=DADOS_INICIAIS;}
