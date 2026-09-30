@@ -3001,7 +3001,7 @@ export default function App(){
         var _agIdProv=null;
         try{
           var _obsAguardo=(nova.observacao?nova.observacao+' — ':'')+'⏳ AGUARDANDO APROVAÇÃO';
-          var _rowProv=Object.assign({},_dadosNova,{observacao:_obsAguardo,status:'pendente',requires_validation:true,adm_approved:false});
+          var _rowProv=Object.assign({},_dadosNova,{observacao:_obsAguardo,status:'pendente',requires_validation:true,adm_approved:false,created_by:_paNome2,requested_by:_paNome2});
           var _rProv=await fetch(SUPA_URL+'/rest/v1/agenda',{method:'POST',headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=representation'}),body:JSON.stringify(_rowProv)});
           if(_rProv.ok){
             var _dProv=await _rProv.json();
