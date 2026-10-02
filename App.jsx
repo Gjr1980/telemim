@@ -6744,7 +6744,7 @@ setSyncStatus("✅ Status actualizado!");
                         return <div style={{marginTop:5}}><span style={{background:"#fef2f2",border:"1.5px solid #dc2626",color:"#dc2626",borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:800}}>↶ Desfeita {_desfCount}× (engano)</span></div>;
                       })()}
                     </div>
-                    {!isMotorista&&verMed&&m.medicao&&<div style={{background:"rgba(255,255,255,0.2)",borderRadius:8,padding:"4px 10px",marginLeft:8}}><span style={{fontSize:13,fontWeight:800,color:"#fff"}}>📐 {m.medicao} m³</span></div>}
+                    {!isMotorista&&verMed&&(Number(m.medicao)>0||Number(m.km_calculado)>0)&&<div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",marginLeft:8}}>{Number(m.medicao)>0&&<div style={{background:"rgba(255,255,255,0.2)",borderRadius:8,padding:"4px 10px"}}><span style={{fontSize:13,fontWeight:800,color:"#fff",whiteSpace:"nowrap"}}>📐 {m.medicao} m³</span></div>}{Number(m.km_calculado)>0&&<div style={{background:"rgba(255,255,255,0.2)",borderRadius:8,padding:"4px 10px"}}><span style={{fontSize:13,fontWeight:800,color:"#fff",whiteSpace:"nowrap"}}>🛣️ {Number(m.km_calculado).toLocaleString("pt-BR",{maximumFractionDigits:1})} km</span></div>}</div>}
                   </div>
                 </div>
                 {/* ── Body ── */}
@@ -9325,6 +9325,7 @@ return(
               {_row("Destino",v.destino,"🏠")}
               {_row("Contato",v.contato,"📞")}
               {!isSocial&&_row("Medição",v.medicao?v.medicao+" m³":"","📐")}
+              {!isSocial&&_row("Km percorrido",Number(v.km_calculado)>0?Number(v.km_calculado).toLocaleString("pt-BR",{maximumFractionDigits:1})+" km":"Não registrado","🛣️")}
               {_row("Van",v.van?"Sim":"Não","🚐")}
               {_row("Caminhão",v.caminhao?"Sim":"Não","🚚")}
               {_row("Status",v.status,"📌")}
