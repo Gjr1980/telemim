@@ -3281,7 +3281,7 @@ export default function App(){
       }catch(_eEmail2){console.warn('[email canhoto]',_eEmail2);_addNotif('falha_email','Falha ao enviar e-mail do canhoto (retry)',ag.nome||'');}
       // Backup automatico no Google Drive (pasta Promorar) - unificado com o fluxo principal
       try{
-        fetch('https://script.google.com/macros/s/AKfycbycmFseF5A-Cz9CTdF8uttRhWGihI9BRntXlcTWLLlPMyq4C0iZThJGypPupvdBQGrB/exec',{
+        fetch(SUPA_URL+'/functions/v1/backup-drive',{
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({pdfBase64:pdfFinal,filename:nm})
@@ -4789,6 +4789,7 @@ setSyncStatus("✅ Status actualizado!");
       var nomeArq='Recibo_'+(m.nome||'').split(' ').join('_')+'_'+(m.data||'').split('/').join('-')+'.pdf';
       doc.save(nomeArq);
     }
+    if(!(window.jspdf&&window.jspdf.jsPDF)&&!window.jsPDF){try{await new Promise(function(_resJ,_rejJ){var _sJ=document.createElement('script');_sJ.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';_sJ.onload=_resJ;_sJ.onerror=_rejJ;document.head.appendChild(_sJ);});}catch(_eJ){console.warn('[jsPDF load]',_eJ);_addNotif('falha_sistema','Não foi possível carregar o gerador de PDF',m.nome||'');}}
     _runPDF();
     // Drive Backup: chamar handleFinalizeOS com o PDF gerado
     try{
@@ -4804,7 +4805,7 @@ setSyncStatus("✅ Status actualizado!");
       // Backup automatico no Google Drive (pasta Promorar)
       try{
         var _nomeArqDrive='Termo_Entrega_'+(m.nome||'morador').replace(/\s+/g,'_')+'_'+(m.data||'').split('/').join('-')+'.pdf';
-        fetch('https://script.google.com/macros/s/AKfycbycmFseF5A-Cz9CTdF8uttRhWGihI9BRntXlcTWLLlPMyq4C0iZThJGypPupvdBQGrB/exec',{
+        fetch(SUPA_URL+'/functions/v1/backup-drive',{
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({pdfBase64:_driveB64,filename:_nomeArqDrive})
