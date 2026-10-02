@@ -4784,6 +4784,25 @@ setSyncStatus("✅ Status actualizado!");
       }
       // Rodapé timbrado
       var _osNow=new Date();var _osStr=_osNow.toLocaleDateString('pt-BR')+' '+_osNow.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      // Rodape discreto: equipe responsavel (supervisor + ajudantes do dia)
+      try{
+      var _eqData=String(m.data||"");if(_eqData.indexOf("/")>=0){var _pd=_eqData.split("/");if(_pd.length===3)_eqData=_pd[2]+"-"+_pd[1]+"-"+_pd[0];}
+      var _eqAg=(typeof agenda!=="undefined"&&agenda?agenda:[]);
+      var _eqSupId=m.supervisor_id||((_eqAg.find(function(x){return x&&x.nome===m.nome&&x.data===_eqData;})||{}).supervisor_id);
+      var _eqLu=(typeof listaUsuarios!=="undefined"&&listaUsuarios?listaUsuarios:[]);
+      var _eqSup="";if(_eqSupId){var _eqSu=_eqLu.find(function(u){return u&&u.id===_eqSupId;});if(_eqSu)_eqSup=_eqSu.nome||"";}
+      var _eqDl=(typeof equipeDiaList!=="undefined"&&equipeDiaList?equipeDiaList:[]);
+      var _eqDia=_eqDl.find(function(e){return e&&e.data===_eqData;});
+      var _eqAjs=(_eqDia&&Array.isArray(_eqDia.ajudantes))?_eqDia.ajudantes.map(function(a){return a&&a.nome;}).filter(Boolean):[];
+      var _eqPartes=[];if(_eqSup)_eqPartes.push("Supervisor: "+_eqSup);if(_eqAjs.length)_eqPartes.push("Ajudantes: "+_eqAjs.join(", "));
+      if(_eqPartes.length){
+      var _eqPH=doc.internal.pageSize.getHeight();var _eqPW=doc.internal.pageSize.getWidth();
+      doc.setFont("helvetica","normal");doc.setFontSize(6.5);doc.setTextColor(150,150,150);
+      var _eqTxt=doc.splitTextToSize("Equipe respons\u00e1vel pela mudan\u00e7a \u2014 "+_eqPartes.join(" \u00b7 "),_eqPW-2*M);
+      doc.text(_eqTxt,M,_eqPH-21-(_eqTxt.length-1)*2.6);
+      doc.setTextColor(0,0,0);
+      }
+      }catch(_eEq){console.warn("[termo equipe]",_eEq);}
       _addPDFFooter(doc,_osStr);
       // Salvar
       var nomeArq='Recibo_'+(m.nome||'').split(' ').join('_')+'_'+(m.data||'').split('/').join('-')+'.pdf';
