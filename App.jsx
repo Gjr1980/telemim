@@ -5956,9 +5956,19 @@ setSyncStatus("✅ Status actualizado!");
                   // Sempre notificar Promorar
                   await enviarWAPublico('5581987596340',_msgAprov2);
                   // Notificar solicitante (social/coordenador) se tiver numero
-                  var _usSol=usuarios&&usuarios.find&&usuarios.find(function(u){return u.nome===_solAprWA.solicitado_por_nome;});
-                  if(_usSol&&_usSol.contato&&_usSol.contato.replace(/\D/g,'').length>7){
-                    await enviarWAPublico('55'+_usSol.contato.replace(/\D/g,''),_msgAprov2);
+                  var _n55=function(d){d=String(d||'').replace(/\D/g,'');return d.length>7?(d.indexOf('55')===0&&d.length>=12?d:'55'+d):'';};
+                  var _luApr=(typeof listaUsuarios!=='undefined'&&listaUsuarios)?listaUsuarios:[];
+                  var _usSol=_luApr.find(function(u){return u&&u.nome===_solAprWA.solicitado_por_nome;});
+                  var _foneSol=_usSol?_n55(_usSol.contato):'';
+                  if(_foneSol){try{await enviarWAPublico(_foneSol,_msgAprov2);}catch(_eWSol){_addNotif('falha_whatsapp','Falha ao avisar quem solicitou a aprova\u00e7\u00e3o',_nomeAg2);}}
+                  // Assistente Social atribuida a mudanca (se nao for quem pediu)
+                  var _assNome=(_agAprWA&&_agAprWA.assist_social)||(_solAprWA.novo_valor&&_solAprWA.novo_valor.assist_social)||'';
+                  if(_assNome&&_assNome!==_solAprWA.solicitado_por_nome){
+                    var _asLst=(typeof assistSocialList!=='undefined'&&assistSocialList)?assistSocialList:[];
+                    var _asR=_asLst.find(function(s){return s&&s.nome===_assNome;});
+                    var _foneAss=_asR?_n55(_asR.contato):'';
+                    if(!_foneAss){var _asU=_luApr.find(function(u){return u&&u.nome===_assNome;});if(_asU)_foneAss=_n55(_asU.contato);}
+                    if(_foneAss&&_foneAss!==_foneSol){try{await enviarWAPublico(_foneAss,_msgAprov2);}catch(_eWAss){_addNotif('falha_whatsapp','Falha ao avisar a Assistente Social da aprova\u00e7\u00e3o',_nomeAg2);}}
                   }
                 try{
                   var _agEmailApr=Object.assign({},_solAprWA.novo_valor||{},_agAprWA||{});
