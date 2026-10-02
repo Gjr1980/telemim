@@ -4181,7 +4181,7 @@ ${_isRealizando?'🚛 *Supervisor iniciou:* ':'✅ *Supervisor finalizou:* '}${_
           if(ag.assist_social_num) _numsWA.push(ag.assist_social_num);
           else if(ag.assist_social){
             // Tentar buscar numero do social
-            var _usrSoc=usuarios&&usuarios.find&&usuarios.find(function(u){return u.nome===ag.assist_social;});
+            var _usrSoc=((typeof listaUsuarios!=='undefined'&&listaUsuarios)||[]).find(function(u){return u.nome===ag.assist_social;});
             if(_usrSoc&&_usrSoc.contato) _numsWA.push('55'+_usrSoc.contato.replace(/\D/g,''));
           }
           for(var _nWA of _numsWA){
