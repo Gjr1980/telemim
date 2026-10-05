@@ -967,7 +967,7 @@ function MudancaTerceirizada({token}){
   var _steps=[
     {key:"deslocamento",label:"Rumo à Origem",icon:"🚐",time:m.inicio_van_em||m.van_saiu_em||m.inicio_caminhao_em||m.caminhao_saiu_em||m.inicio_mudanca_em},
     {key:"origem",label:"Na Origem",icon:"📍",time:m.chegou_origem_van_em||m.chegou_origem_cam_em},
-    {key:"carregando",label:"Carregando",icon:"📦",time:m.saiu_destino_van_em||m.saiu_destino_cam_em?m.chegou_origem_van_em||m.chegou_origem_cam_em:null},
+    {key:"carregando",label:"Carregando",icon:"📦",time:m.inicio_mudanca_em||null},
     {key:"destino",label:"Rumo Destino",icon:"🚚",time:m.saiu_destino_van_em||m.saiu_destino_cam_em},
     {key:"descarregando",label:"No Destino",icon:"📦",time:m.chegada_van_em||m.chegada_caminhao_em},
     {key:"concluido",label:"Concluído",icon:"🏁",time:m.termino_em||m.termino_van_em||m.termino_caminhao_em}
@@ -6586,7 +6586,8 @@ setSyncStatus("✅ Status actualizado!");
                       if(_hasConcl&&_hasChegDest) _st4="Concluido";
                       else if(_hasChegDest) _st4="Descarregando";
                       else if(_hasSaiuDest) _st4="Deslocamento Destino";
-                      else if(_hasOrigem) _st4="Carregando";
+                      else if(_hasOrigem&&(am.inicio_mudanca_em||am.status==="Realizando"||am.status==="em_andamento")) _st4="Carregando";
+                      else if(_hasOrigem) _st4="Na Origem";
                       else if(_hasSaiu) _st4="Em Deslocamento";
                       // Fallback to general status (non-vehicle flow)
                       else if(_hasConcl) _st4="Concluido";
@@ -6595,7 +6596,7 @@ setSyncStatus("✅ Status actualizado!");
                       var _tsObj={
                         saiu:am.inicio_van_em||am.van_saiu_em||am.inicio_caminhao_em||am.caminhao_saiu_em||am.inicio_mudanca_em||null,
                         chegou_origem:am.chegou_origem_van_em||am.chegou_origem_cam_em||null,
-                        carregando:am.chegou_origem_van_em||am.chegou_origem_cam_em||null,
+                        carregando:am.inicio_mudanca_em||null,
                         saiu_destino:am.saiu_destino_van_em||am.saiu_destino_cam_em||null,
                         chegou_destino:am.chegada_van_em||am.chegada_caminhao_em||null,
                         concluido:am.termino_em||am.termino_van_em||am.termino_caminhao_em||null
