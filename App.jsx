@@ -1142,6 +1142,7 @@ export default function App(){
   const [mergeAjudantes,setMergeAjudantes]=useState(null);
   // Desfazer início (jun/2026)
   const [foraOrdemModal,setForaOrdemModal]=useState(null);
+  const [voltarEtapaModal,setVoltarEtapaModal]=useState(null);
   const [desfazerInicioModal,setDesfazerInicioModal]=useState(null);
   const [desfazerInicioMotivo,setDesfazerInicioMotivo]=useState("");
   const [confirmReenvio,setConfirmReenvio]=useState(null);
@@ -1746,6 +1747,59 @@ export default function App(){
       try{if(sol.supervisor_id)sendPushNotification([sol.supervisor_id],"✅ Desfazer aprovado!","A mudança "+(sol.prestador_nome||"")+" foi revertida.");}catch(_){}
       setSyncStatus("✅ Início desfeito");
     }catch(e){alert("Erro: "+e.message);try{window.Sentry&&window.Sentry.captureException(e,{tags:{op:"aprovarDesfazerInicio"}});}catch(_){}}
+  }
+  function _etapasAgenda(){
+    return [
+      {k:0,label:"📅 Agendada (antes de sair)",campos:[]},
+      {k:1,label:"🚚 Rumo à Origem",campos:["inicio_van_em","van_saiu_em","inicio_caminhao_em","caminhao_saiu_em","inicio_em","deslocamento_morador_em","van_caminho_social_em"]},
+      {k:2,label:"📍 Na Origem",campos:["chegou_origem_van_em","chegou_origem_cam_em","origem_real_lat","origem_real_lng","origem_real_endereco"]},
+      {k:3,label:"📦 Carregando (mudança iniciada)",campos:["inicio_mudanca_em","inicio_carregamento_em","inicio_carregamento_por"]},
+      {k:4,label:"🚛 Rumo ao Destino",campos:["saiu_destino_van_em","saiu_destino_cam_em"]},
+      {k:5,label:"🏠 No Destino / Descarregando",campos:["chegada_van_em","chegada_caminhao_em","destino_real_lat","destino_real_lng","destino_real_endereco","km_calculado"]},
+      {k:6,label:"✅ Concluída",campos:["termino_em","termino_van_em","termino_caminhao_em"]}
+    ];
+  }
+  async function adminVoltarEtapa(ag,k,label){
+    if(!ag||!usuario||usuario.perfil!=="admin")return;
+    var motivo=window.prompt("Motivo para voltar a etapa (obrigatório):");
+    if(!motivo||motivo.trim().length<5){alert("Motivo obrigatório (mín 5 caracteres).");return;}
+    var body={};
+    _etapasAgenda().forEach(function(e){if(e.k>k)e.campos.forEach(function(c){body[c]=null;});});
+    body.status=k>=3?"Realizando":"confirmado";
+    try{
+      await _ensureAuth();
+      var r=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+ag.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)});
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      setAgenda(function(prev){return prev.map(function(a){return a.id===ag.id?Object.assign({},a,body):a;});});
+      _addNotif("voltar_etapa","Voltou para: "+label+" — Motivo: "+motivo.trim(),ag.nome||"");
+      setVoltarEtapaModal(null);
+      try{var _alvos=[ag.motorista_van_id,ag.motorista_caminhao_id,ag.supervisor_id].filter(Boolean);if(_alvos.length>0&&typeof sendPushNotification==="function")sendPushNotification(_alvos,"↩ Etapa corrigida pelo admin","A mudança de "+(ag.nome||"")+" voltou para: "+label);}catch(_ep){}
+      alert("✅ Mudança voltou para: "+label);
+    }catch(e){console.warn("[voltar etapa]",e);alert("⚠️ Erro ao voltar etapa: "+e.message);}
+  }
+  async function adminReabrirMudanca(mud){
+    if(!mud||!usuario||usuario.perfil!=="admin")return;
+    if(mud.signature_data){alert("Esta mudança já tem a assinatura do morador e não pode ser reaberta.");return;}
+    if(!window.confirm("↩ Reabrir a mudança de "+(mud.nome||"")+"?\n\nEla sai dos Registros e volta para a Agenda, para corrigir a etapa."))return;
+    var motivo=window.prompt("Motivo da reabertura (obrigatório):");
+    if(!motivo||motivo.trim().length<5){alert("Motivo obrigatório (mín 5 caracteres).");return;}
+    try{
+      await _ensureAuth();
+      var _H2=Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"});
+      var rf=await fetch(SUPA_URL+"/rest/v1/agenda?nome=eq."+encodeURIComponent(mud.nome||"")+"&data=eq."+encodeURIComponent(mud.data||"")+"&select=id,inicio_mudanca_em&order=id.desc&limit=1",{headers:getH()});
+      var _ags=rf.ok?await rf.json():[];
+      if(!_ags.length){alert("⚠️ Não encontrei o registo desta mudança na Agenda. Avise o suporte.");return;}
+      var _agId=_ags[0].id;
+      // 1o tirar dos Registros (a regra automatica apaga a Agenda), 2o repor a Agenda
+      var r1=await fetch(SUPA_URL+"/rest/v1/mudancas?id=eq."+mud.id,{method:"PATCH",headers:_H2,body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:(usuario.nome||"Admin")+" — reaberta: "+motivo.trim()})});
+      if(!r1.ok)throw new Error("Registros HTTP "+r1.status);
+      var r2=await fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+_agId,{method:"PATCH",headers:_H2,body:JSON.stringify({deleted_at:null,status:_ags[0].inicio_mudanca_em?"Realizando":"confirmado",termino_em:null,termino_van_em:null,termino_caminhao_em:null})});
+      if(!r2.ok)throw new Error("Agenda HTTP "+r2.status);
+      _addNotif("voltar_etapa","Mudança reaberta (saiu dos Registros) — Motivo: "+motivo.trim(),mud.nome||"");
+      setMudancas(function(prev){return prev.filter(function(x){return x.id!==mud.id;});});
+      loadAg();
+      alert("✅ Mudança reaberta. Está de novo na Agenda. Use \"↩ Voltar etapa\" se precisar de ajustar a etapa.");
+    }catch(e){console.warn("[reabrir]",e);_addNotif("falha_sistema","Falha ao reabrir mudança: "+String(e&&e.message||e).substring(0,80),mud.nome||"");alert("⚠️ Erro ao reabrir: "+e.message);}
   }
   async function adminDesfazerInicio(ag){
     if(!ag)return;
@@ -5405,6 +5459,7 @@ setSyncStatus("✅ Status actualizado!");
                       <span style={{fontSize:_dest?12:11,fontWeight:700,color:"#854d0e"}}>📦 Descarregando no destino...</span>
                     </div>
                   )}
+                  {isAdmin&&(a.inicio_van_em||a.van_saiu_em||a.inicio_caminhao_em||a.caminhao_saiu_em||a.inicio_em||a.deslocamento_morador_em||a.chegou_origem_van_em||a.chegou_origem_cam_em||a.inicio_mudanca_em||a.saiu_destino_van_em||a.saiu_destino_cam_em||a.chegada_van_em||a.chegada_caminhao_em||a.termino_em)&&<button onClick={function(){setVoltarEtapaModal(a);}} style={{width:"100%",marginTop:8,background:"#fff",color:"#7c3aed",border:"1.5px solid #7c3aed",borderRadius:10,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>↩ Voltar etapa (corrigir toque errado)</button>}
                   {/* ── ↶ DESFAZER INÍCIO (jun/2026) ── */}
                   {(a.inicio_van_em||a.van_saiu_em||a.inicio_caminhao_em||a.caminhao_saiu_em||a.inicio_mudanca_em||a.inicio_carregamento_em)&&!_statusRealizados.includes(a.status)&&!a.termino_em&&(isMotorista||isSupervisor||isAdmin)&&<button onClick={function(){if(isAdmin){adminDesfazerInicio(a);}else{setDesfazerInicioModal({ag:a});setDesfazerInicioMotivo("");}}} style={{width:"100%",marginTop:8,background:"#fff",color:"#1e40af",border:"1.5px solid #1e40af",borderRadius:10,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>↶ {isAdmin?"Desfazer início":"Pedir admin desfazer início"}</button>}
                   {/* ── CONCLUÍDA banner ── */}
@@ -6798,6 +6853,7 @@ setSyncStatus("✅ Status actualizado!");
                   <button onClick={function(e){gerarPDFDetalheRegistro(m,e.currentTarget);}} style={{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700}} title="PDF Detalhado">📑</button>
                   <button onClick={function(){gerarPDFMudanca(m);}} style={m.assinado_em?{background:"#f0fdf4",border:"1.5px solid #16a34a",color:"#16a34a",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700}:{background:"#fdf4ff",border:"1.5px solid #a855f7",color:"#a855f7",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700}} title={m.assinado_em?("Assinado em "+new Date(m.assinado_em).toLocaleString("pt-BR")):"Assinar Termo de Entrega"}>{m.assinado_em?"✅":"✍️"}</button>
                   {(isAdmin||isPromorar)&&<button onClick={()=>setEditMud((function(){var _cd=(custosDiarios||[]).find(function(x){return x.data===m.data;});return {...m,_qtdAj:_cd?parseInt(_cd.ajudantes)||1:1};})())} style={{...btnBlue,borderRadius:8,padding:"6px 10px",fontSize:13}}>✏️</button>}
+                  {(usuario&&usuario.perfil==="admin")&&!m.signature_data&&<button title="Reabrir: volta para a Agenda" onClick={function(e){e.stopPropagation();adminReabrirMudanca(m);}} style={{background:"#f5f3ff",color:"#6d28d9",border:"1.5px solid #c4b5fd",borderRadius:8,padding:"6px 10px",fontSize:13,fontWeight:800,cursor:"pointer"}}>↩</button>}
                   {(usuario&&usuario.perfil==="admin")&&<button onClick={function(e){e.stopPropagation();setConfirmDelete({id:m.id,nome:m.nome,tipo:"mud",data:m.data,status:m.status,medicao:m.medicao});setConfirmDeleteMotivo("");}} style={{...btnRed,borderRadius:8,padding:"6px 10px",fontSize:13}}>✕</button>}
                   {(isAdmin||isSupervisor)&&<button onClick={function(){var _eq=equipeDiaList.find(function(e){return e.data===m.data;});setViewEquipeAg({nome:m.nome,data:m.data,ajudantes:_eq&&Array.isArray(_eq.ajudantes)?_eq.ajudantes:[]});}} style={{background:"#fef9c3",border:"1.5px solid #fde047",color:"#92400e",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700}} title="Ver equipe do dia">👷</button>}
                 </div>
@@ -9724,6 +9780,20 @@ return(
             </div>
           </div>
         </div>}
+        {voltarEtapaModal&&(function(){var _ag=voltarEtapaModal;var _E=_etapasAgenda();
+          var _hora=function(e){for(var i=0;i<e.campos.length;i++){var c=e.campos[i];var v=_ag[c];if(v&&/_em$/.test(c)){try{return new Date(v).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});}catch(_x){return "";}}}return "";};
+          var _feita=function(e){return e.campos.some(function(c){return _ag[c]!=null&&_ag[c]!=="";});};
+          var _atual=0;_E.forEach(function(e){if(e.k>0&&_feita(e))_atual=e.k;});
+          return(<div onClick={function(){setVoltarEtapaModal(null);}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:10001,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+            <div onClick={function(e){e.stopPropagation();}} style={{background:"#fff",borderRadius:20,padding:"20px",maxWidth:400,width:"100%",maxHeight:"85vh",overflowY:"auto",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}}>
+              <div style={{fontWeight:900,fontSize:16,color:"#6d28d9",marginBottom:4}}>↩ Voltar etapa</div>
+              <div style={{fontSize:12,color:"#64748b",marginBottom:14}}>{_ag.nome} · escolha para onde a mudança volta. Os horários das etapas seguintes são apagados.</div>
+              {_E.map(function(e){var _isAtual=e.k===_atual;var _pode=e.k<_atual;
+                return(<button key={e.k} disabled={!_pode} onClick={function(){if(window.confirm("Voltar a mudança de "+_ag.nome+" para:\n\n"+e.label+"?"))adminVoltarEtapa(_ag,e.k,e.label);}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",padding:"11px 12px",marginBottom:8,borderRadius:12,border:_isAtual?"2px solid #6d28d9":"1.5px solid #e2e8f0",background:_isAtual?"#f5f3ff":(_pode?"#fff":"#f8fafc"),color:_pode||_isAtual?"#0f172a":"#94a3b8",fontWeight:700,fontSize:13,cursor:_pode?"pointer":"default",textAlign:"left"}}>
+                  <span>{e.label}{_isAtual?" (atual)":""}</span><span style={{fontSize:12,color:"#64748b"}}>{e.k>0&&_feita(e)?_hora(e):""}</span></button>);})}
+              <button onClick={function(){setVoltarEtapaModal(null);}} style={{width:"100%",padding:"11px 0",borderRadius:12,border:"1.5px solid #e2e8f0",background:"#f8fafc",color:"#64748b",fontWeight:800,fontSize:13,cursor:"pointer",marginTop:4}}>Cancelar</button>
+            </div>
+          </div>);})()}
         {desfazerInicioModal&&<div onClick={function(){setDesfazerInicioModal(null);setDesfazerInicioMotivo("");}} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:10001,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
           <div onClick={function(e){e.stopPropagation();}} style={{background:"#fff",borderRadius:20,padding:"22px",maxWidth:380,width:"100%",boxShadow:"0 8px 40px rgba(0,0,0,0.25)"}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
