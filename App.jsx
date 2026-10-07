@@ -1122,6 +1122,8 @@ export default function App(){
   const [loginLoad,setLoginLoad]=useState(false);
   const [authChecked,setAuthChecked]=useState(true);
   const [listaUsuarios,setListaUsuarios]=useState([])
+  // Mapa motorista -> placa (usado no calculo do custo da van por placa)
+  try{if(typeof window!=="undefined"){var _pmMap={};(listaUsuarios||[]).forEach(function(u){if(u&&u.id&&u.placa_veiculo)_pmMap[u.id]=u.placa_veiculo;});window.__placaPorMotorista=_pmMap;}}catch(_ePm){}
   const [confirmDelete,setConfirmDelete]=useState(null);
   const [confirmDeleteMotivo,setConfirmDeleteMotivo]=useState("");
   const [cadastroWarnings,setCadastroWarnings]=useState(null);
@@ -7272,7 +7274,7 @@ setSyncStatus("✅ Status actualizado!");
                   <div style={{display:"flex",flexDirection:"column",gap:3}}>
                     {[
                       {ic:"🚚",lbl:"Caminhão",v:_r.cCam},
-                      {ic:"🚐",lbl:"Van",v:_r.cVan},
+                      {ic:"🚐",lbl:_r.cVanComb>0?("Van (motorista R$ "+Math.round(_r.cVan-_r.cVanComb)+" + ⛽ R$ "+Math.round(_r.cVanComb)+")"):"Van",v:_r.cVan},
                       {ic:"👷",lbl:"Ajudante",v:_r.cAj},
                       {ic:"🍛",lbl:"Almoço+Extra",v:_r.cAlm+_r.cExtra}
                     ].map(function(k,i){return(
