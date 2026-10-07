@@ -56,7 +56,11 @@ export function _calcCustos(mudP, cdP, cpP, RULES, mudDesp, eqDiaP, solFin){
   var fatLiq=fatBruto-imposto;
   // --- CUSTOS (todas realizadas, não-canceladas, não-pendentes) ---
   var diasDesp=[...new Set(_desp.map(function(m){return m.data;}))];
-  var cCam=0;var cVan=0;var cAj=0;var cAlm=0;var cDesp=0;
+  var cCam=0;var cVan=0;var cAj=0;var cAlm=0;var cDesp=0;var cVanComb=0;
+  // Custo da van por placa (KMA1E48 = R$100 motorista + R$100 combustivel por dia). Outras vans: regra geral (vanCusto).
+  var _placaPorMot=(typeof window!=="undefined"&&window.__placaPorMotorista)||{};
+  var _custoPlaca=RULES.vanCustoPorPlaca||{"KMA1E48":{motorista:100,combustivel:100}};
+  var _normPl=function(p){return String(p||"").toUpperCase().replace(/[^A-Z0-9]/g,"");};
   var _aj1a=_fv(RULES.aj1a)||80;var _ajAdd=_fv(RULES.ajAdd)||20;
   var _aprovList=(solFin||[]).filter(function(s){return s.status==="aprovado"&&s.tipo==="editar_valor";});
   var _remDiaList=(solFin||[]).filter(function(s){return s.status==="aprovado"&&s.tipo==="remover_dia";});
@@ -74,7 +78,15 @@ export function _calcCustos(mudP, cdP, cpP, RULES, mudDesp, eqDiaP, solFin){
     var mudCamList=mudDia.filter(function(m){return m.caminhao||m.motorista_caminhao_id;});var numMudCam=mudCamList.length;var _capCam=parseFloat(RULES.capacidadeCaminhaoM3)||32;var _extraViagens=mudCamList.reduce(function(s,m){var med=_fv(m.medicao);var viag=med>_capCam?Math.ceil(med/_capCam):1;return s+Math.max(0,viag-1);},0);var _camAddViagem=_fv(RULES.camAddViagem)||120;
     var numMudVan=mudDia.filter(function(m){return m.van||m.motorista_van_id;}).length;
     if(numMudCam>0){var camVal=_calcDiario(numMudCam,0,"caminhao",RULES)+_extraViagens*_camAddViagem;cCam+=camVal;_camDias.push({data:data,numMud:numMudCam,valor:camVal,extraViagens:_extraViagens});}
-    if(numMudVan>0){var vanVal=_calcDiario(numMudVan,0,"van",RULES);cVan+=vanVal;_vanDias.push({data:data,numMud:numMudVan,valor:vanVal});}
+    if(numMudVan>0){
+      var _vanGrupos={};
+      mudDia.filter(function(m){return m.van||m.motorista_van_id;}).forEach(function(m){var _pl=_normPl(_placaPorMot[m.motorista_van_id]);var _g=_custoPlaca[_pl]?_pl:"PADRAO";_vanGrupos[_g]=(_vanGrupos[_g]||0)+1;});
+      Object.keys(_vanGrupos).forEach(function(_g){
+        var _n=_vanGrupos[_g];
+        if(_g!=="PADRAO"){var _cp=_custoPlaca[_g];var _vm=_fv(_cp.motorista),_vc=_fv(_cp.combustivel);var _vv=_vm+_vc;cVan+=_vv;cVanComb+=_vc;_vanDias.push({data:data,numMud:_n,valor:_vv,placa:_g,motorista:_vm,combustivel:_vc});}
+        else{var vanVal=_calcDiario(_n,0,"van",RULES);cVan+=vanVal;_vanDias.push({data:data,numMud:_n,valor:vanVal});}
+      });
+    }
     // AJUDANTES: só se tem equipe_dia (sem fallback inventado)
     var _eqDia=(eqDiaP||[]).find(function(e){return e.data===data&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
     if(_eqDia){
@@ -100,7 +112,7 @@ export function _calcCustos(mudP, cdP, cpP, RULES, mudDesp, eqDiaP, solFin){
   var despTotal=cCam+cVan+cAj+cAlm+cDesp+cExtra;
   var lucroLiq=fatLiq-despTotal;
   return {
-    cCam,cVan,cAj,cAlm,cDesp,cExtra,despTotal,
+    cCam,cVan,cVanComb,cAj,cAlm,cDesp,cExtra,despTotal,
     fatBruto,fatLiq,imposto,lucroLiq,
     numMud:mudP.length,numMudDesp:_desp.length,m3Total,diasU,diasDesp,numVan,
     detAjudantes:_ajMap,detCamDias:_camDias,detVanDias:_vanDias
