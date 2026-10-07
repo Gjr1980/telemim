@@ -23,6 +23,32 @@ function _getGPSPositionOnce(){
     );
   });
 }
+// ── Leitura do hodômetro (km do painel) — 1ª saída do dia da van KMA1E48 ──
+async function _registrarOdometroDia(placa,motoristaId){
+  try{
+    var _d=new Date();var _hoje=_d.getFullYear()+"-"+String(_d.getMonth()+1).padStart(2,"0")+"-"+String(_d.getDate()).padStart(2,"0");
+    var _H={"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY};
+    var rH=await fetch(SUPA_URL+"/rest/v1/odometro_van?placa=eq."+placa+"&data=eq."+_hoje+"&select=id",{headers:_H});
+    var jH=rH.ok?await rH.json():[];
+    if(Array.isArray(jH)&&jH.length>0)return true;
+    var rU=await fetch(SUPA_URL+"/rest/v1/odometro_van?placa=eq."+placa+"&select=data,km&order=data.desc&limit=1",{headers:_H});
+    var jU=rU.ok?await rU.json():[];var _ult=(Array.isArray(jU)&&jU[0])?jU[0]:null;
+    var _ultTxt=_ult?"\n\n(Última leitura: "+Number(_ult.km).toLocaleString("pt-BR")+" km em "+String(_ult.data).split("-").reverse().join("/")+")":"";
+    var _km=null;
+    while(_km===null){
+      var _v=window.prompt("📟 Van "+placa+"\n\nInforme o km do painel antes de sair:"+_ultTxt,"");
+      if(_v===null)return false;
+      var _n=parseFloat(String(_v).replace(/\./g,"").replace(",",".").replace(/[^0-9.]/g,""));
+      if(isNaN(_n)||_n<=0){alert("⚠️ Digite só o número do km do painel (ex: 45230).");continue;}
+      if(_ult&&_n<Number(_ult.km)&&!window.confirm("⚠️ O km informado ("+_n.toLocaleString("pt-BR")+") é MENOR que a última leitura ("+Number(_ult.km).toLocaleString("pt-BR")+").\n\nConfirma este valor?"))continue;
+      if(_ult&&_n-Number(_ult.km)>1000&&!window.confirm("⚠️ Diferença de "+(_n-Number(_ult.km)).toLocaleString("pt-BR")+" km desde a última leitura.\n\nConfirma este valor?"))continue;
+      _km=_n;
+    }
+    var rI=await fetch(SUPA_URL+"/rest/v1/odometro_van",{method:"POST",headers:Object.assign({},_H,{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify({placa:placa,data:_hoje,km:_km,motorista_id:motoristaId?String(motoristaId):null})});
+    if(!rI.ok&&rI.status!==409){alert("⚠️ Não foi possível gravar o km (erro "+rI.status+"). O deslocamento continua; avise o administrador.");}
+    return true;
+  }catch(e){console.warn("[odometro]",e);return true;}
+}
 async function _reverseGeocodeMapbox(lat,lng){
   try{
     var url="https://api.mapbox.com/geocoding/v5/mapbox.places/"+lng+","+lat+".json?access_token="+MAPBOX_TOKEN_GLOBAL+"&limit=1";
@@ -800,6 +826,7 @@ function RotaTerceirizada({token}){
                   if(_isFinalNow) return(<div style={{textAlign:"center",padding:"14px",background:"#dcfce7",borderRadius:12,border:"2px solid #86efac",marginBottom:10}}><div style={{fontSize:14,fontWeight:800,color:"#15803d"}}>✅ Mudança Finalizada!</div></div>);
                   if(!_proxBtn) return null;
                   var _handleClickProm=async function(){
+                    if(_proxBtn.label==="🚗 Em Deslocamento"){try{var _uOd=(usuarios||[]).find(function(x){return String(x.id)===String(dados.motorista_id);});var _plOd=String((_uOd&&_uOd.placa_veiculo)||"").toUpperCase().replace(/[^A-Z0-9]/g,"");if(_plOd==="KMA1E48"){var _okOd=await _registrarOdometroDia("KMA1E48",dados.motorista_id);if(!_okOd)return;}}catch(_eOd){console.warn("[odometro]",_eOd);}}
                     if(_proxBtn.label==="🚗 Em Deslocamento"&&(!r.ajudantes||r.ajudantes<=0)){alert("⚠️ Cadastre o número de ajudantes do dia antes de iniciar.");}
                     atualizarStatus({id:r.id,_tabela:"agenda"},_proxBtn.campos);
                     // Envio automático de mensagem para o morador quando caminhão sai p/ origem
@@ -1145,6 +1172,7 @@ export default function App(){
   // Desfazer início (jun/2026)
   const [foraOrdemModal,setForaOrdemModal]=useState(null);
   const [voltarEtapaModal,setVoltarEtapaModal]=useState(null);
+  const [odometroList,setOdometroList]=useState([]);
   const [desfazerInicioModal,setDesfazerInicioModal]=useState(null);
   const [desfazerInicioMotivo,setDesfazerInicioMotivo]=useState("");
   const [confirmReenvio,setConfirmReenvio]=useState(null);
@@ -1959,8 +1987,8 @@ export default function App(){
         }catch(_re){}
         // Carregar mudancas e agenda em paralelo
         try{
-          var p=await Promise.all([dbGet("mudancas"),dbGet("agenda","deleted_at=is.null"),loadCfgWA(),loadSolicitacoesAg()]);
-          var mRows=p[0]||[];var aRows=p[1]||[];
+          var p=await Promise.all([dbGet("mudancas"),dbGet("agenda","deleted_at=is.null"),loadCfgWA(),loadSolicitacoesAg(),Promise.resolve().then(function(){return dbGet("odometro_van","order=data.asc");}).catch(function(){return [];})]);
+          var mRows=p[0]||[];var aRows=p[1]||[];try{setOdometroList(Array.isArray(p[4])?p[4]:[]);}catch(_eOd2){}
           var _perfLoad=(JSON.parse(localStorage.getItem('tmim_u')||'{}')).perfil||"";
           if(mRows.length===0&&_perfLoad!=="motorista"){await dbUpsert("mudancas",DADOS_INICIAIS);mRows=DADOS_INICIAIS;}
           if(aRows.length===0&&_perfLoad!=="motorista"){await dbUpsert("agenda",AGENDA_INICIAIS);aRows=AGENDA_INICIAIS;}
@@ -7274,7 +7302,7 @@ setSyncStatus("✅ Status actualizado!");
                   <div style={{display:"flex",flexDirection:"column",gap:3}}>
                     {[
                       {ic:"🚚",lbl:"Caminhão",v:_r.cCam},
-                      {ic:"🚐",lbl:_r.cVanComb>0?("Van (motorista R$ "+Math.round(_r.cVan-_r.cVanComb)+" + ⛽ R$ "+Math.round(_r.cVanComb)+")"):"Van",v:_r.cVan},
+                      {ic:"🚐",lbl:(_r.cVanComb>0?("Van (motorista R$ "+Math.round(_r.cVan-_r.cVanComb)+" + ⛽ R$ "+Math.round(_r.cVanComb)+")"):"Van")+(function(){try{var _od=(odometroList||[]).filter(function(o){return String(o.placa||"").toUpperCase().replace(/[^A-Z0-9]/g,"")==="KMA1E48";}).slice().sort(function(a,b){return String(a.data)<String(b.data)?-1:1;});var _t=0;for(var i=0;i<_od.length-1;i++){if(String(_od[i].data).slice(0,7)===_am){var _df=(parseFloat(_od[i+1].km)||0)-(parseFloat(_od[i].km)||0);if(_df>0)_t+=_df;}}return _t>0?(" · 🛣️ KMA1E48: "+Math.round(_t).toLocaleString("pt-BR")+" km"):"";}catch(_eK){return "";}})(),v:_r.cVan},
                       {ic:"👷",lbl:"Ajudante",v:_r.cAj},
                       {ic:"🍛",lbl:"Almoço+Extra",v:_r.cAlm+_r.cExtra}
                     ].map(function(k,i){return(
