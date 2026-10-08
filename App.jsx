@@ -6116,7 +6116,7 @@ setSyncStatus("✅ Status actualizado!");
             });
             // Soft-delete na agenda se a solicitação for do tipo 'add'
             var _solRej=solicitacoesAgenda.find(function(s){return s.id===solId;});
-            if(_solRej&&_solRej.agenda_id){
+            if(_solRej&&_solRej.agenda_id&&_solRej.tipo==='add'){
               await fetch(SUPA_URL+'/rest/v1/agenda?id=eq.'+_solRej.agenda_id,{
                 method:'PATCH',
                 headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=minimal'}),
@@ -6126,6 +6126,30 @@ setSyncStatus("✅ Status actualizado!");
             }
             setSolicitacoesAgenda(function(prev){return prev.filter(function(s){return s.id!==solId;});});
             setSyncStatus('❌ Solicitação rejeitada.');
+            // Aviso WhatsApp: pedido nao aceite -> Admin, Promorar e Social
+            try{
+              if(_solRej){
+                var _fdR=function(d){return d?String(d).split('-').reverse().join('/'):'';};
+                var _n55R=function(d){d=String(d||'').replace(/\D/g,'');return d.length>7?(d.indexOf('55')===0&&d.length>=12?d:'55'+d):'';};
+                var _nvR=_solRej.novo_valor||{};
+                var _agR=_solRej.agenda_id?agenda.find(function(a){return a.id===_solRej.agenda_id;}):null;
+                var _nomeR=(_solRej.tipo==='add'?_nvR.nome:(_agR&&_agR.nome))||'';
+                var _tipoR=_solRej.tipo==='add'?'Novo agendamento':_solRej.tipo==='delete'?'Exclusão de agendamento':'Alteração de data/hora';
+                var _detR='';
+                if(_solRej.tipo==='add'){_detR="📅 Data pedida: "+_fdR(_nvR.data)+" às "+(_nvR.horario||'')+"\n➡️ O agendamento NÃO foi feito.";}
+                else if(_solRej.tipo==='delete'){_detR="📅 Data: "+_fdR(_agR&&_agR.data)+" às "+((_agR&&_agR.horario)||'')+"\n➡️ A mudança CONTINUA agendada.";}
+                else{_detR="📅 Pedido: "+_fdR(_nvR.data_anterior||(_agR&&_agR.data))+" → "+_fdR(_nvR.data)+" às "+(_nvR.horario||'')+"\n➡️ A mudança MANTÉM a data atual: "+_fdR(_agR&&_agR.data)+" às "+((_agR&&_agR.horario)||'')+".";}
+                var _msgR="❌ *TELEMIM — SOLICITAÇÃO NÃO ACEITE*\n\n📋 Tipo: "+_tipoR+"\n👤 Morador: "+_nomeR+"\n"+_detR+"\n\n🙋 Solicitado por: "+(_solRej.solicitado_por_nome||'')+"\n🚫 Não aceite por: "+_nomRej+"\n📝 Motivo: "+((motivo&&String(motivo).trim())||'não informado');
+                var _luR=(typeof listaUsuarios!=='undefined'&&listaUsuarios)||[];
+                var _aslR=(typeof assistSocialList!=='undefined'&&assistSocialList)||[];
+                var _foneNome=function(nome){if(!nome)return '';var s=_aslR.find(function(x){return x&&x.nome===nome;});var f=s?_n55R(s.contato):'';if(!f){var u=_luR.find(function(x){return x&&x.nome===nome;});if(u)f=_n55R(u.contato);}return f;};
+                var _assR=(_solRej.tipo==='add'?_nvR.assist_social:(_agR&&_agR.assist_social))||'';
+                var _listaR=[_n55R('81992440900'),_n55R('81987596340'),_solRej.solicitado_por==='social'?_foneNome(_solRej.solicitado_por_nome):'',_foneNome(_assR)];
+                var _vistosR={};
+                for(var _iR=0;_iR<_listaR.length;_iR++){var _nR=_listaR[_iR];if(!_nR||_vistosR[_nR])continue;_vistosR[_nR]=1;try{await enviarWAPublico(_nR,_msgR);}catch(_eSR){}}
+                _addNotif('rejeicao','Solicitação não aceite ('+_tipoR+') — Motivo: '+((motivo&&String(motivo).trim())||'não informado'),_nomeR);
+              }
+            }catch(_eRj){console.warn('[aviso rejeicao]',_eRj);_addNotif('falha_whatsapp','Falha ao avisar solicitação não aceite','');}
           }catch(e){setSyncStatus('⚠️ Erro ao rejeitar.');}
         }
 
