@@ -2766,7 +2766,8 @@ export default function App(){
             var _foneConv="55"+aj.telefone.replace(/\D/g,"");
             _mudDiaConv.forEach(function(m){
               var _msgConv="Olá, "+(aj.nome||"")+"!\n\n📋 *CONVOCAÇÃO DE TRABALHO*\n\n📅 "+(String(data).split("-").reverse().join("/"))+"\n⏰ "+(m.horario||"")+"\n👤 "+(m.nome||"")+"\n📦 Saída da garagem da empresa\n\nResponda *ACEITO* ou *NÃO ACEITO* em até 1 dia útil.\nSem resposta = recusa, sem penalidade.\n\n👷 TELEMIM";
-              enviarWAPublico(_foneConv,_msgConv).catch(function(_eConv){console.warn("[convocacao ajudante]",_eConv);_addNotif("falha_whatsapp","Falha ao convocar ajudante "+(aj.nome||""),m.nome||"");});
+              var _pergConv="Olá, "+(aj.nome||"")+"!\n📋 CONVOCAÇÃO DE TRABALHO\n\n📅 "+(String(data).split("-").reverse().join("/"))+"\n⏰ "+(m.horario||"")+"\n👤 "+(m.nome||"")+"\n📦 Saída da garagem da empresa\n\nResponda em até 1 dia útil. Sem resposta = recusa, sem penalidade.\n👷 TELEMIM";
+              fetch(SUPA_URL+"/functions/v1/enviar-enquete-whatsapp",{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY,"Content-Type":"application/json"},body:JSON.stringify({numero:_foneConv,pergunta:_pergConv,opcoes:["✅ ACEITO","❌ NÃO ACEITO"]})}).then(function(_rpC){if(!_rpC.ok)throw new Error("HTTP "+_rpC.status);}).catch(function(_ePC){console.warn("[enquete convocacao]",_ePC);enviarWAPublico(_foneConv,_msgConv).catch(function(_eConv){console.warn("[convocacao ajudante]",_eConv);_addNotif("falha_whatsapp","Falha ao convocar ajudante "+(aj.nome||""),m.nome||"");});});
             });
           });
         }
