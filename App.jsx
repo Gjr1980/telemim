@@ -2866,12 +2866,13 @@ export default function App(){
     var _nomeAlt=usuario&&(usuario.nome||usuario.email)||'';
     var _agAlt=agenda.find(function(a){return a.id===agId;});
     if(!_agAlt){setSyncStatus('⛔ Agenda não encontrada.');return;}
-    if(_perfAlt==='coordenador'||_perfAlt==='promorar'){
+    if(_perfAlt!=='admin'){
       await _criarSolicitacaoAgenda('update_data',agId,{data:novaData,horario:novoHorario,data_anterior:_agAlt.data,horario_anterior:_agAlt.horario},_perfAlt,_nomeAlt);
       var _numAdmin3='81992440900';
       var _numPromorar3='81987596340';
-      var _dests3=_perfAlt==='coordenador'?[_numAdmin3,_numPromorar3]:[_numAdmin3];
-      await _enviarWASolicitacao('update_data',_agAlt.nome,novaData,novoHorario,_nomeAlt,_dests3);
+      var _dests3=_perfAlt==='promorar'?[_numAdmin3]:[_numAdmin3,_numPromorar3];
+      var _antesAlt=(_agAlt.data?String(_agAlt.data).split('-').reverse().join('/'):'')+' às '+(_agAlt.horario||'');
+      await _enviarWASolicitacao('update_data',_agAlt.nome,novaData,(novoHorario||'')+' (antes: '+_antesAlt+')',_nomeAlt,_dests3);
       setSyncStatus('⏳ Solicitação de alteração enviada. Aguarda aprovação.');
       return;
     }
@@ -3235,15 +3236,15 @@ export default function App(){
   async function handleDelAg(id,motivo){
     var _perfDelAg=usuario&&usuario.perfil||'';
     var _nomeDelAg=usuario&&(usuario.nome||usuario.email)||'';
-    if(!usuario||!['admin','promorar','coordenador'].includes(_perfDelAg)){setSyncStatus("⛔ Sem permissão para excluir agendas.");return;}
+    if(!usuario||!['admin','promorar','coordenador','social','supervisor'].includes(_perfDelAg)){setSyncStatus("⛔ Sem permissão para excluir agendas.");return;}
     // Coordenador e Promorar: criar solicitacao de exclusao
-    if(_perfDelAg==="coordenador"||_perfDelAg==="promorar"){
+    if(_perfDelAg!=="admin"){
       var _agDel=agenda.find(function(a){return a.id===id;});
       if(!_agDel){setSyncStatus("⛔ Agenda não encontrada.");return;}
       await _criarSolicitacaoAgenda('delete',id,{motivo:motivo},_perfDelAg,_nomeDelAg);
       var _numAdmin2='81992440900';
       var _numPromorar2='81987596340';
-      var _dests2=_perfDelAg==="coordenador"?[_numAdmin2,_numPromorar2]:[_numAdmin2];
+      var _dests2=_perfDelAg==="promorar"?[_numAdmin2]:[_numAdmin2,_numPromorar2];
       await _enviarWASolicitacao('delete',_agDel.nome,_agDel.data,_agDel.horario,_nomeDelAg,_dests2);
       setSyncStatus("⏳ Solicitação de exclusão enviada. Aguarda aprovação.");
       setConfirmDelete(null);setConfirmDeleteMotivo('');
@@ -3292,6 +3293,17 @@ export default function App(){
     var _editMerged={...editAg};
     if(_domData._date) _editMerged.data=_domData._date;
     if(_domData._time) _editMerged.horario=_domData._time;
+    var _perfEd=usuario&&usuario.perfil||'';
+    var _origEd=agenda.find(function(a){return a.id===_editMerged.id;});
+    if(_perfEd!=='admin'&&_origEd&&(String(_origEd.data||'')!==String(_editMerged.data||'')||String(_origEd.horario||'')!==String(_editMerged.horario||''))){
+      var _novaDataEd=_editMerged.data,_novaHoraEd=_editMerged.horario;
+      _editMerged.data=_origEd.data;_editMerged.horario=_origEd.horario;
+      const updated2=agenda.map(a=>a.id===_editMerged.id?{..._editMerged}:a);
+      await saveAg(updated2,_editMerged); setEditAg(null);
+      await handleAlterarDataHoraAg(_editMerged.id,_novaDataEd,_novaHoraEd);
+      alert('⏳ As outras alterações foram salvas.\n\nA mudança de DATA/HORA foi enviada para aprovação do Admin e do Promorar. Até lá, fica a data atual.');
+      return;
+    }
     const updated=agenda.map(a=>a.id===_editMerged.id?{..._editMerged}:a);
     await saveAg(updated,_editMerged); setEditAg(null);
   }
@@ -5938,7 +5950,7 @@ setSyncStatus("✅ Status actualizado!");
             var _sol=_solPend.find(function(s){return s.id===solId;});
             var _solicitadoPor=_sol&&_sol.solicitado_por||'';
             var _precisaAdmin=true;
-            var _precisaPromorar=_solicitadoPor==='coordenador';
+            var _precisaPromorar=!!_sol&&(_sol.solicitado_por==='coordenador'||((_sol.tipo==='update_data'||_sol.tipo==='delete')&&(_sol.solicitado_por==='social'||_sol.solicitado_por==='supervisor')));
             var _jaAdm=_sol&&_sol.aprovado_admin;
             var _jaPro=_sol&&_sol.aprovado_promorar;
             var _novoAdm=_perApr==='admin'?true:_jaAdm;
@@ -6118,7 +6130,7 @@ setSyncStatus("✅ Status actualizado!");
                 // Aprovacoes ja feitas
                 var _jaAdm=s.aprovado_admin;
                 var _jaPro=s.aprovado_promorar;
-                var _precisaPro=s.solicitado_por==='coordenador';
+                var _precisaPro=(s.solicitado_por==='coordenador'||((s.tipo==='update_data'||s.tipo==='delete')&&(s.solicitado_por==='social'||s.solicitado_por==='supervisor')));
                 return(
                   <div key={s.id} style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:10,padding:'10px 12px'}}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
