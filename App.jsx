@@ -598,7 +598,25 @@ async function _criarSolicitacaoAgenda(tipo, agendaId, dados, solicitadoPor, sol
   }
 
   // ── Helper: envia WA de solicitacao pendente ──
-  async function _enviarWASolicitacao(tipo, nomeAg, dataAg, horarioAg, solicitadoPorNome, destinatarios){
+  async function _notificarAlteracaoDataHora(ag,dataAntes,horaAntes,dataNova,horaNova){
+    try{
+      if(!ag)return;
+      var _fd=function(d){return d?String(d).split('-').reverse().join('/'):'';};
+      var _msg="📅 *TELEMIM — MUDANÇA REAGENDADA*\n\n👤 Morador: "+(ag.nome||"")+"\n❌ Antes: "+_fd(dataAntes)+" às "+(horaAntes||"")+"\n✅ Nova data: "+_fd(dataNova)+" às "+(horaNova||"")+(ag.comunidade?"\n📍 Comunidade: "+ag.comunidade:"")+"\n\nQualquer dúvida, entre em contato com a equipe TELEMIM.";
+      var _n55=function(d){d=String(d||'').replace(/\D/g,'');return d.length>7?(d.indexOf('55')===0&&d.length>=12?d:'55'+d):'';};
+      var _lu=(typeof listaUsuarios!=='undefined'&&listaUsuarios)||[];
+      var _asl=(typeof assistSocialList!=='undefined'&&assistSocialList)||[];
+      var _uid=function(id){if(!id)return '';var u=_lu.find(function(x){return x&&String(x.id)===String(id);});return u?_n55(u.contato):'';};
+      var _soc='';
+      if(ag.assist_social){var _s=_asl.find(function(x){return x&&x.nome===ag.assist_social;});_soc=_s?_n55(_s.contato):'';if(!_soc){var _su=_lu.find(function(x){return x&&x.nome===ag.assist_social;});if(_su)_soc=_n55(_su.contato);}}
+      var _lista=[_n55('81992440900'),_n55('81987596340'),_soc,_n55(ag.contato),_uid(ag.motorista_van_id),_uid(ag.motorista_caminhao_id),_uid(ag.supervisor_id)];
+      var _vistos={};
+      for(var i=0;i<_lista.length;i++){var _num=_lista[i];if(!_num||_vistos[_num])continue;_vistos[_num]=1;try{await enviarWAPublico(_num,_msg);}catch(_eS){}}
+      _addNotif('reagendamento','Mudança reagendada: '+_fd(dataAntes)+' '+(horaAntes||'')+' → '+_fd(dataNova)+' '+(horaNova||''),ag.nome||'');
+    }catch(e){console.warn('[aviso reagendamento]',e);_addNotif('falha_whatsapp','Falha ao avisar reagendamento',(ag&&ag.nome)||'');}
+  }
+  
+async function _enviarWASolicitacao(tipo, nomeAg, dataAg, horarioAg, solicitadoPorNome, destinatarios){
     var _tipoLabel = tipo==='add'?'NOVO AGENDAMENTO':tipo==='delete'?'EXCLUSÃO DE AGENDAMENTO':'ALTERAÇÃO DE DATA/HORA';
     var _emoji = tipo==='add'?'🔔':tipo==='delete'?'🗑️':'✏️';
     var _df = dataAg ? dataAg.split('-').reverse().join('/') : '';
@@ -2877,6 +2895,7 @@ export default function App(){
       return;
     }
     // Admin: alterar directamente
+    if(String(_agAlt.data||'')!==String(novaData||'')||String(_agAlt.horario||'')!==String(novoHorario||'')){try{_notificarAlteracaoDataHora(_agAlt,_agAlt.data,_agAlt.horario,novaData,novoHorario);}catch(_eNt2){}}
     await saveAg(agenda.map(function(a){return a.id===agId?{...a,data:novaData,horario:novoHorario}:a;}),{...(_agAlt),data:novaData,horario:novoHorario});
   }
 
@@ -3304,6 +3323,7 @@ export default function App(){
       alert('⏳ As outras alterações foram salvas.\n\nA mudança de DATA/HORA foi enviada para aprovação do Admin e do Promorar. Até lá, fica a data atual.');
       return;
     }
+    if(_perfEd==='admin'&&_origEd&&(String(_origEd.data||'')!==String(_editMerged.data||'')||String(_origEd.horario||'')!==String(_editMerged.horario||''))){try{_notificarAlteracaoDataHora(_origEd,_origEd.data,_origEd.horario,_editMerged.data,_editMerged.horario);}catch(_eNt3){}}
     const updated=agenda.map(a=>a.id===_editMerged.id?{..._editMerged}:a);
     await saveAg(updated,_editMerged); setEditAg(null);
   }
@@ -6030,6 +6050,7 @@ setSyncStatus("✅ Status actualizado!");
                   body:JSON.stringify({data:_sol.novo_valor.data,horario:_sol.novo_valor.horario})
                 });
                 setAgenda(function(prev){return prev.map(function(a){return a.id===_sol.agenda_id?{...a,data:_sol.novo_valor.data,horario:_sol.novo_valor.horario}:a;});});
+                try{var _agNt=agenda.find(function(a){return a.id===_sol.agenda_id;});if(_agNt)_notificarAlteracaoDataHora(_agNt,_sol.novo_valor.data_anterior||_agNt.data,_sol.novo_valor.horario_anterior||_agNt.horario,_sol.novo_valor.data,_sol.novo_valor.horario);}catch(_eNt){console.warn('[aviso reagendamento]',_eNt);}
               }
               // Notificar solicitante por WA
               var _numSolic=_sol.solicitado_por==='coordenador'?null:null; // coordenador sem contato
