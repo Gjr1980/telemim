@@ -166,13 +166,17 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
     var _diasDetD=[...new Set(_msDesp.map(function(m){return m.data;}))].sort();
     var _aj1aR=parseFloat(RULES.aj1a)||80;var _ajAddR=parseFloat(RULES.ajAdd)||20;
     var _aprovR=(solicitacoesFin||[]).filter(function(s){return s.status==="aprovado"&&s.tipo==="editar_valor";});
+    // Viagens extra: mudanca acima da capacidade do caminhao (ex: 55 m3 = 2 viagens = 1 extra)
+    var _capDet=parseFloat(RULES.capacidadeCaminhaoM3)||32;var _addViagDet=parseFloat(RULES.camAddViagem)||120;
+    var _extraDiaDet=function(mudDia){return mudDia.filter(function(m){return m.caminhao||m.motorista_caminhao_id;}).reduce(function(s,m){var med=parseFloat(m.medicao)||0;var v=med>_capDet?Math.ceil(med/_capDet):1;return s+Math.max(0,v-1);},0);};
     if(p.id==="__equipa_aj__"){
       _diasDetD.forEach(function(data){
         var numMud=_msDesp.filter(function(m){return m.data===data;}).length;
         if(numMud===0) return;
         var _eqDia=(equipeDiaList||[]).find(function(e){return e.data===data&&Array.isArray(e.ajudantes)&&e.ajudantes.length>0;});
         if(_eqDia){
-          var valPorAj=_aj1aR+Math.max(0,numMud-1)*_ajAddR;
+          var _extAj=_extraDiaDet(_msDesp.filter(function(m){return m.data===data;}));
+          var valPorAj=_aj1aR+Math.max(0,numMud-1)*_ajAddR+_extAj*_ajAddR;
           var valTotal=0;
           _eqDia.ajudantes.forEach(function(aj){
             var ajVal=valPorAj;
@@ -180,7 +184,7 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
             if(aprov){var _nv=parseFloat(aprov.valor_novo);if(!isNaN(_nv))ajVal=_nv;}
             valTotal+=ajVal;
           });
-          det.push({data,numMud,numAj:_eqDia.ajudantes.length,val:valTotal});
+          det.push({data,numMud,numAj:_eqDia.ajudantes.length,val:valTotal,extraViagens:_extAj});
         }
         // Sem equipe_dia = sem custo ajudante (sem fallback inventado)
       });
@@ -190,8 +194,19 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
         var mudDia=_msDesp.filter(function(m){return m.data===data;});
         var numMudVeic=p.cargo==="caminhao"?mudDia.filter(function(m){return m.caminhao||m.motorista_caminhao_id;}).length:mudDia.filter(function(m){return m.van||m.motorista_van_id;}).length;
         if(numMudVeic===0) return;
-        var val=_calcDiario(numMudVeic,0,p.cargo,RULES);
-        det.push({data,numMud:numMudVeic,val});
+        var val=0;var _extV=0;
+        if(p.cargo==="caminhao"){
+          _extV=_extraDiaDet(mudDia);
+          val=_calcDiario(numMudVeic,0,"caminhao",RULES)+_extV*_addViagDet;
+        }else{
+          // Van por placa (igual ao Financeiro): KMA1E48 = R$100 motorista + R$100 combustivel; outras = regra geral
+          var _pmDet=(typeof window!=="undefined"&&window.__placaPorMotorista)||{};
+          var _cpDet=RULES.vanCustoPorPlaca||{"KMA1E48":{motorista:100,combustivel:100}};
+          var _grpDet={};
+          mudDia.filter(function(m){return m.van||m.motorista_van_id;}).forEach(function(m){var _pl=String(_pmDet[m.motorista_van_id]||"").toUpperCase().replace(/[^A-Z0-9]/g,"");var _g=_cpDet[_pl]?_pl:"PADRAO";_grpDet[_g]=(_grpDet[_g]||0)+1;});
+          Object.keys(_grpDet).forEach(function(_g){if(_g!=="PADRAO"){val+=(parseFloat(_cpDet[_g].motorista)||0)+(parseFloat(_cpDet[_g].combustivel)||0);}else{val+=_calcDiario(_grpDet[_g],0,"van",RULES);}});
+        }
+        det.push({data,numMud:numMudVeic,val,extraViagens:_extV});
       });
     }
     return det;
@@ -226,12 +241,12 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
       if(_isAj){
         var aj=parseInt(d.numAj)||1;
         var porAj=aj>0?(parseFloat(d.val)||0)/aj:0;
-        txtDiario+="Data *"+df+"* - "+d.numMud+" mudanças x "+aj+" "+(aj===1?"ajudante":"ajudantes")+" = R$ "+_fvs(d.val)+" (R$ "+_fvs(porAj)+"/ajudante)"+NL+NL;
+        txtDiario+="Data *"+df+"* - "+d.numMud+" mudanças"+(d.extraViagens>0?" (+"+d.extraViagens+" viagem extra)":"")+" x "+aj+" "+(aj===1?"ajudante":"ajudantes")+" = R$ "+_fvs(d.val)+" (R$ "+_fvs(porAj)+"/ajudante)"+NL+NL;
         _somaAj+=parseFloat(d.val)||0;_qtdAj+=aj;
       }else if(p.cargo==="van"){
         txtDiario+="Data *"+df+"* - Diária - R$ "+_fvs(d.val)+NL+NL;
       }else{
-        txtDiario+="Data *"+df+"* - "+d.numMud+" mudanças - R$ "+_fvs(d.val)+NL+NL;
+        txtDiario+="Data *"+df+"* - "+d.numMud+" mudanças"+(d.extraViagens>0?" (+"+d.extraViagens+" viagem extra)":"")+" - R$ "+_fvs(d.val)+NL+NL;
       }
     });
     var ico=_ico[p.cargo]||"📋";
@@ -443,7 +458,7 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
                             return(
                               <tr key={i} style={{borderBottom:"1px solid #f1f5f9"}}>
                                 <td style={{padding:"6px 8px",color:"#334155",fontWeight:500}}>{dfmt}</td>
-                                {p.cargo!=="van"&&<td style={{padding:"6px 4px",textAlign:"center",color:"#475569"}}>{d.numMud}</td>}
+                                {p.cargo!=="van"&&<td style={{padding:"6px 4px",textAlign:"center",color:"#475569"}}>{d.numMud}{d.extraViagens>0?<span style={{display:"block",fontSize:9,color:"#b45309",fontWeight:700}}>+{d.extraViagens} viagem extra</span>:null}</td>}
                                 {(p.id==="__equipa_aj__"||p.cargo==="ajudante")&&<td style={{padding:"6px 4px",textAlign:"center",color:"#475569"}}>{d.numAj||1}</td>}
                                 <td style={{padding:"6px 8px",textAlign:"right",fontWeight:600,color:_cor[p.cargo]||"#334155"}}>R$ {_fvs(d.val)}</td>
                                 <td style={{padding:"6px 4px",textAlign:"center"}}>
