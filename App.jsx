@@ -645,7 +645,14 @@ async function _enviarWASolicitacao(tipo, nomeAg, dataAg, horarioAg, solicitadoP
 async function _notificarACaminhoOrigem(ag, quemLabel, quemNome){
   try{
     var _dfNAO=ag.data?ag.data.split('-').reverse().join('/'):(ag.data||'');
-    var _msgNAO=`🚗 *TELEMIM — A CAMINHO*
+    var _iniNAO=String(quemLabel||'').indexOf('iniciou a mudança')>=0;
+    var _msgNAO=_iniNAO?`🔧 *TELEMIM — INICIOU A MUDANÇA*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Morador:* ${ag.nome||''}
+📅 *Data:* ${_dfNAO} às ${ag.horario||''}
+👷 *Supervisor:* ${quemNome||''}
+━━━━━━━━━━━━━━━━━━━━
+🔧 TELEMIM PROMORAR`:`🚗 *TELEMIM — A CAMINHO*
 ━━━━━━━━━━━━━━━━━━━━
 👤 *Morador:* ${ag.nome||''}
 📅 *Data:* ${_dfNAO} às ${ag.horario||''}
