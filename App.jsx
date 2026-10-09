@@ -4283,13 +4283,13 @@ export default function App(){
         }
       }
       // WA supervisor: notificar admin, promorar e social
-      if((novoStatus==="Realizando"||novoStatus==="Concluido"||novoStatus==="realizado")&&cfgWA.whatsapp_ativo==="true"){
+      if((novoStatus==="Concluido"||novoStatus==="realizado")&&cfgWA.whatsapp_ativo==="true"){
         try{
           var _supNomeWA=usuario&&(usuario.nome||usuario.email)||"Supervisor";
           var _dfWA2=ag.data?ag.data.split('-').reverse().join('/'):ag.data||'';
           var _isRealizando=novoStatus==="Realizando";
           var _emoji=_isRealizando?'🚛':'✅';
-          var _titulo=_isRealizando?'MUDÂNÇA INICIADA':'MUDÂNÇA CONCLUÍDA';
+          var _titulo=_isRealizando?'MUDANÇA INICIADA':'MUDANÇA CONCLUÍDA';
           var _hora=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
           var _msgSup=`${_emoji} *TELEMIM — ${_titulo}*
 ━━━━━━━━━━━━━━━━━━━━
@@ -5939,7 +5939,7 @@ setSyncStatus("✅ Status actualizado!");
                     {a.status!=="Realizando"&&a.status!=="em_andamento"&&!a.inicio_mudanca_em?(
                       <button onClick={function(e){e.stopPropagation();var agora=new Date().toISOString();var body={status:"Realizando",inicio_mudanca_em:agora};
                         setAgenda(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,body):x;});});
-                        fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok){setSyncStatus("✅ Mudança iniciada!");}else{setSyncStatus("⚠️ Erro");}setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);}).catch(function(){setSyncStatus("⚠️ Erro");});
+                        fetch(SUPA_URL+"/rest/v1/agenda?id=eq."+a.id,{method:"PATCH",headers:Object.assign({},getH(),{"Content-Type":"application/json","Prefer":"return=minimal"}),body:JSON.stringify(body)}).then(function(r){if(r.ok){setSyncStatus("✅ Mudança iniciada!");_addNotif("inicio_mudanca","Iniciou a mudança",a.nome);if(cfgWA.whatsapp_ativo==="true"){_notificarACaminhoOrigem(a,'👷 Supervisor iniciou a mudança:',(usuario&&usuario.nome)||'Supervisor');}}else{setSyncStatus("⚠️ Erro");}setTimeout(function(){setSyncStatus("✅ Sincronizado");},2500);}).catch(function(){setSyncStatus("⚠️ Erro");});
                       }} style={{flex:1,background:"#7c3aed",color:"#fff",border:"none",borderRadius:6,padding:"6px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>🔧 Iniciar Mudança</button>
                     ):(!a.termino_em&&(a.status==="Realizando"||a.status==="em_andamento"||a.inicio_mudanca_em))?(
                       <button onClick={function(e){e.stopPropagation();var agora=new Date().toISOString();var body={status:"concluida",termino_em:agora};
