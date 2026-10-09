@@ -6124,11 +6124,12 @@ setSyncStatus("✅ Status actualizado!");
             // Soft-delete na agenda se a solicitação for do tipo 'add'
             var _solRej=solicitacoesAgenda.find(function(s){return s.id===solId;});
             if(_solRej&&_solRej.agenda_id&&_solRej.tipo==='add'){
-              await fetch(SUPA_URL+'/rest/v1/agenda?id=eq.'+_solRej.agenda_id,{
+              var _rDelRej=await fetch(SUPA_URL+'/rest/v1/agenda?id=eq.'+_solRej.agenda_id,{
                 method:'PATCH',
                 headers:Object.assign({},getH(),{'Content-Type':'application/json','Prefer':'return=minimal'}),
-                body:JSON.stringify({deleted_at:new Date().toISOString()})
+                body:JSON.stringify({deleted_at:new Date().toISOString(),deleted_by:_nomRej||'Admin'})
               });
+              if(!_rDelRej.ok){console.warn('[rejeitar] agenda nao removida',_rDelRej.status);_addNotif('falha_sistema','Pedido recusado mas a mudança NÃO saiu do calendário (erro '+_rDelRej.status+')',(_solRej.novo_valor&&_solRej.novo_valor.nome)||'');}
               setAgenda(function(prev){return prev.map(function(a){return a.id===_solRej.agenda_id?{...a,deleted_at:new Date().toISOString()}:a;});});
             }
             setSolicitacoesAgenda(function(prev){return prev.filter(function(s){return s.id!==solId;});});
