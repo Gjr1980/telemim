@@ -4219,6 +4219,7 @@ export default function App(){
     var _veiTipo=_isVanMot?"van":"cam";
     // ── 4-step flow for van/caminhão ──
     // Step 1: Ajudantes a Bordo → GPS ativo rumo à ORIGEM
+    if(novoStatus==="Em Deslocamento"&&_isVanMot){var _okOdoS=await _kmaCheckAntesSair();if(!_okOdoS)return;}
     if(novoStatus==="Em Deslocamento"){
       if(_isVanMot){body.inicio_van_em=agora;body.van_saiu_em=agora;}
       else if(_isCamMot){body.inicio_caminhao_em=agora;body.caminhao_saiu_em=agora;}
@@ -4381,8 +4382,25 @@ setSyncStatus("✅ Status actualizado!");
       setSyncStatus("⚠️ Erro ao actualizar status");
     }
   }
+  async function _kmaCheckAntesSair(){
+    // Van KMA1E48: pedir o km do painel na 1a saida do dia (motorista com login no app)
+    try{
+      if(!usuario||!usuario.id)return true;
+      window.__placaTM=window.__placaTM||{};
+      var _pl=window.__placaTM[usuario.id];
+      if(_pl===undefined){
+        _pl=usuario.placa_veiculo||'';
+        if(!_pl){var _u=((typeof listaUsuarios!=='undefined'&&listaUsuarios)||[]).find(function(x){return x&&x.id===usuario.id;});if(_u)_pl=_u.placa_veiculo||'';}
+        if(!_pl){try{var _r=await fetch(SUPA_URL+'/rest/v1/usuarios?id=eq.'+usuario.id+'&select=placa_veiculo',{headers:getH()});var _j=_r.ok?await _r.json():[];_pl=(_j[0]&&_j[0].placa_veiculo)||'';}catch(_e){_pl='';}}
+        window.__placaTM[usuario.id]=_pl;
+      }
+      if(String(_pl||'').toUpperCase().replace(/[^A-Z0-9]/g,'')!=='KMA1E48')return true;
+      return await _registrarOdometroDia('KMA1E48',usuario.id);
+    }catch(e){console.warn('[odometro app]',e);return true;}
+  }
   async function handleDeslocamento(ag, tipo){
     if(!ag||!ag.id) return;
+    if(tipo==="van"){var _okOdoD=await _kmaCheckAntesSair();if(!_okOdoD)return;}
     var agora=new Date().toISOString();
     var body={};
     if(tipo==="van"){body.van_saiu_em=agora;body.inicio_van_em=agora;}
