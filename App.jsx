@@ -155,10 +155,10 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
   var _cd=(custosDiarios||[]).filter(function(x){return x.data>=_sic&&x.data<=_sfc;});
   var _fv=function(v){return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);};
   var _fvs=function(v){return new Intl.NumberFormat("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);};
-  var _ico={"caminhao":"🚚","van":"🚐","ajudante":"👷","almoco":"🍛","outro":"📋"};
-  var _lbl={"caminhao":"Caminhão","van":"Van","ajudante":"Ajudante","almoco":"Almoço","outro":"Outro"};
-  var _cor={"caminhao":"#92400e","van":"#1e40af","ajudante":"#065f46","almoco":"#7c3aed","outro":"#475569"};
-  var _bg={"caminhao":"#fff7ed","van":"#eff6ff","ajudante":"#f0fdf4","almoco":"#faf5ff","outro":"#f8fafc"};
+  var _ico={"combustivel":"⛽","caminhao":"🚚","van":"🚐","ajudante":"👷","almoco":"🍛","outro":"📋"};
+  var _lbl={"combustivel":"Combustível (custo da van)","caminhao":"Caminhão","van":"Van","ajudante":"Ajudante","almoco":"Almoço","outro":"Outro"};
+  var _cor={"combustivel":"#b45309","caminhao":"#92400e","van":"#1e40af","ajudante":"#065f46","almoco":"#7c3aed","outro":"#475569"};
+  var _bg={"combustivel":"#fffbeb","caminhao":"#fff7ed","van":"#eff6ff","ajudante":"#f0fdf4","almoco":"#faf5ff","outro":"#f8fafc"};
   // --- calcular detalhes por prestador usando regras centralizadas ---
   // Custos usam _msDesp (todas agendadas, não só concluídas)
   function _calcDetP(p){
@@ -169,7 +169,17 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
     // Viagens extra: mudanca acima da capacidade do caminhao (ex: 55 m3 = 2 viagens = 1 extra)
     var _capDet=parseFloat(RULES.capacidadeCaminhaoM3)||32;var _addViagDet=parseFloat(RULES.camAddViagem)||120;
     var _extraDiaDet=function(mudDia){return mudDia.filter(function(m){return m.caminhao||m.motorista_caminhao_id;}).reduce(function(s,m){var med=parseFloat(m.medicao)||0;var v=med>_capDet?Math.ceil(med/_capDet):1;return s+Math.max(0,v-1);},0);};
-    if(p.id==="__equipa_aj__"){
+    if(p.id==="__combustivel_van__"){
+      // Combustivel da van por placa (ex.: KMA1E48 = R$100/dia) - custo separado da diaria do motorista
+      var _pmC=(typeof window!=="undefined"&&window.__placaPorMotorista)||{};
+      var _cpC=RULES.vanCustoPorPlaca||{"KMA1E48":{motorista:100,combustivel:100}};
+      _diasDetD.forEach(function(data){
+        var _gC={};
+        _msDesp.filter(function(m){return m.data===data&&(m.van||m.motorista_van_id);}).forEach(function(m){var _pl=String(_pmC[m.motorista_van_id]||"").toUpperCase().replace(/[^A-Z0-9]/g,"");if(_cpC[_pl])_gC[_pl]=(_gC[_pl]||0)+1;});
+        var _vC=0,_nC=0;Object.keys(_gC).forEach(function(_g){_vC+=parseFloat(_cpC[_g].combustivel)||0;_nC+=_gC[_g];});
+        if(_vC>0)det.push({data,numMud:_nC,val:_vC});
+      });
+    }else if(p.id==="__equipa_aj__"){
       _diasDetD.forEach(function(data){
         var numMud=_msDesp.filter(function(m){return m.data===data;}).length;
         if(numMud===0) return;
@@ -204,7 +214,7 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
           var _cpDet=RULES.vanCustoPorPlaca||{"KMA1E48":{motorista:100,combustivel:100}};
           var _grpDet={};
           mudDia.filter(function(m){return m.van||m.motorista_van_id;}).forEach(function(m){var _pl=String(_pmDet[m.motorista_van_id]||"").toUpperCase().replace(/[^A-Z0-9]/g,"");var _g=_cpDet[_pl]?_pl:"PADRAO";_grpDet[_g]=(_grpDet[_g]||0)+1;});
-          Object.keys(_grpDet).forEach(function(_g){if(_g!=="PADRAO"){val+=(parseFloat(_cpDet[_g].motorista)||0)+(parseFloat(_cpDet[_g].combustivel)||0);}else{val+=_calcDiario(_grpDet[_g],0,"van",RULES);}});
+          Object.keys(_grpDet).forEach(function(_g){if(_g!=="PADRAO"){val+=(parseFloat(_cpDet[_g].motorista)||0);}else{val+=_calcDiario(_grpDet[_g],0,"van",RULES);}});
         }
         det.push({data,numMud:numMudVeic,val,extraViagens:_extV});
       });
@@ -220,6 +230,8 @@ function ResumoSemanal({mudancas,mudDesp,RULES,prestadores,custosDiarios,setCust
   var _vei=(prestadores||[]).filter(function(p){return p.cargo!=="ajudante";});
   var _teamAj=_aj.length>0?{id:"__equipa_aj__",nome:"Equipa de Ajudantes",cargo:"ajudante",telefone:"",_numAj:_aj.length}:null;
   var _prestRender=_teamAj?[..._vei,_teamAj]:_vei;
+  var _combVan={id:"__combustivel_van__",nome:"Combustível — Van KMA1E48",cargo:"combustivel",telefone:""};
+  try{if(_calcDetP(_combVan).length>0)_prestRender=[..._prestRender,_combVan];}catch(_eCv){}
   function _getDet(p){return detMap[p.id]||_calcDetP(p);}
   function _getTotais(det){
     return {
