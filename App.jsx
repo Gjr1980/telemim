@@ -633,13 +633,23 @@ async function _criarSolicitacaoAgenda(tipo, agendaId, dados, solicitadoPor, sol
       var _n55=function(d){d=String(d||'').replace(/\D/g,'');return d.length>7?(d.indexOf('55')===0&&d.length>=12?d:'55'+d):'';};
       var _lu=(typeof listaUsuarios!=='undefined'&&listaUsuarios)||[];
       var _asl=(typeof assistSocialList!=='undefined'&&assistSocialList)||[];
-      var _uid=function(id){if(!id)return '';var u=_lu.find(function(x){return x&&String(x.id)===String(id);});return u?_n55(u.contato):'';};
-      var _soc='';
-      if(ag.assist_social){var _s=_asl.find(function(x){return x&&x.nome===ag.assist_social;});_soc=_s?_n55(_s.contato):'';if(!_soc){var _su=_lu.find(function(x){return x&&x.nome===ag.assist_social;});if(_su)_soc=_n55(_su.contato);}}
-      var _lista=[_n55('81992440900'),_n55('81987596340'),_soc,_n55(ag.contato),_uid(ag.motorista_van_id),_uid(ag.motorista_caminhao_id),_uid(ag.supervisor_id)];
-      var _vistos={};
-      for(var i=0;i<_lista.length;i++){var _num=_lista[i];if(!_num||_vistos[_num])continue;_vistos[_num]=1;try{await enviarWAPublico(_num,_msg);}catch(_eS){}}
-      _addNotif('reagendamento','Mudança reagendada: '+_fd(dataAntes)+' '+(horaAntes||'')+' → '+_fd(dataNova)+' '+(horaNova||''),ag.nome||'');
+      var _porId=function(id){if(!id)return null;return _lu.find(function(x){return x&&String(x.id)===String(id);})||null;};
+      var _porNome=function(n){if(!n)return null;return _lu.find(function(x){return x&&x.nome===n;})||null;};
+      var _dest=[];
+      var _add=function(rotulo,num){if(num)_dest.push({r:rotulo,n:num});};
+      _add('Admin',_n55('81992440900'));
+      var _proms=_lu.filter(function(u){return u&&u.perfil==='promorar'&&u.ativo!==false&&u.contato;});
+      if(_proms.length){_proms.forEach(function(u){_add('Promorar ('+u.nome+')',_n55(u.contato));});}else{_add('Promorar',_n55('81987596340'));}
+      // Social: assistente atribuida + quem pediu/criou (se for do Social)
+      if(ag.assist_social){var _s=_asl.find(function(x){return x&&x.nome===ag.assist_social;});var _fs=_s?_n55(_s.contato):'';if(!_fs){var _su=_porNome(ag.assist_social);if(_su)_fs=_n55(_su.contato);}_add('Social ('+ag.assist_social+')',_fs);}
+      [ag.requested_by,ag.created_by].forEach(function(n){var u=_porNome(n);if(u&&u.perfil==='social')_add('Social ('+u.nome+')',_n55(u.contato));});
+      _add('Morador',_n55(ag.contato));
+      var _uv=_porId(ag.motorista_van_id);if(_uv)_add('Van ('+_uv.nome+')',_n55(_uv.contato));
+      var _uc=_porId(ag.motorista_caminhao_id);if(_uc)_add('Caminhão ('+_uc.nome+')',_n55(_uc.contato));
+      var _us=_porId(ag.supervisor_id);if(_us)_add('Supervisor ('+_us.nome+')',_n55(_us.contato));
+      var _vistos={};var _final=_dest.filter(function(d){if(_vistos[d.n])return false;_vistos[d.n]=1;return true;});
+      _addNotif('reagendamento','Mudança reagendada: '+_fd(dataAntes)+' '+(horaAntes||'')+' → '+_fd(dataNova)+' '+(horaNova||'')+' — Enviado para: '+_final.map(function(d){return d.r;}).join(', '),ag.nome||'');
+      await Promise.all(_final.map(function(d){return Promise.resolve().then(function(){return enviarWAPublico(d.n,_msg);}).catch(function(){});}));
     }catch(e){console.warn('[aviso reagendamento]',e);_addNotif('falha_whatsapp','Falha ao avisar reagendamento',(ag&&ag.nome)||'');}
   }
   
